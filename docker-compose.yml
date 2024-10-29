@@ -1,0 +1,20 @@
+services:
+  bun:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NODE_ENV: development
+    restart: always
+    env_file: .env
+    command: >
+      bash -c "if [[ '$SETUP' == 'true' ]]; then 
+        bun run migrate:latest && 
+        bun run seed && 
+        bun run swagger; 
+      fi;
+      bun dev;"
+    ports:
+      - '${PORT}:${PORT}'
+    volumes:
+      - ./src:/opt/bookshop-be/src
