@@ -3,13 +3,17 @@
   "module": "index.ts",
   "type": "module",
   "scripts": {
-    "dev": "bun run --hot src/index.ts"
+    "dev": "bun run --hot src/index.ts",
+    "migrate": "bun src/db/migrate-db.ts",
+    "seed": "bun src/db/seed-db.ts"
   },
   "dependencies": {
+    "drizzle-orm": "^0.36.0",
     "hono": "^4.6.8"
   },
   "devDependencies": {
-    "@types/bun": "latest",
+    "@types/bun": "^1.1.12",
+    "drizzle-kit": "^0.27.0",
     "prettier": "^3.3.3"
   },
   "peerDependencies": {

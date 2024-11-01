@@ -7,3 +7,4 @@ node_modules
 prettier.config.js
 README.md
 *.template
+bookshop.db
