@@ -1,3 +1,4 @@
+import ngrok from '@ngrok/ngrok'
 import { Hono } from 'hono'
 import { db } from './db/sqlite'
 import { usersTable } from './db/schema'
@@ -14,3 +15,14 @@ export default {
   port: Bun.env.PORT || 5000,
   fetch: app.fetch,
 }
+
+async function ngrokServe() {
+  const listener = await ngrok.forward({
+    addr: Bun.env.PORT || 5000,
+    authtoken: process.env.NGROK_AUTHTOKEN,
+  })
+
+  console.log(`Ingress established at: ${listener.url()}`)
+}
+
+ngrokServe()

@@ -8,6 +8,7 @@
     "seed": "bun src/db/seed-db.ts"
   },
   "dependencies": {
+    "@ngrok/ngrok": "^1.4.1",
     "drizzle-orm": "^0.36.0",
     "hono": "^4.6.8"
   },
