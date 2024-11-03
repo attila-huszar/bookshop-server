@@ -1,10 +1,10 @@
 import { defineConfig } from 'drizzle-kit'
 
 export default defineConfig({
-  dbCredentials: {
-    url: 'file:./src/db/bookshop.db',
-  },
   dialect: 'sqlite',
+  dbCredentials: {
+    url: 'file:bookshop.db',
+  },
   out: './src/db/migrations',
   schema: './src/db/schema',
 })

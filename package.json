@@ -13,8 +13,8 @@
     "hono": "^4.6.8"
   },
   "devDependencies": {
-    "@types/bun": "^1.1.12",
-    "drizzle-kit": "^0.27.0",
+    "@types/bun": "^1.1.13",
+    "drizzle-kit": "^0.27.1",
     "prettier": "^3.3.3"
   },
   "peerDependencies": {

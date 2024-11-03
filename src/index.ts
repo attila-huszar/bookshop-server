@@ -19,7 +19,8 @@ export default {
 async function ngrokServe() {
   const listener = await ngrok.forward({
     addr: Bun.env.PORT || 5000,
-    authtoken: process.env.NGROK_AUTHTOKEN,
+    authtoken: Bun.env.NGROK_AUTHTOKEN,
+    domain: Bun.env.NGROK_DOMAIN,
   })
 
   console.log(`Ingress established at: ${listener.url()}`)
