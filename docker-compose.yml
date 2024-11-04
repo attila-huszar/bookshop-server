@@ -12,7 +12,7 @@ services:
         bun migrate && 
         bun seed;
       fi;
-      bun dev;"
+      bun src/app.ts;"
     ports:
       - '${PORT}:${PORT}'
     volumes:

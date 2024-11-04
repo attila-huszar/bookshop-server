@@ -1,5 +1,5 @@
 import { getTableName } from 'drizzle-orm'
-import { db } from '../sqlite'
+import { db } from '../../db'
 import { usersTable } from '../schema'
 
 export async function seedUsers() {
