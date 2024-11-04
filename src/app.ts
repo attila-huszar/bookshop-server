@@ -1,19 +1,20 @@
 import { Hono } from 'hono'
-import { db } from './db'
-import { usersTable } from './db/schema'
+import { logger } from 'hono/logger'
+import { cors } from 'hono/cors'
 import { ngrokForward } from './ngrok'
+import * as controller from './controller'
 
 const app = new Hono()
 
-app.get('/', async (c) => {
-  const users = await db.select().from(usersTable)
+app.use(logger())
+app.use('/api/*', cors())
 
-  return c.text(`Hello ${users[0].name}!`)
+app.get('/', (c) => {
+  return c.text('Book Shop Backend')
 })
 
-export default {
-  port: Bun.env.PORT || 5000,
-  fetch: app.fetch,
-}
+Object.values(controller).forEach((ctrl) => app.route('/api', ctrl))
+
+export default app
 
 if (!!Bun.env.NGROK_AUTHTOKEN) ngrokForward()
