@@ -1,0 +1,236 @@
+[
+    {
+      "id": 1,
+      "name": "Charles Dickens",
+      "fullName": "Charles John Huffam Dickens",
+      "birthYear": "1812",
+      "deathYear": "1870",
+      "homeland": "England",
+      "biography": "Charles Dickens was an English writer and social critic. He created some of the world's best-known fictional characters and is regarded by many as the greatest novelist of the Victorian era."
+    },
+    {
+      "id": 2,
+      "name": "Harper Lee",
+      "fullName": "Nelle Harper Lee",
+      "birthYear": "1926",
+      "deathYear": "2016",
+      "homeland": "United States",
+      "biography": "Harper Lee was an American novelist widely known for her novel 'To Kill a Mockingbird,' published in 1960. It won the Pulitzer Prize and has become a classic of modern American literature."
+    },
+    {
+      "id": 3,
+      "name": "F. Scott Fitzgerald",
+      "fullName": "Francis Scott Key Fitzgerald",
+      "birthYear": "1896",
+      "deathYear": "1940",
+      "homeland": "United States",
+      "biography": "F. Scott Fitzgerald was an American novelist and short story writer, best known for his novel 'The Great Gatsby,' published in 1925. He is widely regarded as one of the greatest American writers of the 20th century."
+    },
+    {
+      "id": 4,
+      "name": "Jane Austen",
+      "fullName": "Jane Austen",
+      "birthYear": "1775",
+      "deathYear": "1817",
+      "homeland": "England",
+      "biography": "Jane Austen was an English novelist known primarily for her six major novels, which interpret, critique, and comment upon the British landed gentry at the end of the 18th century."
+    },
+    {
+      "id": 5,
+      "name": "George Orwell",
+      "fullName": "Eric Arthur Blair",
+      "birthYear": "1903",
+      "deathYear": "1950",
+      "homeland": "England",
+      "biography": "George Orwell was an English novelist, essayist, journalist, and critic. His work is characterized by keen intelligence and wit, a profound awareness of social injustice, an intense opposition to totalitarianism, and a passion for clarity in language."
+    },
+    {
+      "id": 6,
+      "name": "Herman Melville",
+      "fullName": "Herman Melville",
+      "birthYear": "1819",
+      "deathYear": "1891",
+      "homeland": "United States",
+      "biography": "Herman Melville was an American novelist, short story writer, and poet. He is best known for his novel 'Moby-Dick' and his whaling adventure stories."
+    },
+    {
+      "id": 7,
+      "name": "J.D. Salinger",
+      "fullName": "Jerome David Salinger",
+      "birthYear": "1919",
+      "deathYear": "2010",
+      "homeland": "United States",
+      "biography": "J.D. Salinger was an American writer known for his novel 'The Catcher in the Rye,' a classic of 20th-century American literature. He led a very private life after the success of his novel."
+    },
+    {
+      "id": 8,
+      "name": "Charlotte Brontë",
+      "fullName": "Charlotte Brontë",
+      "birthYear": "1816",
+      "deathYear": "1855",
+      "homeland": "England",
+      "biography": "Charlotte Brontë was an English novelist and poet, the eldest of the three Brontë sisters whose novels became classics of English literature."
+    },
+    {
+      "id": 9,
+      "name": "Fyodor Dostoevsky",
+      "fullName": "Fyodor Mikhailovich Dostoevsky",
+      "birthYear": "1821",
+      "deathYear": "1881",
+      "homeland": "Russia",
+      "biography": "Fyodor Dostoevsky was a Russian novelist, philosopher, and journalist. His novels explore human psychology in the troubled political, social, and spiritual atmosphere of 19th-century Russia."
+    },
+    {
+      "id": 10,
+      "name": "Oscar Wilde",
+      "fullName": "Oscar Fingal O'Flahertie Wills Wilde",
+      "birthYear": "1854",
+      "deathYear": "1900",
+      "homeland": "Ireland",
+      "biography": "Oscar Wilde was an Irish poet and playwright. His only novel, 'The Picture of Dorian Gray,' is considered a classic of English literature and his plays are still performed today."
+    },
+    {
+      "id": 11,
+      "name": "J.R.R. Tolkien",
+      "fullName": "John Ronald Reuel Tolkien",
+      "birthYear": "1892",
+      "deathYear": "1973",
+      "homeland": "England",
+      "biography": "J.R.R. Tolkien was an English writer, poet, philologist, and university professor. He is best known for his high fantasy works 'The Hobbit' and 'The Lord of the Rings.'"
+    },
+    {
+      "id": 12,
+      "name": "Gabriel García Márquez",
+      "fullName": "Gabriel José de la Concordia García Márquez",
+      "birthYear": "1927",
+      "deathYear": "2014",
+      "homeland": "Colombia",
+      "biography": "Gabriel García Márquez was a Colombian novelist, short-story writer, screenwriter, and journalist, known for his magical realism style. He was awarded the Nobel Prize in Literature in 1982."
+    },
+    {
+      "id": 13,
+      "name": "Miguel de Cervantes",
+      "fullName": "Miguel de Cervantes Saavedra",
+      "birthYear": "1547",
+      "deathYear": "1616",
+      "homeland": "Spain",
+      "biography": "Miguel de Cervantes was a Spanish writer who is widely regarded as one of the greatest writers in the Spanish language and one of the world's pre-eminent novelists."
+    },
+    {
+      "id": 14,
+      "name": "Leo Tolstoy",
+      "fullName": "Count Lev Nikolayevich Tolstoy",
+      "birthYear": "1828",
+      "deathYear": "1910",
+      "homeland": "Russia",
+      "biography": "Leo Tolstoy was a Russian writer who is regarded as one of the greatest authors of all time. His novels 'War and Peace' and 'Anna Karenina' are masterpieces of realist fiction."
+    },
+    {
+      "id": 17,
+      "name": "Emily Brontë",
+      "fullName": "Emily Jane Brontë",
+      "birthYear": "1818",
+      "deathYear": "1848",
+      "homeland": "England",
+      "biography": "Emily Brontë was an English novelist and poet who is best known for her only novel, 'Wuthering Heights,' now considered a classic of English literature."
+    },
+    {
+      "id": 18,
+      "name": "Mary Shelley",
+      "fullName": "Mary Wollstonecraft Shelley",
+      "birthYear": "1797",
+      "deathYear": "1851",
+      "homeland": "England",
+      "biography": "Mary Shelley was an English novelist who wrote the Gothic novel 'Frankenstein,' or 'The Modern Prometheus,' which is now considered one of the earliest examples of science fiction."
+    },
+    {
+      "id": 21,
+      "name": "Homer",
+      "fullName": "Homer",
+      "birthYear": "Unknown",
+      "deathYear": "Unknown",
+      "homeland": "Greece",
+      "biography": "Homer is the legendary author of the ancient Greek epic poems the 'Iliad' and the 'Odyssey,' which have profoundly influenced Western literature and culture."
+    },
+    {
+      "id": 22,
+      "name": "Alexandre Dumas",
+      "fullName": "Alexandre Dumas",
+      "birthYear": "1802",
+      "deathYear": "1870",
+      "homeland": "France",
+      "biography": "Alexandre Dumas was a French writer famous for his historical adventure novels, including 'The Three Musketeers' and 'The Count of Monte Cristo.'"
+    },
+    {
+      "id": 23,
+      "name": "Dante Alighieri",
+      "fullName": "Dante Alighieri",
+      "birthYear": "1265",
+      "deathYear": "1321",
+      "homeland": "Italy",
+      "biography": "Dante Alighieri was an Italian poet, writer, and philosopher. His most famous work is the epic poem 'Divine Comedy,' widely considered the greatest literary work composed in the Italian language and a masterpiece of world literature."
+    },
+    {
+      "id": 24,
+      "name": "Victor Hugo",
+      "fullName": "Victor Marie Hugo",
+      "birthYear": "1802",
+      "deathYear": "1885",
+      "homeland": "France",
+      "biography": "Victor Hugo was a French poet, novelist, and dramatist of the Romantic movement. He is considered one of the greatest and best-known French writers."
+    },
+    {
+      "id": 25,
+      "name": "Franz Kafka",
+      "fullName": "Franz Kafka",
+      "birthYear": "1883",
+      "deathYear": "1924",
+      "homeland": "Austria-Hungary",
+      "biography": "Franz Kafka was a German-speaking Bohemian writer, widely regarded as one of the major figures of 20th-century literature. His work, which fuses elements of realism and the fantastic, explores themes of alienation, existential anxiety, guilt, and absurdity."
+    },
+    {
+      "id": 26,
+      "name": "Jonathan Swift",
+      "fullName": "Jonathan Swift",
+      "birthYear": "1667",
+      "deathYear": "1745",
+      "homeland": "Ireland",
+      "biography": "Jonathan Swift was an Anglo-Irish satirist, essayist, political pamphleteer, and poet, famous for works like 'Gulliver's Travels,' 'A Modest Proposal,' and 'A Tale of a Tub.'"
+    },
+    {
+      "id": 27,
+      "name": "George Eliot",
+      "fullName": "Mary Ann Evans",
+      "birthYear": "1819",
+      "deathYear": "1880",
+      "homeland": "England",
+      "biography": "George Eliot was an English novelist, poet, journalist, and translator, one of the leading writers of the Victorian era. Her novels are known for their realism and psychological insight."
+    },
+    {
+      "id": 28,
+      "name": "Bram Stoker",
+      "fullName": "Abraham Stoker",
+      "birthYear": "1847",
+      "deathYear": "1912",
+      "homeland": "Ireland",
+      "biography": "Bram Stoker was an Irish author best known today for his 1897 Gothic horror novel 'Dracula.' During his lifetime, he was better known as the personal assistant of actor Henry Irving and business manager of the Lyceum Theatre in London."
+    },
+    {
+      "id": 29,
+      "name": "Mark Twain",
+      "fullName": "Samuel Langhorne Clemens",
+      "birthYear": "1835",
+      "deathYear": "1910",
+      "homeland": "United States",
+      "biography": "Mark Twain was an American writer, humorist, entrepreneur, publisher, and lecturer. He is best known for his novels 'The Adventures of Tom Sawyer' and 'Adventures of Huckleberry Finn,' often called the Great American Novels."
+    },
+    {
+      "id": 30,
+      "name": "H.G. Wells",
+      "fullName": "Herbert George Wells",
+      "birthYear": "1866",
+      "deathYear": "1946",
+      "homeland": "England",
+      "biography": "H.G. Wells was an English writer, now best known for his work in the science fiction genre. He was also a prolific writer in many other genres, including contemporary novels, history, politics, and social commentary."
+    }
+  ]

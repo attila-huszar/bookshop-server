@@ -4,7 +4,9 @@ import { usersTable } from '../schema'
 
 export async function seedUsers() {
   const user: typeof usersTable.$inferInsert = {
-    name: 'Admin',
+    firstName: 'Admin',
+    lastName: 'Admin',
+    password: 'admin',
     role: 'admin',
     email: 'admin@example.com',
   }

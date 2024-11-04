@@ -1,0 +1,26 @@
+[
+  {
+    "id": 0,
+    "title": "The Books You Need to Read in 2024",
+    "content": "This is the blog we know you've all been waiting for. We present the top 10 titles for 2024 in fiction, non-fiction and children's books; a glorious mix of masterful storytelling, compelling subject matter and page-turning thrills...",
+    "img": "/images/news/img1.jpg"
+  },
+  {
+    "id": 1,
+    "title": "February's Best Children's Books",
+    "content": "Some of the finest children's authors currently writing have books publishing this month, from Natasha Farrant to Elle McNicoll and from Tahereh Mafi to Harriet Muncaster. Across all areas and age ranges there are plenty of fantastic titles...",
+    "img": "/images/news/img2.jpg"
+  },
+  {
+    "id": 2,
+    "title": "What to Read Next After Damascus Station",
+    "content": "A spy thriller with real authenticity due to its author's previous career as a CIA operative, Damascus Station has proven to be a phenomenal word-of-mouth hit since its publication in January. With its riveting story of forbidden...",
+    "img": "/images/news/img3.jpg"
+  },
+  {
+    "id": 3,
+    "title": "The Best Dark Academia Books",
+    "content": "Abounding in sinister secrets - sometimes magical, sometimes not - locked in the libraries and halls of mysterious educational institutions, dark academia has become a phenomenally successful literary genre. With its...",
+    "img": "/images/news/img4.jpg"
+  }
+]

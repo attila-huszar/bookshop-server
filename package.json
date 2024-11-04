@@ -4,8 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "bun run --hot src/app.ts",
-    "migrate": "bun src/db/migrate-db.ts",
-    "seed": "bun src/db/seed-db.ts"
+    "migrate": "bun src/db/migrate.ts",
+    "seed": "bun src/db/seed.ts"
   },
   "dependencies": {
     "@ngrok/ngrok": "^1.4.1",
