@@ -23,6 +23,7 @@ export async function seedBooks() {
       discountPrice,
       topSellers: book.topSellers ?? false,
       newRelease: book.newRelease ?? false,
+      createdAt: new Date().toISOString(),
     }
   })
 

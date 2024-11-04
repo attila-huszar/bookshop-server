@@ -1,5 +1,5 @@
 import { int, sqliteTable, text } from 'drizzle-orm/sqlite-core'
-import { timestamps } from '../column.helpers'
+import { timestamps } from './column.helpers'
 
 export const usersTable = sqliteTable('users', {
   id: int().primaryKey({ autoIncrement: true }),

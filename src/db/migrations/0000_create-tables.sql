@@ -1,3 +1,15 @@
+CREATE TABLE `authors` (
+	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+	`name` text NOT NULL,
+	`full_name` text,
+	`birth_year` text,
+	`death_year` text,
+	`homeland` text,
+	`biography` text,
+	`created_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	`updated_at` text
+);
+--> statement-breakpoint
 CREATE TABLE `books` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
 	`title` text NOT NULL,
