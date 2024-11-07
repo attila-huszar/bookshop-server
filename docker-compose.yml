@@ -5,7 +5,7 @@ services:
       dockerfile: Dockerfile
       args:
         NODE_ENV: development
-    container_name: bookshop-be
+    container_name: bookshop
     restart: always
     env_file: .env
     command: >
@@ -18,3 +18,7 @@ services:
       - '${PORT}:${PORT}'
     volumes:
       - ./src:/opt/bookshop-be/src
+      - sqlite_data:/opt/bookshop-be/sqlite.db
+
+volumes:
+  sqlite_data:
