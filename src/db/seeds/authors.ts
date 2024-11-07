@@ -17,13 +17,9 @@ export async function seedAuthors() {
     }),
   )
 
-  const { changes } = (await db
-    .insert(authorsTable)
-    .values(authors)) as unknown as {
-    changes: number
-  }
+  await db.insert(authorsTable).values(authors)
 
   return {
-    [getTableName(authorsTable)]: changes,
+    [getTableName(authorsTable)]: authors.length,
   }
 }

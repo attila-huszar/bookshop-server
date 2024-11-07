@@ -2,12 +2,30 @@ import { Hono } from 'hono'
 import { eq } from 'drizzle-orm'
 import { db } from '../db'
 import { booksTable } from '../db/schema'
+import { buildBookQueryConditions } from '../utils/buildBookQueryConditions'
+import type { BookQuery } from '../types/query'
 
 export const books = new Hono().basePath('/books')
 
 books.get('/', async (c) => {
-  const books = await db.select().from(booksTable)
+  const query = c.req.query() as BookQuery
 
+  if (!query.page) {
+    query.page = '1'
+  }
+  if (!query.limit) {
+    query.limit = '8'
+  }
+  if (query.genre) {
+    const genres = c.req.queries('genre')
+    query.genre = genres
+  }
+
+  const booksCount = await db.$count(booksTable)
+  const conditions = buildBookQueryConditions(query)
+  const books = await db.select().from(booksTable).where(conditions)
+
+  c.header('x-total-count', booksCount.toString())
   return c.json(books)
 })
 

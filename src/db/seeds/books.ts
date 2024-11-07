@@ -27,13 +27,9 @@ export async function seedBooks() {
     }
   })
 
-  const { changes } = (await db
-    .insert(booksTable)
-    .values(books)) as unknown as {
-    changes: number
-  }
+  await db.insert(booksTable).values(books)
 
   return {
-    [getTableName(booksTable)]: changes,
+    [getTableName(booksTable)]: books.length,
   }
 }

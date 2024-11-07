@@ -3,22 +3,24 @@ import { db } from '../../db'
 import { usersTable } from '../schema'
 
 export async function seedUsers() {
-  const user: typeof usersTable.$inferInsert = {
+  if (!Bun.env.ADMIN_PASSWORD) {
+    return { [getTableName(usersTable)]: 'Error: No admin password set' }
+  }
+
+  const admin: typeof usersTable.$inferInsert = {
     uuid: crypto.randomUUID(),
     firstName: 'Admin',
     lastName: 'Admin',
-    password: Bun.password.hashSync('admin'),
+    password: Bun.password.hashSync(Bun.env.ADMIN_PASSWORD),
     role: 'admin',
     email: 'admin@bookshop.com',
     verified: true,
     createdAt: new Date().toISOString(),
   }
 
-  const { changes } = (await db.insert(usersTable).values(user)) as unknown as {
-    changes: number
-  }
+  await db.insert(usersTable).values(admin)
 
   return {
-    [getTableName(usersTable)]: changes,
+    [getTableName(usersTable)]: admin.email,
   }
 }
