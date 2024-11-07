@@ -8,7 +8,7 @@ import type { BookQuery } from '../types/query'
 export const books = new Hono().basePath('/books')
 
 books.get('/', async (c) => {
-  const query = c.req.query() as BookQuery
+  const query = c.req.query() as BookQuery | undefined
 
   const page = Math.min(Math.max(1, Number(query?.page) || 1), 100)
   const limit = Math.min(Math.max(1, Number(query?.limit) || 8), 32)
