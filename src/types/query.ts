@@ -12,6 +12,8 @@ type BookBaseQuery = {
 
 type RangeAllowedKeys = 'discountPrice' | 'discount' | 'publishYear' | 'rating'
 
-export type BookQuery = BookBaseQuery & {
-  [K in RangeAllowedKeys as BookRangeKeys<K>]?: string
-}
+export type BookQuery =
+  | (BookBaseQuery & {
+      [K in RangeAllowedKeys as BookRangeKeys<K>]?: string
+    })
+  | undefined

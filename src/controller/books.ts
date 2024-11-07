@@ -10,20 +10,24 @@ export const books = new Hono().basePath('/books')
 books.get('/', async (c) => {
   const query = c.req.query() as BookQuery
 
-  if (!query.page) {
-    query.page = '1'
-  }
-  if (!query.limit) {
-    query.limit = '8'
-  }
-  if (query.genre) {
+  const page = Math.min(Math.max(1, Number(query?.page) || 1), 100)
+  const limit = Math.min(Math.max(1, Number(query?.limit) || 8), 32)
+  const offset = (page - 1) * limit
+
+  if (query?.genre) {
     const genres = c.req.queries('genre')
     query.genre = genres
   }
 
   const booksCount = await db.$count(booksTable)
-  const conditions = buildBookQueryConditions(query)
-  const books = await db.select().from(booksTable).where(conditions)
+  const conditions = query ? buildBookQueryConditions(query) : undefined
+
+  const books = await db
+    .select()
+    .from(booksTable)
+    .where(conditions)
+    .limit(limit)
+    .offset(offset)
 
   c.header('x-total-count', booksCount.toString())
   return c.json(books)

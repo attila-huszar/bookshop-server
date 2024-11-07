@@ -53,5 +53,5 @@ export function buildBookQueryConditions(query: BookQuery) {
     conditions.push(gte(booksTable.rating, parseFloat(query.rating_gte)))
   }
 
-  return conditions.length ? and(...conditions) : undefined
+  return and(...conditions)
 }
