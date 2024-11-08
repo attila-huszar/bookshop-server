@@ -12,7 +12,7 @@ export async function seedBooks() {
     return {
       id: book.id,
       title: book.title,
-      author: book.author,
+      authorId: book.author,
       genre: book.genre,
       imgUrl: book.imgUrl,
       description: book.description,

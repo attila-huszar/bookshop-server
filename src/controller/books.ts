@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { eq, sql } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { db } from '../db'
 import { authorsTable, booksTable } from '../db/schema'
 import { buildBookQueryConditions } from '../utils/buildBookQueryConditions'
@@ -24,13 +24,28 @@ books.get('/', async (c) => {
 
   const books = await db
     .select({
-      authorId: sql`${booksTable.authorId}`.as("author")
+      id: booksTable.id,
+      title: booksTable.title,
+      author: authorsTable.name,
+      genre: booksTable.genre,
+      imgUrl: booksTable.imgUrl,
+      description: booksTable.description,
+      publishYear: booksTable.publishYear,
+      rating: booksTable.rating,
+      price: booksTable.price,
+      discount: booksTable.discount,
+      discountPrice: booksTable.discountPrice,
+      topSellers: booksTable.topSellers,
+      newRelease: booksTable.newRelease,
+      createdAt: booksTable.createdAt,
+      updatedAt: booksTable.updatedAt,
     })
     .from(booksTable)
     .leftJoin(authorsTable, eq(booksTable.authorId, authorsTable.id))
     .where(conditions)
     .limit(limit)
     .offset(offset)
+
 
   c.header('x-total-count', booksCount.toString())
   return c.json(books)
