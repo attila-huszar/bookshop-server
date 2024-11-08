@@ -10,15 +10,16 @@ services:
     env_file: .env
     command: >
       bash -c "if [[ '$SETUP' == 'true' ]]; then 
+        mkdir -p /opt/bookshop-be/data && 
+        touch /opt/bookshop-be/data/db.sqlite && 
         bun migrate && 
         bun seed;
-      fi;
-      bun src/app.ts;"
+      fi; bun src/app.ts;"
     ports:
       - '${PORT}:${PORT}'
     volumes:
       - ./src:/opt/bookshop-be/src
-      - sqlite_data:/opt/bookshop-be/sqlite.db
+      - sqlite_data:/opt/bookshop-be/data
 
 volumes:
   sqlite_data:
