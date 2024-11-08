@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { db } from '../db'
-import { booksTable } from '../db/schema'
+import { authorsTable, booksTable } from '../db/schema'
 import { buildBookQueryConditions } from '../utils/buildBookQueryConditions'
 import type { BookQuery } from '../types/query'
 
@@ -23,8 +23,11 @@ books.get('/', async (c) => {
   const conditions = query ? buildBookQueryConditions(query) : undefined
 
   const books = await db
-    .select()
+    .select({
+      authorId: sql`${booksTable.authorId}`.as("author")
+    })
     .from(booksTable)
+    .leftJoin(authorsTable, eq(booksTable.authorId, authorsTable.id))
     .where(conditions)
     .limit(limit)
     .offset(offset)
