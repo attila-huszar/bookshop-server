@@ -13,7 +13,7 @@ CREATE TABLE `authors` (
 CREATE TABLE `books` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
 	`title` text NOT NULL,
-	`author` integer NOT NULL,
+	`author_id` integer,
 	`genre` text,
 	`img_url` text,
 	`description` text,
@@ -25,7 +25,8 @@ CREATE TABLE `books` (
 	`top_sellers` integer DEFAULT false,
 	`new_release` integer DEFAULT false,
 	`created_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
-	`updated_at` text
+	`updated_at` text,
+	FOREIGN KEY (`author_id`) REFERENCES `authors`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
 CREATE TABLE `users` (

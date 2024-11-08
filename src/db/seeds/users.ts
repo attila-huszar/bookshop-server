@@ -4,7 +4,9 @@ import { usersTable } from '../schema'
 
 export async function seedUsers() {
   if (!Bun.env.ADMIN_PASSWORD) {
-    return { [getTableName(usersTable)]: 'Error: No admin password set' }
+    return {
+      [getTableName(usersTable)]: 'Admin not set: ADMIN_PASSWORD missing',
+    }
   }
 
   const admin: typeof usersTable.$inferInsert = {
