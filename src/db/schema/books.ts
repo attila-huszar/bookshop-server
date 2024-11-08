@@ -1,10 +1,11 @@
 import { sqliteTable, int, text, real } from 'drizzle-orm/sqlite-core'
 import { timestamps } from './column.helpers'
+import { authorsTable } from './authors'
 
 export const booksTable = sqliteTable('books', {
   id: int().primaryKey({ autoIncrement: true }),
   title: text().notNull(),
-  author: int().notNull(),
+  authorId: int('author_id').references(() => authorsTable.id),
   genre: text(),
   imgUrl: text('img_url'),
   description: text(),

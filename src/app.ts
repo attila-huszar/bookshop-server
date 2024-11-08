@@ -6,8 +6,14 @@ import * as controller from './controller'
 
 const app = new Hono()
 
+const corsOptions = {
+  origin: '*',
+  exposeHeaders: ['x-total-count'],
+  credentials: true,
+}
+
 app.use(logger())
-app.use('/api/*', cors())
+app.use('/api/*', cors(corsOptions))
 
 app.get('/', (c) => {
   return c.text('Book Shop Backend')
