@@ -55,7 +55,26 @@ books.get('/:id', async (c) => {
   const id = c.req.param('id')
 
   const bookRecord = (
-    await db.select().from(booksTable).where(eq(booksTable.id, +id))
+    await db.select({
+      id: booksTable.id,
+      title: booksTable.title,
+      author: authorsTable.name,
+      genre: booksTable.genre,
+      imgUrl: booksTable.imgUrl,
+      description: booksTable.description,
+      publishYear: booksTable.publishYear,
+      rating: booksTable.rating,
+      price: booksTable.price,
+      discount: booksTable.discount,
+      discountPrice: booksTable.discountPrice,
+      topSellers: booksTable.topSellers,
+      newRelease: booksTable.newRelease,
+      createdAt: booksTable.createdAt,
+      updatedAt: booksTable.updatedAt,
+    })
+      .from(booksTable)
+      .leftJoin(authorsTable, eq(booksTable.authorId, authorsTable.id))
+      .where(eq(booksTable.id, +id))
   )[0]
 
   if (!bookRecord) {
