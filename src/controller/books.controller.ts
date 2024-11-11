@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { getBookById, getBooks } from '../repository'
+import { getBooks, getBookById } from '../repository'
 import type { BookQuery } from '../types'
 
 export const books = new Hono().basePath('/books')
@@ -11,10 +11,10 @@ books.get('/', async (c) => {
     query.genre = c.req.queries('genre')
   }
 
-  const { books, booksCount } = await getBooks(query)
+  const { booksRecords, booksCount } = await getBooks(query)
 
   c.header('x-total-count', booksCount)
-  return c.json(books)
+  return c.json(booksRecords)
 })
 
 books.get('/:id', async (c) => {

@@ -1,56 +1,47 @@
 import { eq, gte, lte, and, inArray } from 'drizzle-orm'
-import { booksTable } from '../database/schema'
+import { books } from '../repository'
 import type { BookQuery } from '../types'
 
 export function buildBookQueryConditions(query: BookQuery) {
+  const { genre, discount, discountPrice, publishYear, rating } = books
   const conditions = []
 
   if (Array.isArray(query.genre)) {
-    conditions.push(inArray(booksTable.genre, query.genre))
+    conditions.push(inArray(genre, query.genre))
   }
   if (query.discount) {
-    conditions.push(eq(booksTable.discount, parseFloat(query.discount)))
+    conditions.push(eq(discount, parseFloat(query.discount)))
   }
   if (query.discountPrice) {
-    conditions.push(
-      eq(booksTable.discountPrice, parseFloat(query.discountPrice)),
-    )
+    conditions.push(eq(discountPrice, parseFloat(query.discountPrice)))
   }
   if (query.publishYear) {
-    conditions.push(eq(booksTable.publishYear, parseInt(query.publishYear, 10)))
+    conditions.push(eq(publishYear, parseInt(query.publishYear, 10)))
   }
   if (query.rating) {
-    conditions.push(eq(booksTable.rating, parseFloat(query.rating)))
+    conditions.push(eq(rating, parseFloat(query.rating)))
   }
 
   if (query.discount_gte) {
-    conditions.push(gte(booksTable.discount, parseFloat(query.discount_gte)))
+    conditions.push(gte(discount, parseFloat(query.discount_gte)))
   }
   if (query.discount_lte) {
-    conditions.push(lte(booksTable.discount, parseFloat(query.discount_lte)))
+    conditions.push(lte(discount, parseFloat(query.discount_lte)))
   }
   if (query.discountPrice_gte) {
-    conditions.push(
-      gte(booksTable.discountPrice, parseFloat(query.discountPrice_gte)),
-    )
+    conditions.push(gte(discountPrice, parseFloat(query.discountPrice_gte)))
   }
   if (query.discountPrice_lte) {
-    conditions.push(
-      lte(booksTable.discountPrice, parseFloat(query.discountPrice_lte)),
-    )
+    conditions.push(lte(discountPrice, parseFloat(query.discountPrice_lte)))
   }
   if (query.publishYear_gte) {
-    conditions.push(
-      gte(booksTable.publishYear, parseInt(query.publishYear_gte, 10)),
-    )
+    conditions.push(gte(publishYear, parseInt(query.publishYear_gte, 10)))
   }
   if (query.publishYear_lte) {
-    conditions.push(
-      lte(booksTable.publishYear, parseInt(query.publishYear_lte, 10)),
-    )
+    conditions.push(lte(publishYear, parseInt(query.publishYear_lte, 10)))
   }
   if (query.rating_gte) {
-    conditions.push(gte(booksTable.rating, parseFloat(query.rating_gte)))
+    conditions.push(gte(rating, parseFloat(query.rating_gte)))
   }
 
   return and(...conditions)

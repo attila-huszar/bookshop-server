@@ -1,7 +1,7 @@
-import { booksTable } from '../database/schema'
+import { books } from '../repository'
 
 export type BookResponse =
-  | (Omit<typeof booksTable.$inferSelect, 'authorId'> & {
+  | (Omit<typeof books.$inferSelect, 'authorId'> & {
       author: string | null
     })
   | undefined

@@ -1,70 +1,94 @@
-import { eq, max, min } from 'drizzle-orm'
+import { count, eq, max, min } from 'drizzle-orm'
+import { books, authors } from './repoHandler'
 import { db } from '../db'
-import { authorsTable, booksTable } from '../database/schema'
 import { buildBookQueryConditions } from '../utils'
 import type { BookQuery, BookResponse } from '../types'
 
+const {
+  id,
+  title,
+  authorId,
+  genre,
+  imgUrl,
+  description,
+  publishYear,
+  rating,
+  price,
+  discount,
+  discountPrice,
+  topSellers,
+  newRelease,
+  createdAt,
+  updatedAt,
+} = books
+
 export async function getBooks(query: BookQuery | undefined): Promise<{
-  books: BookResponse[]
+  booksRecords: BookResponse[]
   booksCount: string
 }> {
   const page = Math.min(Math.max(1, Number(query?.page) || 1), 100)
   const limit = Math.min(Math.max(1, Number(query?.limit) || 8), 32)
   const offset = (page - 1) * limit
 
-  const booksCount = String(await db.$count(booksTable))
   const conditions = query ? buildBookQueryConditions(query) : undefined
 
-  const books = await db
+  const [total] = await db
+    .select({ count: count() })
+    .from(books)
+    .where(conditions)
+
+  const booksCount = total.count.toString()
+
+  const booksRecords = await db
     .select({
-      id: booksTable.id,
-      title: booksTable.title,
-      author: authorsTable.name,
-      genre: booksTable.genre,
-      imgUrl: booksTable.imgUrl,
-      description: booksTable.description,
-      publishYear: booksTable.publishYear,
-      rating: booksTable.rating,
-      price: booksTable.price,
-      discount: booksTable.discount,
-      discountPrice: booksTable.discountPrice,
-      topSellers: booksTable.topSellers,
-      newRelease: booksTable.newRelease,
-      createdAt: booksTable.createdAt,
-      updatedAt: booksTable.updatedAt,
+      id,
+      title,
+      author: authors.name,
+      genre,
+      imgUrl,
+      description,
+      publishYear,
+      rating,
+      price,
+      discount,
+      discountPrice,
+      topSellers,
+      newRelease,
+      createdAt,
+      updatedAt,
     })
-    .from(booksTable)
-    .leftJoin(authorsTable, eq(booksTable.authorId, authorsTable.id))
+    .from(books)
+    .leftJoin(authors, eq(authorId, authors.id))
     .where(conditions)
     .limit(limit)
     .offset(offset)
 
-  return { books, booksCount }
+  return { booksRecords, booksCount }
 }
 
-export async function getBookById(id: number): Promise<BookResponse> {
+export async function getBookById(bookId: number): Promise<BookResponse> {
   const bookRecord = (
     await db
       .select({
-        id: booksTable.id,
-        title: booksTable.title,
-        author: authorsTable.name,
-        genre: booksTable.genre,
-        imgUrl: booksTable.imgUrl,
-        description: booksTable.description,
-        publishYear: booksTable.publishYear,
-        rating: booksTable.rating,
-        price: booksTable.price,
-        discount: booksTable.discount,
-        discountPrice: booksTable.discountPrice,
-        topSellers: booksTable.topSellers,
-        newRelease: booksTable.newRelease,
-        createdAt: booksTable.createdAt,
-        updatedAt: booksTable.updatedAt,
+        id,
+        title,
+        author: authors.name,
+        genre,
+        imgUrl,
+        description,
+        publishYear,
+        rating,
+        price,
+        discount,
+        discountPrice,
+        topSellers,
+        newRelease,
+        createdAt,
+        updatedAt,
       })
-      .from(booksTable)
-      .leftJoin(authorsTable, eq(booksTable.authorId, authorsTable.id))
-      .where(eq(booksTable.id, id))
+      .from(books)
+      .leftJoin(authors, eq(authorId, authors.id))
+      .where(eq(books.id, bookId))
   )[0]
 
   return bookRecord
@@ -79,16 +103,14 @@ export async function getBookSearchOptions(): Promise<{
 }> {
   const minMaxFields = await db
     .select({
-      minPrice: min(booksTable.discountPrice),
-      maxPrice: max(booksTable.discountPrice),
-      minYear: min(booksTable.publishYear),
-      maxYear: max(booksTable.publishYear),
+      minPrice: min(discountPrice),
+      maxPrice: max(discountPrice),
+      minYear: min(publishYear),
+      maxYear: max(publishYear),
     })
-    .from(booksTable)
+    .from(books)
 
-  const genresResult = await db
-    .selectDistinct({ genre: booksTable.genre })
-    .from(booksTable)
+  const genresResult = await db.selectDistinct({ genre }).from(books)
 
   const genres = genresResult.map((row) => row.genre)
 
