@@ -1,9 +1,19 @@
-import { eq, gte, lte, and, inArray } from 'drizzle-orm'
+import { eq, gte, lte, and, inArray, like } from 'drizzle-orm'
 import { books } from '../repository'
 import type { BookQuery } from '../types'
 
 export function buildBookQueryConditions(query: BookQuery) {
-  const { genre, discount, discountPrice, publishYear, rating } = books
+  const {
+    title,
+    authorId,
+    genre,
+    discount,
+    discountPrice,
+    publishYear,
+    rating,
+    newRelease,
+    topSellers,
+  } = books
   const conditions = []
 
   if (Array.isArray(query.genre)) {
@@ -42,6 +52,21 @@ export function buildBookQueryConditions(query: BookQuery) {
   }
   if (query.rating_gte) {
     conditions.push(gte(rating, parseFloat(query.rating_gte)))
+  }
+
+  if (query.newRelease) {
+    conditions.push(eq(newRelease, true))
+  }
+  if (query.topSellers) {
+    conditions.push(eq(topSellers, true))
+  }
+
+  if (query.title) {
+    conditions.push(like(title, `%${query.title}%`))
+  }
+
+  if (query.authorId) {
+    conditions.push(eq(authorId, query.authorId))
   }
 
   return and(...conditions)

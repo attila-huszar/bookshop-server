@@ -95,11 +95,9 @@ export async function getBookById(bookId: number): Promise<BookResponse> {
 }
 
 export async function getBookSearchOptions(): Promise<{
-  minPrice: number | null
-  maxPrice: number | null
-  minYear: number | null
-  maxYear: number | null
-  genres: (string | null)[]
+  genre: string[]
+  price: [number, number]
+  publishYear: [number, number]
 }> {
   const minMaxFields = await db
     .select({
@@ -112,10 +110,16 @@ export async function getBookSearchOptions(): Promise<{
 
   const genresResult = await db.selectDistinct({ genre }).from(books)
 
-  const genres = genresResult.map((row) => row.genre)
+  const genres = genresResult
+    .map((row) => row.genre)
+    .filter((genre) => genre !== null)
 
   return {
-    ...minMaxFields[0],
-    genres,
+    price: [minMaxFields[0].minPrice ?? 0, minMaxFields[0].maxPrice ?? 500],
+    publishYear: [
+      minMaxFields[0].minYear ?? 1000,
+      minMaxFields[0].maxYear ?? new Date().getFullYear(),
+    ],
+    genre: genres,
   }
 }
