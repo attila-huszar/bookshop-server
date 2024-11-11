@@ -1,15 +1,15 @@
 import { getTableName } from 'drizzle-orm'
 import { db } from '../../db'
-import { usersTable } from '../schema'
+import { users } from '../../repository'
 
 export async function seedUsers() {
   if (!Bun.env.ADMIN_PASSWORD) {
     return {
-      [getTableName(usersTable)]: 'Admin not set: ADMIN_PASSWORD missing',
+      [getTableName(users)]: 'Admin not set: ADMIN_PASSWORD missing',
     }
   }
 
-  const admin: typeof usersTable.$inferInsert = {
+  const admin: typeof users.$inferInsert = {
     uuid: crypto.randomUUID(),
     firstName: 'Admin',
     lastName: 'Admin',
@@ -20,9 +20,9 @@ export async function seedUsers() {
     createdAt: new Date().toISOString(),
   }
 
-  await db.insert(usersTable).values(admin)
+  await db.insert(users).values(admin)
 
   return {
-    [getTableName(usersTable)]: admin.email,
+    [getTableName(users)]: admin.email,
   }
 }

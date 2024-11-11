@@ -12,4 +12,8 @@ if (!selectedRepo) {
   throw new Error(`Unknown DB Repository choice: ${repo}`)
 }
 
-export const { booksTable: books, authorsTable: authors } = selectedRepo
+export const {
+  booksTable: books,
+  authorsTable: authors,
+  usersTable: users,
+} = selectedRepo
