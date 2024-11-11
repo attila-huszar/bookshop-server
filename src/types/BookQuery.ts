@@ -1,8 +1,8 @@
 type BookRangeKeys<T extends string> = `${T}_gte` | `${T}_lte`
 
 type BookBaseQuery = {
-  page: string
-  limit: string
+  page?: string
+  limit?: string
   genre?: string | string[]
   discountPrice?: string
   discount?: string
