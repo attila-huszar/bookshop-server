@@ -1,2 +1,2 @@
-export { books } from './books'
-export { searchOptions } from './search_opts'
+export { books } from './books.controller'
+export { bookSearchOptions } from './bookSearchOptions.controller'

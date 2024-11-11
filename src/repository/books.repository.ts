@@ -1,6 +1,6 @@
-import { eq } from 'drizzle-orm'
+import { eq, max, min } from 'drizzle-orm'
 import { db } from '../db'
-import { authorsTable, booksTable } from '../db/schema'
+import { authorsTable, booksTable } from '../database/schema'
 import { buildBookQueryConditions } from '../utils'
 import type { BookQuery, BookResponse } from '../types'
 
@@ -68,4 +68,32 @@ export async function getBookById(id: number): Promise<BookResponse> {
   )[0]
 
   return bookRecord
+}
+
+export async function getBookSearchOptions(): Promise<{
+  minPrice: number | null
+  maxPrice: number | null
+  minYear: number | null
+  maxYear: number | null
+  genres: (string | null)[]
+}> {
+  const minMaxFields = await db
+    .select({
+      minPrice: min(booksTable.discountPrice),
+      maxPrice: max(booksTable.discountPrice),
+      minYear: min(booksTable.publishYear),
+      maxYear: max(booksTable.publishYear),
+    })
+    .from(booksTable)
+
+  const genresResult = await db
+    .selectDistinct({ genre: booksTable.genre })
+    .from(booksTable)
+
+  const genres = genresResult.map((row) => row.genre)
+
+  return {
+    ...minMaxFields[0],
+    genres,
+  }
 }

@@ -1,6 +1,6 @@
 import { eq, gte, lte, and, inArray } from 'drizzle-orm'
-import { booksTable } from '../db/schema'
-import type { BookQuery } from '../types/BookQuery'
+import { booksTable } from '../database/schema'
+import type { BookQuery } from '../types'
 
 export function buildBookQueryConditions(query: BookQuery) {
   const conditions = []

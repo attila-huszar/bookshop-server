@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { getBookById, getBooks } from '../repository/bookRepo'
+import { getBookById, getBooks } from '../repository'
 import type { BookQuery } from '../types'
 
 export const books = new Hono().basePath('/books')
