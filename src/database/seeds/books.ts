@@ -1,10 +1,10 @@
 import { getTableName } from 'drizzle-orm'
 import { db } from '../../db'
-import { booksTable } from '../schema'
+import { books } from '../../repository'
 import booksData from './books.json'
 
 export async function seedBooks() {
-  const books: (typeof booksTable.$inferInsert)[] = booksData.map((book) => {
+  const seedValues: (typeof books.$inferInsert)[] = booksData.map((book) => {
     const discountPrice = book.discount
       ? book.price - (book.price * book.discount) / 100
       : book.price
@@ -27,9 +27,9 @@ export async function seedBooks() {
     }
   })
 
-  await db.insert(booksTable).values(books)
+  await db.insert(books).values(seedValues)
 
   return {
-    [getTableName(booksTable)]: books.length,
+    [getTableName(books)]: seedValues.length,
   }
 }
