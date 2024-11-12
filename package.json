@@ -10,7 +10,8 @@
   "dependencies": {
     "@ngrok/ngrok": "^1.4.1",
     "drizzle-orm": "^0.36.1",
-    "hono": "^4.6.9"
+    "hono": "^4.6.9",
+    "http-status": "^2.0.0"
   },
   "devDependencies": {
     "@types/bun": "^1.1.13",
