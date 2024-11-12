@@ -14,7 +14,7 @@ export const usersTable = sqliteTable('users', {
     .default('user'),
   email: text().notNull().unique(),
   password: text().notNull(),
-  address: text(),
+  address: text({ mode: 'json' }),
   phone: text(),
   avatar: text(),
   verified: int({ mode: 'boolean' }).notNull().default(false),
