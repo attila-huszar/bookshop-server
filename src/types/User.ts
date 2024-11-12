@@ -5,4 +5,11 @@ export type LoginRequest = {
   password: string
 }
 
+export type RegisterRequest = {
+  firstName: string
+  lastName: string
+  email: string
+  password: string
+}
+
 export type UserFields = typeof users.$inferSelect

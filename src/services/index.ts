@@ -1,1 +1,1 @@
-export { validateLogin } from './users.service'
+export { validateLogin, validateRegistration } from './users.service'
