@@ -1,11 +1,11 @@
 import { BaseError } from './BaseError'
 import status from 'http-status'
 
-export class NotFoundError extends BaseError {
+export class Forbidden extends BaseError {
   constructor(
-    message = 'Not found',
-    name = 'NotFoundError',
-    statusCode = status.NOT_FOUND,
+    message = 'Forbidden',
+    name = 'ForbiddenError',
+    statusCode = status.FORBIDDEN,
   ) {
     super(message, name, statusCode)
   }

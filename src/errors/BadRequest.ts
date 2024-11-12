@@ -1,7 +1,7 @@
 import { BaseError } from './BaseError'
 import status from 'http-status'
 
-export class BadRequestError extends BaseError {
+export class BadRequest extends BaseError {
   constructor(
     message = 'Bad Request',
     name = 'BadRequestError',
