@@ -3,6 +3,7 @@ import { validateLogin, validateRegistration } from '../services'
 import * as Error from '../errors'
 import type { LoginRequest, RegisterRequest } from '../types'
 import { createUser } from '../repository/users.repo'
+import { sendEmail } from '../services/email.service'
 
 export const users = new Hono().basePath('/users')
 
@@ -26,9 +27,15 @@ users.post('/register', async (c) => {
     const request = await c.req.json<RegisterRequest>()
     const user = await validateRegistration(request)
 
-    const email = await createUser(user)
+    const emailResponse = await sendEmail(user.email, 'verification')
 
-    return c.json(email)
+    if (emailResponse.accepted.includes(user.email)) {
+      const userResponse = await createUser(user)
+
+      return c.json(userResponse)
+    } else {
+      throw new Error.BadRequest('Email not sent')
+    }
   } catch (error) {
     if (error instanceof Error.BaseError) {
       return c.json({ error: error.message }, error.status)
