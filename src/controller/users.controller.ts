@@ -1,26 +1,18 @@
 import { Hono } from 'hono'
-import { getUserByUUID, getUserByEmail } from '../repository'
-import * as Errors from '../errors'
+import { validateLogin } from '../services'
+import * as Error from '../errors'
+import type { LoginRequest } from '../types'
 
 export const users = new Hono().basePath('/users')
 
-users.get('/', async (c) => {
-  const { email, uuid } = c.req.query()
-
+users.post('/login', async (c) => {
   try {
-    if (email) {
-      const user = await getUserByEmail(email)
-      return c.json(user)
-    }
+    const body = await c.req.json<LoginRequest>()
+    const uuid = await validateLogin(body)
 
-    if (uuid) {
-      const user = await getUserByUUID(uuid)
-      return c.json(user)
-    }
-
-    throw new Errors.BadRequestError('Bad Request')
+    return c.json(uuid)
   } catch (error) {
-    if (error instanceof Errors.BaseError) {
+    if (error instanceof Error.BaseError) {
       return c.json({ error: error.message }, error.status)
     }
 

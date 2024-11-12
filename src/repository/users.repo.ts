@@ -1,48 +1,28 @@
 import { eq } from 'drizzle-orm'
 import { db } from '../db'
 import { users } from './repoHandler'
-import type { UserResponse } from '../types'
-import { NotFoundError } from '../errors'
+import { NotFound } from '../errors'
+import type { UserFields } from '../types'
 
-export async function getUserByUUID(uuid: string): Promise<UserResponse> {
+export async function getUserByUUID(uuid: string): Promise<UserFields> {
   const userRecords = await db.select().from(users).where(eq(users.uuid, uuid))
 
   if (!userRecords.length) {
-    throw new NotFoundError('User not found')
+    throw new NotFound()
   }
 
-  const {
-    id,
-    password,
-    verificationCode,
-    verificationExpires,
-    passwordResetCode,
-    passwordResetExpires,
-    ...userWithoutCreds
-  } = userRecords[0]
-
-  return userWithoutCreds
+  return userRecords[0]
 }
 
-export async function getUserByEmail(email: string): Promise<UserResponse> {
+export async function getUserByEmail(email: string): Promise<UserFields> {
   const userRecords = await db
     .select()
     .from(users)
     .where(eq(users.email, email))
 
   if (!userRecords.length) {
-    throw new NotFoundError('User not found')
+    throw new NotFound()
   }
 
-  const {
-    id,
-    password,
-    verificationCode,
-    verificationExpires,
-    passwordResetCode,
-    passwordResetExpires,
-    ...userWithoutCreds
-  } = userRecords[0]
-
-  return userWithoutCreds
+  return userRecords[0]
 }
