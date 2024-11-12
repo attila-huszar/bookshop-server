@@ -1,3 +1,4 @@
-export { booksTable } from './books'
-export { authorsTable } from './authors'
-export { usersTable } from './users'
+export { booksTable } from './booksTable'
+export { authorsTable } from './authorsTable'
+export { usersTable } from './usersTable'
+export { newsTable } from './newsTable'

@@ -16,4 +16,5 @@ export const {
   booksTable: books,
   authorsTable: authors,
   usersTable: users,
+  newsTable: news,
 } = selectedRepo

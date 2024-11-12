@@ -1,6 +1,6 @@
 import { sqliteTable, int, text, real } from 'drizzle-orm/sqlite-core'
 import { timestamps } from './column.helpers'
-import { authorsTable } from './authors'
+import { authorsTable } from './authorsTable'
 
 export const booksTable = sqliteTable('books', {
   id: int().primaryKey({ autoIncrement: true }),
