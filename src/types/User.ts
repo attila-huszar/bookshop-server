@@ -12,4 +12,9 @@ export type RegisterRequest = {
   password: string
 }
 
+export type VerificationRequest = {
+  email: string
+  code: string
+}
+
 export type UserFields = typeof users.$inferSelect

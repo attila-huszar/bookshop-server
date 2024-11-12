@@ -1,8 +1,11 @@
 import { getUserByEmail } from '../repository'
 import { validateEmail, validatePassword } from '../utils'
 import * as Error from '../errors'
-import type { LoginRequest, RegisterRequest } from '../types'
-import { createUser } from '../repository/users.repo'
+import type {
+  LoginRequest,
+  RegisterRequest,
+  VerificationRequest,
+} from '../types'
 
 export const validateLogin = async (
   req: LoginRequest,
@@ -69,4 +72,36 @@ export const validateRegistration = async (
   }
 
   return req
+}
+
+export const validateVerification = async (
+  req: VerificationRequest,
+): Promise<{ email: string }> => {
+  const requiredFields = ['email', 'code']
+
+  if (!requiredFields.every((key) => req[key as keyof VerificationRequest])) {
+    throw new Error.BadRequest('Fields required')
+  }
+
+  const userResponse = await getUserByEmail(req.email)
+
+  if (
+    !userResponse ||
+    !userResponse.verificationCode ||
+    !userResponse.verificationExpires
+  ) {
+    throw new Error.BadRequest('Verification data is incomplete.')
+  }
+
+  if (userResponse.verificationCode !== req.code) {
+    throw new Error.Unauthorized('Invalid verification code.')
+  }
+
+  const expirationDate = new Date(userResponse.verificationExpires)
+
+  if (expirationDate < new Date()) {
+    throw new Error.Forbidden('Verification code has expired.')
+  }
+
+  return { email: userResponse.email }
 }

@@ -1,1 +1,6 @@
-export { validateLogin, validateRegistration } from './users.service'
+export {
+  validateLogin,
+  validateRegistration,
+  validateVerification,
+} from './users.service'
+export { sendEmail } from './email.service'

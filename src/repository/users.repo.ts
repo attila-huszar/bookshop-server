@@ -1,7 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { db } from '../db'
 import { users } from './repoHandler'
-import { NotFound } from '../errors'
 import type { RegisterRequest, UserFields } from '../types'
 
 export async function getUserByUUID(uuid: string): Promise<UserFields | null> {
