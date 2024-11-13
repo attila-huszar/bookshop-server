@@ -6,22 +6,36 @@ import {
   sendEmail,
   validateVerification,
 } from '../services'
-import { baseUrl } from '../config/constants'
+import {
+  baseUrl,
+  jwtRefreshExpiration,
+  jwtRefreshSecret,
+} from '../config/envConfig'
+import { signRefreshToken } from '../utils'
 import * as Errors from '../errors'
 import type {
   LoginRequest,
   RegisterRequest,
   VerificationRequest,
 } from '../types'
+import { signAccessToken } from '../utils/signJWT'
 
 export const users = new Hono().basePath('/users')
 
 users.post('/login', async (c) => {
-  try {
-    const body = await c.req.json<LoginRequest>()
-    const uuid = await validateLogin(body)
+  if (!jwtRefreshSecret || !jwtRefreshExpiration)
+    throw new Error('JWT refresh secret not set')
 
-    return c.json(uuid)
+  try {
+    const loginRequest = await c.req.json<LoginRequest>()
+    const { uuid } = await validateLogin(loginRequest)
+
+    const timestamp = Math.floor(Date.now() / 1000)
+
+    signRefreshToken(c, uuid, timestamp)
+    const accessToken = await signAccessToken(c, uuid, timestamp)
+
+    return c.json({ accessToken })
   } catch (error) {
     if (error instanceof Errors.BaseError) {
       return c.json({ error: error.message }, error.status)
@@ -33,9 +47,7 @@ users.post('/login', async (c) => {
 
 users.post('/register', async (c) => {
   try {
-    if (!baseUrl) {
-      throw new Error('Base URL not set')
-    }
+    if (!baseUrl) throw new Error('Base URL not set')
 
     const request = await c.req.json<RegisterRequest>()
     const user = await validateRegistration(request)

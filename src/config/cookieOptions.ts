@@ -1,7 +1,7 @@
 import { cookieMaxAge } from './envConfig'
 
 export const cookieOptions: CookieOptions = {
-  maxAge: Number(cookieMaxAge) || 1209600000,
+  maxAge: Number(cookieMaxAge) || 1209600,
   httpOnly: true,
   signed: true,
   secure: Bun.env.NODE_ENV === 'production',
