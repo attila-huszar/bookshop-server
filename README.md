@@ -9,6 +9,8 @@
 [![Amazon EC2](https://img.shields.io/badge/EC2-FF9900?logo=amazonec2&logoColor=fff)](https://aws.amazon.com/ec2/)
 [![ngrok](https://img.shields.io/badge/ngrok-1F1E37?logo=ngrok)](https://ngrok.com/)
 
+[Book Shop Backend (EC2)](https://bee-capital-highly.ngrok-free.app/)
+
 Setup database and run container:
 
 ```sh
