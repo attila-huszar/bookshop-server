@@ -1,12 +1,13 @@
 import { Hono } from 'hono'
-import { createUser } from '../repository'
+import { createUser, verifyUser } from '../repository'
 import {
   validateLogin,
   validateRegistration,
   sendEmail,
   validateVerification,
 } from '../services'
-import * as Error from '../errors'
+import { baseUrl } from '../config/constants'
+import * as Errors from '../errors'
 import type {
   LoginRequest,
   RegisterRequest,
@@ -22,7 +23,7 @@ users.post('/login', async (c) => {
 
     return c.json(uuid)
   } catch (error) {
-    if (error instanceof Error.BaseError) {
+    if (error instanceof Errors.BaseError) {
       return c.json({ error: error.message }, error.status)
     }
 
@@ -32,20 +33,32 @@ users.post('/login', async (c) => {
 
 users.post('/register', async (c) => {
   try {
+    if (!baseUrl) {
+      throw new Error('Base URL not set')
+    }
+
     const request = await c.req.json<RegisterRequest>()
     const user = await validateRegistration(request)
 
-    const emailResponse = await sendEmail(user.email, 'verification')
+    const userResponse = await createUser(user)
+
+    const codeLink = `${baseUrl}/users/verify?email=${userResponse.email}&code=${userResponse.verificationCode}`
+
+    const emailResponse = await sendEmail(
+      user.email,
+      user.firstName,
+      codeLink,
+      baseUrl,
+      'verification',
+    )
 
     if (emailResponse.accepted.includes(user.email)) {
-      const userResponse = await createUser(user)
-
-      return c.json(userResponse)
+      return c.json({ email: userResponse.email })
     } else {
-      throw new Error.BadRequest('Email not sent')
+      throw new Errors.BadRequest('Email not sent')
     }
   } catch (error) {
-    if (error instanceof Error.BaseError) {
+    if (error instanceof Errors.BaseError) {
       return c.json({ error: error.message }, error.status)
     }
 
@@ -53,14 +66,17 @@ users.post('/register', async (c) => {
   }
 })
 
-users.post('/verify', async (c) => {
+users.get('/verify', async (c) => {
   try {
-    const request = await c.req.json<VerificationRequest>()
-    const email = await validateVerification(request)
+    const request = c.req.query() as VerificationRequest
 
-    return c.json(email)
+    const user = await validateVerification(request)
+
+    const updatedUser = await verifyUser(user.email)
+
+    return c.json(updatedUser)
   } catch (error) {
-    if (error instanceof Error.BaseError) {
+    if (error instanceof Errors.BaseError) {
       return c.json({ error: error.message }, error.status)
     }
 

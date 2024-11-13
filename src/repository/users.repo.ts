@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { db } from '../db'
 import { users } from './repoHandler'
-import type { RegisterRequest, UserFields } from '../types'
+import type { RegisterRequest, RegisterResponse, UserFields } from '../types'
 
 export async function getUserByUUID(uuid: string): Promise<UserFields | null> {
   const userRecords = await db.select().from(users).where(eq(users.uuid, uuid))
@@ -30,7 +30,7 @@ export async function getUserByEmail(
 
 export async function createUser(
   values: RegisterRequest,
-): Promise<{ email: string }> {
+): Promise<RegisterResponse> {
   const user: typeof users.$inferInsert = {
     uuid: crypto.randomUUID(),
     firstName: values.firstName,
@@ -48,5 +48,14 @@ export async function createUser(
 
   await db.insert(users).values(user)
 
-  return { email: user.email }
+  return { email: user.email, verificationCode: user.verificationCode! }
+}
+
+export async function verifyUser(email: string) {
+  await db
+    .update(users)
+    .set({ verified: true, verificationCode: null, verificationExpires: null })
+    .where(eq(users.email, email))
+
+  return { email }
 }

@@ -1,6 +1,6 @@
 import { getUserByEmail } from '../repository'
 import { validateEmail, validatePassword } from '../utils'
-import * as Error from '../errors'
+import * as Errors from '../errors'
 import type {
   LoginRequest,
   RegisterRequest,
@@ -13,25 +13,25 @@ export const validateLogin = async (
   const requiredFields = ['email', 'password']
 
   if (!requiredFields.every((key) => req[key as keyof LoginRequest]?.trim())) {
-    throw new Error.BadRequest('Fields required')
+    throw new Errors.BadRequest('Fields required')
   }
 
   if (!validateEmail(req.email)) {
-    throw new Error.BadRequest('Invalid email format')
+    throw new Errors.BadRequest('Invalid email format')
   }
 
   if (!validatePassword(req.password)) {
-    throw new Error.BadRequest('Invalid password format')
+    throw new Errors.BadRequest('Invalid password format')
   }
 
   const user = await getUserByEmail(req.email)
 
   if (!user) {
-    throw new Error.NotFound()
+    throw new Errors.NotFound()
   }
 
   if (!user.verified) {
-    throw new Error.Forbidden('Email not verified')
+    throw new Errors.Forbidden('Email not verified')
   }
 
   const isPasswordCorrect = await Bun.password.verify(
@@ -43,7 +43,7 @@ export const validateLogin = async (
     return { uuid: user.uuid }
   }
 
-  throw new Error.Unauthorized()
+  throw new Errors.Unauthorized()
 }
 
 export const validateRegistration = async (
@@ -54,21 +54,21 @@ export const validateRegistration = async (
   if (
     !requiredFields.every((key) => req[key as keyof RegisterRequest]?.trim())
   ) {
-    throw new Error.BadRequest('Fields required')
+    throw new Errors.BadRequest('Fields required')
   }
 
   if (!validateEmail(req.email)) {
-    throw new Error.BadRequest('Invalid email format')
+    throw new Errors.BadRequest('Invalid email format')
   }
 
   if (!validatePassword(req.password)) {
-    throw new Error.BadRequest('Invalid password format')
+    throw new Errors.BadRequest('Invalid password format')
   }
 
   const isEmailTaken = await getUserByEmail(req.email)
 
   if (isEmailTaken) {
-    throw new Error.BadRequest('Email already taken')
+    throw new Errors.BadRequest('Email already taken')
   }
 
   return req
@@ -80,7 +80,7 @@ export const validateVerification = async (
   const requiredFields = ['email', 'code']
 
   if (!requiredFields.every((key) => req[key as keyof VerificationRequest])) {
-    throw new Error.BadRequest('Fields required')
+    throw new Errors.BadRequest('Fields required')
   }
 
   const userResponse = await getUserByEmail(req.email)
@@ -90,17 +90,17 @@ export const validateVerification = async (
     !userResponse.verificationCode ||
     !userResponse.verificationExpires
   ) {
-    throw new Error.BadRequest('Verification data is incomplete.')
+    throw new Errors.BadRequest('Verification data incomplete')
   }
 
   if (userResponse.verificationCode !== req.code) {
-    throw new Error.Unauthorized('Invalid verification code.')
+    throw new Errors.Unauthorized('Invalid verification code')
   }
 
   const expirationDate = new Date(userResponse.verificationExpires)
 
   if (expirationDate < new Date()) {
-    throw new Error.Forbidden('Verification code has expired.')
+    throw new Errors.Forbidden('Verification code expired')
   }
 
   return { email: userResponse.email }

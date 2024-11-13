@@ -12,6 +12,11 @@ export type RegisterRequest = {
   password: string
 }
 
+export type RegisterResponse = {
+  email: string
+  verificationCode: string
+}
+
 export type VerificationRequest = {
   email: string
   code: string
