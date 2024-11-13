@@ -3,6 +3,7 @@ import { logger } from 'hono/logger'
 import { cors } from 'hono/cors'
 import { timeout } from 'hono/timeout'
 import { formatUptime, ngrokForward } from './utils'
+import { ngrokAuthToken } from './config/envConfig'
 import * as controller from './controller'
 
 const app = new Hono()
@@ -25,6 +26,6 @@ app.get('/', (c) => {
 
 Object.values(controller).forEach((ctrl) => app.route('/api', ctrl))
 
-if (!!Bun.env.NGROK_AUTHTOKEN) ngrokForward()
+if (ngrokAuthToken) ngrokForward()
 
 export default app
