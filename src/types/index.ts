@@ -1,10 +1,9 @@
-export type { BookQuery } from './BookQuery'
-export type { BookResponse } from './BookResponse'
-export type { AuthorResponse } from './AuthorResponse'
-export type { NewsResponse } from './NewsResponse'
+export type { BookQuery, BookResponse } from './books.t'
+export type { AuthorResponse } from './authors.t'
+export type { NewsResponse } from './news.t'
 export type {
   LoginRequest,
   RegisterRequest,
   VerificationRequest,
   UserFields,
-} from './User'
+} from './users.t'
