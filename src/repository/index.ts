@@ -6,5 +6,5 @@ export {
   getUserByUUID,
   getUserByEmail,
   createUser,
-  verifyUser,
+  updateUserVerification,
 } from './users.repo'

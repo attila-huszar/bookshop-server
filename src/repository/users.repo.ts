@@ -67,7 +67,7 @@ export async function createUser(
   }
 }
 
-export async function verifyUser(email: string) {
+export async function updateUserVerification(email: string) {
   try {
     await db
       .update(users)
