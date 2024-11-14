@@ -4,7 +4,13 @@ import { getBookSearchOptions } from '../repository'
 export const bookSearchOptions = new Hono().basePath('/search_opts')
 
 bookSearchOptions.get('/', async (c) => {
-  const options = await getBookSearchOptions()
+  try {
+    const options = await getBookSearchOptions()
 
-  return c.json(options)
+    return c.json(options)
+  } catch (error) {
+    console.error(error)
+
+    return c.json({ error: 'Internal server error' }, 500)
+  }
 })

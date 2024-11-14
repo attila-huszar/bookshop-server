@@ -6,8 +6,6 @@ import { signAccessToken, signRefreshToken, verifyJWTRefresh } from '../utils'
 export const auth = new Hono().basePath('/auth')
 
 auth.post('/refresh', async (c) => {
-  //const jwtPayload = c.get('jwtPayload')
-
   if (!env.cookieSecret) throw new Error('Cookie secret not set')
   if (!env.jwtAccessSecret || !env.jwtAccessExpiration)
     throw new Error('JWT access secret not set')
@@ -31,7 +29,6 @@ auth.post('/refresh', async (c) => {
       iat: number
     }
 
-    console.log('payload', payload)
     const expTimestamp = payload.exp ?? 0
     const timestamp = Math.floor(Date.now() / 1000)
 
@@ -55,6 +52,8 @@ auth.post('/refresh', async (c) => {
 
     return c.json({ accessToken })
   } catch (error) {
+    console.error(error)
+
     return c.json({ error: 'Internal server error' }, 500)
   }
 })

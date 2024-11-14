@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { setSignedCookie } from 'hono/cookie'
-import { createUser, verifyUser } from '../repository'
+import { createUser, updateUserVerification } from '../repository'
 import {
   validateLogin,
   validateRegistration,
@@ -44,6 +44,7 @@ users.post('/login', async (c) => {
     if (error instanceof Errors.BaseError) {
       return c.json({ error: error.message }, error.status)
     }
+    console.error(error)
 
     return c.json({ error: 'Internal server error' }, 500)
   }
@@ -71,12 +72,16 @@ users.post('/register', async (c) => {
     if (emailResponse.accepted.includes(user.email)) {
       return c.json({ email: userResponse.email })
     } else {
-      throw new Errors.BadRequest('Email not sent')
+      throw new Error('Email not sent')
     }
   } catch (error) {
     if (error instanceof Errors.BaseError) {
       return c.json({ error: error.message }, error.status)
     }
+    if (error instanceof Error && error.message === 'Email not sent') {
+      return c.json({ error: error.message }, 500)
+    }
+    console.error(error)
 
     return c.json({ error: 'Internal server error' }, 500)
   }
@@ -87,14 +92,14 @@ users.get('/verify', async (c) => {
     const request = c.req.query() as VerificationRequest
 
     const user = await validateVerification(request)
-
-    const updatedUser = await verifyUser(user.email)
+    const updatedUser = await updateUserVerification(user.email)
 
     return c.json(updatedUser)
   } catch (error) {
     if (error instanceof Errors.BaseError) {
       return c.json({ error: error.message }, error.status)
     }
+    console.error(error)
 
     return c.json({ error: 'Internal server error' }, 500)
   }
