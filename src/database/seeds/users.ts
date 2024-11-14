@@ -18,6 +18,7 @@ export async function seedUsers() {
     email: 'admin@bookshop.com',
     verified: true,
     createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   }
 
   await db.insert(users).values(admin)

@@ -14,6 +14,7 @@ export async function seedAuthors() {
       homeland: author.homeland,
       biography: author.biography,
       createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     }),
   )
 

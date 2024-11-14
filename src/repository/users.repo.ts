@@ -44,6 +44,7 @@ export async function createUser(
       Date.now() + 24 * 60 * 60 * 1000,
     ).toISOString(),
     createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   }
 
   await db.insert(users).values(user)

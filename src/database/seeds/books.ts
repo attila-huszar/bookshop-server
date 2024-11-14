@@ -24,6 +24,7 @@ export async function seedBooks() {
       topSellers: book.topSellers ?? false,
       newRelease: book.newRelease ?? false,
       createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     }
   })
 
