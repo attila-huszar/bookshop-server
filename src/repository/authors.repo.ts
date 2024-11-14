@@ -6,27 +6,35 @@ import type { AuthorResponse } from '../types'
 const { id, name } = authors
 
 export async function getAuthorById(authorId: number): Promise<AuthorResponse> {
-  const authorRecord = await db
-    .select({
-      id,
-      name,
-    })
-    .from(authors)
-    .where(eq(authors.id, authorId))
+  try {
+    const authorRecord = await db
+      .select({
+        id,
+        name,
+      })
+      .from(authors)
+      .where(eq(authors.id, authorId))
 
-  return authorRecord[0]
+    return authorRecord[0]
+  } catch (error) {
+    throw new Error('DB Error: Author not found by id')
+  }
 }
 
 export async function getAuthorsBySearch(
   searchString: string,
 ): Promise<AuthorResponse[]> {
-  const authorRecords = await db
-    .select({
-      id,
-      name,
-    })
-    .from(authors)
-    .where(like(name, `%${searchString}%`))
+  try {
+    const authorRecords = await db
+      .select({
+        id,
+        name,
+      })
+      .from(authors)
+      .where(like(name, `%${searchString}%`))
 
-  return authorRecords
+    return authorRecords
+  } catch (error) {
+    throw new Error('DB Error: Authors not found by search')
+  }
 }

@@ -3,5 +3,9 @@ import { news } from './repoHandler'
 import type { NewsResponse } from '../types'
 
 export async function getNews(): Promise<NewsResponse[]> {
-  return db.select().from(news)
+  try {
+    return db.select().from(news)
+  } catch (error) {
+    throw new Error('DB Error: News not found')
+  }
 }

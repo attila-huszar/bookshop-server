@@ -9,7 +9,7 @@ const repo = Bun.env.DB_REPO as keyof typeof repoHandlers
 const selectedRepo = repoHandlers[repo]
 
 if (!selectedRepo) {
-  throw new Error(`Unknown DB Repository choice: ${repo}`)
+  throw new Error(`Unknown DB Repository: ${repo}`)
 }
 
 export const {
