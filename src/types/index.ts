@@ -4,7 +4,7 @@ export type { NewsResponse } from './news.t'
 export type {
   LoginRequest,
   RegisterRequest,
-  RegisterResponse,
-  VerificationRequest,
+  PasswordResetRequest,
+  TokenRequest,
   UserFields,
 } from './users.t'

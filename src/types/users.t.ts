@@ -1,5 +1,7 @@
 import { users } from '../repository'
 
+export type UserFields = typeof users.$inferSelect
+
 export type LoginRequest = {
   email: string
   password: string
@@ -10,16 +12,13 @@ export type RegisterRequest = {
   lastName: string
   email: string
   password: string
+  avatar?: string
 }
 
-export type RegisterResponse = {
+export type TokenRequest = {
+  token: string
+}
+
+export type PasswordResetRequest = {
   email: string
-  verificationCode: string
 }
-
-export type VerificationRequest = {
-  email: string
-  code: string
-}
-
-export type UserFields = typeof users.$inferSelect

@@ -1,33 +1,18 @@
 import { eq } from 'drizzle-orm'
 import { db } from '../db'
 import { users } from './repoHandler'
-import type { RegisterRequest, RegisterResponse, UserFields } from '../types'
+import type { RegisterRequest, UserFields } from '../types'
 
-export async function getUserByUUID(uuid: string): Promise<UserFields | null> {
-  try {
-    const userRecords = await db
-      .select()
-      .from(users)
-      .where(eq(users.uuid, uuid))
-
-    if (!userRecords.length) {
-      return null
-    }
-
-    return userRecords[0]
-  } catch (error) {
-    throw new Error('DB Error: User not found by uuid')
-  }
-}
-
-export async function getUserByEmail(
-  email: string,
+export async function getUserBy(
+  field: 'uuid' | 'email' | 'verificationCode' | 'passwordResetCode',
+  token: string,
 ): Promise<UserFields | null> {
   try {
     const userRecords = await db
       .select()
       .from(users)
-      .where(eq(users.email, email))
+      .where(eq(users[field], token))
+      .limit(1)
 
     if (!userRecords.length) {
       return null
@@ -35,51 +20,51 @@ export async function getUserByEmail(
 
     return userRecords[0]
   } catch (error) {
-    throw new Error('DB Error: User not found by email')
+    throw new Error(`DB Error: getUserBy ${field}`, { cause: error })
   }
 }
 
-export async function createUser(
-  values: RegisterRequest,
-): Promise<RegisterResponse> {
+export async function createUser(values: RegisterRequest) {
   try {
     const user: typeof users.$inferInsert = {
       uuid: crypto.randomUUID(),
       firstName: values.firstName,
       lastName: values.lastName,
-      password: await Bun.password.hash(values.password),
-      role: 'user',
       email: values.email,
+      password: await Bun.password.hash(values.password),
+      avatar: values.avatar || null,
+      role: 'user',
       verified: false,
       verificationCode: crypto.randomUUID(),
-      verificationExpires: new Date(
-        Date.now() + 24 * 60 * 60 * 1000,
-      ).toISOString(),
+      verificationExpires: new Date(Date.now() + 86400000).toISOString(),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }
 
     await db.insert(users).values(user)
 
-    return { email: user.email, verificationCode: user.verificationCode! }
+    return user
   } catch (error) {
-    throw new Error('DB Error: User not created')
+    throw new Error('DB Error: createUser', { cause: error })
   }
 }
 
-export async function updateUserVerification(email: string) {
+export async function updateUser(email: string, fields: Partial<UserFields>) {
   try {
-    await db
-      .update(users)
-      .set({
-        verified: true,
-        verificationCode: null,
-        verificationExpires: null,
-      })
-      .where(eq(users.email, email))
+    await db.update(users).set(fields).where(eq(users.email, email))
 
-    return { email }
+    const userRecords = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, email))
+      .limit(1)
+
+    if (!userRecords.length) {
+      return null
+    }
+
+    return userRecords[0]
   } catch (error) {
-    throw new Error('DB Error: User not verified')
+    throw new Error('DB Error: updateUser', { cause: error })
   }
 }

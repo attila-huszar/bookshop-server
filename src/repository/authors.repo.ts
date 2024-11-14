@@ -7,17 +7,18 @@ const { id, name } = authors
 
 export async function getAuthorById(authorId: number): Promise<AuthorResponse> {
   try {
-    const authorRecord = await db
+    const authorRecords = await db
       .select({
         id,
         name,
       })
       .from(authors)
       .where(eq(authors.id, authorId))
+      .limit(1)
 
-    return authorRecord[0]
+    return authorRecords[0]
   } catch (error) {
-    throw new Error('DB Error: Author not found by id')
+    throw new Error('DB Error: Author not found by id', { cause: error })
   }
 }
 
@@ -35,6 +36,6 @@ export async function getAuthorsBySearch(
 
     return authorRecords
   } catch (error) {
-    throw new Error('DB Error: Authors not found by search')
+    throw new Error('DB Error: Authors not found by search', { cause: error })
   }
 }

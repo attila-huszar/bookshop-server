@@ -66,39 +66,38 @@ export async function getBooks(query: BookQuery | undefined): Promise<{
 
     return { booksRecords, booksCount }
   } catch (error) {
-    throw new Error('DB Error: Books not found')
+    throw new Error('DB Error: Books not found', { cause: error })
   }
 }
 
 export async function getBookById(bookId: number): Promise<BookResponse> {
   try {
-    const bookRecord = (
-      await db
-        .select({
-          id,
-          title,
-          author: authors.name,
-          genre,
-          imgUrl,
-          description,
-          publishYear,
-          rating,
-          price,
-          discount,
-          discountPrice,
-          topSellers,
-          newRelease,
-          createdAt,
-          updatedAt,
-        })
-        .from(books)
-        .leftJoin(authors, eq(authorId, authors.id))
-        .where(eq(books.id, bookId))
-    )[0]
+    const bookRecords = await db
+      .select({
+        id,
+        title,
+        author: authors.name,
+        genre,
+        imgUrl,
+        description,
+        publishYear,
+        rating,
+        price,
+        discount,
+        discountPrice,
+        topSellers,
+        newRelease,
+        createdAt,
+        updatedAt,
+      })
+      .from(books)
+      .leftJoin(authors, eq(authorId, authors.id))
+      .where(eq(books.id, bookId))
+      .limit(1)
 
-    return bookRecord
+    return bookRecords[0]
   } catch (error) {
-    throw new Error('DB Error: Book not found by id')
+    throw new Error('DB Error: Book not found by id', { cause: error })
   }
 }
 
@@ -132,6 +131,6 @@ export async function getBookSearchOptions(): Promise<{
       genre: genres,
     }
   } catch (error) {
-    throw new Error('DB Error: Book search options not found')
+    throw new Error('DB Error: Book search options not found', { cause: error })
   }
 }

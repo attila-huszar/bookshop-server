@@ -1,35 +1,33 @@
 import { Hono } from 'hono'
 import { setSignedCookie } from 'hono/cookie'
-import { createUser, updateUserVerification } from '../repository'
-import {
-  validateLogin,
-  validateRegistration,
-  sendEmail,
-  validateVerification,
-} from '../services'
+import { createUser, updateUser } from '../repository'
+import { validate, sendEmail } from '../services'
 import { env, cookieOptions } from '../config'
-import { signAccessToken, signRefreshToken } from '../utils'
+import { signAccessToken, signRefreshToken, validatePassword } from '../utils'
 import * as Errors from '../errors'
 import type {
   LoginRequest,
+  PasswordResetRequest,
   RegisterRequest,
-  VerificationRequest,
+  TokenRequest,
 } from '../types'
 
 export const users = new Hono().basePath('/users')
 
 users.post('/login', async (c) => {
-  if (!env.cookieSecret) throw new Error('Cookie secret not set')
-  if (!env.jwtRefreshSecret || !env.jwtRefreshExpiration)
-    throw new Error('JWT refresh secret not set')
-
   try {
+    if (!env.cookieSecret) throw new Error('Cookie secret not set')
+    if (!env.jwtRefreshSecret || !env.jwtRefreshExpiration)
+      throw new Error('JWT refresh secret not set')
+
     const loginRequest = await c.req.json<LoginRequest>()
-    const { uuid } = await validateLogin(loginRequest)
+
+    const userValidated = await validate('login', loginRequest)
+
     const timestamp = Math.floor(Date.now() / 1000)
 
-    const accessToken = await signAccessToken(uuid, timestamp)
-    const refreshToken = await signRefreshToken(uuid, timestamp)
+    const accessToken = await signAccessToken(userValidated.uuid, timestamp)
+    const refreshToken = await signRefreshToken(userValidated.uuid, timestamp)
 
     setSignedCookie(
       c,
@@ -39,7 +37,7 @@ users.post('/login', async (c) => {
       cookieOptions,
     )
 
-    return c.json({ accessToken })
+    return c.json({ accessToken, firstName: userValidated.firstName })
   } catch (error) {
     if (error instanceof Errors.BaseError) {
       return c.json({ error: error.message }, error.status)
@@ -54,23 +52,24 @@ users.post('/register', async (c) => {
   try {
     if (!env.baseUrl) throw new Error('Base URL not set')
 
-    const request = await c.req.json<RegisterRequest>()
-    const user = await validateRegistration(request)
+    const registerRequest = await c.req.json<RegisterRequest>()
 
-    const userResponse = await createUser(user)
+    const userValidated = await validate('registration', registerRequest)
 
-    const codeLink = `${env.baseUrl}/users/verify?email=${userResponse.email}&code=${userResponse.verificationCode}`
+    const userCreated = await createUser(userValidated)
+
+    const codeLink = `${env.baseUrl}/users/verify?token=${userCreated.verificationCode}`
 
     const emailResponse = await sendEmail(
-      user.email,
-      user.firstName,
+      userValidated.email,
+      userValidated.firstName,
       codeLink,
       env.baseUrl,
       'verification',
     )
 
-    if (emailResponse.accepted.includes(user.email)) {
-      return c.json({ email: userResponse.email })
+    if (emailResponse.accepted.includes(userValidated.email)) {
+      return c.json({ email: userValidated.email })
     } else {
       throw new Error('Email not sent')
     }
@@ -87,14 +86,22 @@ users.post('/register', async (c) => {
   }
 })
 
-users.get('/verify', async (c) => {
+users.post('/verify', async (c) => {
   try {
-    const request = c.req.query() as VerificationRequest
+    const verifyRequest = await c.req.json<TokenRequest>()
 
-    const user = await validateVerification(request)
-    const updatedUser = await updateUserVerification(user.email)
+    const userValidated = await validate('verification', verifyRequest)
 
-    return c.json(updatedUser)
+    const userUpdated = await updateUser(userValidated.email, {
+      verified: true,
+      verificationCode: null,
+      verificationExpires: null,
+      updatedAt: new Date().toISOString(),
+    })
+
+    if (!userUpdated) throw new Error('User not found')
+
+    return c.json({ email: userUpdated.email })
   } catch (error) {
     if (error instanceof Errors.BaseError) {
       return c.json({ error: error.message }, error.status)
@@ -102,5 +109,45 @@ users.get('/verify', async (c) => {
     console.error(error)
 
     return c.json({ error: 'Internal server error' }, 500)
+  }
+})
+
+users.post('/password-reset', async (c) => {
+  try {
+    if (!env.baseUrl) throw new Error('Base URL not set')
+
+    const passwordResetRequest = await c.req.json<PasswordResetRequest>()
+
+    const userValidated = await validate(
+      'passwordResetRequest',
+      passwordResetRequest,
+    )
+
+    const userUpdated = await updateUser(userValidated.email, {
+      passwordResetCode: crypto.randomUUID(),
+      passwordResetExpires: new Date(Date.now() + 86400000).toISOString(),
+      updatedAt: new Date().toISOString(),
+    })
+
+    if (!userUpdated)
+      throw new Error('Could not update user with password reset data')
+
+    const codeLink = `${env.baseUrl}/users/password-reset?token=${userUpdated.passwordResetCode}`
+
+    const emailResponse = await sendEmail(
+      userUpdated.email,
+      userUpdated.firstName,
+      codeLink,
+      env.baseUrl,
+      'passwordReset',
+    )
+
+    if (emailResponse.accepted.includes(userUpdated.email)) {
+      return c.json({ email: userUpdated.email })
+    } else {
+      throw new Error('Could not send email')
+    }
+  } catch (error) {
+    console.error(error)
   }
 })
