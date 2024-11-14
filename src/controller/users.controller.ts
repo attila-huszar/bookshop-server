@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { setSignedCookie } from 'hono/cookie'
 import { createUser, verifyUser } from '../repository'
 import {
   validateLogin,
@@ -6,34 +7,37 @@ import {
   sendEmail,
   validateVerification,
 } from '../services'
-import {
-  baseUrl,
-  jwtRefreshExpiration,
-  jwtRefreshSecret,
-} from '../config/envConfig'
-import { signRefreshToken } from '../utils'
+import { env, cookieOptions } from '../config'
+import { signAccessToken, signRefreshToken } from '../utils'
 import * as Errors from '../errors'
 import type {
   LoginRequest,
   RegisterRequest,
   VerificationRequest,
 } from '../types'
-import { signAccessToken } from '../utils/signJWT'
 
 export const users = new Hono().basePath('/users')
 
 users.post('/login', async (c) => {
-  if (!jwtRefreshSecret || !jwtRefreshExpiration)
+  if (!env.cookieSecret) throw new Error('Cookie secret not set')
+  if (!env.jwtRefreshSecret || !env.jwtRefreshExpiration)
     throw new Error('JWT refresh secret not set')
 
   try {
     const loginRequest = await c.req.json<LoginRequest>()
     const { uuid } = await validateLogin(loginRequest)
-
     const timestamp = Math.floor(Date.now() / 1000)
 
-    signRefreshToken(c, uuid, timestamp)
-    const accessToken = await signAccessToken(c, uuid, timestamp)
+    const accessToken = await signAccessToken(uuid, timestamp)
+    const refreshToken = await signRefreshToken(uuid, timestamp)
+
+    setSignedCookie(
+      c,
+      'refresh-token',
+      refreshToken,
+      env.cookieSecret,
+      cookieOptions,
+    )
 
     return c.json({ accessToken })
   } catch (error) {
@@ -47,20 +51,20 @@ users.post('/login', async (c) => {
 
 users.post('/register', async (c) => {
   try {
-    if (!baseUrl) throw new Error('Base URL not set')
+    if (!env.baseUrl) throw new Error('Base URL not set')
 
     const request = await c.req.json<RegisterRequest>()
     const user = await validateRegistration(request)
 
     const userResponse = await createUser(user)
 
-    const codeLink = `${baseUrl}/users/verify?email=${userResponse.email}&code=${userResponse.verificationCode}`
+    const codeLink = `${env.baseUrl}/users/verify?email=${userResponse.email}&code=${userResponse.verificationCode}`
 
     const emailResponse = await sendEmail(
       user.email,
       user.firstName,
       codeLink,
-      baseUrl,
+      env.baseUrl,
       'verification',
     )
 
