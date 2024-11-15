@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "72ad9015-99ec-4821-9ff3-1f7971249df4",
+  "id": "7d83754c-37a5-458d-b78f-ec5a30952704",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "authors": {
@@ -68,8 +68,9 @@
           "name": "updated_at",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "CURRENT_TIMESTAMP"
         }
       },
       "indexes": {},
@@ -187,8 +188,9 @@
           "name": "updated_at",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "CURRENT_TIMESTAMP"
         }
       },
       "indexes": {},
@@ -254,8 +256,9 @@
           "name": "updated_at",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "CURRENT_TIMESTAMP"
         }
       },
       "indexes": {},
@@ -346,8 +349,8 @@
           "autoincrement": false,
           "default": false
         },
-        "verification_code": {
-          "name": "verification_code",
+        "verification_token": {
+          "name": "verification_token",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -360,8 +363,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "password_reset_code": {
-          "name": "password_reset_code",
+        "password_reset_token": {
+          "name": "password_reset_token",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -386,8 +389,9 @@
           "name": "updated_at",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "CURRENT_TIMESTAMP"
         }
       },
       "indexes": {

@@ -7,7 +7,7 @@ CREATE TABLE `authors` (
 	`homeland` text,
 	`biography` text,
 	`created_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
-	`updated_at` text
+	`updated_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE `books` (
@@ -25,7 +25,7 @@ CREATE TABLE `books` (
 	`top_sellers` integer DEFAULT false,
 	`new_release` integer DEFAULT false,
 	`created_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
-	`updated_at` text,
+	`updated_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
 	FOREIGN KEY (`author_id`) REFERENCES `authors`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
@@ -35,7 +35,7 @@ CREATE TABLE `news` (
 	`content` text NOT NULL,
 	`img` text,
 	`created_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
-	`updated_at` text
+	`updated_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE `users` (
@@ -50,12 +50,12 @@ CREATE TABLE `users` (
 	`phone` text,
 	`avatar` text,
 	`verified` integer DEFAULT false NOT NULL,
-	`verification_code` text,
+	`verification_token` text,
 	`verification_expires` text,
-	`password_reset_code` text,
+	`password_reset_token` text,
 	`password_reset_expires` text,
 	`created_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
-	`updated_at` text
+	`updated_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `users_uuid_unique` ON `users` (`uuid`);--> statement-breakpoint
