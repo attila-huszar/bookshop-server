@@ -15,9 +15,9 @@ export const usersTable = sqliteTable('users', {
   phone: text(),
   avatar: text(),
   verified: int({ mode: 'boolean' }).default(false).notNull(),
-  verificationCode: text('verification_code'),
+  verificationToken: text('verification_token'),
   verificationExpires: text('verification_expires'),
-  passwordResetCode: text('password_reset_code'),
+  passwordResetToken: text('password_reset_token'),
   passwordResetExpires: text('password_reset_expires'),
   ...timestamps,
 })

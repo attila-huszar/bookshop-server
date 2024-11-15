@@ -84,25 +84,25 @@ export async function validate<T extends keyof ValidateReturnType>(
 
     case 'verification': {
       const user = await getUserBy(
-        'verificationCode',
+        'verificationToken',
         (req as TokenRequest).token,
       )
 
-      if (!user.verificationCode || !user.verificationExpires) {
+      if (!user.verificationToken || !user.verificationExpires) {
         throw new Errors.BadRequest('Verification data incomplete')
       }
 
       const expirationDate = new Date(user.verificationExpires)
 
       if (expirationDate < new Date()) {
-        throw new Errors.Forbidden('Verification code expired')
+        throw new Errors.Forbidden('Verification token expired')
       }
 
-      if (user.verificationCode === (req as TokenRequest).token) {
+      if (user.verificationToken === (req as TokenRequest).token) {
         return { email: user.email } as ValidateReturnType[T]
       }
 
-      throw new Errors.Forbidden('Invalid verification code')
+      throw new Errors.Forbidden('Invalid verification token')
     }
 
     case 'passwordResetRequest': {
@@ -113,25 +113,25 @@ export async function validate<T extends keyof ValidateReturnType>(
 
     case 'passwordResetToken': {
       const user = await getUserBy(
-        'passwordResetCode',
+        'passwordResetToken',
         (req as TokenRequest).token,
       )
 
-      if (!user.passwordResetCode || !user.passwordResetExpires) {
+      if (!user.passwordResetToken || !user.passwordResetExpires) {
         throw new Errors.BadRequest('Password reset data incomplete')
       }
 
       const expirationDate = new Date(user.passwordResetExpires)
 
       if (expirationDate < new Date()) {
-        throw new Errors.Forbidden('Password reset code expired')
+        throw new Errors.Forbidden('Password reset token expired')
       }
 
-      if (user.passwordResetCode === (req as TokenRequest).token) {
+      if (user.passwordResetToken === (req as TokenRequest).token) {
         return { email: user.email } as ValidateReturnType[T]
       }
 
-      throw new Errors.Forbidden('Invalid password reset code')
+      throw new Errors.Forbidden('Invalid password reset token')
     }
 
     default: {

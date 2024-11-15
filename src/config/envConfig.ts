@@ -1,7 +1,9 @@
-export const baseUrl = Bun.env.BASE_URL
+export const serverBaseUrl = Bun.env.SERVER_BASE_URL
 export const port = Bun.env.PORT
 export const cookieSecret = Bun.env.COOKIE_SECRET
 export const cookieMaxAge = Bun.env.COOKIE_MAX_AGE
+
+export const clientBaseUrl = Bun.env.CLIENT_BASE_URL
 
 export const dbRepo = Bun.env.DB_REPO
 export const adminPassword = Bun.env.ADMIN_PASSWORD

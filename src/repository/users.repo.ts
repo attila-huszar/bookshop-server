@@ -5,7 +5,7 @@ import { DBError } from '../errors'
 import type { RegisterRequest, User } from '../types'
 
 export async function getUserBy(
-  field: 'uuid' | 'email' | 'verificationCode' | 'passwordResetCode',
+  field: 'uuid' | 'email' | 'verificationToken' | 'passwordResetToken',
   token: string,
 ): Promise<User> {
   try {
@@ -38,7 +38,7 @@ export async function createUser(values: RegisterRequest): Promise<User> {
       avatar: values.avatar ?? null,
       role: 'user',
       verified: false,
-      verificationCode: crypto.randomUUID(),
+      verificationToken: crypto.randomUUID(),
       verificationExpires: new Date(Date.now() + 86400000).toISOString(),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
