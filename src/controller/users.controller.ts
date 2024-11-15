@@ -1,9 +1,9 @@
 import { Hono } from 'hono'
-import { setSignedCookie } from 'hono/cookie'
+import { getSignedCookie, setCookie, setSignedCookie } from 'hono/cookie'
 import { createUser, updateUser } from '../repository'
 import { validate, sendEmail } from '../services'
 import { env, cookieOptions } from '../config'
-import { signAccessToken, signRefreshToken } from '../utils'
+import { signAccessToken, signRefreshToken, verifyJWTRefresh } from '../utils'
 import * as Errors from '../errors'
 import type {
   LoginRequest,
@@ -42,7 +42,6 @@ users.post('/login', async (c) => {
     if (error instanceof Errors.BaseError) {
       return c.json({ error: error.message }, error.status)
     }
-    console.error(error)
 
     return c.json({ error: 'Internal server error' }, 500)
   }
@@ -80,7 +79,6 @@ users.post('/register', async (c) => {
     if (error instanceof Error && error.message === 'Email not sent') {
       return c.json({ error: error.message }, 500)
     }
-    console.error(error)
 
     return c.json({ error: 'Internal server error' }, 500)
   }
@@ -104,7 +102,6 @@ users.post('/verification', async (c) => {
     if (error instanceof Errors.BaseError) {
       return c.json({ error: error.message }, error.status)
     }
-    console.error(error)
 
     return c.json({ error: 'Internal server error' }, 500)
   }
@@ -146,10 +143,10 @@ users.post('/password-reset-request', async (c) => {
     if (error instanceof Errors.BaseError) {
       return c.json({ error: error.message }, error.status)
     }
+
     if (error instanceof Error && error.message === 'Email not sent') {
       return c.json({ error: error.message }, 500)
     }
-    console.error(error)
 
     return c.json({ error: 'Internal server error' }, 500)
   }
@@ -175,6 +172,58 @@ users.post('/password-reset-token', async (c) => {
     if (error instanceof Errors.BaseError) {
       return c.json({ error: error.message }, error.status)
     }
+
+    return c.json({ error: 'Internal server error' }, 500)
+  }
+})
+
+users.post('/refresh', async (c) => {
+  if (!env.cookieSecret) throw new Error('Cookie secret not set')
+  if (!env.jwtAccessSecret || !env.jwtAccessExpiration)
+    throw new Error('JWT access secret not set')
+  if (!env.jwtRefreshSecret || !env.jwtRefreshExpiration)
+    throw new Error('JWT refresh secret not set')
+
+  try {
+    const refreshTokenCookie = await getSignedCookie(
+      c,
+      env.cookieSecret,
+      'refresh-token',
+    )
+
+    if (!refreshTokenCookie) {
+      return c.json({ error: 'No refresh token provided' }, 401)
+    }
+
+    const payload = (await verifyJWTRefresh(refreshTokenCookie)) as {
+      uuid: string
+      exp: number
+      iat: number
+    }
+
+    const expTimestamp = payload.exp ?? 0
+    const timestamp = Math.floor(Date.now() / 1000)
+
+    if (expTimestamp - 259200 < timestamp) {
+      if (!env.cookieSecret) throw new Error('Cookie secret not set')
+
+      const refreshToken = await signRefreshToken(payload.uuid, timestamp)
+      await setSignedCookie(
+        c,
+        'refresh-token',
+        refreshToken,
+        env.cookieSecret,
+        cookieOptions,
+      )
+
+      const { httpOnly, signed, path, ...loginCookieOptions } = cookieOptions
+      setCookie(c, 'uuid', payload.uuid, loginCookieOptions)
+    }
+
+    const accessToken = await signAccessToken(payload.uuid, timestamp)
+
+    return c.json({ accessToken })
+  } catch (error) {
     console.error(error)
 
     return c.json({ error: 'Internal server error' }, 500)

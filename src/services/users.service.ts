@@ -42,25 +42,39 @@ export async function validate<T extends keyof ValidateReturnType>(
 
   switch (type) {
     case 'login': {
-      const user = await getUserBy('email', (req as LoginRequest).email)
+      try {
+        const user = await getUserBy('email', (req as LoginRequest).email)
 
-      if (!user.verified) {
-        throw new Errors.Forbidden('Email not verified')
+        if (!user.verified) {
+          throw new Errors.Forbidden('Email not verified')
+        }
+
+        const isPasswordCorrect = await Bun.password.verify(
+          (req as LoginRequest).password,
+          user.password,
+        )
+
+        if (isPasswordCorrect) {
+          return {
+            uuid: user.uuid,
+            firstName: user.firstName,
+          } as ValidateReturnType[T]
+        }
+
+        throw new Errors.Unauthorized('Incorrect password')
+      } catch (error) {
+        console.error(error)
+
+        if (
+          error instanceof Error &&
+          (error.message.includes('User does not exist') ||
+            error.message.includes('Incorrect password'))
+        ) {
+          throw new Errors.Unauthorized()
+        }
+
+        throw error
       }
-
-      const isPasswordCorrect = await Bun.password.verify(
-        (req as LoginRequest).password,
-        user.password,
-      )
-
-      if (isPasswordCorrect) {
-        return {
-          uuid: user.uuid,
-          firstName: user.firstName,
-        } as ValidateReturnType[T]
-      }
-
-      throw new Errors.Forbidden()
     }
 
     case 'registration': {

@@ -6,7 +6,7 @@ export const cookieOptions: CookieOptions = {
   signed: true,
   secure: Bun.env.NODE_ENV === 'production',
   sameSite: 'lax',
-  path: '/api/auth',
+  path: '/api/users/refresh',
 }
 
 type CookieOptions = {
