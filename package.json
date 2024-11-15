@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "bun run --hot src/app.ts",
+    "lint": "eslint .",
     "migrate": "bun src/database/migrate.ts",
     "seed": "bun src/database/seed.ts"
   },
@@ -15,10 +16,14 @@
     "nodemailer": "^6.9.16"
   },
   "devDependencies": {
+    "@eslint/js": "^9.14.0",
     "@types/bun": "^1.1.13",
     "@types/nodemailer": "^6.4.16",
     "drizzle-kit": "^0.28.0",
-    "prettier": "^3.3.3"
+    "eslint-plugin-prettier": "^5.2.1",
+    "globals": "^15.12.0",
+    "prettier": "^3.3.3",
+    "typescript-eslint": "^8.14.0"
   },
   "peerDependencies": {
     "typescript": "^5.0.0"
