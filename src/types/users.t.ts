@@ -1,6 +1,6 @@
 import { users } from '../repository'
 
-export type UserFields = typeof users.$inferSelect
+export type User = typeof users.$inferSelect
 
 export type LoginRequest = {
   email: string

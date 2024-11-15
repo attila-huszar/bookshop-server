@@ -1,7 +1,8 @@
 import { count, eq, max, min } from 'drizzle-orm'
 import { books, authors } from './repoHandler'
-import { db } from '../db'
 import { buildBookQueryConditions } from '../utils'
+import { db } from '../db'
+import { DBError } from '../errors'
 import type { BookQuery, BookResponse } from '../types'
 
 const {
@@ -66,7 +67,7 @@ export async function getBooks(query: BookQuery | undefined): Promise<{
 
     return { booksRecords, booksCount }
   } catch (error) {
-    throw new Error('DB Error: Books not found', { cause: error })
+    throw new DBError(`getBooks: ${error instanceof Error && error.message}`)
   }
 }
 
@@ -97,7 +98,7 @@ export async function getBookById(bookId: number): Promise<BookResponse> {
 
     return bookRecords[0]
   } catch (error) {
-    throw new Error('DB Error: Book not found by id', { cause: error })
+    throw new DBError(`getBookById: ${error instanceof Error && error.message}`)
   }
 }
 
@@ -131,6 +132,8 @@ export async function getBookSearchOptions(): Promise<{
       genre: genres,
     }
   } catch (error) {
-    throw new Error('DB Error: Book search options not found', { cause: error })
+    throw new DBError(
+      `getBookSearchOptions: ${error instanceof Error && error.message}`,
+    )
   }
 }

@@ -1,12 +1,13 @@
 import { eq } from 'drizzle-orm'
 import { db } from '../db'
 import { users } from './repoHandler'
-import type { RegisterRequest, UserFields } from '../types'
+import { DBError } from '../errors'
+import type { RegisterRequest, User } from '../types'
 
 export async function getUserBy(
   field: 'uuid' | 'email' | 'verificationCode' | 'passwordResetCode',
   token: string,
-): Promise<UserFields | null> {
+): Promise<User> {
   try {
     const userRecords = await db
       .select()
@@ -15,18 +16,20 @@ export async function getUserBy(
       .limit(1)
 
     if (!userRecords.length) {
-      return null
+      throw new Error('User does not exist')
     }
 
     return userRecords[0]
   } catch (error) {
-    throw new Error(`DB Error: getUserBy ${field}`, { cause: error })
+    throw new DBError(
+      `getUserBy ${field}: ${error instanceof Error && error.message}`,
+    )
   }
 }
 
-export async function createUser(values: RegisterRequest) {
+export async function createUser(values: RegisterRequest): Promise<User> {
   try {
-    const user: typeof users.$inferInsert = {
+    const userInsert: typeof users.$inferInsert = {
       uuid: crypto.randomUUID(),
       firstName: values.firstName,
       lastName: values.lastName,
@@ -41,15 +44,28 @@ export async function createUser(values: RegisterRequest) {
       updatedAt: new Date().toISOString(),
     }
 
-    await db.insert(users).values(user)
+    await db.insert(users).values(userInsert)
 
-    return user
+    const userRecords = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, values.email))
+      .limit(1)
+
+    if (!userRecords.length) {
+      throw new Error('User does not exist')
+    }
+
+    return userRecords[0]
   } catch (error) {
-    throw new Error('DB Error: createUser', { cause: error })
+    throw new DBError(`createUser: ${error instanceof Error && error.message}`)
   }
 }
 
-export async function updateUser(email: string, fields: Partial<UserFields>) {
+export async function updateUser(
+  email: string,
+  fields: Partial<User>,
+): Promise<User> {
   try {
     await db.update(users).set(fields).where(eq(users.email, email))
 
@@ -60,11 +76,11 @@ export async function updateUser(email: string, fields: Partial<UserFields>) {
       .limit(1)
 
     if (!userRecords.length) {
-      return null
+      throw new Error('User does not exist')
     }
 
     return userRecords[0]
   } catch (error) {
-    throw new Error('DB Error: updateUser', { cause: error })
+    throw new DBError(`updateUser: ${error instanceof Error && error.message}`)
   }
 }

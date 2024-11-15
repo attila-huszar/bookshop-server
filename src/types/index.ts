@@ -6,5 +6,5 @@ export type {
   RegisterRequest,
   PasswordResetRequest,
   TokenRequest,
-  UserFields,
+  User,
 } from './users.t'

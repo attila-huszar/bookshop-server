@@ -1,6 +1,7 @@
 import { eq, like } from 'drizzle-orm'
 import { authors } from './repoHandler'
 import { db } from '../db'
+import { DBError } from '../errors'
 import type { AuthorResponse } from '../types'
 
 const { id, name } = authors
@@ -16,9 +17,15 @@ export async function getAuthorById(authorId: number): Promise<AuthorResponse> {
       .where(eq(authors.id, authorId))
       .limit(1)
 
+    if (!authorRecords.length) {
+      throw new Error('Author does not exist')
+    }
+
     return authorRecords[0]
   } catch (error) {
-    throw new Error('DB Error: Author not found by id', { cause: error })
+    throw new DBError(
+      `getAuthorById: ${error instanceof Error && error.message}`,
+    )
   }
 }
 
@@ -36,6 +43,8 @@ export async function getAuthorsBySearch(
 
     return authorRecords
   } catch (error) {
-    throw new Error('DB Error: Authors not found by search', { cause: error })
+    throw new DBError(
+      `getAuthorsBySearch: ${error instanceof Error && error.message}`,
+    )
   }
 }

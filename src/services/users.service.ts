@@ -44,10 +44,6 @@ export async function validate<T extends keyof ValidateReturnType>(
     case 'login': {
       const user = await getUserBy('email', (req as LoginRequest).email)
 
-      if (!user) {
-        throw new Errors.NotFound()
-      }
-
       if (!user.verified) {
         throw new Errors.Forbidden('Email not verified')
       }
@@ -68,16 +64,22 @@ export async function validate<T extends keyof ValidateReturnType>(
     }
 
     case 'registration': {
-      const isEmailTaken = await getUserBy(
-        'email',
-        (req as RegisterRequest).email,
-      )
+      try {
+        await getUserBy('email', (req as RegisterRequest).email)
+      } catch (error) {
+        if (
+          error instanceof Errors.DBError &&
+          error.message.includes('User does not exist')
+        ) {
+          return req as ValidateReturnType[T]
+        }
 
-      if (isEmailTaken) {
-        throw new Errors.BadRequest('Email already taken')
+        throw new Error(
+          error instanceof Error ? error.message : 'Unknown registration error',
+        )
       }
 
-      return req as ValidateReturnType[T]
+      throw new Errors.BadRequest('Email already taken')
     }
 
     case 'verification': {
@@ -86,7 +88,7 @@ export async function validate<T extends keyof ValidateReturnType>(
         (req as TokenRequest).token,
       )
 
-      if (!user?.verificationCode || !user.verificationExpires) {
+      if (!user.verificationCode || !user.verificationExpires) {
         throw new Errors.BadRequest('Verification data incomplete')
       }
 
@@ -106,11 +108,7 @@ export async function validate<T extends keyof ValidateReturnType>(
     case 'passwordResetRequest': {
       const user = await getUserBy('email', (req as PasswordResetRequest).email)
 
-      if (user) {
-        return { email: user.email } as ValidateReturnType[T]
-      }
-
-      throw new Errors.NotFound("Password reset request email doesn't exist")
+      return { email: user.email } as ValidateReturnType[T]
     }
 
     case 'passwordResetToken': {
@@ -119,7 +117,7 @@ export async function validate<T extends keyof ValidateReturnType>(
         (req as TokenRequest).token,
       )
 
-      if (!user?.passwordResetCode || !user.passwordResetExpires) {
+      if (!user.passwordResetCode || !user.passwordResetExpires) {
         throw new Errors.BadRequest('Password reset data incomplete')
       }
 
