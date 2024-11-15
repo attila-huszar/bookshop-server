@@ -32,7 +32,7 @@ export async function createUser(values: RegisterRequest) {
       lastName: values.lastName,
       email: values.email,
       password: await Bun.password.hash(values.password),
-      avatar: values.avatar || null,
+      avatar: values.avatar ?? null,
       role: 'user',
       verified: false,
       verificationCode: crypto.randomUUID(),

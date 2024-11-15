@@ -3,7 +3,7 @@ import { setSignedCookie } from 'hono/cookie'
 import { createUser, updateUser } from '../repository'
 import { validate, sendEmail } from '../services'
 import { env, cookieOptions } from '../config'
-import { signAccessToken, signRefreshToken, validatePassword } from '../utils'
+import { signAccessToken, signRefreshToken } from '../utils'
 import * as Errors from '../errors'
 import type {
   LoginRequest,
@@ -29,7 +29,7 @@ users.post('/login', async (c) => {
     const accessToken = await signAccessToken(userValidated.uuid, timestamp)
     const refreshToken = await signRefreshToken(userValidated.uuid, timestamp)
 
-    setSignedCookie(
+    await setSignedCookie(
       c,
       'refresh-token',
       refreshToken,

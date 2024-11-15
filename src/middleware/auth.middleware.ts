@@ -1,12 +1,19 @@
 import { jwt } from 'hono/jwt'
-import { jwtAccessSecret } from '../config/envConfig'
-import type { Context, Next } from 'hono'
+import { env } from '../config'
+import type { Context, ContextVariableMap, Next } from 'hono'
 
-export const authMiddleware = async (c: Context, next: Next) => {
-  if (!jwtAccessSecret) throw new Error('JWT access secret not set')
+export const authMiddleware = async (
+  c: Context<
+    { Variables: ContextVariableMap & Record<string, string> },
+    string,
+    object
+  >,
+  next: Next,
+) => {
+  if (!env.jwtAccessSecret) throw new Error('JWT access secret not set')
 
   const jwtMiddleware = jwt({
-    secret: jwtAccessSecret,
+    secret: env.jwtAccessSecret,
   })
 
   return jwtMiddleware(c, next)

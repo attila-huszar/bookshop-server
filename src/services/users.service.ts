@@ -86,7 +86,7 @@ export async function validate<T extends keyof ValidateReturnType>(
         (req as TokenRequest).token,
       )
 
-      if (!user || !user.verificationCode || !user.verificationExpires) {
+      if (!user?.verificationCode || !user.verificationExpires) {
         throw new Errors.BadRequest('Verification data incomplete')
       }
 
@@ -119,7 +119,7 @@ export async function validate<T extends keyof ValidateReturnType>(
         (req as TokenRequest).token,
       )
 
-      if (!user || !user.passwordResetCode || !user.passwordResetExpires) {
+      if (!user?.passwordResetCode || !user.passwordResetExpires) {
         throw new Errors.BadRequest('Password reset data incomplete')
       }
 

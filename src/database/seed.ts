@@ -10,4 +10,4 @@ async function seed() {
   console.info({ ...authors, ...books, ...news, ...users })
 }
 
-seed()
+void seed()

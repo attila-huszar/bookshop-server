@@ -36,7 +36,7 @@ auth.post('/refresh', async (c) => {
       if (!env.cookieSecret) throw new Error('Cookie secret not set')
 
       const refreshToken = await signRefreshToken(payload.uuid, timestamp)
-      setSignedCookie(
+      await setSignedCookie(
         c,
         'refresh-token',
         refreshToken,

@@ -28,6 +28,6 @@ app.get('/', (c) => {
 
 Object.values(controller).forEach((ctrl) => app.route('/api', ctrl))
 
-if (ngrokAuthToken) ngrokForward()
+if (ngrokAuthToken) void ngrokForward()
 
 export default app
