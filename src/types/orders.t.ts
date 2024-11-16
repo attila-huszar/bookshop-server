@@ -1,4 +1,7 @@
 import { Stripe } from 'stripe'
+import { orders } from '../repository'
+
+export type Order = typeof orders.$inferSelect
 
 export type OrderItem = {
   id: number
@@ -8,18 +11,17 @@ export type OrderItem = {
   quantity: number
 }
 
-export type OrderCreateRequest = {
+export type OrderRequest = {
   paymentId: string
-  orderStatus: 'pending' | 'paid' | 'cancelled'
-  orderTotal: number
-  orderCurrency: string
-  orderItems: OrderItem[]
-  userName: string | null
-  userEmail: string | null
-  userPhone: string | null
-  userAddress: Stripe.Address
-  orderCreatedAt: string
-  orderUpdatedAt: string
+  status: 'pending' | 'paid' | 'cancelled'
+  total: number
+  currency: string
+  items: OrderItem[]
+  firstName: string
+  lastName: string
+  email: string
+  phone?: string
+  address: Stripe.Address
 }
 
 export type PaymentIntentCreateRequest = Pick<

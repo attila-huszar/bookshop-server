@@ -18,4 +18,5 @@ export const {
   authorsTable: authors,
   usersTable: users,
   newsTable: news,
+  ordersTable: orders,
 } = selectedRepo

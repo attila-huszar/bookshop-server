@@ -8,4 +8,8 @@ export type {
   TokenRequest,
   User,
 } from './users.t'
-export type { OrderCreateRequest, PaymentIntentCreateRequest } from './orders.t'
+export type {
+  Order,
+  OrderRequest,
+  PaymentIntentCreateRequest,
+} from './orders.t'

@@ -44,6 +44,7 @@ app.use('/*', timeout(5000))
 
 app.use('/users/profile', authMiddleware)
 app.use('/users/logout', authMiddleware)
+app.use('/orders/*', authMiddleware)
 
 app.get('/', (c) => {
   return c.html(
@@ -56,6 +57,7 @@ app.route('/authors', controller.authors)
 app.route('/search_opts', controller.bookSearchOptions)
 app.route('/users', controller.users)
 app.route('/auth', controller.auth)
+app.route('/orders', controller.orders)
 
 if (env.ngrokAuthToken) void ngrokForward()
 

@@ -3,6 +3,7 @@ import { validateEmail, validatePassword } from '../utils'
 import * as Errors from '../errors'
 import type {
   LoginRequest,
+  OrderRequest,
   PasswordResetRequest,
   RegisterRequest,
   TokenRequest,
@@ -14,11 +15,19 @@ type ValidateReturnType = {
   verification: { email: string }
   passwordResetRequest: { email: string }
   passwordResetToken: { email: string }
+  orderCreate: OrderRequest
+  orderUpdate: OrderRequest
 }
 
 export async function validate<T extends keyof ValidateReturnType>(
   type: T,
-  req: LoginRequest | RegisterRequest | TokenRequest | PasswordResetRequest,
+  req:
+    | LoginRequest
+    | RegisterRequest
+    | TokenRequest
+    | PasswordResetRequest
+    | OrderRequest
+    | Pick<OrderRequest, 'paymentId' | 'status'>,
 ): Promise<ValidateReturnType[T]> {
   const requiredFields = {
     login: ['email', 'password'],
@@ -26,6 +35,17 @@ export async function validate<T extends keyof ValidateReturnType>(
     verification: ['token'],
     passwordResetRequest: ['email'],
     passwordResetToken: ['token'],
+    orderCreate: [
+      'paymentId',
+      'total',
+      'currency',
+      'items',
+      'firstName',
+      'lastName',
+      'email',
+      'address',
+    ],
+    orderUpdate: ['paymentId', 'status'],
   }[type]
 
   if (requiredFields.some((field) => !req[field as keyof typeof req])) {
@@ -131,6 +151,14 @@ export async function validate<T extends keyof ValidateReturnType>(
       }
 
       throw new Errors.Forbidden('Invalid password reset token')
+    }
+
+    case 'orderCreate': {
+      return req as ValidateReturnType[T]
+    }
+
+    case 'orderUpdate': {
+      return req as ValidateReturnType[T]
     }
 
     default: {
