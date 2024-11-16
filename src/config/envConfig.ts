@@ -1,20 +1,41 @@
-export const serverBaseUrl = Bun.env.SERVER_BASE_URL
-export const port = Bun.env.PORT
-export const cookieSecret = Bun.env.COOKIE_SECRET
-export const cookieMaxAge = Bun.env.COOKIE_MAX_AGE
+function getEnvVar(key: string, defaultValue?: string | null): string {
+  const value = Bun.env[key]
 
-export const clientBaseUrl = Bun.env.CLIENT_BASE_URL
+  if (value === undefined || value === '') {
+    if (defaultValue !== undefined) {
+      console.warn(
+        `Environment variable ${key} is not set. Using default: ${defaultValue}`,
+      )
 
-export const dbRepo = Bun.env.DB_REPO
-export const adminPassword = Bun.env.ADMIN_PASSWORD
+      return defaultValue ?? ''
+    }
 
-export const mailerUser = Bun.env.MAILER_USER
-export const mailerPass = Bun.env.MAILER_PASS
+    throw new Error(`Critical error: Environment variable ${key} is not set.`)
+  }
 
-export const jwtAccessSecret = Bun.env.ACCESS_TOKEN_SECRET
-export const jwtRefreshSecret = Bun.env.REFRESH_TOKEN_SECRET
-export const jwtAccessExpiration = Bun.env.ACCESS_TOKEN_EXPIRATION
-export const jwtRefreshExpiration = Bun.env.REFRESH_TOKEN_EXPIRATION
+  return value
+}
 
-export const ngrokAuthToken = Bun.env.NGROK_AUTHTOKEN
-export const ngrokDomain = Bun.env.NGROK_DOMAIN
+export const serverBaseUrl = getEnvVar('SERVER_BASE_URL')
+export const port = getEnvVar('PORT', '5000')
+export const cookieSecret = getEnvVar('COOKIE_SECRET')
+export const cookieMaxAge = getEnvVar('COOKIE_MAX_AGE', '1209600')
+
+export const clientBaseUrl = getEnvVar('CLIENT_BASE_URL')
+
+export const dbRepo = getEnvVar('DB_REPO', 'SQLITE')
+export const adminPassword = getEnvVar('ADMIN_PASSWORD', 'admin1')
+
+export const mailerUser = getEnvVar('MAILER_USER')
+export const mailerPass = getEnvVar('MAILER_PASS')
+
+export const jwtAccessSecret = getEnvVar('ACCESS_TOKEN_SECRET')
+export const jwtRefreshSecret = getEnvVar('REFRESH_TOKEN_SECRET')
+export const jwtAccessExpiration = getEnvVar('ACCESS_TOKEN_EXPIRATION', '900')
+export const jwtRefreshExpiration = getEnvVar(
+  'REFRESH_TOKEN_EXPIRATION',
+  '1209600',
+)
+
+export const ngrokAuthToken = getEnvVar('NGROK_AUTHTOKEN', null)
+export const ngrokDomain = getEnvVar('NGROK_DOMAIN', null)
