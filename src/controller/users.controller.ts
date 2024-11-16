@@ -1,9 +1,9 @@
 import { Hono } from 'hono'
-import { getSignedCookie, setCookie, setSignedCookie } from 'hono/cookie'
-import { createUser, updateUser } from '../repository'
+import { setCookie, setSignedCookie, deleteCookie } from 'hono/cookie'
+import { createUser, getUserBy, updateUser } from '../repository'
 import { validate, sendEmail } from '../services'
 import { env, cookieOptions } from '../config'
-import { signAccessToken, signRefreshToken, verifyJWTRefresh } from '../utils'
+import { signAccessToken, signRefreshToken } from '../utils'
 import * as Errors from '../errors'
 import type {
   LoginRequest,
@@ -12,14 +12,16 @@ import type {
   TokenRequest,
 } from '../types'
 
-export const users = new Hono()
+type Variables = {
+  jwtPayload: {
+    uuid: string
+  }
+}
+
+export const users = new Hono<{ Variables: Variables }>()
 
 users.post('/login', async (c) => {
   try {
-    if (!env.cookieSecret) throw new Error('Cookie secret not set')
-    if (!env.jwtRefreshSecret || !env.jwtRefreshExpiration)
-      throw new Error('JWT refresh secret not set')
-
     const loginRequest = await c.req.json<LoginRequest>()
 
     const userValidated = await validate('login', loginRequest)
@@ -52,8 +54,6 @@ users.post('/login', async (c) => {
 
 users.post('/register', async (c) => {
   try {
-    if (!env.clientBaseUrl) throw new Error('Client Base URL not set')
-
     const registerRequest = await c.req.json<RegisterRequest>()
 
     const userValidated = await validate('registration', registerRequest)
@@ -112,8 +112,6 @@ users.post('/verification', async (c) => {
 
 users.post('/password-reset-request', async (c) => {
   try {
-    if (!env.clientBaseUrl) throw new Error('Client Base URL not set')
-
     const passwordResetRequest = await c.req.json<PasswordResetRequest>()
 
     const userValidated = await validate(
@@ -180,55 +178,40 @@ users.post('/password-reset-token', async (c) => {
   }
 })
 
-users.post('/refresh', async (c) => {
-  if (!env.cookieSecret) throw new Error('Cookie secret not set')
-  if (!env.jwtAccessSecret || !env.jwtAccessExpiration)
-    throw new Error('JWT access secret not set')
-  if (!env.jwtRefreshSecret || !env.jwtRefreshExpiration)
-    throw new Error('JWT refresh secret not set')
+users.post('/profile', async (c) => {
+  const jwtPayload = c.get('jwtPayload')
 
-  try {
-    const refreshTokenCookie = await getSignedCookie(
-      c,
-      env.cookieSecret,
-      'refresh-token',
-    )
+  const user = await getUserBy('uuid', jwtPayload.uuid)
+  const {
+    id,
+    uuid,
+    password,
+    verified,
+    verificationToken,
+    verificationExpires,
+    passwordResetToken,
+    passwordResetExpires,
+    createdAt,
+    updatedAt,
+    ...userWithoutCreds
+  } = user
 
-    if (!refreshTokenCookie) {
-      return c.json({ error: 'No refresh token provided' }, 401)
-    }
+  return c.json(userWithoutCreds)
+})
 
-    const payload = (await verifyJWTRefresh(refreshTokenCookie)) as {
-      uuid: string
-      exp: number
-      iat: number
-    }
+users.post('/logout', (c) => {
+  deleteCookie(c, 'refresh-token', {
+    httpOnly: true,
+    secure: Bun.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/users/refresh',
+  })
 
-    const expTimestamp = payload.exp ?? 0
-    const timestamp = Math.floor(Date.now() / 1000)
+  const isUuidDeleted = deleteCookie(c, 'uuid')
 
-    if (expTimestamp - 259200 < timestamp) {
-      if (!env.cookieSecret) throw new Error('Cookie secret not set')
-
-      const refreshToken = await signRefreshToken(payload.uuid, timestamp)
-      await setSignedCookie(
-        c,
-        'refresh-token',
-        refreshToken,
-        env.cookieSecret,
-        cookieOptions,
-      )
-
-      const { httpOnly, path, ...loginCookieOptions } = cookieOptions
-      setCookie(c, 'uuid', payload.uuid, loginCookieOptions)
-    }
-
-    const accessToken = await signAccessToken(payload.uuid, timestamp)
-
-    return c.json({ accessToken })
-  } catch (error) {
-    console.error(error)
-
-    return c.json({ error: 'Internal server error' }, 500)
+  if (isUuidDeleted) {
+    return c.json({ message: 'Logged out' })
   }
+
+  return c.json({ error: 'Logout failed' }, 500)
 })

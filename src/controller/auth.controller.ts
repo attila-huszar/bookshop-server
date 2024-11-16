@@ -1,49 +1,51 @@
 import { Hono } from 'hono'
-import { deleteCookie } from 'hono/cookie'
-import { getUserBy } from '../repository'
+import { getSignedCookie, setSignedCookie, setCookie } from 'hono/cookie'
+import { signAccessToken, signRefreshToken, verifyJWTRefresh } from '../utils'
+import { env, cookieOptions } from '../config'
 
-type Variables = {
-  jwtPayload: {
-    uuid: string
+export const auth = new Hono()
+
+auth.post('/refresh', async (c) => {
+  try {
+    const refreshTokenCookie = await getSignedCookie(
+      c,
+      env.cookieSecret,
+      'refresh-token',
+    )
+
+    if (!refreshTokenCookie) {
+      return c.json({ error: 'No refresh token provided' }, 401)
+    }
+
+    const payload = (await verifyJWTRefresh(refreshTokenCookie)) as {
+      uuid: string
+      exp: number
+      iat: number
+    }
+
+    const expTimestamp = payload.exp ?? 0
+    const timestamp = Math.floor(Date.now() / 1000)
+
+    if (expTimestamp - 259200 < timestamp) {
+      const refreshToken = await signRefreshToken(payload.uuid, timestamp)
+      await setSignedCookie(
+        c,
+        'refresh-token',
+        refreshToken,
+        env.cookieSecret,
+        cookieOptions,
+      )
+
+      const { httpOnly, path, ...loginCookieOptions } = cookieOptions
+      setCookie(c, 'uuid', payload.uuid, loginCookieOptions)
+    }
+
+    const accessToken = await signAccessToken(payload.uuid, timestamp)
+
+    return c.json({ accessToken })
+  } catch (error) {
+    console.error(error)
+
+    return c.json({ error: 'Internal server error' }, 500)
   }
-}
-
-export const auth = new Hono<{ Variables: Variables }>()
-
-auth.post('/profile', async (c) => {
-  const jwtPayload = c.get('jwtPayload')
-
-  const user = await getUserBy('uuid', jwtPayload.uuid)
-  const {
-    id,
-    uuid,
-    password,
-    verified,
-    verificationToken,
-    verificationExpires,
-    passwordResetToken,
-    passwordResetExpires,
-    createdAt,
-    updatedAt,
-    ...userWithoutCreds
-  } = user
-
-  return c.json(userWithoutCreds)
-})
-
-auth.post('/logout', (c) => {
-  deleteCookie(c, 'refresh-token', {
-    httpOnly: true,
-    secure: Bun.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    path: '/users/refresh',
-  })
-
-  const isUuidDeleted = deleteCookie(c, 'uuid')
-
-  if (isUuidDeleted) {
-    return c.json({ message: 'Logged out' })
-  }
-
-  return c.json({ error: 'Logout failed' }, 500)
 })
