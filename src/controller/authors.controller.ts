@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { getAuthorById, getAuthorsBySearch } from '../repository'
+import * as Errors from '../errors'
 
 export const authors = new Hono()
 
@@ -15,9 +16,7 @@ authors.get('/:id', async (c) => {
 
     return c.json(authorRecord)
   } catch (error) {
-    console.error(error)
-
-    return c.json({ error: 'Internal server error' }, 500)
+    return Errors.Handler(c, error)
   }
 })
 
@@ -29,8 +28,6 @@ authors.get('/', async (c) => {
 
     return c.json(authorRecords)
   } catch (error) {
-    console.error(error)
-
-    return c.json({ error: 'Internal server error' }, 500)
+    return Errors.Handler(c, error)
   }
 })

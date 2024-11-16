@@ -1,13 +1,12 @@
 import { eq } from 'drizzle-orm'
 import { db } from '../db'
 import { users } from './repoHandler'
-import { DBError } from '../errors'
 import type { RegisterRequest, User } from '../types'
 
 export async function getUserBy(
   field: 'uuid' | 'email' | 'verificationToken' | 'passwordResetToken',
   token: string,
-): Promise<User> {
+): Promise<User | null> {
   try {
     const userRecords = await db
       .select()
@@ -16,18 +15,20 @@ export async function getUserBy(
       .limit(1)
 
     if (!userRecords.length) {
-      throw new Error('User does not exist')
+      return null
     }
 
     return userRecords[0]
   } catch (error) {
-    throw new DBError(
+    throw new Error(
       `getUserBy ${field}: ${error instanceof Error && error.message}`,
     )
   }
 }
 
-export async function createUser(values: RegisterRequest): Promise<User> {
+export async function createUser(
+  values: RegisterRequest,
+): Promise<User | null> {
   try {
     const userInsert: typeof users.$inferInsert = {
       uuid: crypto.randomUUID(),
@@ -53,19 +54,19 @@ export async function createUser(values: RegisterRequest): Promise<User> {
       .limit(1)
 
     if (!userRecords.length) {
-      throw new Error('User does not exist')
+      return null
     }
 
     return userRecords[0]
   } catch (error) {
-    throw new DBError(`createUser: ${error instanceof Error && error.message}`)
+    throw new Error(`createUser: ${error instanceof Error && error.message}`)
   }
 }
 
 export async function updateUser(
   email: string,
   fields: Partial<User>,
-): Promise<User> {
+): Promise<User | null> {
   try {
     await db.update(users).set(fields).where(eq(users.email, email))
 
@@ -76,11 +77,11 @@ export async function updateUser(
       .limit(1)
 
     if (!userRecords.length) {
-      throw new Error('User does not exist')
+      return null
     }
 
     return userRecords[0]
   } catch (error) {
-    throw new DBError(`updateUser: ${error instanceof Error && error.message}`)
+    throw new Error(`updateUser: ${error instanceof Error && error.message}`)
   }
 }

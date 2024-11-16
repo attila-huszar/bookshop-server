@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { getBooks, getBookById } from '../repository'
+import * as Errors from '../errors'
 import type { BookQuery } from '../types'
 
 export const books = new Hono()
@@ -19,9 +20,7 @@ books.get('/', async (c) => {
 
     return c.json(booksRecords)
   } catch (error) {
-    console.error(error)
-
-    return c.json({ error: 'Internal server error' }, 500)
+    Errors.Handler(c, error)
   }
 })
 
@@ -32,13 +31,11 @@ books.get('/:id', async (c) => {
     const bookRecord = await getBookById(Number(id))
 
     if (!bookRecord) {
-      return c.json({ error: 'Book not found' }, 404)
+      throw new Errors.NotFound('Book not found')
     }
 
     return c.json(bookRecord)
   } catch (error) {
-    console.error(error)
-
-    return c.json({ error: 'Internal server error' }, 500)
+    return Errors.Handler(c, error)
   }
 })

@@ -42,55 +42,36 @@ export async function validate<T extends keyof ValidateReturnType>(
 
   switch (type) {
     case 'login': {
-      try {
-        const user = await getUserBy('email', (req as LoginRequest).email)
+      const user = await getUserBy('email', (req as LoginRequest).email)
 
-        if (!user.verified) {
-          throw new Errors.Forbidden('Email not verified')
-        }
-
-        const isPasswordCorrect = await Bun.password.verify(
-          (req as LoginRequest).password,
-          user.password,
-        )
-
-        if (isPasswordCorrect) {
-          return {
-            uuid: user.uuid,
-            firstName: user.firstName,
-          } as ValidateReturnType[T]
-        }
-
-        throw new Errors.Unauthorized('Incorrect password')
-      } catch (error) {
-        console.error(error)
-
-        if (
-          error instanceof Error &&
-          (error.message.includes('User does not exist') ||
-            error.message.includes('Incorrect password'))
-        ) {
-          throw new Errors.Unauthorized()
-        }
-
-        throw error
+      if (!user) {
+        throw new Errors.Unauthorized()
       }
+
+      if (!user.verified) {
+        throw new Errors.Forbidden('Email not verified')
+      }
+
+      const isPasswordCorrect = await Bun.password.verify(
+        (req as LoginRequest).password,
+        user.password,
+      )
+
+      if (isPasswordCorrect) {
+        return {
+          uuid: user.uuid,
+          firstName: user.firstName,
+        } as ValidateReturnType[T]
+      }
+
+      throw new Errors.Unauthorized()
     }
 
     case 'registration': {
-      try {
-        await getUserBy('email', (req as RegisterRequest).email)
-      } catch (error) {
-        if (
-          error instanceof Errors.DBError &&
-          error.message.includes('User does not exist')
-        ) {
-          return req as ValidateReturnType[T]
-        }
+      const user = await getUserBy('email', (req as RegisterRequest).email)
 
-        throw new Error(
-          error instanceof Error ? error.message : 'Unknown registration error',
-        )
+      if (user === null) {
+        return req as ValidateReturnType[T]
       }
 
       throw new Errors.BadRequest('Email already taken')
@@ -102,7 +83,7 @@ export async function validate<T extends keyof ValidateReturnType>(
         (req as TokenRequest).token,
       )
 
-      if (!user.verificationToken || !user.verificationExpires) {
+      if (!user?.verificationToken || !user.verificationExpires) {
         throw new Errors.BadRequest('Verification data incomplete')
       }
 
@@ -122,6 +103,10 @@ export async function validate<T extends keyof ValidateReturnType>(
     case 'passwordResetRequest': {
       const user = await getUserBy('email', (req as PasswordResetRequest).email)
 
+      if (!user) {
+        throw new Errors.BadRequest('Email not found')
+      }
+
       return { email: user.email } as ValidateReturnType[T]
     }
 
@@ -131,7 +116,7 @@ export async function validate<T extends keyof ValidateReturnType>(
         (req as TokenRequest).token,
       )
 
-      if (!user.passwordResetToken || !user.passwordResetExpires) {
+      if (!user?.passwordResetToken || !user.passwordResetExpires) {
         throw new Errors.BadRequest('Password reset data incomplete')
       }
 

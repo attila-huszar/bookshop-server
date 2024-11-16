@@ -1,7 +1,6 @@
 import { eq, like } from 'drizzle-orm'
 import { authors } from './repoHandler'
 import { db } from '../db'
-import { DBError } from '../errors'
 import type { AuthorResponse } from '../types'
 
 const { id, name } = authors
@@ -23,9 +22,7 @@ export async function getAuthorById(authorId: number): Promise<AuthorResponse> {
 
     return authorRecords[0]
   } catch (error) {
-    throw new DBError(
-      `getAuthorById: ${error instanceof Error && error.message}`,
-    )
+    throw new Error(`getAuthorById: ${error instanceof Error && error.message}`)
   }
 }
 
@@ -43,7 +40,7 @@ export async function getAuthorsBySearch(
 
     return authorRecords
   } catch (error) {
-    throw new DBError(
+    throw new Error(
       `getAuthorsBySearch: ${error instanceof Error && error.message}`,
     )
   }

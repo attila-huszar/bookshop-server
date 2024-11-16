@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { getBookSearchOptions } from '../repository'
+import * as Errors from '../errors'
 
 export const bookSearchOptions = new Hono()
 
@@ -9,8 +10,6 @@ bookSearchOptions.get('/', async (c) => {
 
     return c.json(options)
   } catch (error) {
-    console.error(error)
-
-    return c.json({ error: 'Internal server error' }, 500)
+    return Errors.Handler(c, error)
   }
 })

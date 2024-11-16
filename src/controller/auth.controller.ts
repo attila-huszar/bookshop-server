@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { getSignedCookie, setSignedCookie, setCookie } from 'hono/cookie'
 import { signAccessToken, signRefreshToken, verifyJWTRefresh } from '../utils'
 import { env, cookieOptions } from '../config'
+import * as Errors from '../errors'
 
 export const auth = new Hono()
 
@@ -44,8 +45,6 @@ auth.post('/refresh', async (c) => {
 
     return c.json({ accessToken })
   } catch (error) {
-    console.error(error)
-
-    return c.json({ error: 'Internal server error' }, 500)
+    return Errors.Handler(c, error)
   }
 })

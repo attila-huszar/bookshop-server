@@ -44,11 +44,7 @@ users.post('/login', async (c) => {
 
     return c.json({ accessToken, firstName: userValidated.firstName })
   } catch (error) {
-    if (error instanceof Errors.BaseError) {
-      return c.json({ error: error.message }, error.status)
-    }
-
-    return c.json({ error: 'Internal server error' }, 500)
+    return Errors.Handler(c, error)
   }
 })
 
@@ -59,6 +55,10 @@ users.post('/register', async (c) => {
     const userValidated = await validate('registration', registerRequest)
 
     const userCreated = await createUser(userValidated)
+
+    if (!userCreated) {
+      throw new Error('User not created')
+    }
 
     const tokenLink = `${env.clientBaseUrl}/verification?token=${userCreated.verificationToken}`
 
@@ -100,13 +100,13 @@ users.post('/verification', async (c) => {
       updatedAt: new Date().toISOString(),
     })
 
-    return c.json({ email: userUpdated.email })
-  } catch (error) {
-    if (error instanceof Errors.BaseError) {
-      return c.json({ error: error.message }, error.status)
+    if (!userUpdated) {
+      throw new Error('User not updated')
     }
 
-    return c.json({ error: 'Internal server error' }, 500)
+    return c.json({ email: userUpdated.email })
+  } catch (error) {
+    return Errors.Handler(c, error)
   }
 })
 
@@ -124,6 +124,10 @@ users.post('/password-reset-request', async (c) => {
       passwordResetExpires: new Date(Date.now() + 86400000).toISOString(),
       updatedAt: new Date().toISOString(),
     })
+
+    if (!userUpdated) {
+      throw new Error('User not updated')
+    }
 
     const tokenLink = `${env.clientBaseUrl}/password-reset?token=${userUpdated.passwordResetToken}`
 
@@ -168,50 +172,63 @@ users.post('/password-reset-token', async (c) => {
       updatedAt: new Date().toISOString(),
     })
 
-    return c.json({ email: userUpdated.email })
-  } catch (error) {
-    if (error instanceof Errors.BaseError) {
-      return c.json({ error: error.message }, error.status)
+    if (!userUpdated) {
+      throw new Error('User not updated')
     }
 
-    return c.json({ error: 'Internal server error' }, 500)
+    return c.json({ email: userUpdated.email })
+  } catch (error) {
+    return Errors.Handler(c, error)
   }
 })
 
 users.post('/profile', async (c) => {
-  const jwtPayload = c.get('jwtPayload')
+  try {
+    const jwtPayload = c.get('jwtPayload')
 
-  const user = await getUserBy('uuid', jwtPayload.uuid)
-  const {
-    id,
-    uuid,
-    password,
-    verified,
-    verificationToken,
-    verificationExpires,
-    passwordResetToken,
-    passwordResetExpires,
-    createdAt,
-    updatedAt,
-    ...userWithoutCreds
-  } = user
+    const user = await getUserBy('uuid', jwtPayload.uuid)
 
-  return c.json(userWithoutCreds)
+    if (!user) {
+      throw new Error("User doesn't exist")
+    }
+
+    const {
+      id,
+      uuid,
+      password,
+      verified,
+      verificationToken,
+      verificationExpires,
+      passwordResetToken,
+      passwordResetExpires,
+      createdAt,
+      updatedAt,
+      ...userWithoutCreds
+    } = user
+
+    return c.json(userWithoutCreds)
+  } catch (error) {
+    return Errors.Handler(c, error)
+  }
 })
 
 users.post('/logout', (c) => {
-  deleteCookie(c, 'refresh-token', {
-    httpOnly: true,
-    secure: Bun.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    path: '/users/refresh',
-  })
+  try {
+    deleteCookie(c, 'refresh-token', {
+      httpOnly: true,
+      secure: Bun.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/users/refresh',
+    })
 
-  const isUuidDeleted = deleteCookie(c, 'uuid')
+    const isUuidDeleted = deleteCookie(c, 'uuid')
 
-  if (isUuidDeleted) {
+    if (!isUuidDeleted) {
+      throw new Error('UUID not deleted')
+    }
+
     return c.json({ message: 'Logged out' })
+  } catch (error) {
+    return Errors.Handler(c, error)
   }
-
-  return c.json({ error: 'Logout failed' }, 500)
 })
