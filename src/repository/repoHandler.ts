@@ -1,10 +1,11 @@
 import * as sqlite from '../database/schema/sqlite'
+import { env } from '../config'
 
 const repoHandlers = {
   SQLITE: sqlite,
 }
 
-const repo = Bun.env.DB_REPO as keyof typeof repoHandlers
+const repo = env.dbRepo as keyof typeof repoHandlers
 
 const selectedRepo = repoHandlers[repo]
 

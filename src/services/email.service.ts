@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer'
+import { env } from '../config'
 
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -6,8 +7,8 @@ const transporter = nodemailer.createTransport({
   port: 465,
   secure: true,
   auth: {
-    user: Bun.env.MAILER_USER,
-    pass: Bun.env.MAILER_PASS,
+    user: env.mailerUser,
+    pass: env.mailerPass,
   },
 })
 
@@ -54,7 +55,7 @@ export function sendEmail(
   }[type]
 
   const mailOptions = {
-    from: Bun.env.MAILER_USER,
+    from: env.mailerUser,
     to,
     subject,
     text,

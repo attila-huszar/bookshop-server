@@ -2,9 +2,6 @@ import { sign } from 'hono/jwt'
 import { env } from '../config'
 
 export const signAccessToken = async (uuid: string, timestamp: number) => {
-  if (!env.jwtAccessSecret || !env.jwtAccessExpiration)
-    throw new Error('JWT access secret not set')
-
   const accessToken = await sign(
     {
       uuid,
@@ -18,9 +15,6 @@ export const signAccessToken = async (uuid: string, timestamp: number) => {
 }
 
 export const signRefreshToken = async (uuid: string, timestamp: number) => {
-  if (!env.jwtRefreshSecret || !env.jwtRefreshExpiration)
-    throw new Error('JWT refresh secret not set')
-
   const refreshToken = await sign(
     {
       uuid,

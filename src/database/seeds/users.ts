@@ -1,19 +1,14 @@
 import { getTableName } from 'drizzle-orm'
 import { db } from '../../db'
 import { users } from '../../repository'
+import { env } from '../../config'
 
 export async function seedUsers() {
-  if (!Bun.env.ADMIN_PASSWORD) {
-    return {
-      [getTableName(users)]: 'Admin not set: ADMIN_PASSWORD missing',
-    }
-  }
-
   const admin: typeof users.$inferInsert = {
     uuid: crypto.randomUUID(),
     firstName: 'Admin',
     lastName: 'Admin',
-    password: Bun.password.hashSync(Bun.env.ADMIN_PASSWORD),
+    password: Bun.password.hashSync(env.adminPassword),
     role: 'admin',
     email: 'admin@bookshop.com',
     verified: true,

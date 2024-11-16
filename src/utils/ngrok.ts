@@ -1,10 +1,11 @@
 import ngrok from '@ngrok/ngrok'
+import { env } from '../config'
 
 export async function ngrokForward() {
   const listener = await ngrok.forward({
-    addr: Bun.env.PORT ?? 5000,
-    authtoken: Bun.env.NGROK_AUTHTOKEN,
-    domain: Bun.env.NGROK_DOMAIN,
+    addr: env.port,
+    authtoken: env.ngrokAuthToken,
+    domain: env.ngrokDomain,
   })
 
   console.log(`Ingress established at: ${listener.url()}`)
