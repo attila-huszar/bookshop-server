@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { getBooks, getBookById } from '../repository'
 import type { BookQuery } from '../types'
 
-export const books = new Hono().basePath('/books')
+export const books = new Hono()
 
 books.get('/', async (c) => {
   try {

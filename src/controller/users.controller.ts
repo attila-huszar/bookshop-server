@@ -12,7 +12,7 @@ import type {
   TokenRequest,
 } from '../types'
 
-export const users = new Hono().basePath('/users')
+export const users = new Hono()
 
 users.post('/login', async (c) => {
   try {
@@ -36,6 +36,9 @@ users.post('/login', async (c) => {
       env.cookieSecret,
       cookieOptions,
     )
+
+    const { httpOnly, path, ...loginCookieOptions } = cookieOptions
+    setCookie(c, 'uuid', userValidated.uuid, loginCookieOptions)
 
     return c.json({ accessToken, firstName: userValidated.firstName })
   } catch (error) {
@@ -216,7 +219,7 @@ users.post('/refresh', async (c) => {
         cookieOptions,
       )
 
-      const { httpOnly, signed, path, ...loginCookieOptions } = cookieOptions
+      const { httpOnly, path, ...loginCookieOptions } = cookieOptions
       setCookie(c, 'uuid', payload.uuid, loginCookieOptions)
     }
 

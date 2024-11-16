@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { getAuthorById, getAuthorsBySearch } from '../repository'
 
-export const authors = new Hono().basePath('/authors')
+export const authors = new Hono()
 
 authors.get('/:id', async (c) => {
   try {

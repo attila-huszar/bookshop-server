@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { getBookSearchOptions } from '../repository'
 
-export const bookSearchOptions = new Hono().basePath('/search_opts')
+export const bookSearchOptions = new Hono()
 
 bookSearchOptions.get('/', async (c) => {
   try {

@@ -16,9 +16,9 @@ const corsOptions = {
 }
 
 app.use(logger())
-app.use('/api/*', cors(corsOptions))
-app.use('/api/*', timeout(5000))
-app.use('/api/auth/*', authMiddleware)
+app.use('/*', cors(corsOptions))
+app.use('/*', timeout(5000))
+app.use('/auth/*', authMiddleware)
 
 app.get('/', (c) => {
   return c.html(
@@ -26,7 +26,11 @@ app.get('/', (c) => {
   )
 })
 
-Object.values(controller).forEach((ctrl) => app.route('/api', ctrl))
+app.route('/books', controller.books)
+app.route('/authors', controller.authors)
+app.route('/search_opts', controller.bookSearchOptions)
+app.route('/users', controller.users)
+app.route('/auth', controller.auth)
 
 if (ngrokAuthToken) void ngrokForward()
 
