@@ -56,7 +56,6 @@ app.route('/books', controller.books)
 app.route('/authors', controller.authors)
 app.route('/search_opts', controller.bookSearchOptions)
 app.route('/users', controller.users)
-app.route('/auth', controller.auth)
 app.route('/orders', controller.orders)
 
 if (env.ngrokAuthToken) void ngrokForward()

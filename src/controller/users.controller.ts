@@ -1,9 +1,14 @@
 import { Hono } from 'hono'
-import { setCookie, setSignedCookie, deleteCookie } from 'hono/cookie'
+import {
+  setCookie,
+  setSignedCookie,
+  deleteCookie,
+  getSignedCookie,
+} from 'hono/cookie'
 import { createUser, getUserBy, updateUser } from '../repository'
 import { validate, sendEmail } from '../services'
 import { env, cookieOptions } from '../config'
-import { signAccessToken, signRefreshToken } from '../utils'
+import { signAccessToken, signRefreshToken, verifyJWTRefresh } from '../utils'
 import * as Errors from '../errors'
 import type {
   LoginRequest,
@@ -228,6 +233,49 @@ users.post('/logout', (c) => {
     }
 
     return c.json({ message: 'Logged out' })
+  } catch (error) {
+    return Errors.Handler(c, error)
+  }
+})
+
+users.post('/refresh', async (c) => {
+  try {
+    const refreshTokenCookie = await getSignedCookie(
+      c,
+      env.cookieSecret,
+      'refresh-token',
+    )
+
+    if (!refreshTokenCookie) {
+      return c.json({ error: 'No refresh token provided' }, 401)
+    }
+
+    const payload = (await verifyJWTRefresh(refreshTokenCookie)) as {
+      uuid: string
+      exp: number
+      iat: number
+    }
+
+    const expTimestamp = payload.exp ?? 0
+    const timestamp = Math.floor(Date.now() / 1000)
+
+    if (expTimestamp - 259200 < timestamp) {
+      const refreshToken = await signRefreshToken(payload.uuid, timestamp)
+      await setSignedCookie(
+        c,
+        'refresh-token',
+        refreshToken,
+        env.cookieSecret,
+        cookieOptions,
+      )
+
+      const { httpOnly, path, ...loginCookieOptions } = cookieOptions
+      setCookie(c, 'uuid', payload.uuid, loginCookieOptions)
+    }
+
+    const accessToken = await signAccessToken(payload.uuid, timestamp)
+
+    return c.json({ accessToken })
   } catch (error) {
     return Errors.Handler(c, error)
   }
