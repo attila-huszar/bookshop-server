@@ -35,10 +35,10 @@ const limiter = rateLimiter({
     'unknown-client',
 })
 
-app.use(limiter)
+//app.use(limiter)
 app.use(logger())
 app.use(trimTrailingSlash())
-app.use(csrf({ origin: allowedOrigins }))
+//app.use(csrf({ origin: allowedOrigins }))
 app.use('/*', cors(corsOptions))
 app.use('/*', timeout(5000))
 
@@ -54,6 +54,7 @@ app.get('/', (c) => {
 
 app.route('/books', controller.books)
 app.route('/authors', controller.authors)
+app.route('/news', controller.news)
 app.route('/search_opts', controller.bookSearchOptions)
 app.route('/users', controller.users)
 app.route('/orders', controller.orders)

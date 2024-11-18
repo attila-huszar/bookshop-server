@@ -4,7 +4,7 @@ export const cookieOptions: CookieOptions = {
   maxAge: Number(cookieMaxAge) || 1209600,
   httpOnly: true,
   secure: Bun.env.NODE_ENV === 'production',
-  sameSite: 'lax',
+  sameSite: 'none',
   path: '/users/refresh',
 }
 

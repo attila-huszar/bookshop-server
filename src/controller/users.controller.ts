@@ -187,7 +187,7 @@ users.post('/password-reset-token', async (c) => {
   }
 })
 
-users.post('/profile', async (c) => {
+users.get('/profile', async (c) => {
   try {
     const jwtPayload = c.get('jwtPayload')
 

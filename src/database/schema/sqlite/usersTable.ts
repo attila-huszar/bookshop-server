@@ -1,5 +1,6 @@
 import { int, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { timestamps } from './column.helpers'
+import type Stripe from 'stripe'
 
 export const usersTable = sqliteTable('users', {
   id: int().primaryKey({ autoIncrement: true }),
@@ -11,7 +12,7 @@ export const usersTable = sqliteTable('users', {
     .notNull(),
   email: text().unique().notNull(),
   password: text().notNull(),
-  address: text({ mode: 'json' }),
+  address: text({ mode: 'json' }).$type<Stripe.Address>(),
   phone: text(),
   avatar: text(),
   verified: int({ mode: 'boolean' }).default(false).notNull(),
