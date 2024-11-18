@@ -3,21 +3,25 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      args:
-        NODE_ENV: development
     container_name: bookshop
     restart: always
     env_file: .env
     command: >
-      bash -c "if [[ '$SETUP' == 'true' ]]; then 
-        bun migrate && 
-        bun seed;
-      fi; bun src/app.ts;"
+      sh -c "
+        if [ $SETUP ]; then
+          bun migrate && bun seed;
+        fi;
+        if [ \"$NODE_ENV\" = \"production\" ]; then
+          bun src/app.ts;
+        else
+          bun dev;
+        fi;
+      "
     ports:
       - '${PORT}:${PORT}'
     volumes:
-      - ./src:/opt/bookshop-be/src
-      - sqlite_data:/opt/bookshop-be/data
+      - ./src:/bookshop-server/src
+      - sqlite_data:/bookshop-server/data
 
 volumes:
   sqlite_data:

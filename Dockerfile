@@ -1,9 +1,10 @@
-FROM oven/bun:latest
+FROM oven/bun:alpine
 
-RUN apt-get update && apt-get upgrade -y --no-install-recommends \
-  && rm -rf /var/lib/apt/lists/*
+RUN apk update && apk upgrade --no-cache
 
-WORKDIR /opt/bookshop-be
+RUN apk add --no-cache sqlite
+
+WORKDIR /bookshop-server
 
 COPY package.json bun.lockb ./
 RUN bun install --frozen-lockfile
