@@ -12,20 +12,9 @@ import * as controller from './controller'
 
 const app = new Hono()
 
-const allowedOrigins =
-  process.env.NODE_ENV === 'production'
-    ? ['']
-    : [env.clientBaseUrl, 'http://localhost']
-
-const corsOptions = {
-  origin: '*',
-  exposeHeaders: ['x-total-count'],
-  credentials: true,
-}
-
 const limiter = rateLimiter({
   windowMs: 15 * 60 * 1000,
-  limit: 100,
+  limit: 500,
   message: { error: 'Too many requests' },
   statusCode: 429,
   standardHeaders: 'draft-6',
@@ -35,12 +24,12 @@ const limiter = rateLimiter({
     'unknown-client',
 })
 
-//app.use(limiter)
+app.use(limiter)
 app.use(logger())
 app.use(trimTrailingSlash())
-//app.use(csrf({ origin: allowedOrigins }))
-app.use('/*', cors(corsOptions))
-app.use('/*', timeout(5000))
+app.use(csrf({ origin: [env.clientBaseUrl] }))
+app.use('*', cors())
+app.use('*', timeout(5000))
 
 app.use('/users/profile', authMiddleware)
 app.use('/users/logout', authMiddleware)
