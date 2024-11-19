@@ -247,7 +247,7 @@ users.post('/refresh', async (c) => {
     )
 
     if (!refreshTokenCookie) {
-      return c.json({ error: 'No refresh token provided' }, 401)
+      return c.json({ message: 'No refresh cookie' }, 200)
     }
 
     const payload = (await verifyJWTRefresh(refreshTokenCookie)) as {
