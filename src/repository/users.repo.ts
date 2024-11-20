@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { db } from '../db'
 import { users } from './repoHandler'
-import type { RegisterRequest, User } from '../types'
+import type { RegisterRequest, UserUpdateRequest, User } from '../types'
 
 export async function getUserBy(
   field: 'uuid' | 'email' | 'verificationToken' | 'passwordResetToken',
@@ -65,7 +65,7 @@ export async function createUser(
 
 export async function updateUser(
   email: string,
-  fields: Partial<User>,
+  fields: UserUpdateRequest,
 ): Promise<User | null> {
   try {
     await db.update(users).set(fields).where(eq(users.email, email))

@@ -22,3 +22,5 @@ export type TokenRequest = {
 export type PasswordResetRequest = {
   email: string
 }
+
+export type UserUpdateRequest = Partial<Omit<User, 'id' | 'uuid' | 'createdAt'>>

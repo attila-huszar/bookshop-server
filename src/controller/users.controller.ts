@@ -1,10 +1,5 @@
 import { Hono } from 'hono'
-import {
-  setCookie,
-  setSignedCookie,
-  deleteCookie,
-  getSignedCookie,
-} from 'hono/cookie'
+import { setSignedCookie, deleteCookie, getSignedCookie } from 'hono/cookie'
 import { createUser, getUserBy, updateUser } from '../repository'
 import { validate, sendEmail } from '../services'
 import { env, cookieOptions } from '../config'
@@ -15,6 +10,7 @@ import type {
   PasswordResetRequest,
   RegisterRequest,
   TokenRequest,
+  UserUpdateRequest,
 } from '../types'
 
 type Variables = {
@@ -43,9 +39,6 @@ users.post('/login', async (c) => {
       env.cookieSecret,
       cookieOptions,
     )
-
-    const { httpOnly, path, ...loginCookieOptions } = cookieOptions
-    setCookie(c, 'uuid', userValidated.uuid, loginCookieOptions)
 
     return c.json({ accessToken, firstName: userValidated.firstName })
   } catch (error) {
@@ -217,22 +210,34 @@ users.get('/profile', async (c) => {
   }
 })
 
-users.post('/logout', (c) => {
+users.patch('/profile', async (c) => {
   try {
-    deleteCookie(c, 'refresh-token', {
-      httpOnly: true,
-      secure: Bun.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/users/refresh',
-    })
+    const jwtPayload = c.get('jwtPayload')
 
-    const isUuidDeleted = deleteCookie(c, 'uuid')
+    const user = await getUserBy('uuid', jwtPayload.uuid)
 
-    if (!isUuidDeleted) {
-      throw new Error('UUID not deleted')
+    if (!user) {
+      throw new Error("User doesn't exist")
     }
 
-    return c.json({ message: 'Logged out' })
+    const updateFields = await c.req.json<UserUpdateRequest>()
+
+    const userUpdated = await updateUser(user.email, {
+      ...updateFields,
+      updatedAt: new Date().toISOString(),
+    })
+
+    return c.json(userUpdated)
+  } catch (error) {
+    return Errors.Handler(c, error)
+  }
+})
+
+users.post('/logout', (c) => {
+  try {
+    deleteCookie(c, 'refresh-token', cookieOptions)
+
+    return c.json({ message: 'Logged out successfully' })
   } catch (error) {
     return Errors.Handler(c, error)
   }
@@ -247,7 +252,7 @@ users.post('/refresh', async (c) => {
     )
 
     if (!refreshTokenCookie) {
-      return c.json({ message: 'No refresh cookie' }, 200)
+      return c.json({ message: 'No user session' }, 200)
     }
 
     const payload = (await verifyJWTRefresh(refreshTokenCookie)) as {
@@ -268,9 +273,6 @@ users.post('/refresh', async (c) => {
         env.cookieSecret,
         cookieOptions,
       )
-
-      const { httpOnly, path, ...loginCookieOptions } = cookieOptions
-      setCookie(c, 'uuid', payload.uuid, loginCookieOptions)
     }
 
     const accessToken = await signAccessToken(payload.uuid, timestamp)

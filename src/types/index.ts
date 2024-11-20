@@ -6,6 +6,7 @@ export type {
   RegisterRequest,
   PasswordResetRequest,
   TokenRequest,
+  UserUpdateRequest,
   User,
 } from './users.t'
 export type {
