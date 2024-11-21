@@ -174,6 +174,10 @@ users.post('/password-reset-token', async (c) => {
       throw new Error('User not updated')
     }
 
+    if (userValidated.message) {
+      throw new Errors.Forbidden(userValidated.message)
+    }
+
     return c.json({ email: userUpdated.email })
   } catch (error) {
     return Errors.Handler(c, error)
