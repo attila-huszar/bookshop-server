@@ -63,7 +63,7 @@ export function sendEmail(
     attachments: [
       {
         filename: 'bookshop-logo.png',
-        path: process.cwd() + '/src/assets/images/logo.png',
+        path: process.cwd() + '/src/assets/images/bookshop-logo.png',
         contentType: 'image/png',
         cid: '194604053023767737',
       },

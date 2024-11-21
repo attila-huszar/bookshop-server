@@ -13,7 +13,7 @@ type ValidateReturnType = {
   login: { uuid: string; firstName: string }
   registration: RegisterRequest
   verification: { email: string }
-  passwordResetRequest: { email: string }
+  passwordResetRequest: { email: string; firstName: string }
   passwordResetToken: { email: string; message?: string }
   orderCreate: OrderRequest
   orderUpdate: OrderRequest
@@ -49,15 +49,15 @@ export async function validate<T extends keyof ValidateReturnType>(
   }[type]
 
   if (requiredFields.some((field) => !req[field as keyof typeof req])) {
-    throw new Errors.BadRequest('Fields required')
+    throw new Errors.BadRequest(Errors.messages.fieldsRequired)
   }
 
   if ('email' in req && !validateEmail(req.email)) {
-    throw new Errors.BadRequest('Invalid email format')
+    throw new Errors.BadRequest(Errors.messages.invalidEmailFormat)
   }
 
   if ('password' in req && !validatePassword(req.password)) {
-    throw new Errors.BadRequest('Invalid password format')
+    throw new Errors.BadRequest(Errors.messages.invalidPasswordFormat)
   }
 
   switch (type) {
@@ -66,11 +66,11 @@ export async function validate<T extends keyof ValidateReturnType>(
       const user = await getUserBy('email', email)
 
       if (!user) {
-        throw new Errors.Unauthorized()
+        throw new Errors.Unauthorized(Errors.messages.emailOrPasswordError)
       }
 
       if (!user.verified) {
-        throw new Errors.Forbidden('Email not verified')
+        throw new Errors.Forbidden(Errors.messages.verifyFirst)
       }
 
       const isPasswordCorrect = await Bun.password.verify(
@@ -92,70 +92,62 @@ export async function validate<T extends keyof ValidateReturnType>(
       const { email } = req as RegisterRequest
       const user = await getUserBy('email', email)
 
+      if (user) {
+        throw new Errors.BadRequest(Errors.messages.emailTaken)
+      }
+
       if (user === null) {
         return req as ValidateReturnType[T]
       }
 
-      throw new Errors.BadRequest('Email already taken')
+      throw new Errors.Internal(Errors.messages.unknown)
     }
 
     case 'verification': {
       const { token } = req as TokenRequest
       const user = await getUserBy('verificationToken', token)
 
-      if (!user) {
-        throw new Errors.BadRequest('User not found')
-      }
-
-      if (!user.verificationToken || !user.verificationExpires) {
-        throw new Errors.BadRequest('Verification data incomplete')
+      if (!user?.verificationToken || !user.verificationExpires) {
+        throw new Errors.BadRequest(Errors.messages.tokenInvalid)
       }
 
       const expirationDate = new Date(user.verificationExpires)
 
       if (expirationDate < new Date()) {
-        throw new Errors.Forbidden('Verification token expired')
+        throw new Errors.Forbidden(Errors.messages.tokenExpired)
       }
 
       if (user.verificationToken === token) {
         return { email: user.email } as ValidateReturnType[T]
       }
 
-      throw new Errors.Forbidden('Invalid verification token')
+      throw new Errors.Forbidden(Errors.messages.tokenInvalid)
     }
 
     case 'passwordResetRequest': {
       const { email } = req as PasswordResetRequest
       const user = await getUserBy('email', email)
 
-      if (!user) {
-        throw new Errors.BadRequest('Email not found')
+      if (user) {
+        return {
+          email: user.email,
+          firstName: user.firstName,
+        } as ValidateReturnType[T]
       }
 
-      if (user.email) {
-        return { email: user.email } as ValidateReturnType[T]
-      }
-
-      throw new Errors.Internal(
-        'Unhandled error in password reset request validation',
-      )
+      throw new Errors.Internal(Errors.messages.unknown)
     }
 
     case 'passwordResetToken': {
       const { token } = req as TokenRequest
       const user = await getUserBy('passwordResetToken', token)
 
-      if (!user) {
-        throw new Errors.BadRequest('User not found')
-      }
-
       if (
+        !user?.passwordResetToken ||
         !user.passwordResetExpires ||
         isNaN(Date.parse(user.passwordResetExpires))
       ) {
-        throw new Errors.BadRequest(
-          'Password reset expiration date is invalid or missing',
-        )
+        throw new Errors.BadRequest(Errors.messages.tokenInvalid)
       }
 
       const expirationDate = new Date(user.passwordResetExpires)
@@ -163,7 +155,7 @@ export async function validate<T extends keyof ValidateReturnType>(
       if (expirationDate < new Date()) {
         return {
           email: user.email,
-          message: 'Password reset token has expired, please request a new one',
+          message: Errors.messages.tokenExpired,
         } as ValidateReturnType[T]
       }
 
@@ -171,7 +163,7 @@ export async function validate<T extends keyof ValidateReturnType>(
         return { email: user.email } as ValidateReturnType[T]
       }
 
-      throw new Errors.Forbidden('Invalid password reset token')
+      throw new Errors.Forbidden(Errors.messages.tokenInvalid)
     }
 
     case 'orderCreate': {

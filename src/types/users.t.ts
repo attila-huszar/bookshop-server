@@ -13,6 +13,8 @@ export type RegisterRequest = {
   email: string
   password: string
   avatar?: string
+  verificationToken: string
+  verificationExpires: string
 }
 
 export type TokenRequest = {

@@ -39,8 +39,8 @@ export async function createUser(
       avatar: values.avatar ?? null,
       role: 'user',
       verified: false,
-      verificationToken: crypto.randomUUID(),
-      verificationExpires: new Date(Date.now() + 86400000).toISOString(),
+      verificationToken: values.verificationToken,
+      verificationExpires: values.verificationExpires,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }
