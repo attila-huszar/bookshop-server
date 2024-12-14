@@ -1,9 +1,9 @@
 import { Hono } from 'hono'
 import { setSignedCookie, deleteCookie, getSignedCookie } from 'hono/cookie'
-import { createUser, getUserBy, updateUser } from '../repository'
 import { validate, sendEmail } from '../services'
 import { env, cookieOptions } from '../config'
 import { signAccessToken, signRefreshToken, verifyJWTRefresh } from '../utils'
+import * as DB from '../repository'
 import * as Errors from '../errors'
 import type {
   LoginRequest,
@@ -74,7 +74,7 @@ users.post('/register', async (c) => {
       verificationExpires,
     }
 
-    const userCreated = await createUser(userValidatedWithToken)
+    const userCreated = await DB.createUser(userValidatedWithToken)
 
     if (!userCreated) {
       throw new Error(Errors.messages.createError)
@@ -99,7 +99,7 @@ users.post('/verification', async (c) => {
 
     const userValidated = await validate('verification', verificationRequest)
 
-    const userUpdated = await updateUser(userValidated.email, {
+    const userUpdated = await DB.updateUser(userValidated.email, {
       verified: true,
       verificationToken: null,
       verificationExpires: null,
@@ -141,7 +141,7 @@ users.post('/password-reset-request', async (c) => {
       throw new Error(Errors.messages.sendEmail)
     }
 
-    const userUpdated = await updateUser(userValidated.email, {
+    const userUpdated = await DB.updateUser(userValidated.email, {
       passwordResetToken,
       passwordResetExpires,
       updatedAt: new Date().toISOString(),
@@ -170,7 +170,7 @@ users.post('/password-reset-token', async (c) => {
       passwordResetToken,
     )
 
-    const userUpdated = await updateUser(userValidated.email, {
+    const userUpdated = await DB.updateUser(userValidated.email, {
       passwordResetToken: null,
       passwordResetExpires: null,
       updatedAt: new Date().toISOString(),
@@ -194,7 +194,7 @@ users.get('/profile', async (c) => {
   try {
     const jwtPayload = c.get('jwtPayload')
 
-    const user = await getUserBy('uuid', jwtPayload.uuid)
+    const user = await DB.getUserBy('uuid', jwtPayload.uuid)
 
     if (!user) {
       throw new Error(Errors.messages.retrieveError)
@@ -224,7 +224,7 @@ users.patch('/profile', async (c) => {
   try {
     const jwtPayload = c.get('jwtPayload')
 
-    const user = await getUserBy('uuid', jwtPayload.uuid)
+    const user = await DB.getUserBy('uuid', jwtPayload.uuid)
 
     if (!user) {
       throw new Error(Errors.messages.retrieveError)
@@ -232,7 +232,7 @@ users.patch('/profile', async (c) => {
 
     const updateFields = await c.req.json<UserUpdateRequest>()
 
-    const userUpdated = await updateUser(user.email, {
+    const userUpdated = await DB.updateUser(user.email, {
       ...updateFields,
       updatedAt: new Date().toISOString(),
     })
