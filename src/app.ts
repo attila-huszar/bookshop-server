@@ -4,6 +4,7 @@ import { cors } from 'hono/cors'
 import { csrf } from 'hono/csrf'
 import { timeout } from 'hono/timeout'
 import { trimTrailingSlash } from 'hono/trailing-slash'
+import { serveStatic } from 'hono/bun'
 import { rateLimiter } from 'hono-rate-limiter'
 import { formatUptime, ngrokForward } from './utils'
 import { env } from './config'
@@ -30,6 +31,7 @@ app.use(trimTrailingSlash())
 app.use(csrf({ origin: [env.clientBaseUrl] }))
 app.use('*', cors())
 app.use('*', timeout(5000))
+app.use('/favicon.ico', serveStatic({ path: './static/favicon.ico' }))
 
 app.use('/users/profile', authMiddleware)
 app.use('/users/logout', authMiddleware)
@@ -37,7 +39,7 @@ app.use('/orders/*', authMiddleware)
 
 app.get('/', (c) => {
   return c.html(
-    `<h2>Book Shop Backend</h2><p>Uptime: ${formatUptime(Bun.nanoseconds())}</p}`,
+    `<h2>Book Shop Backend</h2><p>Uptime: ${formatUptime(Bun.nanoseconds())}</p>`,
   )
 })
 
