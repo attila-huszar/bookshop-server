@@ -10,6 +10,12 @@ import { formatUptime, ngrokForward } from './utils'
 import { env } from './config'
 import { authMiddleware } from './middleware'
 import * as controller from './controller'
+import * as Sentry from '@sentry/bun'
+
+Sentry.init({
+  dsn: env.sentryDsn,
+  tracesSampleRate: 1.0,
+})
 
 const app = new Hono()
 
