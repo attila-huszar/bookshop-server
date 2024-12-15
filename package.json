@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@ngrok/ngrok": "^1.4.1",
+    "@sentry/bun": "^8.45.0",
     "drizzle-orm": "^0.38.2",
     "hono": "^4.6.14",
     "hono-rate-limiter": "^0.4.2",
