@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { getAuthorById, getAuthorsBySearch } from '../repository'
+import * as DB from '../repository'
 import * as Errors from '../errors'
 
 export const authors = new Hono()
@@ -8,7 +8,7 @@ authors.get('/', async (c) => {
   try {
     const query = c.req.query()
 
-    const authorRecords = await getAuthorsBySearch(query?.name)
+    const authorRecords = await DB.getAuthorsBySearch(query?.name)
 
     return c.json(authorRecords)
   } catch (error) {
@@ -20,7 +20,7 @@ authors.get('/:id', async (c) => {
   try {
     const id = c.req.param('id')
 
-    const authorRecord = await getAuthorById(Number(id))
+    const authorRecord = await DB.getAuthorById(Number(id))
 
     if (!authorRecord) {
       return c.json({ error: 'Author not found' }, 404)

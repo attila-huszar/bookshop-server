@@ -1,8 +1,8 @@
 import { Hono } from 'hono'
 import { Stripe } from 'stripe'
 import { env } from '../config'
-import { createOrder, updateOrder } from '../repository'
 import { validate } from '../services'
+import * as DB from '../repository'
 import * as Errors from '../errors'
 import type { OrderRequest, PaymentIntentCreateRequest } from '../types'
 
@@ -16,7 +16,7 @@ orders.post('/create', async (c) => {
 
     const orderValidated = await validate('orderCreate', createRequest)
 
-    const orderCreated = await createOrder(orderValidated)
+    const orderCreated = await DB.createOrder(orderValidated)
 
     if (!orderCreated) {
       throw new Error('Order not created')
@@ -35,7 +35,7 @@ orders.patch('/update', async (c) => {
 
     const orderValidated = await validate('orderUpdate', updateRequest)
 
-    const orderUpdated = await updateOrder(orderValidated.paymentId, {
+    const orderUpdated = await DB.updateOrder(orderValidated.paymentId, {
       status: orderValidated.status,
       updatedAt: new Date().toISOString(),
     })

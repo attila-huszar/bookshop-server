@@ -1,9 +1,9 @@
 import { Hono } from 'hono'
 import { setSignedCookie, deleteCookie, getSignedCookie } from 'hono/cookie'
-import { createUser, getUserBy, updateUser } from '../repository'
 import { validate, sendEmail } from '../services'
 import { env, cookieOptions } from '../config'
 import { signAccessToken, signRefreshToken, verifyJWTRefresh } from '../utils'
+import * as DB from '../repository'
 import * as Errors from '../errors'
 import type {
   LoginRequest,
@@ -52,13 +52,9 @@ users.post('/register', async (c) => {
 
     const userValidated = await validate('registration', registerRequest)
 
-    const userCreated = await createUser(userValidated)
-
-    if (!userCreated) {
-      throw new Error('User not created')
-    }
-
-    const tokenLink = `${env.clientBaseUrl}/verification?token=${userCreated.verificationToken}`
+    const verificationToken = crypto.randomUUID()
+    const verificationExpires = new Date(Date.now() + 86400000).toISOString()
+    const tokenLink = `${env.clientBaseUrl}/verification?token=${verificationToken}`
 
     const emailResponse = await sendEmail(
       userValidated.email,
@@ -68,16 +64,28 @@ users.post('/register', async (c) => {
       'verification',
     )
 
-    if (emailResponse.accepted.includes(userValidated.email)) {
-      return c.json({ email: userValidated.email })
-    } else {
-      throw new Error('Email not sent')
+    if (emailResponse.rejected) {
+      throw new Error(Errors.messages.sendEmail)
     }
+
+    const userValidatedWithToken = {
+      ...userValidated,
+      verificationToken,
+      verificationExpires,
+    }
+
+    const userCreated = await DB.createUser(userValidatedWithToken)
+
+    if (!userCreated) {
+      throw new Error(Errors.messages.createError)
+    }
+
+    return c.json({ email: userCreated.email })
   } catch (error) {
     if (error instanceof Errors.BaseError) {
       return c.json({ error: error.message }, error.status)
     }
-    if (error instanceof Error && error.message === 'Email not sent') {
+    if (error instanceof Error && error.message === Errors.messages.sendEmail) {
       return c.json({ error: error.message }, 500)
     }
 
@@ -91,7 +99,7 @@ users.post('/verification', async (c) => {
 
     const userValidated = await validate('verification', verificationRequest)
 
-    const userUpdated = await updateUser(userValidated.email, {
+    const userUpdated = await DB.updateUser(userValidated.email, {
       verified: true,
       verificationToken: null,
       verificationExpires: null,
@@ -99,7 +107,7 @@ users.post('/verification', async (c) => {
     })
 
     if (!userUpdated) {
-      throw new Error('User not updated')
+      throw new Error(Errors.messages.updateError)
     }
 
     return c.json({ email: userUpdated.email })
@@ -117,41 +125,39 @@ users.post('/password-reset-request', async (c) => {
       passwordResetRequest,
     )
 
-    const userUpdated = await updateUser(userValidated.email, {
-      passwordResetToken: crypto.randomUUID(),
-      passwordResetExpires: new Date(Date.now() + 86400000).toISOString(),
-      updatedAt: new Date().toISOString(),
-    })
-
-    if (!userUpdated) {
-      throw new Error('User not updated')
-    }
-
-    const tokenLink = `${env.clientBaseUrl}/password-reset?token=${userUpdated.passwordResetToken}`
+    const passwordResetToken = crypto.randomUUID()
+    const passwordResetExpires = new Date(Date.now() + 86400000).toISOString()
+    const tokenLink = `${env.clientBaseUrl}/password-reset?token=${passwordResetToken}`
 
     const emailResponse = await sendEmail(
-      userUpdated.email,
-      userUpdated.firstName,
+      userValidated.email,
+      userValidated.firstName,
       tokenLink,
       env.clientBaseUrl,
       'passwordReset',
     )
 
-    if (emailResponse.accepted.includes(userUpdated.email)) {
-      return c.json({ email: userUpdated.email })
-    } else {
-      throw new Error('Email not sent')
-    }
-  } catch (error) {
-    if (error instanceof Errors.BaseError) {
-      return c.json({ error: error.message }, error.status)
+    if (emailResponse.rejected) {
+      throw new Error(Errors.messages.sendEmail)
     }
 
-    if (error instanceof Error && error.message === 'Email not sent') {
+    const userUpdated = await DB.updateUser(userValidated.email, {
+      passwordResetToken,
+      passwordResetExpires,
+      updatedAt: new Date().toISOString(),
+    })
+
+    if (!userUpdated) {
+      throw new Error(Errors.messages.updateError)
+    }
+
+    return c.status(200)
+  } catch (error) {
+    if (error instanceof Error && error.message === Errors.messages.sendEmail) {
       return c.json({ error: error.message }, 500)
     }
 
-    return c.json({ error: 'Internal server error' }, 500)
+    return c.status(200)
   }
 })
 
@@ -164,14 +170,18 @@ users.post('/password-reset-token', async (c) => {
       passwordResetToken,
     )
 
-    const userUpdated = await updateUser(userValidated.email, {
+    const userUpdated = await DB.updateUser(userValidated.email, {
       passwordResetToken: null,
       passwordResetExpires: null,
       updatedAt: new Date().toISOString(),
     })
 
     if (!userUpdated) {
-      throw new Error('User not updated')
+      throw new Error(Errors.messages.updateError)
+    }
+
+    if (userValidated.message) {
+      throw new Errors.Forbidden(userValidated.message)
     }
 
     return c.json({ email: userUpdated.email })
@@ -184,10 +194,10 @@ users.get('/profile', async (c) => {
   try {
     const jwtPayload = c.get('jwtPayload')
 
-    const user = await getUserBy('uuid', jwtPayload.uuid)
+    const user = await DB.getUserBy('uuid', jwtPayload.uuid)
 
     if (!user) {
-      throw new Error("User doesn't exist")
+      throw new Error(Errors.messages.retrieveError)
     }
 
     const {
@@ -214,18 +224,22 @@ users.patch('/profile', async (c) => {
   try {
     const jwtPayload = c.get('jwtPayload')
 
-    const user = await getUserBy('uuid', jwtPayload.uuid)
+    const user = await DB.getUserBy('uuid', jwtPayload.uuid)
 
     if (!user) {
-      throw new Error("User doesn't exist")
+      throw new Error(Errors.messages.retrieveError)
     }
 
     const updateFields = await c.req.json<UserUpdateRequest>()
 
-    const userUpdated = await updateUser(user.email, {
+    const userUpdated = await DB.updateUser(user.email, {
       ...updateFields,
       updatedAt: new Date().toISOString(),
     })
+
+    if (!userUpdated) {
+      throw new Error(Errors.messages.updateError)
+    }
 
     return c.json(userUpdated)
   } catch (error) {
