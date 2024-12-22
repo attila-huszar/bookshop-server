@@ -41,3 +41,4 @@ export const ngrokAuthToken = getEnvVar('NGROK_AUTHTOKEN', null)
 export const ngrokDomain = getEnvVar('NGROK_DOMAIN', null)
 
 export const stripeSecret = getEnvVar('STRIPE_SECRET')
+export const sentryDsn = getEnvVar('SENTRY_DSN', null)
