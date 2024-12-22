@@ -11,9 +11,16 @@ export type OrderItem = {
   quantity: number
 }
 
+export enum OrderStatus {
+  Pending = 'PENDING',
+  Paid = 'PAID',
+  Cancelled = 'CANCELLED',
+}
+
 export type OrderRequest = {
   paymentId: string
-  status: 'pending' | 'paid' | 'cancelled'
+  paymentIntentStatus: Stripe.PaymentIntent.Status
+  orderStatus: OrderStatus
   total: number
   currency: string
   items: OrderItem[]

@@ -1,12 +1,13 @@
 import { eq } from 'drizzle-orm'
 import { db } from '../db'
 import { orders } from './repoHandler'
-import type { Order, OrderRequest } from '../types'
+import { type Order, type OrderRequest, OrderStatus } from '../types'
 
 export async function createOrder(values: OrderRequest): Promise<Order | null> {
   const orderInsert: typeof orders.$inferInsert = {
     paymentId: values.paymentId,
-    status: 'pending',
+    paymentIntentStatus: 'processing',
+    orderStatus: OrderStatus.Pending,
     total: values.total,
     currency: values.currency,
     items: values.items,
@@ -36,7 +37,7 @@ export async function createOrder(values: OrderRequest): Promise<Order | null> {
 
 export async function updateOrder(
   paymentId: string,
-  fields: Pick<Order, 'status' | 'updatedAt'>,
+  fields: Partial<Order>,
 ): Promise<Order | null> {
   await db.update(orders).set(fields).where(eq(orders.paymentId, paymentId))
 

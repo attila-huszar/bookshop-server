@@ -14,3 +14,4 @@ export type {
   OrderRequest,
   PaymentIntentCreateRequest,
 } from './orders.t'
+export { OrderStatus } from './orders.t'

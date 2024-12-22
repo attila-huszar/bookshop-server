@@ -19,7 +19,7 @@ orders.post('/create', async (c) => {
     const orderCreated = await DB.createOrder(orderValidated)
 
     if (!orderCreated) {
-      throw new Error('Order not created')
+      throw new Error('Order record not created')
     }
 
     return c.json({ paymentId: orderCreated.paymentId })
@@ -30,21 +30,20 @@ orders.post('/create', async (c) => {
 
 orders.patch('/update', async (c) => {
   try {
-    const updateRequest =
-      await c.req.json<Pick<OrderRequest, 'paymentId' | 'status'>>()
+    const updateRequest = await c.req.json<OrderRequest>()
 
     const orderValidated = await validate('orderUpdate', updateRequest)
 
     const orderUpdated = await DB.updateOrder(orderValidated.paymentId, {
-      status: orderValidated.status,
+      orderStatus: orderValidated.orderStatus,
       updatedAt: new Date().toISOString(),
     })
 
     if (!orderUpdated) {
-      throw new Error('Order not updated')
+      throw new Error('Order record not updated')
     }
 
-    return c.json({})
+    return c.json(orderUpdated)
   } catch (error) {
     return Errors.Handler(c, error)
   }

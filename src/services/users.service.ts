@@ -26,8 +26,7 @@ export async function validate<T extends keyof ValidateReturnType>(
     | RegisterRequest
     | TokenRequest
     | PasswordResetRequest
-    | OrderRequest
-    | Pick<OrderRequest, 'paymentId' | 'status'>,
+    | OrderRequest,
 ): Promise<ValidateReturnType[T]> {
   const requiredFields = {
     login: ['email', 'password'],
