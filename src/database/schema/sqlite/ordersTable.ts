@@ -5,12 +5,12 @@ import { OrderStatus } from '../../../types'
 
 export const ordersTable = sqliteTable('orders', {
   id: int().primaryKey({ autoIncrement: true }),
-  paymentId: text().unique().notNull(),
-  paymentIntentStatus: text()
+  paymentId: text('payment_id').unique().notNull(),
+  paymentIntentStatus: text('payment_intent_status')
     .$type<Stripe.PaymentIntent.Status>()
     .default('processing')
     .notNull(),
-  orderStatus: text()
+  orderStatus: text('order_status')
     .$type<OrderStatus>()
     .default(OrderStatus.Pending)
     .notNull(),

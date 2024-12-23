@@ -21,14 +21,14 @@ export type OrderRequest = {
   paymentId: string
   paymentIntentStatus: Stripe.PaymentIntent.Status
   orderStatus: OrderStatus
-  total: number
-  currency: string
-  items: OrderItem[]
-  firstName: string
-  lastName: string
-  email: string
-  phone?: string
-  address: Stripe.Address
+  userFirstName: string
+  userLastName: string
+  userEmail: string
+  userPhone?: string
+  userAddress: Stripe.Address
+  orderTotal: number
+  orderCurrency: string
+  orderItems: OrderItem[]
 }
 
 export type PaymentIntentCreateRequest = Pick<

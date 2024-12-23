@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "514d0709-b680-4c18-8196-a864208949d1",
+  "id": "c7f77c39-c398-4240-b225-e4ebf7664643",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "authors": {
@@ -277,20 +277,28 @@
           "notNull": true,
           "autoincrement": true
         },
-        "paymentId": {
-          "name": "paymentId",
+        "payment_id": {
+          "name": "payment_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "status": {
-          "name": "status",
+        "payment_intent_status": {
+          "name": "payment_intent_status",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "'pending'"
+          "default": "'processing'"
+        },
+        "order_status": {
+          "name": "order_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'PENDING'"
         },
         "total": {
           "name": "total",
@@ -366,10 +374,10 @@
         }
       },
       "indexes": {
-        "orders_paymentId_unique": {
-          "name": "orders_paymentId_unique",
+        "orders_payment_id_unique": {
+          "name": "orders_payment_id_unique",
           "columns": [
-            "paymentId"
+            "payment_id"
           ],
           "isUnique": true
         }

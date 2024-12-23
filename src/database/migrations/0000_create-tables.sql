@@ -40,8 +40,9 @@ CREATE TABLE `news` (
 --> statement-breakpoint
 CREATE TABLE `orders` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
-	`paymentId` text NOT NULL,
-	`status` text DEFAULT 'pending' NOT NULL,
+	`payment_id` text NOT NULL,
+	`payment_intent_status` text DEFAULT 'processing' NOT NULL,
+	`order_status` text DEFAULT 'PENDING' NOT NULL,
 	`total` real NOT NULL,
 	`currency` text NOT NULL,
 	`items` text NOT NULL,
@@ -54,7 +55,7 @@ CREATE TABLE `orders` (
 	`updated_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `orders_paymentId_unique` ON `orders` (`paymentId`);--> statement-breakpoint
+CREATE UNIQUE INDEX `orders_payment_id_unique` ON `orders` (`payment_id`);--> statement-breakpoint
 CREATE TABLE `users` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
 	`uuid` text NOT NULL,

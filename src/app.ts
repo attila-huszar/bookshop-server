@@ -36,7 +36,7 @@ app.use(logger())
 app.use(trimTrailingSlash())
 app.use(csrf({ origin: [env.clientBaseUrl] }))
 app.use('*', cors())
-app.use('*', timeout(5000))
+app.use('*', timeout(10000))
 app.use('/favicon.ico', serveStatic({ path: './static/favicon.ico' }))
 
 app.use('/users/profile', authMiddleware)

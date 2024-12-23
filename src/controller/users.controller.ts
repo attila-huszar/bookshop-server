@@ -64,7 +64,7 @@ users.post('/register', async (c) => {
       'verification',
     )
 
-    if (emailResponse.rejected) {
+    if (emailResponse.rejected.includes(userValidated.email)) {
       throw new Error(Errors.messages.sendEmail)
     }
 

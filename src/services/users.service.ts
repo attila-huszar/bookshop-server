@@ -36,15 +36,17 @@ export async function validate<T extends keyof ValidateReturnType>(
     passwordResetToken: ['token'],
     orderCreate: [
       'paymentId',
-      'total',
-      'currency',
-      'items',
-      'firstName',
-      'lastName',
-      'email',
-      'address',
+      'paymentIntentStatus',
+      'orderStatus',
+      'userFirstName',
+      'userLastName',
+      'userEmail',
+      'userAddress',
+      'orderTotal',
+      'orderCurrency',
+      'orderItems',
     ],
-    orderUpdate: ['paymentId', 'status'],
+    orderUpdate: ['paymentId', 'orderStatus'],
   }[type]
 
   if (requiredFields.some((field) => !req[field as keyof typeof req])) {
