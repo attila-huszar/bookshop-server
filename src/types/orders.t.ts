@@ -14,24 +14,15 @@ export type OrderItem = {
 export enum OrderStatus {
   Pending = 'PENDING',
   Paid = 'PAID',
-  Cancelled = 'CANCELLED',
+  Canceled = 'CANCELED',
 }
 
-export type OrderRequest = {
+export type OrderUpdate = {
   paymentId: string
-  paymentIntentStatus: Stripe.PaymentIntent.Status
-  orderStatus: OrderStatus
-  userFirstName: string
-  userLastName: string
-  userEmail: string
-  userPhone?: string
-  userAddress: Stripe.Address
-  orderTotal: number
-  orderCurrency: string
-  orderItems: OrderItem[]
+  fields: Partial<Order>
 }
 
-export type PaymentIntentCreateRequest = Pick<
+export type PaymentIntentCreate = Pick<
   Stripe.PaymentIntentCreateParams,
   'amount' | 'currency' | 'description'
 >

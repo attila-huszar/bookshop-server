@@ -2,6 +2,7 @@ import { int, real, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Stripe } from 'stripe'
 import { timestamps } from './column.helpers'
 import { OrderStatus } from '../../../types'
+import type { OrderItem } from '../../../types/orders.t'
 
 export const ordersTable = sqliteTable('orders', {
   id: int().primaryKey({ autoIncrement: true }),
@@ -16,11 +17,11 @@ export const ordersTable = sqliteTable('orders', {
     .notNull(),
   total: real().notNull(),
   currency: text().notNull(),
-  items: text({ mode: 'json' }).notNull(),
-  firstName: text('first_name').notNull(),
-  lastName: text('last_name').notNull(),
-  email: text().notNull(),
+  items: text({ mode: 'json' }).$type<OrderItem[]>().notNull(),
+  firstName: text('first_name'),
+  lastName: text('last_name'),
+  email: text(),
   phone: text(),
-  address: text({ mode: 'json' }).notNull(),
+  address: text({ mode: 'json' }).$type<Stripe.Address>(),
   ...timestamps,
 })

@@ -1,21 +1,21 @@
 import { eq } from 'drizzle-orm'
 import { db } from '../db'
 import { orders } from './repoHandler'
-import { type Order, type OrderRequest, OrderStatus } from '../types'
+import { type Order, OrderStatus } from '../types'
 
-export async function createOrder(values: OrderRequest): Promise<Order | null> {
+export async function createOrder(order: Order): Promise<Order | null> {
   const orderInsert: typeof orders.$inferInsert = {
-    paymentId: values.paymentId,
+    paymentId: order.paymentId,
     paymentIntentStatus: 'processing',
     orderStatus: OrderStatus.Pending,
-    firstName: values.userFirstName,
-    lastName: values.userLastName,
-    email: values.userEmail,
-    phone: values.userPhone ?? null,
-    address: values.userAddress,
-    total: values.orderTotal,
-    currency: values.orderCurrency,
-    items: values.orderItems,
+    firstName: order.firstName,
+    lastName: order.lastName,
+    email: order.email,
+    phone: order.phone ?? null,
+    address: order.address,
+    total: order.total,
+    currency: order.currency,
+    items: order.items,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   }
@@ -25,7 +25,7 @@ export async function createOrder(values: OrderRequest): Promise<Order | null> {
   const orderRecords = await db
     .select()
     .from(orders)
-    .where(eq(orders.paymentId, values.paymentId))
+    .where(eq(orders.paymentId, order.paymentId))
     .limit(1)
 
   if (!orderRecords.length) {

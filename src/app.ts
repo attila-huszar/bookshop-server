@@ -39,15 +39,14 @@ app.use('*', cors())
 app.use('*', timeout(10000))
 app.use('/favicon.ico', serveStatic({ path: './static/favicon.ico' }))
 
-app.use('/users/profile', authMiddleware)
-app.use('/users/logout', authMiddleware)
-app.use('/orders/*', authMiddleware)
-
 app.get('/', (c) => {
   return c.html(
     `<h2>Book Shop Backend</h2><p>Uptime: ${formatUptime(Bun.nanoseconds())}</p>`,
   )
 })
+
+app.use('/users/profile', authMiddleware)
+app.use('/users/logout', authMiddleware)
 
 app.route('/books', controller.books)
 app.route('/authors', controller.authors)

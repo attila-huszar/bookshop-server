@@ -9,9 +9,5 @@ export type {
   UserUpdateRequest,
   User,
 } from './users.t'
-export type {
-  Order,
-  OrderRequest,
-  PaymentIntentCreateRequest,
-} from './orders.t'
+export type { Order, OrderUpdate, PaymentIntentCreate } from './orders.t'
 export { OrderStatus } from './orders.t'

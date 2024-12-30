@@ -3,7 +3,8 @@ import { validateEmail, validatePassword } from '../utils'
 import * as Errors from '../errors'
 import type {
   LoginRequest,
-  OrderRequest,
+  Order,
+  OrderUpdate,
   PasswordResetRequest,
   RegisterRequest,
   TokenRequest,
@@ -15,8 +16,8 @@ type ValidateReturnType = {
   verification: { email: string }
   passwordResetRequest: { email: string; firstName: string }
   passwordResetToken: { email: string; message?: string }
-  orderCreate: OrderRequest
-  orderUpdate: OrderRequest
+  orderCreate: Order
+  orderUpdate: OrderUpdate
 }
 
 export async function validate<T extends keyof ValidateReturnType>(
@@ -26,7 +27,8 @@ export async function validate<T extends keyof ValidateReturnType>(
     | RegisterRequest
     | TokenRequest
     | PasswordResetRequest
-    | OrderRequest,
+    | Order
+    | OrderUpdate,
 ): Promise<ValidateReturnType[T]> {
   const requiredFields = {
     login: ['email', 'password'],
@@ -38,22 +40,18 @@ export async function validate<T extends keyof ValidateReturnType>(
       'paymentId',
       'paymentIntentStatus',
       'orderStatus',
-      'userFirstName',
-      'userLastName',
-      'userEmail',
-      'userAddress',
-      'orderTotal',
-      'orderCurrency',
-      'orderItems',
-    ],
-    orderUpdate: ['paymentId', 'orderStatus'],
+      'total',
+      'currency',
+      'items',
+    ] as (keyof Order)[],
+    orderUpdate: ['paymentId', 'fields'],
   }[type]
 
   if (requiredFields.some((field) => !req[field as keyof typeof req])) {
     throw new Errors.BadRequest(Errors.messages.fieldsRequired)
   }
 
-  if ('email' in req && !validateEmail(req.email)) {
+  if ('email' in req && !validateEmail(req.email!)) {
     throw new Errors.BadRequest(Errors.messages.invalidEmailFormat)
   }
 
