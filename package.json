@@ -10,13 +10,13 @@
   },
   "dependencies": {
     "@ngrok/ngrok": "^1.4.1",
-    "@sentry/bun": "^8.45.0",
-    "drizzle-orm": "^0.38.2",
-    "hono": "^4.6.14",
+    "@sentry/bun": "^8.47.0",
+    "drizzle-orm": "^0.38.3",
+    "hono": "^4.6.15",
     "hono-rate-limiter": "^0.4.2",
     "http-status": "^2.0.0",
     "nodemailer": "^6.9.16",
-    "stripe": "^17.4.0"
+    "stripe": "^17.5.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
@@ -24,9 +24,9 @@
     "@types/nodemailer": "^6.4.17",
     "drizzle-kit": "^0.30.1",
     "eslint-plugin-prettier": "^5.2.1",
-    "globals": "^15.13.0",
+    "globals": "^15.14.0",
     "prettier": "^3.4.2",
-    "typescript-eslint": "^8.18.0"
+    "typescript-eslint": "^8.19.0"
   },
   "peerDependencies": {
     "typescript": "^5.0.0"
