@@ -46,11 +46,11 @@ CREATE TABLE `orders` (
 	`total` real NOT NULL,
 	`currency` text NOT NULL,
 	`items` text NOT NULL,
-	`first_name` text NOT NULL,
-	`last_name` text NOT NULL,
-	`email` text NOT NULL,
+	`first_name` text,
+	`last_name` text,
+	`email` text,
 	`phone` text,
-	`address` text NOT NULL,
+	`address` text,
 	`created_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
 	`updated_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
