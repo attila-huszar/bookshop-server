@@ -31,11 +31,18 @@ const limiter = rateLimiter({
     'unknown-client',
 })
 
+const corsMiddleware = cors({
+  origin: env.clientBaseUrl,
+  allowedHeaders: ['content-type', 'credentials', 'ngrok-skip-browser-warning'],
+  allowMethods: ['GET', 'OPTIONS', 'POST', 'PUT', 'PATCH', 'DELETE'],
+  credentials: true,
+})
+
 app.use(limiter)
 app.use(logger())
 app.use(trimTrailingSlash())
+app.use('*', corsMiddleware)
 app.use(csrf({ origin: [env.clientBaseUrl] }))
-app.use('*', cors())
 app.use('*', timeout(10000))
 app.use('/favicon.ico', serveStatic({ path: './static/favicon.ico' }))
 
