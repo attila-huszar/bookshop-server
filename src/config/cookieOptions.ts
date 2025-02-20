@@ -1,6 +1,6 @@
 import { cookieMaxAge } from './envConfig'
 
-export const REFRESH_TOKEN = "refresh_token"
+export const REFRESH_TOKEN = 'refresh_token'
 
 export const cookieOptions: CookieOptions = {
   maxAge: Number(cookieMaxAge) || 1209600,

@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { logger } from 'hono/logger'
 import { cors } from 'hono/cors'
+import { getConnInfo } from 'hono/bun'
 import { csrf } from 'hono/csrf'
 import { timeout } from 'hono/timeout'
 import { trimTrailingSlash } from 'hono/trailing-slash'
@@ -21,19 +22,24 @@ const app = new Hono()
 
 const limiter = rateLimiter({
   windowMs: 15 * 60 * 1000,
-  limit: 500,
+  limit: 200,
   message: { error: 'Too many requests' },
   statusCode: 429,
   standardHeaders: 'draft-6',
-  keyGenerator: (c) =>
-    c.req.header('x-real-ip') ??
-    c.req.header('x-forwarded-for')?.split(',')[0] ??
-    'unknown-client',
+  keyGenerator: (c) => {
+    const info = getConnInfo(c)
+    return (
+      info.remote.address ??
+      c.req.header('x-real-ip') ??
+      c.req.header('x-forwarded-for')?.split(',')[0] ??
+      'unknown-client'
+    )
+  },
 })
 
 const corsMiddleware = cors({
   origin: env.clientBaseUrl,
-  allowedHeaders: ['content-type', 'ngrok-skip-browser-warning'],
+  allowHeaders: ['content-type', 'ngrok-skip-browser-warning'],
   allowMethods: ['GET', 'OPTIONS', 'POST', 'PUT', 'PATCH', 'DELETE'],
   credentials: true,
 })
