@@ -57,6 +57,10 @@ export async function updateUser(
   email: string,
   fields: UserUpdateRequest,
 ): Promise<User | null> {
+  if (fields.password) {
+    fields.password = await Bun.password.hash(fields.password)
+  }
+
   await db.update(users).set(fields).where(eq(users.email, email))
 
   const userRecords = await db
