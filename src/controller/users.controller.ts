@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { setSignedCookie, deleteCookie, getSignedCookie } from 'hono/cookie'
 import { validate, sendEmail } from '../services'
-import { env, cookieOptions } from '../config'
+import { env, REFRESH_TOKEN, cookieOptions } from '../config'
 import { signAccessToken, signRefreshToken, verifyJWTRefresh } from '../utils'
 import * as DB from '../repository'
 import * as Errors from '../errors'
@@ -34,7 +34,7 @@ users.post('/login', async (c) => {
 
     await setSignedCookie(
       c,
-      'refresh-token',
+      REFRESH_TOKEN,
       refreshToken,
       env.cookieSecret,
       cookieOptions,
@@ -249,7 +249,7 @@ users.patch('/profile', async (c) => {
 
 users.post('/logout', (c) => {
   try {
-    deleteCookie(c, 'refresh-token', cookieOptions)
+    deleteCookie(c, REFRESH_TOKEN, cookieOptions)
 
     return c.json({ message: 'Logged out successfully' })
   } catch (error) {
@@ -262,7 +262,7 @@ users.post('/refresh', async (c) => {
     const refreshTokenCookie = await getSignedCookie(
       c,
       env.cookieSecret,
-      'refresh-token',
+      REFRESH_TOKEN,
     )
 
     if (!refreshTokenCookie) {
@@ -282,7 +282,7 @@ users.post('/refresh', async (c) => {
       const refreshToken = await signRefreshToken(payload.uuid, timestamp)
       await setSignedCookie(
         c,
-        'refresh-token',
+        REFRESH_TOKEN,
         refreshToken,
         env.cookieSecret,
         cookieOptions,
