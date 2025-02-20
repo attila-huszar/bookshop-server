@@ -12,7 +12,7 @@ services:
           bun migrate && bun seed;
         fi;
         if [ \"$NODE_ENV\" = \"production\" ]; then
-          bun src/app.ts;
+          NODE_ENV=production bun src/app.ts;
         else
           bun dev;
         fi;
