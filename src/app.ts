@@ -1,7 +1,6 @@
 import { Hono } from 'hono'
 import { logger } from 'hono/logger'
 import { cors } from 'hono/cors'
-import { getConnInfo } from 'hono/bun'
 import { csrf } from 'hono/csrf'
 import { timeout } from 'hono/timeout'
 import { trimTrailingSlash } from 'hono/trailing-slash'
@@ -22,19 +21,12 @@ const app = new Hono()
 
 const limiter = rateLimiter({
   windowMs: 15 * 60 * 1000,
-  limit: 200,
+  limit: 500,
   message: { error: 'Too many requests' },
   statusCode: 429,
   standardHeaders: 'draft-6',
-  keyGenerator: (c) => {
-    const info = getConnInfo(c)
-    return (
-      info.remote.address ??
-      c.req.header('x-real-ip') ??
-      c.req.header('x-forwarded-for')?.split(',')[0] ??
-      'unknown-client'
-    )
-  },
+  keyGenerator: (c) =>
+    c.req.header('X-Forwarded-For') ?? c.req.header('X-Real-Ip') ?? 'unknown',
 })
 
 const corsMiddleware = cors({
@@ -54,7 +46,9 @@ app.use('/favicon.ico', serveStatic({ path: './static/favicon.ico' }))
 
 app.get('/', (c) => {
   return c.html(
-    `<h2>Book Shop Backend</h2><p>Uptime: ${formatUptime(Bun.nanoseconds())}</p>`,
+    `<h2>Book Shop Backend</h2>
+    <p>Uptime: ${formatUptime(Bun.nanoseconds())}</p>
+    <p>Your IP: ${c.req.header('X-Forwarded-For') ?? c.req.header('X-Real-Ip') ?? 'unknown'}</p>`,
   )
 })
 
