@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { setSignedCookie, deleteCookie, getSignedCookie } from 'hono/cookie'
+import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { validate, sendEmail } from '../services'
 import { env, REFRESH_TOKEN, cookieOptions } from '../config'
 import { signAccessToken, signRefreshToken, verifyJWTRefresh } from '../utils'
@@ -83,7 +84,10 @@ users.post('/register', async (c) => {
     return c.json({ email: userCreated.email })
   } catch (error) {
     if (error instanceof Errors.BaseError) {
-      return c.json({ error: error.message }, error.status)
+      return c.json(
+        { error: error.message },
+        error.status as ContentfulStatusCode,
+      )
     }
     if (error instanceof Error && error.message === Errors.messages.sendEmail) {
       return c.json({ error: error.message }, 500)

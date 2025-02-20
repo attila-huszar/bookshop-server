@@ -39,7 +39,7 @@ const limiter = rateLimiter({
 
 const corsMiddleware = cors({
   origin: env.clientBaseUrl,
-  allowHeaders: ['content-type', 'ngrok-skip-browser-warning'],
+  allowHeaders: ['authorization', 'content-type', 'ngrok-skip-browser-warning'],
   allowMethods: ['GET', 'OPTIONS', 'POST', 'PUT', 'PATCH', 'DELETE'],
   credentials: true,
 })
