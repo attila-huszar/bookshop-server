@@ -1,4 +1,4 @@
-# Book Shop Backend
+# Bookshop Backend
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=fff)](https://www.typescriptlang.org/)
 [![Bun](https://img.shields.io/badge/Bun-000?logo=bun)](https://bun.sh/)
@@ -9,9 +9,16 @@
 [![Amazon EC2](https://img.shields.io/badge/EC2-FF9900?logo=amazonec2&logoColor=fff)](https://aws.amazon.com/ec2/)
 [![ngrok](https://img.shields.io/badge/ngrok-1F1E37?logo=ngrok)](https://ngrok.com/)
 
-[Book Shop Backend (EC2)](https://bee-capital-highly.ngrok-free.app/)
+[![CI](https://github.com/attila-huszar/bookshop-server/actions/workflows/bun.yml/badge.svg)](https://github.com/attila-huszar/bookshop-server/actions/workflows/bun.yml)
+[![CodeQL](https://github.com/attila-huszar/bookshop-server/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/attila-huszar/bookshop-server/actions/workflows/github-code-scanning/codeql)
 
-Setup database and run container:
+[Deployed on EC2](https://bee-capital-highly.ngrok-free.app/), with Docker and ngrok for https
+
+[Service Status](https://stats.uptimerobot.com/syabyQwyik)
+
+▶ [Bookshop Frontend](https://github.com/attila-huszar/bookshop-client)
+
+## Setup
 
 ```sh
 SETUP=true docker compose up
@@ -29,5 +36,3 @@ $env:SETUP = "true"; docker compose up
 ```
 
 </details>
-
-(Deployed on EC2 instance, with docker and ngrok for https)
