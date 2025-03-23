@@ -27,7 +27,10 @@ export default tseslint.config(
     rules: {
       '@typescript-eslint/no-unused-vars': [
         'error',
-        { ignoreRestSiblings: true },
+        {
+          ignoreRestSiblings: true,
+          varsIgnorePattern: '^_',
+        },
       ],
       '@typescript-eslint/consistent-type-definitions': 'off',
       'prettier/prettier': 'warn',

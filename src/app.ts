@@ -46,7 +46,7 @@ app.use('/favicon.ico', serveStatic({ path: './static/favicon.ico' }))
 
 app.get('/', (c) => {
   return c.html(
-    `<h2>Book Shop Backend</h2>
+    `<h2>Bookshop Backend</h2>
     <p>Uptime: ${formatUptime(Bun.nanoseconds())}</p>
     <p>Your IP: ${c.req.header('X-Forwarded-For') ?? c.req.header('X-Real-Ip') ?? 'unknown'}</p>`,
   )
@@ -61,6 +61,7 @@ app.route('/news', controller.news)
 app.route('/search_opts', controller.bookSearchOptions)
 app.route('/users', controller.users)
 app.route('/orders', controller.orders)
+app.route('/upload', controller.upload)
 
 if (env.ngrokAuthToken) void ngrokForward()
 
