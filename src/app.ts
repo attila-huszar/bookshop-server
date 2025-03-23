@@ -6,9 +6,9 @@ import { timeout } from 'hono/timeout'
 import { trimTrailingSlash } from 'hono/trailing-slash'
 import { serveStatic } from 'hono/bun'
 import { rateLimiter } from 'hono-rate-limiter'
+import { payloadLimiter, authMiddleware } from './middleware'
 import { formatUptime, ngrokForward } from './utils'
 import { env } from './config'
-import { authMiddleware } from './middleware'
 import * as controller from './controller'
 import * as Sentry from '@sentry/bun'
 
@@ -36,12 +36,13 @@ const corsMiddleware = cors({
   credentials: true,
 })
 
-app.use(limiter)
 app.use(logger())
+app.use(limiter)
 app.use(trimTrailingSlash())
 app.use('*', corsMiddleware)
-app.use(csrf({ origin: [env.clientBaseUrl] }))
+app.use('*', payloadLimiter)
 app.use('*', timeout(10000))
+app.use(csrf({ origin: [env.clientBaseUrl] }))
 app.use('/favicon.ico', serveStatic({ path: './static/favicon.ico' }))
 
 app.get('/', (c) => {
