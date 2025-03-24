@@ -3,13 +3,27 @@ import { PutObjectCommand } from '@aws-sdk/client-s3'
 import { s3 } from '../services'
 import { awsBucket, awsRegion } from '../config/envConfig'
 import { MAX_FILE_SIZE } from '../constants'
-//import * as DB from '../repository'
-//import * as Errors from '../errors'
+import * as DB from '../repository'
+import * as Errors from '../errors'
 
-export const upload = new Hono()
+type Variables = {
+  jwtPayload: {
+    uuid: string
+  }
+}
+
+export const upload = new Hono<{ Variables: Variables }>()
 
 upload.post('/', async (c) => {
   try {
+    const jwtPayload = c.get('jwtPayload')
+
+    const user = await DB.getUserBy('uuid', jwtPayload.uuid)
+
+    if (!user) {
+      throw new Error(Errors.messages.retrieveError)
+    }
+
     const formData = await c.req.formData()
     const file = formData.get('avatar')
 
@@ -44,11 +58,17 @@ upload.post('/', async (c) => {
 
     const fileUrl = `https://${awsBucket}.s3.${awsRegion}.amazonaws.com/${s3Key}`
 
-    return c.json({ url: fileUrl })
+    const userUpdated = await DB.updateUser(user.email, {
+      avatar: fileUrl,
+      updatedAt: new Date().toISOString(),
+    })
+
+    if (!userUpdated) {
+      throw new Error(Errors.messages.updateError)
+    }
+
+    return c.json(userUpdated)
   } catch (error) {
-    return c.json(
-      { error: error instanceof Error ? error.message : 'Unknown error' },
-      500,
-    )
+    return Errors.Handler(c, error)
   }
 })

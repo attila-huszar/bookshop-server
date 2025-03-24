@@ -55,6 +55,7 @@ app.get('/', (c) => {
 
 app.use('/users/profile', authMiddleware)
 app.use('/users/logout', authMiddleware)
+app.use('/upload', authMiddleware)
 
 app.route('/books', controller.books)
 app.route('/authors', controller.authors)
