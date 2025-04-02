@@ -3,13 +3,18 @@ import { setSignedCookie, deleteCookie, getSignedCookie } from 'hono/cookie'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { validate, sendEmail } from '../services'
 import { env, REFRESH_TOKEN, cookieOptions } from '../config'
-import { signAccessToken, signRefreshToken, verifyJWTRefresh } from '../utils'
+import {
+  signAccessToken,
+  signRefreshToken,
+  uploadFile,
+  validateImage,
+  verifyJWTRefresh,
+} from '../utils'
 import * as DB from '../repository'
 import * as Errors from '../errors'
 import type {
   LoginRequest,
   PasswordResetRequest,
-  RegisterRequest,
   TokenRequest,
   UserUpdateRequest,
 } from '../types'
@@ -49,33 +54,53 @@ users.post('/login', async (c) => {
 
 users.post('/register', async (c) => {
   try {
-    const registerRequest = await c.req.json<RegisterRequest>()
+    const registerRequest = await c.req.formData()
+    const firstName = registerRequest.get('firstName')?.toString()
+    const lastName = registerRequest.get('lastName')?.toString()
+    const email = registerRequest.get('email')?.toString()
+    const password = registerRequest.get('password')?.toString()
+    const avatar = registerRequest.get('avatar')
 
-    const userValidated = await validate('registration', registerRequest)
+    if (!firstName || !lastName || !email || !password) {
+      throw new Errors.BadRequest(Errors.messages.fieldsRequired)
+    }
+
+    const user = await DB.getUserBy('email', email)
+
+    if (user) {
+      throw new Errors.BadRequest(Errors.messages.emailTaken)
+    }
 
     const verificationToken = crypto.randomUUID()
     const verificationExpires = new Date(Date.now() + 86400000).toISOString()
     const tokenLink = `${env.clientBaseUrl}/verification?token=${verificationToken}`
 
     const emailResponse = await sendEmail(
-      userValidated.email,
-      userValidated.firstName,
+      email,
+      firstName,
       tokenLink,
       env.clientBaseUrl,
       'verification',
     )
 
-    if (emailResponse.rejected.includes(userValidated.email)) {
+    if (emailResponse.rejected.includes(email)) {
       throw new Error(Errors.messages.sendEmail)
     }
 
-    const userValidatedWithToken = {
-      ...userValidated,
+    const file = validateImage(avatar)
+    const avatarUrl = file instanceof File ? await uploadFile(file) : null
+
+    const newUser = {
+      firstName,
+      lastName,
+      email,
+      password,
+      avatar: avatarUrl,
       verificationToken,
       verificationExpires,
     }
 
-    const userCreated = await DB.createUser(userValidatedWithToken)
+    const userCreated = await DB.createUser(newUser)
 
     if (!userCreated) {
       throw new Error(Errors.messages.createError)
@@ -245,7 +270,7 @@ users.patch('/profile', async (c) => {
       throw new Error(Errors.messages.updateError)
     }
 
-    return c.json(userUpdated)
+    return c.json({ message: 'User updated successfully' })
   } catch (error) {
     return Errors.Handler(c, error)
   }

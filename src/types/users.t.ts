@@ -12,7 +12,7 @@ export type RegisterRequest = {
   lastName: string
   email: string
   password: string
-  avatar?: string
+  avatar: string | null
   verificationToken: string
   verificationExpires: string
 }

@@ -6,13 +6,11 @@ import type {
   Order,
   OrderUpdate,
   PasswordResetRequest,
-  RegisterRequest,
   TokenRequest,
 } from '../types'
 
 type ValidateReturnType = {
   login: { uuid: string; firstName: string }
-  registration: RegisterRequest
   verification: { email: string }
   passwordResetRequest: { email: string; firstName: string }
   passwordResetToken: { email: string; message?: string }
@@ -22,17 +20,10 @@ type ValidateReturnType = {
 
 export async function validate<T extends keyof ValidateReturnType>(
   type: T,
-  req:
-    | LoginRequest
-    | RegisterRequest
-    | TokenRequest
-    | PasswordResetRequest
-    | Order
-    | OrderUpdate,
+  req: LoginRequest | TokenRequest | PasswordResetRequest | Order | OrderUpdate,
 ): Promise<ValidateReturnType[T]> {
   const requiredFields = {
     login: ['email', 'password'],
-    registration: ['email', 'password', 'firstName', 'lastName'],
     verification: ['token'],
     passwordResetRequest: ['email'],
     passwordResetToken: ['token'],
@@ -85,21 +76,6 @@ export async function validate<T extends keyof ValidateReturnType>(
       }
 
       throw new Errors.Unauthorized()
-    }
-
-    case 'registration': {
-      const { email } = req as RegisterRequest
-      const user = await getUserBy('email', email)
-
-      if (user) {
-        throw new Errors.BadRequest(Errors.messages.emailTaken)
-      }
-
-      if (user === null) {
-        return req as ValidateReturnType[T]
-      }
-
-      throw new Errors.Internal(Errors.messages.unknown)
     }
 
     case 'verification': {

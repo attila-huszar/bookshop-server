@@ -1,8 +1,5 @@
 import { Hono } from 'hono'
-import { PutObjectCommand } from '@aws-sdk/client-s3'
-import { s3 } from '../services'
-import { awsBucket, awsRegion } from '../config/envConfig'
-import { MAX_FILE_SIZE } from '../constants'
+import { uploadFile, validateImage } from '../utils'
 import * as DB from '../repository'
 import * as Errors from '../errors'
 
@@ -25,41 +22,17 @@ upload.post('/', async (c) => {
     }
 
     const formData = await c.req.formData()
-    const file = formData.get('avatar')
+    const avatar = formData.get('avatar')
+    const file = validateImage(avatar)
 
-    if (!file) {
-      return c.json({ error: 'No avatar field in the form data' }, 400)
+    if (typeof file === 'string') {
+      return c.json({ error: file }, 400)
     }
 
-    if (!(file instanceof File)) {
-      return c.json({ error: 'Avatar field is not a file' }, 400)
-    }
-
-    if (!file.type.startsWith('image/')) {
-      return c.json({ error: 'Invalid file type' }, 400)
-    }
-
-    if (file.size > MAX_FILE_SIZE) {
-      return c.json({ error: 'File too large (max 512 KB)' }, 400)
-    }
-
-    const fileBuffer = await file.arrayBuffer()
-
-    const s3Key = `avatars/${Date.now()}-${file.name}`
-
-    await s3.send(
-      new PutObjectCommand({
-        Bucket: awsBucket,
-        Key: s3Key,
-        Body: Buffer.from(fileBuffer),
-        ContentType: file.type,
-      }),
-    )
-
-    const fileUrl = `https://${awsBucket}.s3.${awsRegion}.amazonaws.com/${s3Key}`
+    const url = await uploadFile(file)
 
     const userUpdated = await DB.updateUser(user.email, {
-      avatar: fileUrl,
+      avatar: url,
       updatedAt: new Date().toISOString(),
     })
 
