@@ -270,7 +270,21 @@ users.patch('/profile', async (c) => {
       throw new Error(Errors.messages.updateError)
     }
 
-    return c.json({ message: 'User updated successfully' })
+    const {
+      id,
+      uuid,
+      password,
+      verified,
+      verificationToken,
+      verificationExpires,
+      passwordResetToken,
+      passwordResetExpires,
+      createdAt,
+      updatedAt,
+      ...userWithoutCreds
+    } = userUpdated
+
+    return c.json(userWithoutCreds)
   } catch (error) {
     return Errors.Handler(c, error)
   }

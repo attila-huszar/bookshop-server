@@ -75,7 +75,7 @@ export async function validate<T extends keyof ValidateReturnType>(
         } as ValidateReturnType[T]
       }
 
-      throw new Errors.Unauthorized()
+      throw new Errors.Unauthorized(Errors.messages.emailOrPasswordError)
     }
 
     case 'verification': {
