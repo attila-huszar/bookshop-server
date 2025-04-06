@@ -171,13 +171,29 @@ users.post('/password-reset-request', async (c) => {
       throw new Error(Errors.messages.updateError)
     }
 
-    return c.status(200)
+    return c.json({
+      message:
+        "If you're registered with us, you'll receive a password reset link shortly.",
+    })
   } catch (error) {
-    if (error instanceof Error && error.message === Errors.messages.sendEmail) {
-      return c.json({ error: error.message }, 500)
+    if (
+      error instanceof Error &&
+      error.message === Errors.messages.retrieveError
+    ) {
+      return c.json({
+        message:
+          "If you're registered with us, you'll receive a password reset link shortly.",
+      })
     }
 
-    return c.status(200)
+    if (error instanceof Errors.BaseError) {
+      return c.json(
+        { error: error.message },
+        error.status as ContentfulStatusCode,
+      )
+    }
+
+    return c.json({ error: 'Internal server error' }, 500)
   }
 })
 

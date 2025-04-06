@@ -139,6 +139,7 @@ export async function validate<T extends keyof ValidateReturnType>(
 
     case 'passwordResetRequest': {
       const { email } = req as PasswordResetRequest
+
       const user = await getUserBy('email', email)
 
       if (user) {
@@ -146,9 +147,9 @@ export async function validate<T extends keyof ValidateReturnType>(
           email: user.email,
           firstName: user.firstName,
         } as ValidateReturnType[T]
+      } else {
+        throw new Error(Errors.messages.retrieveError)
       }
-
-      throw new Errors.Internal(Errors.messages.unknown)
     }
 
     case 'passwordResetToken': {
