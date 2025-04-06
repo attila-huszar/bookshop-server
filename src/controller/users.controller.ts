@@ -55,35 +55,32 @@ users.post('/login', async (c) => {
 users.post('/register', async (c) => {
   try {
     const registerRequest = await c.req.formData()
-    const firstName = registerRequest.get('firstName')?.toString()
-    const lastName = registerRequest.get('lastName')?.toString()
-    const email = registerRequest.get('email')?.toString()
-    const password = registerRequest.get('password')?.toString()
+    const firstName = registerRequest.get('firstName')
+    const lastName = registerRequest.get('lastName')
+    const email = registerRequest.get('email')
+    const password = registerRequest.get('password')
     const avatar = registerRequest.get('avatar')
 
-    if (!firstName || !lastName || !email || !password) {
-      throw new Errors.BadRequest(Errors.messages.fieldsRequired)
-    }
-
-    const user = await DB.getUserBy('email', email)
-
-    if (user) {
-      throw new Errors.BadRequest(Errors.messages.emailTaken)
-    }
+    const validatedRequest = await validate('register', {
+      email: email?.toString(),
+      password: password?.toString(),
+      firstName: firstName?.toString(),
+      lastName: lastName?.toString(),
+    })
 
     const verificationToken = crypto.randomUUID()
     const verificationExpires = new Date(Date.now() + 86400000).toISOString()
     const tokenLink = `${env.clientBaseUrl}/verification?token=${verificationToken}`
 
-    const emailResponse = await sendEmail(
-      email,
-      firstName,
+    const emailResponse = await sendEmail({
+      toAddress: validatedRequest.email,
+      toName: validatedRequest.firstName,
       tokenLink,
-      env.clientBaseUrl,
-      'verification',
-    )
+      baseLink: env.clientBaseUrl,
+      type: 'verification',
+    })
 
-    if (emailResponse.rejected.includes(email)) {
+    if (!emailResponse.accepted.includes(validatedRequest.email)) {
       throw new Error(Errors.messages.sendEmail)
     }
 
@@ -91,10 +88,7 @@ users.post('/register', async (c) => {
     const avatarUrl = file instanceof File ? await uploadFile(file) : null
 
     const newUser = {
-      firstName,
-      lastName,
-      email,
-      password,
+      ...validatedRequest,
       avatar: avatarUrl,
       verificationToken,
       verificationExpires,
@@ -113,9 +107,6 @@ users.post('/register', async (c) => {
         { error: error.message },
         error.status as ContentfulStatusCode,
       )
-    }
-    if (error instanceof Error && error.message === Errors.messages.sendEmail) {
-      return c.json({ error: error.message }, 500)
     }
 
     return c.json({ error: 'Internal server error' }, 500)
@@ -149,7 +140,7 @@ users.post('/password-reset-request', async (c) => {
   try {
     const passwordResetRequest = await c.req.json<PasswordResetRequest>()
 
-    const userValidated = await validate(
+    const validatedRequest = await validate(
       'passwordResetRequest',
       passwordResetRequest,
     )
@@ -158,19 +149,19 @@ users.post('/password-reset-request', async (c) => {
     const passwordResetExpires = new Date(Date.now() + 86400000).toISOString()
     const tokenLink = `${env.clientBaseUrl}/password-reset?token=${passwordResetToken}`
 
-    const emailResponse = await sendEmail(
-      userValidated.email,
-      userValidated.firstName,
+    const emailResponse = await sendEmail({
+      toAddress: validatedRequest.email,
+      toName: validatedRequest.firstName,
       tokenLink,
-      env.clientBaseUrl,
-      'passwordReset',
-    )
+      baseLink: env.clientBaseUrl,
+      type: 'passwordReset',
+    })
 
-    if (emailResponse.rejected) {
+    if (!emailResponse.accepted.includes(validatedRequest.email)) {
       throw new Error(Errors.messages.sendEmail)
     }
 
-    const userUpdated = await DB.updateUser(userValidated.email, {
+    const userUpdated = await DB.updateUser(validatedRequest.email, {
       passwordResetToken,
       passwordResetExpires,
       updatedAt: new Date().toISOString(),

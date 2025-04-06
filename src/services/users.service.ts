@@ -6,11 +6,22 @@ import type {
   Order,
   OrderUpdate,
   PasswordResetRequest,
+  RegisterRequest,
   TokenRequest,
 } from '../types'
 
+type RegisterFormRequest = Partial<
+  Pick<RegisterRequest, 'email' | 'password' | 'firstName' | 'lastName'>
+>
+
 type ValidateReturnType = {
   login: { uuid: string; firstName: string }
+  register: {
+    email: string
+    password: string
+    firstName: string
+    lastName: string
+  }
   verification: { email: string }
   passwordResetRequest: { email: string; firstName: string }
   passwordResetToken: { email: string; message?: string }
@@ -20,10 +31,17 @@ type ValidateReturnType = {
 
 export async function validate<T extends keyof ValidateReturnType>(
   type: T,
-  req: LoginRequest | TokenRequest | PasswordResetRequest | Order | OrderUpdate,
+  req:
+    | LoginRequest
+    | RegisterFormRequest
+    | TokenRequest
+    | PasswordResetRequest
+    | Order
+    | OrderUpdate,
 ): Promise<ValidateReturnType[T]> {
   const requiredFields = {
     login: ['email', 'password'],
+    register: ['firstName', 'lastName', 'email', 'password'],
     verification: ['token'],
     passwordResetRequest: ['email'],
     passwordResetToken: ['token'],
@@ -42,7 +60,7 @@ export async function validate<T extends keyof ValidateReturnType>(
     throw new Errors.BadRequest(Errors.messages.fieldsRequired)
   }
 
-  if ('email' in req && !validateEmail(req.email!)) {
+  if ('email' in req && !validateEmail(req.email)) {
     throw new Errors.BadRequest(Errors.messages.invalidEmailFormat)
   }
 
@@ -52,7 +70,7 @@ export async function validate<T extends keyof ValidateReturnType>(
 
   switch (type) {
     case 'login': {
-      const { email } = req as LoginRequest
+      const { email, password } = req as { email: string; password: string }
       const user = await getUserBy('email', email)
 
       if (!user) {
@@ -64,7 +82,7 @@ export async function validate<T extends keyof ValidateReturnType>(
       }
 
       const isPasswordCorrect = await Bun.password.verify(
-        (req as LoginRequest).password,
+        password,
         user.password,
       )
 
@@ -76,6 +94,26 @@ export async function validate<T extends keyof ValidateReturnType>(
       }
 
       throw new Errors.Unauthorized(Errors.messages.emailOrPasswordError)
+    }
+    case 'register': {
+      const { email, password, firstName, lastName } = req as {
+        email: string
+        password: string
+        firstName: string
+        lastName: string
+      }
+
+      const user = await getUserBy('email', email)
+      if (user) {
+        throw new Errors.BadRequest(Errors.messages.emailTaken)
+      }
+
+      return {
+        email,
+        password,
+        firstName,
+        lastName,
+      } as ValidateReturnType[T]
     }
 
     case 'verification': {

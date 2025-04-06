@@ -12,4 +12,4 @@ export const messages = {
   createError: 'Error creating user, please try again later',
   updateError: 'Error updating user, please try again later',
   unknown: 'Unknown error occurred',
-}
+} as const
