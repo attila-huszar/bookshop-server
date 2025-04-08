@@ -3,13 +3,18 @@ import { setSignedCookie, deleteCookie, getSignedCookie } from 'hono/cookie'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { validate, sendEmail } from '../services'
 import { env, REFRESH_TOKEN, cookieOptions } from '../config'
-import { signAccessToken, signRefreshToken, verifyJWTRefresh } from '../utils'
+import {
+  signAccessToken,
+  signRefreshToken,
+  uploadFile,
+  validateImage,
+  verifyJWTRefresh,
+} from '../utils'
 import * as DB from '../repository'
 import * as Errors from '../errors'
 import type {
   LoginRequest,
   PasswordResetRequest,
-  RegisterRequest,
   TokenRequest,
   UserUpdateRequest,
 } from '../types'
@@ -49,33 +54,47 @@ users.post('/login', async (c) => {
 
 users.post('/register', async (c) => {
   try {
-    const registerRequest = await c.req.json<RegisterRequest>()
+    const registerRequest = await c.req.formData()
+    const firstName = registerRequest.get('firstName')
+    const lastName = registerRequest.get('lastName')
+    const email = registerRequest.get('email')
+    const password = registerRequest.get('password')
+    const avatar = registerRequest.get('avatar')
 
-    const userValidated = await validate('registration', registerRequest)
+    const validatedRequest = await validate('register', {
+      email: email?.toString(),
+      password: password?.toString(),
+      firstName: firstName?.toString(),
+      lastName: lastName?.toString(),
+    })
 
     const verificationToken = crypto.randomUUID()
     const verificationExpires = new Date(Date.now() + 86400000).toISOString()
     const tokenLink = `${env.clientBaseUrl}/verification?token=${verificationToken}`
 
-    const emailResponse = await sendEmail(
-      userValidated.email,
-      userValidated.firstName,
+    const emailResponse = await sendEmail({
+      toAddress: validatedRequest.email,
+      toName: validatedRequest.firstName,
       tokenLink,
-      env.clientBaseUrl,
-      'verification',
-    )
+      baseLink: env.clientBaseUrl,
+      type: 'verification',
+    })
 
-    if (emailResponse.rejected.includes(userValidated.email)) {
+    if (!emailResponse.accepted.includes(validatedRequest.email)) {
       throw new Error(Errors.messages.sendEmail)
     }
 
-    const userValidatedWithToken = {
-      ...userValidated,
+    const file = validateImage(avatar)
+    const avatarUrl = file instanceof File ? await uploadFile(file) : null
+
+    const newUser = {
+      ...validatedRequest,
+      avatar: avatarUrl,
       verificationToken,
       verificationExpires,
     }
 
-    const userCreated = await DB.createUser(userValidatedWithToken)
+    const userCreated = await DB.createUser(newUser)
 
     if (!userCreated) {
       throw new Error(Errors.messages.createError)
@@ -88,9 +107,6 @@ users.post('/register', async (c) => {
         { error: error.message },
         error.status as ContentfulStatusCode,
       )
-    }
-    if (error instanceof Error && error.message === Errors.messages.sendEmail) {
-      return c.json({ error: error.message }, 500)
     }
 
     return c.json({ error: 'Internal server error' }, 500)
@@ -124,7 +140,7 @@ users.post('/password-reset-request', async (c) => {
   try {
     const passwordResetRequest = await c.req.json<PasswordResetRequest>()
 
-    const userValidated = await validate(
+    const validatedRequest = await validate(
       'passwordResetRequest',
       passwordResetRequest,
     )
@@ -133,19 +149,19 @@ users.post('/password-reset-request', async (c) => {
     const passwordResetExpires = new Date(Date.now() + 86400000).toISOString()
     const tokenLink = `${env.clientBaseUrl}/password-reset?token=${passwordResetToken}`
 
-    const emailResponse = await sendEmail(
-      userValidated.email,
-      userValidated.firstName,
+    const emailResponse = await sendEmail({
+      toAddress: validatedRequest.email,
+      toName: validatedRequest.firstName,
       tokenLink,
-      env.clientBaseUrl,
-      'passwordReset',
-    )
+      baseLink: env.clientBaseUrl,
+      type: 'passwordReset',
+    })
 
-    if (emailResponse.rejected) {
+    if (!emailResponse.accepted.includes(validatedRequest.email)) {
       throw new Error(Errors.messages.sendEmail)
     }
 
-    const userUpdated = await DB.updateUser(userValidated.email, {
+    const userUpdated = await DB.updateUser(validatedRequest.email, {
       passwordResetToken,
       passwordResetExpires,
       updatedAt: new Date().toISOString(),
@@ -155,13 +171,29 @@ users.post('/password-reset-request', async (c) => {
       throw new Error(Errors.messages.updateError)
     }
 
-    return c.status(200)
+    return c.json({
+      message:
+        "If you're registered with us, you'll receive a password reset link shortly.",
+    })
   } catch (error) {
-    if (error instanceof Error && error.message === Errors.messages.sendEmail) {
-      return c.json({ error: error.message }, 500)
+    if (
+      error instanceof Error &&
+      error.message === Errors.messages.retrieveError
+    ) {
+      return c.json({
+        message:
+          "If you're registered with us, you'll receive a password reset link shortly.",
+      })
     }
 
-    return c.status(200)
+    if (error instanceof Errors.BaseError) {
+      return c.json(
+        { error: error.message },
+        error.status as ContentfulStatusCode,
+      )
+    }
+
+    return c.json({ error: 'Internal server error' }, 500)
   }
 })
 
@@ -245,7 +277,21 @@ users.patch('/profile', async (c) => {
       throw new Error(Errors.messages.updateError)
     }
 
-    return c.json(userUpdated)
+    const {
+      id,
+      uuid,
+      password,
+      verified,
+      verificationToken,
+      verificationExpires,
+      passwordResetToken,
+      passwordResetExpires,
+      createdAt,
+      updatedAt,
+      ...userWithoutCreds
+    } = userUpdated
+
+    return c.json(userWithoutCreds)
   } catch (error) {
     return Errors.Handler(c, error)
   }

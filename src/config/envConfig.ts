@@ -42,3 +42,8 @@ export const ngrokDomain = getEnvVar('NGROK_DOMAIN', null)
 
 export const stripeSecret = getEnvVar('STRIPE_SECRET')
 export const sentryDsn = getEnvVar('SENTRY_DSN', null)
+
+export const awsAccessKeyId = getEnvVar('AWS_ACCESS_KEY_ID')
+export const awsSecretAccessKey = getEnvVar('AWS_SECRET_ACCESS_KEY')
+export const awsRegion = getEnvVar('AWS_REGION', 'eu-central-1')
+export const awsBucket = getEnvVar('AWS_BUCKET')
