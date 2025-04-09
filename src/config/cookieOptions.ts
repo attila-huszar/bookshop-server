@@ -1,9 +1,9 @@
-import { cookieMaxAge } from './envConfig'
+import { env } from './env'
 
 export const REFRESH_TOKEN = 'refresh_token'
 
 export const cookieOptions: CookieOptions = {
-  maxAge: Number(cookieMaxAge) || 1209600,
+  maxAge: Number(env.cookieMaxAge) || 1209600,
   httpOnly: true,
   secure: Bun.env.NODE_ENV === 'production',
   sameSite: Bun.env.NODE_ENV === 'production' ? 'none' : 'lax',

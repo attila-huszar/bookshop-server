@@ -1,2 +1,2 @@
-export * as env from './envConfig'
-export { REFRESH_TOKEN, cookieOptions } from './cookieOptions'
+export { env } from './env'
+export { cookieOptions, REFRESH_TOKEN } from './cookieOptions'

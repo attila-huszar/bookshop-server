@@ -1,6 +1,6 @@
 import { PutObjectCommand } from '@aws-sdk/client-s3'
 import { s3 } from '../services'
-import { awsBucket, awsRegion } from '../config/envConfig'
+import { env } from '../config'
 
 export const uploadFile = async (file: File) => {
   try {
@@ -10,14 +10,14 @@ export const uploadFile = async (file: File) => {
 
     await s3.send(
       new PutObjectCommand({
-        Bucket: awsBucket,
+        Bucket: env.awsBucket,
         Key: s3Key,
         Body: Buffer.from(fileBuffer),
         ContentType: file.type,
       }),
     )
 
-    return `https://${awsBucket}.s3.${awsRegion}.amazonaws.com/${s3Key}`
+    return `https://${env.awsBucket}.s3.${env.awsRegion}.amazonaws.com/${s3Key}`
   } catch (error) {
     console.error('Error uploading file:', error)
     throw new Error('Failed to upload file')

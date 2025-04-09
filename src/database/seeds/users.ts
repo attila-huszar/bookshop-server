@@ -8,7 +8,7 @@ export async function seedUsers() {
     uuid: crypto.randomUUID(),
     firstName: 'Admin',
     lastName: 'Admin',
-    password: Bun.password.hashSync(env.adminPassword),
+    password: Bun.password.hashSync(env.adminPassword!),
     role: 'admin',
     email: 'admin@bookshop.com',
     verified: true,

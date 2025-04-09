@@ -7,7 +7,7 @@ import * as Errors from '../errors'
 import type { Order, OrderUpdate, PaymentIntentCreate } from '../types'
 
 export const orders = new Hono()
-const stripe = new Stripe(env.stripeSecret)
+const stripe = new Stripe(env.stripeSecret!)
 
 orders.post('/payment-intent', async (c) => {
   try {

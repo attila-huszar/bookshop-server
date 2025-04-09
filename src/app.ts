@@ -1,3 +1,5 @@
+import './config/validateEnv'
+import { env } from './config/env'
 import { Hono } from 'hono'
 import { logger } from 'hono/logger'
 import { cors } from 'hono/cors'
@@ -8,7 +10,6 @@ import { serveStatic } from 'hono/bun'
 import { rateLimiter } from 'hono-rate-limiter'
 import { payloadLimiter, authMiddleware } from './middleware'
 import { formatUptime, ngrokForward } from './utils'
-import { env } from './config'
 import * as controller from './controller'
 import * as Sentry from '@sentry/bun'
 
@@ -30,7 +31,7 @@ const limiter = rateLimiter({
 })
 
 const corsMiddleware = cors({
-  origin: env.clientBaseUrl,
+  origin: env.clientBaseUrl!,
   allowHeaders: ['authorization', 'content-type', 'ngrok-skip-browser-warning'],
   allowMethods: ['GET', 'OPTIONS', 'POST', 'PUT', 'PATCH', 'DELETE'],
   credentials: true,
@@ -42,7 +43,7 @@ app.use(trimTrailingSlash())
 app.use('*', corsMiddleware)
 app.use('*', payloadLimiter)
 app.use('*', timeout(10000))
-app.use(csrf({ origin: [env.clientBaseUrl] }))
+app.use(csrf({ origin: [env.clientBaseUrl!] }))
 app.use('/favicon.ico', serveStatic({ path: './static/favicon.ico' }))
 
 app.get('/', (c) => {

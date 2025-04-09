@@ -42,7 +42,7 @@ users.post('/login', async (c) => {
       c,
       REFRESH_TOKEN,
       refreshToken,
-      env.cookieSecret,
+      env.cookieSecret!,
       cookieOptions,
     )
 
@@ -76,7 +76,7 @@ users.post('/register', async (c) => {
       toAddress: validatedRequest.email,
       toName: validatedRequest.firstName,
       tokenLink,
-      baseLink: env.clientBaseUrl,
+      baseLink: env.clientBaseUrl!,
       type: 'verification',
     })
 
@@ -153,7 +153,7 @@ users.post('/password-reset-request', async (c) => {
       toAddress: validatedRequest.email,
       toName: validatedRequest.firstName,
       tokenLink,
-      baseLink: env.clientBaseUrl,
+      baseLink: env.clientBaseUrl!,
       type: 'passwordReset',
     })
 
@@ -311,7 +311,7 @@ users.post('/refresh', async (c) => {
   try {
     const refreshTokenCookie = await getSignedCookie(
       c,
-      env.cookieSecret,
+      env.cookieSecret!,
       REFRESH_TOKEN,
     )
 
@@ -334,7 +334,7 @@ users.post('/refresh', async (c) => {
         c,
         REFRESH_TOKEN,
         refreshToken,
-        env.cookieSecret,
+        env.cookieSecret!,
         cookieOptions,
       )
     }
