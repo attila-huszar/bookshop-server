@@ -12,11 +12,12 @@
 [![CI](https://github.com/attila-huszar/bookshop-server/actions/workflows/bun.yml/badge.svg)](https://github.com/attila-huszar/bookshop-server/actions/workflows/bun.yml)
 [![CodeQL](https://github.com/attila-huszar/bookshop-server/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/attila-huszar/bookshop-server/actions/workflows/github-code-scanning/codeql)
 
-[Deployed on EC2](https://bee-capital-highly.ngrok-free.app/), with Docker and ngrok for https
+[![Better Stack Badge](https://uptime.betterstack.com/status-badges/v2/monitor/1vrpa.svg)](https://uptime.betterstack.com/?utm_source=status_badge)
+Deployed on AWS EC2, with Docker and ngrok for https
 
-[Service Status](https://stats.uptimerobot.com/syabyQwyik)
+🛠️ [Service Status](https://bookshop.betteruptime.com/)
 
-▶ [Bookshop Frontend](https://github.com/attila-huszar/bookshop-client)
+👉 [Bookshop Frontend](https://github.com/attila-huszar/bookshop-client)
 
 ## Setup
 
