@@ -10,8 +10,8 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.772.0",
+    "@logtail/js": "^0.5.2",
     "@ngrok/ngrok": "^1.4.1",
-    "@sentry/bun": "^9.8.0",
     "drizzle-orm": "^0.41.0",
     "hono": "^4.7.5",
     "hono-rate-limiter": "^0.4.2",
