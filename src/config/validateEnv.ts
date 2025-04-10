@@ -12,6 +12,7 @@ const requiredKeys = [
   'awsAccessKeyId',
   'awsSecretAccessKey',
   'awsBucket',
+  'logtailSourceToken',
 ] as const as (keyof typeof env)[]
 
 export function validateEnv(): void {

@@ -1,20 +1,42 @@
-import * as Sentry from '@sentry/bun'
-import * as Errors from './'
+import { logger } from '../services'
 import type { Context } from 'hono'
+import type { ContentfulStatusCode } from 'hono/utils/http-status'
+import * as Errors from './'
 
 export function errorHandler(c: Context, error: unknown) {
-  Sentry.captureException(error)
+  const isDev = Bun.env.NODE_ENV !== 'production'
 
-  if (error instanceof Error) {
-    const stackLines = error.stack?.split('\n')
-    const firstTwoLines = stackLines?.slice(0, 2).join('\n')
-    console.error(firstTwoLines)
-  } else {
-    console.error(error)
+  const requestInfo = {
+    path: c.req.path,
+    method: c.req.method,
+    ip:
+      c.req.header('X-Forwarded-For') ?? c.req.header('X-Real-Ip') ?? 'unknown',
   }
 
   if (error instanceof Errors.BaseError) {
-    return c.json({ error: error.message }, error.status)
+    void logger.error(error, { request: requestInfo })
+
+    return c.json(
+      { error: error.message },
+      error.status as ContentfulStatusCode,
+    )
+  } else if (error instanceof Error) {
+    void logger.error(error, { request: requestInfo })
+
+    if (isDev) {
+      return c.json(
+        {
+          error: error.message,
+          stack: error.stack,
+        },
+        500,
+      )
+    }
+  } else {
+    void logger.error('Unknown error type', {
+      error: String(error),
+      request: requestInfo,
+    })
   }
 
   return c.json({ error: 'Internal server error' }, 500)

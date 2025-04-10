@@ -11,12 +11,6 @@ import { rateLimiter } from 'hono-rate-limiter'
 import { payloadLimiter, authMiddleware } from './middleware'
 import { formatUptime, ngrokForward } from './utils'
 import * as controller from './controller'
-import * as Sentry from '@sentry/bun'
-
-Sentry.init({
-  dsn: env.sentryDsn,
-  tracesSampleRate: 1.0,
-})
 
 const app = new Hono()
 

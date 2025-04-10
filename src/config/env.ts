@@ -15,9 +15,10 @@ export const env = {
   ngrokAuthToken: Bun.env.NGROK_AUTHTOKEN ?? null,
   ngrokDomain: Bun.env.NGROK_DOMAIN ?? null,
   stripeSecret: Bun.env.STRIPE_SECRET,
-  sentryDsn: Bun.env.SENTRY_DSN,
   awsAccessKeyId: Bun.env.AWS_ACCESS_KEY_ID,
   awsSecretAccessKey: Bun.env.AWS_SECRET_ACCESS_KEY,
   awsRegion: Bun.env.AWS_REGION ?? 'eu-central-1',
   awsBucket: Bun.env.AWS_BUCKET,
+  logtailSourceToken: Bun.env.LOGTAIL_SOURCE_TOKEN,
+  logtailIngestingHost: Bun.env.LOGTAIL_INGESTING_HOST,
 }

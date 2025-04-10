@@ -1,5 +1,5 @@
 import { PutObjectCommand } from '@aws-sdk/client-s3'
-import { s3 } from '../services'
+import { logger, s3 } from '../services'
 import { env } from '../config'
 
 export const uploadFile = async (file: File) => {
@@ -19,7 +19,10 @@ export const uploadFile = async (file: File) => {
 
     return `https://${env.awsBucket}.s3.${env.awsRegion}.amazonaws.com/${s3Key}`
   } catch (error) {
-    console.error('Error uploading file:', error)
+    void logger.error('Error uploading to AWS', {
+      error,
+      file: file.name,
+    })
     throw new Error('Failed to upload file')
   }
 }
