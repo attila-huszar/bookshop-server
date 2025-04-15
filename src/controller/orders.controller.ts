@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { Stripe } from 'stripe'
 import { env } from '../config'
-import { validate } from '../services'
+import { formatZodError, schemas, validate } from '../validation'
 import * as DB from '../repository'
 import * as Errors from '../errors'
 import type { Order, OrderUpdate, PaymentIntentCreate } from '../types'
@@ -47,17 +47,23 @@ orders.delete('/payment-intent/:paymentId', async (c) => {
 
 orders.post('/create', async (c) => {
   try {
-    const createRequest = await c.req.json<Order>()
+    const orderRequest = await c.req.json<Order>()
 
-    const orderValidated = await validate('orderCreate', createRequest)
+    const validationResult = validate(schemas.orderCreate, orderRequest)
 
-    const orderCreated = await DB.createOrder(orderValidated)
-
-    if (!orderCreated) {
-      throw new Error('Order record not created')
+    if (!validationResult.success) {
+      return c.json({ error: formatZodError(validationResult.error) }, 400)
     }
 
-    return c.json({ paymentId: orderCreated.paymentId })
+    const validatedOrder = validationResult.data
+
+    const createdOrder = await DB.createOrder(validatedOrder)
+
+    if (!createdOrder) {
+      throw new Errors.BadRequest('Failed to create order')
+    }
+
+    return c.json({ paymentId: createdOrder.paymentId })
   } catch (error) {
     return Errors.Handler(c, error)
   }
@@ -65,20 +71,26 @@ orders.post('/create', async (c) => {
 
 orders.patch('/update', async (c) => {
   try {
-    const updateRequest = await c.req.json<OrderUpdate>()
+    const orderUpdateRequest = await c.req.json<OrderUpdate>()
 
-    const orderValidated = await validate('orderUpdate', updateRequest)
+    const validationResult = validate(schemas.orderUpdate, orderUpdateRequest)
 
-    const orderUpdated = await DB.updateOrder(orderValidated.paymentId, {
-      ...orderValidated.fields,
+    if (!validationResult.success) {
+      return c.json({ error: formatZodError(validationResult.error) }, 400)
+    }
+
+    const { paymentId, fields } = validationResult.data
+
+    const updatedOrder = await DB.updateOrder(paymentId, {
+      ...fields,
       updatedAt: new Date().toISOString(),
     })
 
-    if (!orderUpdated) {
-      throw new Error('Order record not updated')
+    if (!updatedOrder) {
+      throw new Errors.BadRequest('Failed to update order')
     }
 
-    return c.json(orderUpdated)
+    return c.json(updatedOrder)
   } catch (error) {
     return Errors.Handler(c, error)
   }

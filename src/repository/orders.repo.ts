@@ -3,10 +3,12 @@ import { db } from '../db'
 import { orders } from './repoHandler'
 import { type Order, OrderStatus } from '../types'
 
-export async function createOrder(order: Order): Promise<Order | null> {
-  const orderInsert: typeof orders.$inferInsert = {
+export async function createOrder(
+  order: typeof orders.$inferInsert,
+): Promise<Order | null> {
+  const orderInsert = {
     paymentId: order.paymentId,
-    paymentIntentStatus: 'processing',
+    paymentIntentStatus: 'processing' as const,
     orderStatus: OrderStatus.Pending,
     firstName: order.firstName,
     lastName: order.lastName,

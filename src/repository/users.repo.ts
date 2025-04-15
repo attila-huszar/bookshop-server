@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { db } from '../db'
 import { users } from './repoHandler'
-import type { RegisterRequest, UserUpdateRequest, User } from '../types'
+import type { UserUpdateRequest, User } from '../types'
 
 export async function getUserBy(
   field: 'uuid' | 'email' | 'verificationToken' | 'passwordResetToken',
@@ -21,16 +21,16 @@ export async function getUserBy(
 }
 
 export async function createUser(
-  values: RegisterRequest,
+  values: typeof users.$inferInsert,
 ): Promise<User | null> {
-  const userInsert: typeof users.$inferInsert = {
-    uuid: crypto.randomUUID(),
+  const userInsert = {
+    uuid: values.uuid,
     firstName: values.firstName,
     lastName: values.lastName,
     email: values.email,
     password: await Bun.password.hash(values.password),
-    avatar: values.avatar ?? null,
-    role: 'user',
+    avatar: values.avatar,
+    role: values.role,
     verified: false,
     verificationToken: values.verificationToken,
     verificationExpires: values.verificationExpires,
