@@ -1,7 +1,12 @@
 import { Hono } from 'hono'
 import { Stripe } from 'stripe'
 import { env } from '../config'
-import { formatZodError, schemas, validate } from '../validation'
+import {
+  validate,
+  formatZodError,
+  orderCreateSchema,
+  orderUpdateSchema,
+} from '../validation'
 import * as DB from '../repository'
 import * as Errors from '../errors'
 import type { Order, OrderUpdate, PaymentIntentCreate } from '../types'
@@ -49,7 +54,7 @@ orders.post('/create', async (c) => {
   try {
     const orderRequest = await c.req.json<Order>()
 
-    const validationResult = validate(schemas.orderCreate, orderRequest)
+    const validationResult = validate(orderCreateSchema, orderRequest)
 
     if (!validationResult.success) {
       return c.json({ error: formatZodError(validationResult.error) }, 400)
@@ -73,7 +78,7 @@ orders.patch('/update', async (c) => {
   try {
     const orderUpdateRequest = await c.req.json<OrderUpdate>()
 
-    const validationResult = validate(schemas.orderUpdate, orderUpdateRequest)
+    const validationResult = validate(orderUpdateSchema, orderUpdateRequest)
 
     if (!validationResult.success) {
       return c.json({ error: formatZodError(validationResult.error) }, 400)

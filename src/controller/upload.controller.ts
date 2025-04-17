@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
-import { uploadFile, validateImage } from '../utils'
+import { imageUploadSchema, validate } from '../validation'
+import { uploadFile } from '../utils'
 import * as DB from '../repository'
 import * as Errors from '../errors'
 
@@ -23,13 +24,14 @@ upload.post('/', async (c) => {
 
     const formData = await c.req.formData()
     const avatar = formData.get('avatar')
-    const file = validateImage(avatar)
 
-    if (typeof file === 'string') {
-      return c.json({ error: file }, 400)
+    const validationResult = validate(imageUploadSchema, avatar)
+
+    if (validationResult.error) {
+      return c.json({ error: validationResult.error }, 400)
     }
 
-    const url = await uploadFile(file)
+    const url = await uploadFile(validationResult.data.avatar)
 
     const userUpdated = await DB.updateUser(user.email, {
       avatar: url,

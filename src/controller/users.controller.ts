@@ -1,14 +1,21 @@
 import { Hono } from 'hono'
 import { setSignedCookie, deleteCookie, getSignedCookie } from 'hono/cookie'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
-import { validate, schemas, formatZodError } from '../validation'
+import {
+  validate,
+  formatZodError,
+  loginSchema,
+  registerSchema,
+  verificationSchema,
+  passwordResetRequestSchema,
+  passwordResetTokenSchema,
+} from '../validation'
 import { env, REFRESH_TOKEN, cookieOptions } from '../config'
 import { sendEmail, logger } from '../services'
 import {
   signAccessToken,
   signRefreshToken,
   uploadFile,
-  validateImage,
   verifyJWTRefresh,
 } from '../utils'
 import * as DB from '../repository'
@@ -32,7 +39,7 @@ users.post('/login', async (c) => {
   try {
     const loginRequest = await c.req.json<LoginRequest>()
 
-    const validationResult = validate(schemas.login, loginRequest)
+    const validationResult = validate(loginSchema, loginRequest)
 
     if (!validationResult.success) {
       return c.json({ error: formatZodError(validationResult.error) }, 400)
@@ -90,7 +97,7 @@ users.post('/register', async (c) => {
       avatar: registerRequest.get('avatar'),
     }
 
-    const validationResult = validate(schemas.register, formData)
+    const validationResult = validate(registerSchema, formData)
 
     if (!validationResult.success) {
       return c.json({ error: formatZodError(validationResult.error) }, 400)
@@ -119,9 +126,10 @@ users.post('/register', async (c) => {
       throw new Error(Errors.messages.sendEmail)
     }
 
-    const image = validateImage(validatedRequest.avatar)
-
-    const avatarUrl = image instanceof File ? await uploadFile(image) : null
+    const avatarUrl =
+      validatedRequest.avatar instanceof File
+        ? await uploadFile(validatedRequest.avatar)
+        : null
 
     const newUser = {
       ...validatedRequest,
@@ -155,7 +163,7 @@ users.post('/verification', async (c) => {
   try {
     const verificationRequest = await c.req.json<TokenRequest>()
 
-    const validationResult = validate(schemas.verification, verificationRequest)
+    const validationResult = validate(verificationSchema, verificationRequest)
 
     if (!validationResult.success) {
       return c.json({ error: formatZodError(validationResult.error) }, 400)
@@ -197,7 +205,7 @@ users.post('/password-reset-request', async (c) => {
     const passwordResetRequest = await c.req.json<PasswordResetRequest>()
 
     const validationResult = validate(
-      schemas.passwordResetRequest,
+      passwordResetRequestSchema,
       passwordResetRequest,
     )
 
@@ -262,7 +270,7 @@ users.post('/password-reset-token', async (c) => {
     const passwordResetTokenRequest = await c.req.json<TokenRequest>()
 
     const validationResult = validate(
-      schemas.passwordResetToken,
+      passwordResetTokenSchema,
       passwordResetTokenRequest,
     )
 
