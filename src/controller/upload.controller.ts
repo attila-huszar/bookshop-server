@@ -1,8 +1,9 @@
 import { Hono } from 'hono'
 import { imageUploadSchema, validate } from '../validation'
 import { uploadFile } from '../utils'
+import { userMessage } from '../constants'
+import { errorHandler } from '../errors'
 import * as DB from '../repository'
-import * as Errors from '../errors'
 
 type Variables = {
   jwtPayload: {
@@ -19,7 +20,7 @@ upload.post('/', async (c) => {
     const user = await DB.getUserBy('uuid', jwtPayload.uuid)
 
     if (!user) {
-      throw new Error(Errors.messages.retrieveError)
+      throw new Error(userMessage.retrieveError)
     }
 
     const formData = await c.req.formData()
@@ -39,7 +40,7 @@ upload.post('/', async (c) => {
     })
 
     if (!userUpdated) {
-      throw new Error(Errors.messages.updateError)
+      throw new Error(userMessage.updateError)
     }
 
     const {
@@ -58,6 +59,6 @@ upload.post('/', async (c) => {
 
     return c.json(userWithoutCreds)
   } catch (error) {
-    return Errors.Handler(c, error)
+    return errorHandler(c, error)
   }
 })

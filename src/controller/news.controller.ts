@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
+import { errorHandler } from '../errors'
 import * as DB from '../repository'
-import * as Errors from '../errors'
 
 export const news = new Hono()
 
@@ -10,6 +10,6 @@ news.get('/', async (c) => {
 
     return c.json(newsRecords)
   } catch (error) {
-    return Errors.Handler(c, error)
+    return errorHandler(c, error)
   }
 })

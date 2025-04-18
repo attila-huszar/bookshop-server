@@ -1,15 +1,10 @@
 import { Hono } from 'hono'
 import { Stripe } from 'stripe'
 import { env } from '../config'
-import {
-  validate,
-  formatZodError,
-  orderCreateSchema,
-  orderUpdateSchema,
-} from '../validation'
-import * as DB from '../repository'
-import * as Errors from '../errors'
+import { validate, orderCreateSchema, orderUpdateSchema } from '../validation'
+import { errorHandler, Internal } from '../errors'
 import type { Order, OrderUpdate, PaymentIntentCreate } from '../types'
+import * as DB from '../repository'
 
 export const orders = new Hono()
 const stripe = new Stripe(env.stripeSecret!)
@@ -22,7 +17,7 @@ orders.post('/payment-intent', async (c) => {
 
     return c.json({ clientSecret: paymentIntent.client_secret })
   } catch (error) {
-    return Errors.Handler(c, error)
+    return errorHandler(c, error)
   }
 })
 
@@ -34,7 +29,7 @@ orders.get('/payment-intent/:paymentId', async (c) => {
 
     return c.json(paymentIntent)
   } catch (error) {
-    return Errors.Handler(c, error)
+    return errorHandler(c, error)
   }
 })
 
@@ -46,7 +41,7 @@ orders.delete('/payment-intent/:paymentId', async (c) => {
 
     return c.json(paymentIntent)
   } catch (error) {
-    return Errors.Handler(c, error)
+    return errorHandler(c, error)
   }
 })
 
@@ -56,8 +51,8 @@ orders.post('/create', async (c) => {
 
     const validationResult = validate(orderCreateSchema, orderRequest)
 
-    if (!validationResult.success) {
-      return c.json({ error: formatZodError(validationResult.error) }, 400)
+    if (validationResult.error) {
+      return errorHandler(c, validationResult.error)
     }
 
     const validatedOrder = validationResult.data
@@ -65,12 +60,12 @@ orders.post('/create', async (c) => {
     const createdOrder = await DB.createOrder(validatedOrder)
 
     if (!createdOrder) {
-      throw new Errors.BadRequest('Failed to create order')
+      return errorHandler(c, new Internal('Failed to create order'))
     }
 
     return c.json({ paymentId: createdOrder.paymentId })
   } catch (error) {
-    return Errors.Handler(c, error)
+    return errorHandler(c, error)
   }
 })
 
@@ -80,8 +75,8 @@ orders.patch('/update', async (c) => {
 
     const validationResult = validate(orderUpdateSchema, orderUpdateRequest)
 
-    if (!validationResult.success) {
-      return c.json({ error: formatZodError(validationResult.error) }, 400)
+    if (validationResult.error) {
+      return errorHandler(c, validationResult.error)
     }
 
     const { paymentId, fields } = validationResult.data
@@ -92,11 +87,11 @@ orders.patch('/update', async (c) => {
     })
 
     if (!updatedOrder) {
-      throw new Errors.BadRequest('Failed to update order')
+      return errorHandler(c, new Internal('Failed to update order'))
     }
 
     return c.json(updatedOrder)
   } catch (error) {
-    return Errors.Handler(c, error)
+    return errorHandler(c, error)
   }
 })

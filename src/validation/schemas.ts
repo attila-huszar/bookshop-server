@@ -92,15 +92,18 @@ export const orderCreateSchema = z.object({
   firstName: z
     .string({ required_error: 'First name is required' })
     .min(2, 'First name must be at least 2 characters')
-    .max(50, 'First name must be less than 50 characters'),
+    .max(50, 'First name must be less than 50 characters')
+    .optional(),
   lastName: z
     .string({ required_error: 'Last name is required' })
     .min(2, 'Last name must be at least 2 characters')
-    .max(50, 'Last name must be less than 50 characters'),
+    .max(50, 'Last name must be less than 50 characters')
+    .optional(),
   email: z
     .string({ required_error: 'Email is required' })
-    .email('Invalid email format'),
-  phone: z.string().optional(),
+    .email('Invalid email format')
+    .optional(),
+  phone: z.string().nullable().optional(),
   address: z
     .object({
       line1: z.string().nullable(),
@@ -110,6 +113,7 @@ export const orderCreateSchema = z.object({
       postal_code: z.string().nullable(),
       country: z.string().nullable(),
     })
+    .nullable()
     .optional(),
 })
 

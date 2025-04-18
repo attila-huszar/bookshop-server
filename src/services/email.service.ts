@@ -1,6 +1,6 @@
 import nodemailer from 'nodemailer'
 import { env } from '../config'
-import * as Errors from '../errors'
+import { userMessage } from '../constants'
 
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -83,6 +83,6 @@ export async function sendEmail({
     const mailSent = await transporter.sendMail(mailOptions)
     return mailSent
   } catch (error) {
-    throw new Error(Errors.messages.sendEmail, { cause: error })
+    throw new Error(userMessage.sendEmail, { cause: error })
   }
 }

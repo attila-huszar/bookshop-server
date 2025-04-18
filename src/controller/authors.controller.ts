@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
+import { errorHandler } from '../errors'
 import * as DB from '../repository'
-import * as Errors from '../errors'
 
 export const authors = new Hono()
 
@@ -12,7 +12,7 @@ authors.get('/', async (c) => {
 
     return c.json(authorRecords)
   } catch (error) {
-    return Errors.Handler(c, error)
+    return errorHandler(c, error)
   }
 })
 
@@ -28,6 +28,6 @@ authors.get('/:id', async (c) => {
 
     return c.json(authorRecord)
   } catch (error) {
-    return Errors.Handler(c, error)
+    return errorHandler(c, error)
   }
 })

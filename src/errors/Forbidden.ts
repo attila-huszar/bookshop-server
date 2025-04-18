@@ -4,7 +4,7 @@ import status from 'http-status'
 export class Forbidden extends BaseError {
   constructor(
     message = 'Forbidden',
-    name = 'ForbiddenError',
+    name = 'Forbidden',
     statusCode = status.FORBIDDEN,
   ) {
     super(message, name, statusCode)

@@ -1,9 +1,7 @@
 import { Hono } from 'hono'
 import { setSignedCookie, deleteCookie, getSignedCookie } from 'hono/cookie'
-import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import {
   validate,
-  formatZodError,
   loginSchema,
   registerSchema,
   verificationSchema,
@@ -18,14 +16,15 @@ import {
   uploadFile,
   verifyJWTRefresh,
 } from '../utils'
-import * as DB from '../repository'
-import * as Errors from '../errors'
+import { authMessage, userMessage } from '../constants'
+import { BadRequest, errorHandler, Forbidden, Unauthorized } from '../errors'
 import type {
   LoginRequest,
   PasswordResetRequest,
   TokenRequest,
   UserUpdateRequest,
 } from '../types'
+import * as DB from '../repository'
 
 type Variables = {
   jwtPayload: {
@@ -41,8 +40,8 @@ users.post('/login', async (c) => {
 
     const validationResult = validate(loginSchema, loginRequest)
 
-    if (!validationResult.success) {
-      return c.json({ error: formatZodError(validationResult.error) }, 400)
+    if (validationResult.error) {
+      return errorHandler(c, validationResult.error)
     }
 
     const validatedData = validationResult.data
@@ -50,11 +49,11 @@ users.post('/login', async (c) => {
     const user = await DB.getUserBy('email', validatedData.email)
 
     if (!user) {
-      throw new Errors.Unauthorized(Errors.messages.emailOrPasswordError)
+      throw new Unauthorized(authMessage.authError)
     }
 
     if (!user.verified) {
-      throw new Errors.Forbidden(Errors.messages.verifyFirst)
+      throw new Forbidden(userMessage.verifyFirst)
     }
 
     const isPasswordCorrect = await Bun.password.verify(
@@ -63,7 +62,7 @@ users.post('/login', async (c) => {
     )
 
     if (!isPasswordCorrect) {
-      throw new Errors.Unauthorized(Errors.messages.emailOrPasswordError)
+      throw new Unauthorized(authMessage.authError)
     }
 
     const timestamp = Math.floor(Date.now() / 1000)
@@ -81,7 +80,7 @@ users.post('/login', async (c) => {
 
     return c.json({ accessToken, firstName: user.firstName })
   } catch (error) {
-    return Errors.Handler(c, error)
+    return errorHandler(c, error)
   }
 })
 
@@ -99,15 +98,15 @@ users.post('/register', async (c) => {
 
     const validationResult = validate(registerSchema, formData)
 
-    if (!validationResult.success) {
-      return c.json({ error: formatZodError(validationResult.error) }, 400)
+    if (validationResult.error) {
+      return errorHandler(c, validationResult.error)
     }
 
     const validatedRequest = validationResult.data
 
     const existingUser = await DB.getUserBy('email', validatedRequest.email)
     if (existingUser) {
-      throw new Errors.BadRequest(Errors.messages.emailTaken)
+      throw new BadRequest(userMessage.emailTaken)
     }
 
     const verificationToken = crypto.randomUUID()
@@ -123,7 +122,7 @@ users.post('/register', async (c) => {
     })
 
     if (!emailResponse.accepted.includes(validatedRequest.email)) {
-      throw new Error(Errors.messages.sendEmail)
+      throw new Error(userMessage.sendEmail)
     }
 
     const avatarUrl =
@@ -143,19 +142,12 @@ users.post('/register', async (c) => {
     const userCreated = await DB.createUser(newUser)
 
     if (!userCreated) {
-      throw new Error(Errors.messages.createError)
+      throw new Error(userMessage.createError)
     }
 
     return c.json({ email: userCreated.email })
   } catch (error) {
-    if (error instanceof Errors.BaseError) {
-      return c.json(
-        { error: error.message },
-        error.status as ContentfulStatusCode,
-      )
-    }
-
-    return c.json({ error: 'Internal server error' }, 500)
+    return errorHandler(c, error)
   }
 })
 
@@ -165,8 +157,8 @@ users.post('/verification', async (c) => {
 
     const validationResult = validate(verificationSchema, verificationRequest)
 
-    if (!validationResult.success) {
-      return c.json({ error: formatZodError(validationResult.error) }, 400)
+    if (validationResult.error) {
+      return errorHandler(c, validationResult.error)
     }
 
     const { token } = validationResult.data
@@ -174,13 +166,13 @@ users.post('/verification', async (c) => {
     const user = await DB.getUserBy('verificationToken', token)
 
     if (!user?.verificationToken || !user.verificationExpires) {
-      throw new Errors.BadRequest(Errors.messages.tokenInvalid)
+      throw new BadRequest(authMessage.invalidToken)
     }
 
     const expirationDate = new Date(user.verificationExpires)
 
     if (expirationDate < new Date()) {
-      throw new Errors.Forbidden(Errors.messages.tokenExpired)
+      throw new Forbidden(authMessage.expiredToken)
     }
 
     const userUpdated = await DB.updateUser(user.email, {
@@ -191,12 +183,12 @@ users.post('/verification', async (c) => {
     })
 
     if (!userUpdated) {
-      throw new Error(Errors.messages.updateError)
+      throw new Error(userMessage.updateError)
     }
 
     return c.json({ email: userUpdated.email })
   } catch (error) {
-    return Errors.Handler(c, error)
+    return errorHandler(c, error)
   }
 })
 
@@ -209,8 +201,8 @@ users.post('/password-reset-request', async (c) => {
       passwordResetRequest,
     )
 
-    if (!validationResult.success) {
-      return c.json({ error: formatZodError(validationResult.error) }, 400)
+    if (validationResult.error) {
+      return errorHandler(c, validationResult.error)
     }
 
     const { email } = validationResult.data
@@ -221,8 +213,7 @@ users.post('/password-reset-request', async (c) => {
       void logger.info(`Password reset request for non-existing user: ${user}`)
 
       return c.json({
-        message:
-          "If you're registered with us, you'll receive a password reset link shortly.",
+        message: userMessage.forgotPasswordRequest,
       })
     }
 
@@ -239,7 +230,7 @@ users.post('/password-reset-request', async (c) => {
     })
 
     if (!emailResponse.accepted.includes(user.email)) {
-      throw new Error(Errors.messages.sendEmail)
+      throw new Error(userMessage.sendEmail)
     }
 
     const userUpdated = await DB.updateUser(user.email, {
@@ -249,18 +240,16 @@ users.post('/password-reset-request', async (c) => {
     })
 
     if (!userUpdated) {
-      throw new Error(Errors.messages.updateError)
+      throw new Error(userMessage.updateError)
     }
 
     return c.json({
-      message:
-        "If you're registered with us, you'll receive a password reset link shortly.",
+      message: userMessage.forgotPasswordRequest,
     })
   } catch (error) {
     void logger.error('Error in password reset request', { error })
     return c.json({
-      message:
-        "If you're registered with us, you'll receive a password reset link shortly.",
+      message: userMessage.forgotPasswordRequest,
     })
   }
 })
@@ -274,8 +263,8 @@ users.post('/password-reset-token', async (c) => {
       passwordResetTokenRequest,
     )
 
-    if (!validationResult.success) {
-      return c.json({ error: formatZodError(validationResult.error) }, 400)
+    if (validationResult.error) {
+      return errorHandler(c, validationResult.error)
     }
 
     const { token, password } = validationResult.data
@@ -283,13 +272,13 @@ users.post('/password-reset-token', async (c) => {
     const user = await DB.getUserBy('passwordResetToken', token)
 
     if (!user?.passwordResetToken || !user.passwordResetExpires) {
-      throw new Errors.BadRequest(Errors.messages.tokenInvalid)
+      throw new BadRequest(authMessage.invalidToken)
     }
 
     const expirationDate = new Date(user.passwordResetExpires)
 
     if (expirationDate < new Date()) {
-      throw new Errors.Forbidden(Errors.messages.tokenExpired)
+      throw new Forbidden(authMessage.expiredToken)
     }
 
     const hashedPassword = await Bun.password.hash(password)
@@ -302,12 +291,12 @@ users.post('/password-reset-token', async (c) => {
     })
 
     if (!userUpdated) {
-      throw new Error(Errors.messages.updateError)
+      throw new Error(userMessage.updateError)
     }
 
     return c.json({ email: userUpdated.email })
   } catch (error) {
-    return Errors.Handler(c, error)
+    return errorHandler(c, error)
   }
 })
 
@@ -318,7 +307,7 @@ users.get('/profile', async (c) => {
     const user = await DB.getUserBy('uuid', jwtPayload.uuid)
 
     if (!user) {
-      throw new Error(Errors.messages.retrieveError)
+      throw new Error(userMessage.retrieveError)
     }
 
     const {
@@ -337,7 +326,7 @@ users.get('/profile', async (c) => {
 
     return c.json(userWithoutCreds)
   } catch (error) {
-    return Errors.Handler(c, error)
+    return errorHandler(c, error)
   }
 })
 
@@ -348,7 +337,7 @@ users.patch('/profile', async (c) => {
     const user = await DB.getUserBy('uuid', jwtPayload.uuid)
 
     if (!user) {
-      throw new Error(Errors.messages.retrieveError)
+      throw new Error(userMessage.retrieveError)
     }
 
     const updateFields = await c.req.json<UserUpdateRequest>()
@@ -359,7 +348,7 @@ users.patch('/profile', async (c) => {
     })
 
     if (!userUpdated) {
-      throw new Error(Errors.messages.updateError)
+      throw new Error(userMessage.updateError)
     }
 
     const {
@@ -378,7 +367,7 @@ users.patch('/profile', async (c) => {
 
     return c.json(userWithoutCreds)
   } catch (error) {
-    return Errors.Handler(c, error)
+    return errorHandler(c, error)
   }
 })
 
@@ -388,7 +377,7 @@ users.post('/logout', (c) => {
 
     return c.json({ message: 'Logged out successfully' })
   } catch (error) {
-    return Errors.Handler(c, error)
+    return errorHandler(c, error)
   }
 })
 
@@ -401,7 +390,7 @@ users.post('/refresh', async (c) => {
     )
 
     if (!refreshTokenCookie) {
-      return c.json({ message: 'No user session' }, 200)
+      return c.json({ message: userMessage.sessionExpired }, 200)
     }
 
     const payload = (await verifyJWTRefresh(refreshTokenCookie)) as {
@@ -428,6 +417,6 @@ users.post('/refresh', async (c) => {
 
     return c.json({ accessToken })
   } catch (error) {
-    return Errors.Handler(c, error)
+    return errorHandler(c, error)
   }
 })
