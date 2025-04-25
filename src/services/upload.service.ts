@@ -3,20 +3,16 @@ import { imageUploadSchema, validate } from '../validation'
 import { uploadFile } from '../utils'
 import { userMessage } from '../constants'
 
-export async function handleAvatarUpload(userUuid: string, avatar: unknown) {
+export async function handleAvatarUpload(userUuid: string, avatar: File) {
   const user = await usersDB.getUserBy('uuid', userUuid)
 
   if (!user) {
     throw new Error(userMessage.retrieveError)
   }
 
-  const validationResult = validate(imageUploadSchema, avatar)
+  validate(imageUploadSchema, avatar)
 
-  if (validationResult.error) {
-    return { error: validationResult.error }
-  }
-
-  const url = await uploadFile(validationResult.data.avatar)
+  const url = await uploadFile(avatar)
 
   const userUpdated = await usersDB.updateUser(user.email, {
     avatar: url,

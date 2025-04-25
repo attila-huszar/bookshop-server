@@ -23,22 +23,7 @@ export async function getUserBy(
 export async function createUser(
   values: typeof usersTable.$inferInsert,
 ): Promise<User | null> {
-  const userInsert = {
-    uuid: values.uuid,
-    firstName: values.firstName,
-    lastName: values.lastName,
-    email: values.email,
-    password: await Bun.password.hash(values.password),
-    avatar: values.avatar,
-    role: values.role,
-    verified: false,
-    verificationToken: values.verificationToken,
-    verificationExpires: values.verificationExpires,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  }
-
-  await db.insert(usersTable).values(userInsert)
+  await db.insert(usersTable).values(values)
 
   const userRecords = await db
     .select()

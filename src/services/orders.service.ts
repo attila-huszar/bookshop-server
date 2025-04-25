@@ -20,37 +20,27 @@ export async function cancelPaymentIntent(paymentId: string) {
 }
 
 export async function createOrder(orderRequest: Order) {
-  const validationResult = validate(orderCreateSchema, orderRequest)
+  const validatedOrder = validate(orderCreateSchema, orderRequest)
 
-  if (validationResult.error) {
-    return { error: validationResult.error }
-  }
-
-  const validatedOrder = validationResult.data
   const createdOrder = await ordersDB.createOrder(validatedOrder)
 
   if (!createdOrder) {
-    return { error: new Internal('Failed to create order') }
+    throw new Internal('Failed to create order')
   }
 
   return { paymentId: createdOrder.paymentId }
 }
 
 export async function updateOrder(orderUpdateRequest: OrderUpdate) {
-  const validationResult = validate(orderUpdateSchema, orderUpdateRequest)
+  const { paymentId, fields } = validate(orderUpdateSchema, orderUpdateRequest)
 
-  if (validationResult.error) {
-    return { error: validationResult.error }
-  }
-
-  const { paymentId, fields } = validationResult.data
   const updatedOrder = await ordersDB.updateOrder(paymentId, {
     ...fields,
     updatedAt: new Date().toISOString(),
   })
 
   if (!updatedOrder) {
-    return { error: new Internal('Failed to update order') }
+    throw new Internal('Failed to update order')
   }
 
   return updatedOrder

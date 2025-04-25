@@ -1,10 +1,10 @@
 import { z } from 'zod'
 
-export function validate<T extends z.ZodType>(
-  schema: T,
+export function validate<T>(
+  schema: z.ZodType<T, z.ZodTypeDef, unknown>,
   data: unknown,
-): z.SafeParseReturnType<unknown, z.infer<T>> {
-  return schema.safeParse(data)
+): T {
+  return schema.parse(data)
 }
 
 export function formatZodError(error: z.ZodError): string {

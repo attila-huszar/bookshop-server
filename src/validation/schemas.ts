@@ -127,12 +127,9 @@ export const orderUpdateSchema = z.object({
 })
 
 export const imageUploadSchema = z.object({
-  avatar: z
-    .instanceof(File, { message: 'Avatar must be a file' })
-    .refine((file) => file.size > MAX_IMAGE_SIZE * 1024, {
-      message: `Image too large (max ${MAX_IMAGE_SIZE} KB)`,
-    })
-    .refine((file) => file.type.startsWith('image/'), {
-      message: 'Invalid file type',
-    }),
+  name: z.string().min(1, 'Avatar must be a file'),
+  size: z
+    .number()
+    .max(MAX_IMAGE_SIZE * 1024, `Image too large (max ${MAX_IMAGE_SIZE} KB)`),
+  type: z.string().startsWith('image/', { message: 'Invalid file type' }),
 })

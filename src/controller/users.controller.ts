@@ -31,24 +31,18 @@ export const users = new Hono<{ Variables: Variables }>()
 users.post('/login', async (c) => {
   try {
     const loginRequest = await c.req.json<LoginRequest>()
-    const result = await loginUser(loginRequest)
-
-    if ('error' in result) {
-      return errorHandler(c, result.error)
-    }
+    const { accessToken, refreshToken, firstName } =
+      await loginUser(loginRequest)
 
     await setSignedCookie(
       c,
       REFRESH_TOKEN,
-      result.refreshToken,
+      refreshToken,
       env.cookieSecret!,
       cookieOptions,
     )
 
-    return c.json({
-      accessToken: result.accessToken,
-      firstName: result.firstName,
-    })
+    return c.json({ accessToken, firstName })
   } catch (error) {
     return errorHandler(c, error)
   }
@@ -57,13 +51,9 @@ users.post('/login', async (c) => {
 users.post('/register', async (c) => {
   try {
     const registerRequest = await c.req.formData()
-    const result = await registerUser(registerRequest)
+    const { email } = await registerUser(registerRequest)
 
-    if ('error' in result) {
-      return errorHandler(c, result.error)
-    }
-
-    return c.json({ email: result.email })
+    return c.json({ email })
   } catch (error) {
     return errorHandler(c, error)
   }
@@ -72,13 +62,9 @@ users.post('/register', async (c) => {
 users.post('/verification', async (c) => {
   try {
     const verificationRequest = await c.req.json<TokenRequest>()
-    const result = await verifyUser(verificationRequest)
+    const { email } = await verifyUser(verificationRequest)
 
-    if ('error' in result) {
-      return errorHandler(c, result.error)
-    }
-
-    return c.json({ email: result.email })
+    return c.json({ email })
   } catch (error) {
     return errorHandler(c, error)
   }
@@ -87,13 +73,9 @@ users.post('/verification', async (c) => {
 users.post('/password-reset-request', async (c) => {
   try {
     const passwordResetRequest = await c.req.json<PasswordResetRequest>()
-    const result = await passwordResetRequestService(passwordResetRequest)
+    const { message } = await passwordResetRequestService(passwordResetRequest)
 
-    if ('error' in result) {
-      return errorHandler(c, result.error)
-    }
-
-    return c.json(result)
+    return c.json({ message })
   } catch (error) {
     return errorHandler(c, error)
   }
@@ -102,13 +84,9 @@ users.post('/password-reset-request', async (c) => {
 users.post('/password-reset-token', async (c) => {
   try {
     const passwordResetTokenRequest = await c.req.json<TokenRequest>()
-    const result = await passwordResetTokenService(passwordResetTokenRequest)
+    const { email } = await passwordResetTokenService(passwordResetTokenRequest)
 
-    if ('error' in result) {
-      return errorHandler(c, result.error)
-    }
-
-    return c.json({ email: result.email })
+    return c.json({ email })
   } catch (error) {
     return errorHandler(c, error)
   }
@@ -141,7 +119,7 @@ users.post('/logout', (c) => {
   try {
     deleteCookie(c, REFRESH_TOKEN, cookieOptions)
 
-    return c.json({ message: 'Logged out successfully' })
+    return c.json({ message: 'Successfully logged out' })
   } catch (error) {
     return errorHandler(c, error)
   }

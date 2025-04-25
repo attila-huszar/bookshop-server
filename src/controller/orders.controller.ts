@@ -47,13 +47,9 @@ orders.delete('/payment-intent/:paymentId', async (c) => {
 orders.post('/create', async (c) => {
   try {
     const orderRequest = await c.req.json<Order>()
-    const result = await createOrder(orderRequest)
+    const { paymentId } = await createOrder(orderRequest)
 
-    if ('error' in result) {
-      return errorHandler(c, result.error)
-    }
-
-    return c.json({ paymentId: result.paymentId })
+    return c.json({ paymentId })
   } catch (error) {
     return errorHandler(c, error)
   }
@@ -62,13 +58,9 @@ orders.post('/create', async (c) => {
 orders.patch('/update', async (c) => {
   try {
     const orderUpdateRequest = await c.req.json<OrderUpdate>()
-    const result = await updateOrder(orderUpdateRequest)
+    const updatedOrder = await updateOrder(orderUpdateRequest)
 
-    if ('error' in result) {
-      return errorHandler(c, result.error)
-    }
-
-    return c.json(result)
+    return c.json(updatedOrder)
   } catch (error) {
     return errorHandler(c, error)
   }

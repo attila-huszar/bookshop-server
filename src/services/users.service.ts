@@ -20,14 +20,9 @@ import type {
 } from '../types'
 
 export async function loginUser(loginRequest: LoginRequest) {
-  const validationResult = validate(loginSchema, loginRequest)
+  const { email, password } = validate(loginSchema, loginRequest)
 
-  if (validationResult.error) {
-    return { error: validationResult.error }
-  }
-
-  const validatedData = validationResult.data
-  const user = await usersDB.getUserBy('email', validatedData.email)
+  const user = await usersDB.getUserBy('email', email)
 
   if (!user) {
     throw new Unauthorized(authMessage.authError)
@@ -37,10 +32,7 @@ export async function loginUser(loginRequest: LoginRequest) {
     throw new Forbidden(userMessage.verifyFirst)
   }
 
-  const isPasswordCorrect = await Bun.password.verify(
-    validatedData.password,
-    user.password,
-  )
+  const isPasswordCorrect = await Bun.password.verify(password, user.password)
 
   if (!isPasswordCorrect) {
     throw new Unauthorized(authMessage.authError)
@@ -54,7 +46,7 @@ export async function loginUser(loginRequest: LoginRequest) {
 }
 
 export async function registerUser(formData: FormData) {
-  const data = {
+  const form = {
     firstName: formData.get('firstName'),
     lastName: formData.get('lastName'),
     email: formData.get('email'),
@@ -62,14 +54,12 @@ export async function registerUser(formData: FormData) {
     avatar: formData.get('avatar'),
   }
 
-  const validationResult = validate(registerSchema, data)
+  const { firstName, lastName, email, password, avatar } = validate(
+    registerSchema,
+    form,
+  )
 
-  if (validationResult.error) {
-    return { error: validationResult.error }
-  }
-
-  const validatedRequest = validationResult.data
-  const existingUser = await usersDB.getUserBy('email', validatedRequest.email)
+  const existingUser = await usersDB.getUserBy('email', email)
 
   if (existingUser) {
     throw new BadRequest(userMessage.emailTaken)
@@ -80,28 +70,31 @@ export async function registerUser(formData: FormData) {
   const tokenLink = `${env.clientBaseUrl}/verification?token=${verificationToken}`
 
   const emailResponse = await sendEmail({
-    toAddress: validatedRequest.email,
-    toName: validatedRequest.firstName,
+    toAddress: email,
+    toName: firstName,
     tokenLink,
     baseLink: env.clientBaseUrl!,
     type: 'verification',
   })
 
-  if (!emailResponse.accepted.includes(validatedRequest.email))
+  if (!emailResponse.accepted.includes(email))
     throw new Error(userMessage.sendEmail)
 
-  const avatarUrl =
-    validatedRequest.avatar instanceof File
-      ? await uploadFile(validatedRequest.avatar)
-      : null
+  const avatarUrl = avatar ? await uploadFile(avatar) : null
 
   const newUser = {
-    ...validatedRequest,
     uuid: crypto.randomUUID(),
-    role: 'user' as const,
+    firstName,
+    lastName,
+    email,
+    password: await Bun.password.hash(password),
     avatar: avatarUrl,
+    role: 'user' as const,
+    verified: false,
     verificationToken,
     verificationExpires,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   }
 
   const userCreated = await usersDB.createUser(newUser)
@@ -114,13 +107,8 @@ export async function registerUser(formData: FormData) {
 }
 
 export async function verifyUser(verificationRequest: TokenRequest) {
-  const validationResult = validate(verificationSchema, verificationRequest)
+  const { token } = validate(verificationSchema, verificationRequest)
 
-  if (validationResult.error) {
-    return { error: validationResult.error }
-  }
-
-  const { token } = validationResult.data
   const user = await usersDB.getUserBy('verificationToken', token)
 
   if (!user?.verificationToken || !user.verificationExpires) {
@@ -150,16 +138,8 @@ export async function verifyUser(verificationRequest: TokenRequest) {
 export async function passwordResetRequestService(
   passwordResetRequest: PasswordResetRequest,
 ) {
-  const validationResult = validate(
-    passwordResetRequestSchema,
-    passwordResetRequest,
-  )
+  const { email } = validate(passwordResetRequestSchema, passwordResetRequest)
 
-  if (validationResult.error) {
-    return { error: validationResult.error }
-  }
-
-  const { email } = validationResult.data
   const user = await usersDB.getUserBy('email', email)
 
   if (!user) {
@@ -198,16 +178,11 @@ export async function passwordResetRequestService(
 export async function passwordResetTokenService(
   passwordResetTokenRequest: TokenRequest,
 ) {
-  const validationResult = validate(
+  const { token, password } = validate(
     passwordResetTokenSchema,
     passwordResetTokenRequest,
   )
 
-  if (validationResult.error) {
-    return { error: validationResult.error }
-  }
-
-  const { token, password } = validationResult.data
   const user = await usersDB.getUserBy('passwordResetToken', token)
 
   if (!user?.passwordResetToken || !user.passwordResetExpires) {
@@ -220,9 +195,8 @@ export async function passwordResetTokenService(
     throw new Forbidden(authMessage.expiredToken)
   }
 
-  const hashedPassword = await Bun.password.hash(password)
   const userUpdated = await usersDB.updateUser(user.email, {
-    password: hashedPassword,
+    password: await Bun.password.hash(password),
     passwordResetToken: null,
     passwordResetExpires: null,
     updatedAt: new Date().toISOString(),
