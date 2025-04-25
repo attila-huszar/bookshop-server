@@ -1,9 +1,9 @@
 import { eq, like } from 'drizzle-orm'
-import { authors } from './repoHandler'
+import { authorsTable } from './repoHandler'
 import { db } from '../db'
 import type { AuthorResponse } from '../types'
 
-const { id, name } = authors
+const { id, name } = authorsTable
 
 export async function getAuthorById(authorId: number): Promise<AuthorResponse> {
   const authorRecords = await db
@@ -11,8 +11,8 @@ export async function getAuthorById(authorId: number): Promise<AuthorResponse> {
       id,
       name,
     })
-    .from(authors)
-    .where(eq(authors.id, authorId))
+    .from(authorsTable)
+    .where(eq(authorsTable.id, authorId))
     .limit(1)
 
   if (!authorRecords.length) {
@@ -30,7 +30,7 @@ export async function getAuthorsBySearch(
       id,
       name,
     })
-    .from(authors)
+    .from(authorsTable)
     .where(like(name, `%${searchString}%`))
 
   return authorRecords

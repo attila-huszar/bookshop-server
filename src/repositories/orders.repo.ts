@@ -1,10 +1,10 @@
 import { eq } from 'drizzle-orm'
 import { db } from '../db'
-import { orders } from './repoHandler'
+import { ordersTable } from './repoHandler'
 import { type Order, OrderStatus } from '../types'
 
 export async function createOrder(
-  order: typeof orders.$inferInsert,
+  order: typeof ordersTable.$inferInsert,
 ): Promise<Order | null> {
   const orderInsert = {
     paymentId: order.paymentId,
@@ -22,12 +22,12 @@ export async function createOrder(
     updatedAt: new Date().toISOString(),
   }
 
-  await db.insert(orders).values(orderInsert)
+  await db.insert(ordersTable).values(orderInsert)
 
   const orderRecords = await db
     .select()
-    .from(orders)
-    .where(eq(orders.paymentId, order.paymentId))
+    .from(ordersTable)
+    .where(eq(ordersTable.paymentId, order.paymentId))
     .limit(1)
 
   if (!orderRecords.length) {
@@ -41,12 +41,15 @@ export async function updateOrder(
   paymentId: string,
   fields: Partial<Order>,
 ): Promise<Order | null> {
-  await db.update(orders).set(fields).where(eq(orders.paymentId, paymentId))
+  await db
+    .update(ordersTable)
+    .set(fields)
+    .where(eq(ordersTable.paymentId, paymentId))
 
   const orderRecords = await db
     .select()
-    .from(orders)
-    .where(eq(orders.paymentId, paymentId))
+    .from(ordersTable)
+    .where(eq(ordersTable.paymentId, paymentId))
     .limit(1)
 
   if (!orderRecords.length) {

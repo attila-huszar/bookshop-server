@@ -1,21 +1,23 @@
 import { getTableName } from 'drizzle-orm'
 import { db } from '../../db'
-import { news } from '../../repository'
+import { newsTable } from '../../repositories'
 import newsData from './news.json'
 
 export async function seedNews() {
-  const seedValues: (typeof news.$inferInsert)[] = newsData.map((news) => ({
-    id: news.id,
-    title: news.title,
-    content: news.content,
-    img: news.img,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  }))
+  const seedValues: (typeof newsTable.$inferInsert)[] = newsData.map(
+    (news) => ({
+      id: news.id,
+      title: news.title,
+      content: news.content,
+      img: news.img,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }),
+  )
 
-  await db.insert(news).values(seedValues)
+  await db.insert(newsTable).values(seedValues)
 
   return {
-    [getTableName(news)]: seedValues.length,
+    [getTableName(newsTable)]: seedValues.length,
   }
 }

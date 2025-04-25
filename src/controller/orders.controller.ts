@@ -1,19 +1,20 @@
 import { Hono } from 'hono'
-import { Stripe } from 'stripe'
-import { env } from '../config'
-import { validate, orderCreateSchema, orderUpdateSchema } from '../validation'
-import { errorHandler, Internal } from '../errors'
+import {
+  createPaymentIntent,
+  retrievePaymentIntent,
+  cancelPaymentIntent,
+  createOrder,
+  updateOrder,
+} from '../services'
+import { errorHandler } from '../errors'
 import type { Order, OrderUpdate, PaymentIntentCreate } from '../types'
-import * as DB from '../repository'
 
 export const orders = new Hono()
-const stripe = new Stripe(env.stripeSecret!)
 
 orders.post('/payment-intent', async (c) => {
   try {
     const createRequest = await c.req.json<PaymentIntentCreate>()
-
-    const paymentIntent = await stripe.paymentIntents.create(createRequest)
+    const paymentIntent = await createPaymentIntent(createRequest)
 
     return c.json({ clientSecret: paymentIntent.client_secret })
   } catch (error) {
@@ -24,8 +25,7 @@ orders.post('/payment-intent', async (c) => {
 orders.get('/payment-intent/:paymentId', async (c) => {
   try {
     const paymentId = c.req.param('paymentId')
-
-    const paymentIntent = await stripe.paymentIntents.retrieve(paymentId)
+    const paymentIntent = await retrievePaymentIntent(paymentId)
 
     return c.json(paymentIntent)
   } catch (error) {
@@ -36,8 +36,7 @@ orders.get('/payment-intent/:paymentId', async (c) => {
 orders.delete('/payment-intent/:paymentId', async (c) => {
   try {
     const paymentId = c.req.param('paymentId')
-
-    const paymentIntent = await stripe.paymentIntents.cancel(paymentId)
+    const paymentIntent = await cancelPaymentIntent(paymentId)
 
     return c.json(paymentIntent)
   } catch (error) {
@@ -48,22 +47,13 @@ orders.delete('/payment-intent/:paymentId', async (c) => {
 orders.post('/create', async (c) => {
   try {
     const orderRequest = await c.req.json<Order>()
+    const result = await createOrder(orderRequest)
 
-    const validationResult = validate(orderCreateSchema, orderRequest)
-
-    if (validationResult.error) {
-      return errorHandler(c, validationResult.error)
+    if ('error' in result) {
+      return errorHandler(c, result.error)
     }
 
-    const validatedOrder = validationResult.data
-
-    const createdOrder = await DB.createOrder(validatedOrder)
-
-    if (!createdOrder) {
-      return errorHandler(c, new Internal('Failed to create order'))
-    }
-
-    return c.json({ paymentId: createdOrder.paymentId })
+    return c.json({ paymentId: result.paymentId })
   } catch (error) {
     return errorHandler(c, error)
   }
@@ -72,25 +62,13 @@ orders.post('/create', async (c) => {
 orders.patch('/update', async (c) => {
   try {
     const orderUpdateRequest = await c.req.json<OrderUpdate>()
+    const result = await updateOrder(orderUpdateRequest)
 
-    const validationResult = validate(orderUpdateSchema, orderUpdateRequest)
-
-    if (validationResult.error) {
-      return errorHandler(c, validationResult.error)
+    if ('error' in result) {
+      return errorHandler(c, result.error)
     }
 
-    const { paymentId, fields } = validationResult.data
-
-    const updatedOrder = await DB.updateOrder(paymentId, {
-      ...fields,
-      updatedAt: new Date().toISOString(),
-    })
-
-    if (!updatedOrder) {
-      return errorHandler(c, new Internal('Failed to update order'))
-    }
-
-    return c.json(updatedOrder)
+    return c.json(result)
   } catch (error) {
     return errorHandler(c, error)
   }

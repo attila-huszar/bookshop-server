@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { db } from '../db'
-import { users } from './repoHandler'
+import { usersTable } from './repoHandler'
 import type { UserUpdateRequest, User } from '../types'
 
 export async function getUserBy(
@@ -9,8 +9,8 @@ export async function getUserBy(
 ): Promise<User | null> {
   const userRecords = await db
     .select()
-    .from(users)
-    .where(eq(users[field], token))
+    .from(usersTable)
+    .where(eq(usersTable[field], token))
     .limit(1)
 
   if (!userRecords.length) {
@@ -21,7 +21,7 @@ export async function getUserBy(
 }
 
 export async function createUser(
-  values: typeof users.$inferInsert,
+  values: typeof usersTable.$inferInsert,
 ): Promise<User | null> {
   const userInsert = {
     uuid: values.uuid,
@@ -38,12 +38,12 @@ export async function createUser(
     updatedAt: new Date().toISOString(),
   }
 
-  await db.insert(users).values(userInsert)
+  await db.insert(usersTable).values(userInsert)
 
   const userRecords = await db
     .select()
-    .from(users)
-    .where(eq(users.email, values.email))
+    .from(usersTable)
+    .where(eq(usersTable.email, values.email))
     .limit(1)
 
   if (!userRecords.length) {
@@ -61,12 +61,12 @@ export async function updateUser(
     fields.password = await Bun.password.hash(fields.password)
   }
 
-  await db.update(users).set(fields).where(eq(users.email, email))
+  await db.update(usersTable).set(fields).where(eq(usersTable.email, email))
 
   const userRecords = await db
     .select()
-    .from(users)
-    .where(eq(users.email, email))
+    .from(usersTable)
+    .where(eq(usersTable.email, email))
     .limit(1)
 
   if (!userRecords.length) {

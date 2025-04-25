@@ -3,7 +3,7 @@ import { env } from '../config'
 
 export const verifyJWTAccess = (token: string) => {
   try {
-    return verify(token, env.jwtAccessSecret)
+    return verify(token, env.jwtAccessSecret!)
   } catch (error) {
     throw new Error('Invalid access token', { cause: error })
   }
@@ -11,7 +11,7 @@ export const verifyJWTAccess = (token: string) => {
 
 export const verifyJWTRefresh = (token: string) => {
   try {
-    return verify(token, env.jwtRefreshSecret)
+    return verify(token, env.jwtRefreshSecret!)
   } catch (error) {
     throw new Error('Invalid refresh token', { cause: error })
   }

@@ -1,5 +1,5 @@
-export type { BookQuery, BookResponse } from './books.t'
-export type { AuthorResponse } from './authors.t'
-export type { NewsResponse } from './news.t'
+export * from './books.t'
+export * from './authors.t'
+export * from './news.t'
 export * from './users.t'
 export * from './orders.t'

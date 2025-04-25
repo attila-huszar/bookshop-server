@@ -1,4 +1,4 @@
-export { buildBookQueryConditions } from './buildBookQueryConditions'
+export { queryBuilder } from './queryBuilder'
 export { ngrokForward } from './ngrok'
 export { formatUptime } from './formatUptime'
 export { verifyJWTAccess, verifyJWTRefresh } from './verifyJWT'

@@ -1,8 +1,8 @@
 import { eq, gte, lte, and, inArray, like } from 'drizzle-orm'
-import { books } from '../repository'
+import { booksTable } from '../repositories'
 import type { BookQuery } from '../types'
 
-export function buildBookQueryConditions(query: BookQuery) {
+export function queryBuilder(query: BookQuery) {
   const {
     title,
     authorId,
@@ -13,7 +13,7 @@ export function buildBookQueryConditions(query: BookQuery) {
     rating,
     newRelease,
     topSellers,
-  } = books
+  } = booksTable
   const conditions = []
 
   if (Array.isArray(query.genre)) {

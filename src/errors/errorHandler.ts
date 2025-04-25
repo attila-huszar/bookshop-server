@@ -1,7 +1,7 @@
 import { type Context } from 'hono'
 import { type ContentfulStatusCode } from 'hono/utils/http-status'
 import { ZodError } from 'zod'
-import { logger } from '../services'
+import { logger } from '../libs'
 import { commonMessage } from '../constants'
 import { BaseError } from './BaseError'
 

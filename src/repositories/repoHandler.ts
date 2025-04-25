@@ -7,16 +7,9 @@ const repoHandlers = {
 
 const repo = env.dbRepo as keyof typeof repoHandlers
 
-const selectedRepo = repoHandlers[repo]
-
-if (!selectedRepo) {
+if (!repoHandlers[repo]) {
   throw new Error(`Unknown DB Repository: ${repo}`)
 }
 
-export const {
-  booksTable: books,
-  authorsTable: authors,
-  usersTable: users,
-  newsTable: news,
-  ordersTable: orders,
-} = selectedRepo
+export const { booksTable, authorsTable, usersTable, newsTable, ordersTable } =
+  repoHandlers[repo]

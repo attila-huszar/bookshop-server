@@ -8,7 +8,7 @@ export const signAccessToken = async (uuid: string, timestamp: number) => {
       exp: timestamp + Number(env.jwtAccessExpiration),
       iat: timestamp,
     },
-    env.jwtAccessSecret,
+    env.jwtAccessSecret!,
   )
 
   return accessToken
@@ -21,7 +21,7 @@ export const signRefreshToken = async (uuid: string, timestamp: number) => {
       exp: timestamp + Number(env.jwtRefreshExpiration),
       iat: timestamp,
     },
-    env.jwtRefreshSecret,
+    env.jwtRefreshSecret!,
   )
 
   return refreshToken

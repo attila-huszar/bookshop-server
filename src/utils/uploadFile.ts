@@ -1,5 +1,5 @@
 import { PutObjectCommand } from '@aws-sdk/client-s3'
-import { logger, s3 } from '../services'
+import { logger, s3 } from '../libs'
 import { env } from '../config'
 
 export const uploadFile = async (file: File) => {

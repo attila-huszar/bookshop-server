@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "bun run --hot src/app.ts",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings 0",
     "migrate": "bun src/database/migrate.ts",
     "seed": "bun src/database/seed.ts"
   },
@@ -25,6 +25,8 @@
     "@types/bun": "^1.2.9",
     "@types/nodemailer": "^6.4.17",
     "drizzle-kit": "^0.30.6",
+    "eslint-import-resolver-typescript": "^4.3.4",
+    "eslint-plugin-import": "^2.31.0",
     "eslint-plugin-prettier": "^5.2.6",
     "globals": "^16.0.0",
     "prettier": "^3.5.3",

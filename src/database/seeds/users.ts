@@ -1,10 +1,10 @@
 import { getTableName } from 'drizzle-orm'
 import { db } from '../../db'
-import { users } from '../../repository'
+import { usersTable } from '../../repositories'
 import { env } from '../../config'
 
 export async function seedUsers() {
-  const admin: typeof users.$inferInsert = {
+  const admin: typeof usersTable.$inferInsert = {
     uuid: crypto.randomUUID(),
     firstName: 'Admin',
     lastName: 'Admin',
@@ -16,9 +16,9 @@ export async function seedUsers() {
     updatedAt: new Date().toISOString(),
   }
 
-  await db.insert(users).values(admin)
+  await db.insert(usersTable).values(admin)
 
   return {
-    [getTableName(users)]: admin.email,
+    [getTableName(usersTable)]: admin.email,
   }
 }

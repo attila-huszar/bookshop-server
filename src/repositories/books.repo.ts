@@ -1,6 +1,6 @@
 import { count, eq, max, min } from 'drizzle-orm'
-import { books, authors } from './repoHandler'
-import { buildBookQueryConditions } from '../utils'
+import { booksTable, authorsTable } from './repoHandler'
+import { queryBuilder } from '../utils'
 import { db } from '../db'
 import type { BookQuery, BookResponse } from '../types'
 
@@ -20,7 +20,7 @@ const {
   newRelease,
   createdAt,
   updatedAt,
-} = books
+} = booksTable
 
 export async function getBooks(query: BookQuery | undefined): Promise<{
   booksRecords: BookResponse[]
@@ -30,11 +30,11 @@ export async function getBooks(query: BookQuery | undefined): Promise<{
   const limit = Math.min(Math.max(1, Number(query?.limit) || 8), 32)
   const offset = (page - 1) * limit
 
-  const conditions = query ? buildBookQueryConditions(query) : undefined
+  const conditions = query ? queryBuilder(query) : undefined
 
   const [total] = await db
     .select({ count: count() })
-    .from(books)
+    .from(booksTable)
     .where(conditions)
 
   const booksCount = total.count.toString()
@@ -43,7 +43,7 @@ export async function getBooks(query: BookQuery | undefined): Promise<{
     .select({
       id,
       title,
-      author: authors.name,
+      author: authorsTable.name,
       genre,
       imgUrl,
       description,
@@ -57,8 +57,8 @@ export async function getBooks(query: BookQuery | undefined): Promise<{
       createdAt,
       updatedAt,
     })
-    .from(books)
-    .leftJoin(authors, eq(authorId, authors.id))
+    .from(booksTable)
+    .leftJoin(authorsTable, eq(authorId, authorsTable.id))
     .where(conditions)
     .limit(limit)
     .offset(offset)
@@ -71,7 +71,7 @@ export async function getBookById(bookId: number): Promise<BookResponse> {
     .select({
       id,
       title,
-      author: authors.name,
+      author: authorsTable.name,
       genre,
       imgUrl,
       description,
@@ -85,9 +85,9 @@ export async function getBookById(bookId: number): Promise<BookResponse> {
       createdAt,
       updatedAt,
     })
-    .from(books)
-    .leftJoin(authors, eq(authorId, authors.id))
-    .where(eq(books.id, bookId))
+    .from(booksTable)
+    .leftJoin(authorsTable, eq(authorId, authorsTable.id))
+    .where(eq(booksTable.id, bookId))
     .limit(1)
 
   return bookRecords[0]
@@ -105,9 +105,9 @@ export async function getBookSearchOptions(): Promise<{
       minYear: min(publishYear),
       maxYear: max(publishYear),
     })
-    .from(books)
+    .from(booksTable)
 
-  const genresResult = await db.selectDistinct({ genre }).from(books)
+  const genresResult = await db.selectDistinct({ genre }).from(booksTable)
 
   const genres = genresResult
     .map((row) => row.genre)

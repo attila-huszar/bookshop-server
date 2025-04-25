@@ -1,10 +1,10 @@
 import { getTableName } from 'drizzle-orm'
 import { db } from '../../db'
-import { authors } from '../../repository'
+import { authorsTable } from '../../repositories'
 import authorsData from './authors.json'
 
 export async function seedAuthors() {
-  const seedValues: (typeof authors.$inferInsert)[] = authorsData.map(
+  const seedValues: (typeof authorsTable.$inferInsert)[] = authorsData.map(
     (author) => ({
       id: author.id,
       name: author.name,
@@ -18,9 +18,9 @@ export async function seedAuthors() {
     }),
   )
 
-  await db.insert(authors).values(seedValues)
+  await db.insert(authorsTable).values(seedValues)
 
   return {
-    [getTableName(authors)]: seedValues.length,
+    [getTableName(authorsTable)]: seedValues.length,
   }
 }

@@ -1,3 +1,6 @@
-import { authors } from '../repository'
+import { authorsTable } from '../repositories'
 
-export type AuthorResponse = Pick<typeof authors.$inferSelect, 'id' | 'name'>
+export type AuthorResponse = Pick<
+  typeof authorsTable.$inferSelect,
+  'id' | 'name'
+>

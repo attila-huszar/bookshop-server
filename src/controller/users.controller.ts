@@ -1,30 +1,24 @@
 import { Hono } from 'hono'
 import { setSignedCookie, deleteCookie, getSignedCookie } from 'hono/cookie'
-import {
-  validate,
-  loginSchema,
-  registerSchema,
-  verificationSchema,
-  passwordResetRequestSchema,
-  passwordResetTokenSchema,
-} from '../validation'
 import { env, REFRESH_TOKEN, cookieOptions } from '../config'
-import { sendEmail, logger } from '../services'
 import {
-  signAccessToken,
-  signRefreshToken,
-  uploadFile,
-  verifyJWTRefresh,
-} from '../utils'
-import { authMessage, userMessage } from '../constants'
-import { BadRequest, errorHandler, Forbidden, Unauthorized } from '../errors'
+  loginUser,
+  registerUser,
+  verifyUser,
+  passwordResetRequestService,
+  passwordResetTokenService,
+  getUserProfile,
+  updateUserProfile,
+} from '../services'
+import { signAccessToken, signRefreshToken, verifyJWTRefresh } from '../utils'
+import { userMessage } from '../constants'
+import { errorHandler } from '../errors'
 import type {
   LoginRequest,
   PasswordResetRequest,
   TokenRequest,
   UserUpdateRequest,
 } from '../types'
-import * as DB from '../repository'
 
 type Variables = {
   jwtPayload: {
@@ -37,48 +31,24 @@ export const users = new Hono<{ Variables: Variables }>()
 users.post('/login', async (c) => {
   try {
     const loginRequest = await c.req.json<LoginRequest>()
+    const result = await loginUser(loginRequest)
 
-    const validationResult = validate(loginSchema, loginRequest)
-
-    if (validationResult.error) {
-      return errorHandler(c, validationResult.error)
+    if ('error' in result) {
+      return errorHandler(c, result.error)
     }
-
-    const validatedData = validationResult.data
-
-    const user = await DB.getUserBy('email', validatedData.email)
-
-    if (!user) {
-      throw new Unauthorized(authMessage.authError)
-    }
-
-    if (!user.verified) {
-      throw new Forbidden(userMessage.verifyFirst)
-    }
-
-    const isPasswordCorrect = await Bun.password.verify(
-      validatedData.password,
-      user.password,
-    )
-
-    if (!isPasswordCorrect) {
-      throw new Unauthorized(authMessage.authError)
-    }
-
-    const timestamp = Math.floor(Date.now() / 1000)
-
-    const accessToken = await signAccessToken(user.uuid, timestamp)
-    const refreshToken = await signRefreshToken(user.uuid, timestamp)
 
     await setSignedCookie(
       c,
       REFRESH_TOKEN,
-      refreshToken,
+      result.refreshToken,
       env.cookieSecret!,
       cookieOptions,
     )
 
-    return c.json({ accessToken, firstName: user.firstName })
+    return c.json({
+      accessToken: result.accessToken,
+      firstName: result.firstName,
+    })
   } catch (error) {
     return errorHandler(c, error)
   }
@@ -87,65 +57,13 @@ users.post('/login', async (c) => {
 users.post('/register', async (c) => {
   try {
     const registerRequest = await c.req.formData()
+    const result = await registerUser(registerRequest)
 
-    const formData = {
-      firstName: registerRequest.get('firstName'),
-      lastName: registerRequest.get('lastName'),
-      email: registerRequest.get('email'),
-      password: registerRequest.get('password'),
-      avatar: registerRequest.get('avatar'),
+    if ('error' in result) {
+      return errorHandler(c, result.error)
     }
 
-    const validationResult = validate(registerSchema, formData)
-
-    if (validationResult.error) {
-      return errorHandler(c, validationResult.error)
-    }
-
-    const validatedRequest = validationResult.data
-
-    const existingUser = await DB.getUserBy('email', validatedRequest.email)
-    if (existingUser) {
-      throw new BadRequest(userMessage.emailTaken)
-    }
-
-    const verificationToken = crypto.randomUUID()
-    const verificationExpires = new Date(Date.now() + 86400000).toISOString()
-    const tokenLink = `${env.clientBaseUrl}/verification?token=${verificationToken}`
-
-    const emailResponse = await sendEmail({
-      toAddress: validatedRequest.email,
-      toName: validatedRequest.firstName,
-      tokenLink,
-      baseLink: env.clientBaseUrl!,
-      type: 'verification',
-    })
-
-    if (!emailResponse.accepted.includes(validatedRequest.email)) {
-      throw new Error(userMessage.sendEmail)
-    }
-
-    const avatarUrl =
-      validatedRequest.avatar instanceof File
-        ? await uploadFile(validatedRequest.avatar)
-        : null
-
-    const newUser = {
-      ...validatedRequest,
-      uuid: crypto.randomUUID(),
-      role: 'user' as const,
-      avatar: avatarUrl,
-      verificationToken,
-      verificationExpires,
-    }
-
-    const userCreated = await DB.createUser(newUser)
-
-    if (!userCreated) {
-      throw new Error(userMessage.createError)
-    }
-
-    return c.json({ email: userCreated.email })
+    return c.json({ email: result.email })
   } catch (error) {
     return errorHandler(c, error)
   }
@@ -154,39 +72,13 @@ users.post('/register', async (c) => {
 users.post('/verification', async (c) => {
   try {
     const verificationRequest = await c.req.json<TokenRequest>()
+    const result = await verifyUser(verificationRequest)
 
-    const validationResult = validate(verificationSchema, verificationRequest)
-
-    if (validationResult.error) {
-      return errorHandler(c, validationResult.error)
+    if ('error' in result) {
+      return errorHandler(c, result.error)
     }
 
-    const { token } = validationResult.data
-
-    const user = await DB.getUserBy('verificationToken', token)
-
-    if (!user?.verificationToken || !user.verificationExpires) {
-      throw new BadRequest(authMessage.invalidToken)
-    }
-
-    const expirationDate = new Date(user.verificationExpires)
-
-    if (expirationDate < new Date()) {
-      throw new Forbidden(authMessage.expiredToken)
-    }
-
-    const userUpdated = await DB.updateUser(user.email, {
-      verified: true,
-      verificationToken: null,
-      verificationExpires: null,
-      updatedAt: new Date().toISOString(),
-    })
-
-    if (!userUpdated) {
-      throw new Error(userMessage.updateError)
-    }
-
-    return c.json({ email: userUpdated.email })
+    return c.json({ email: result.email })
   } catch (error) {
     return errorHandler(c, error)
   }
@@ -195,106 +87,28 @@ users.post('/verification', async (c) => {
 users.post('/password-reset-request', async (c) => {
   try {
     const passwordResetRequest = await c.req.json<PasswordResetRequest>()
+    const result = await passwordResetRequestService(passwordResetRequest)
 
-    const validationResult = validate(
-      passwordResetRequestSchema,
-      passwordResetRequest,
-    )
-
-    if (validationResult.error) {
-      return errorHandler(c, validationResult.error)
+    if ('error' in result) {
+      return errorHandler(c, result.error)
     }
 
-    const { email } = validationResult.data
-
-    const user = await DB.getUserBy('email', email)
-
-    if (!user) {
-      void logger.info(`Password reset request for non-existing user: ${user}`)
-
-      return c.json({
-        message: userMessage.forgotPasswordRequest,
-      })
-    }
-
-    const passwordResetToken = crypto.randomUUID()
-    const passwordResetExpires = new Date(Date.now() + 86400000).toISOString()
-    const tokenLink = `${env.clientBaseUrl}/password-reset?token=${passwordResetToken}`
-
-    const emailResponse = await sendEmail({
-      toAddress: user.email,
-      toName: user.firstName,
-      tokenLink,
-      baseLink: env.clientBaseUrl!,
-      type: 'passwordReset',
-    })
-
-    if (!emailResponse.accepted.includes(user.email)) {
-      throw new Error(userMessage.sendEmail)
-    }
-
-    const userUpdated = await DB.updateUser(user.email, {
-      passwordResetToken,
-      passwordResetExpires,
-      updatedAt: new Date().toISOString(),
-    })
-
-    if (!userUpdated) {
-      throw new Error(userMessage.updateError)
-    }
-
-    return c.json({
-      message: userMessage.forgotPasswordRequest,
-    })
+    return c.json(result)
   } catch (error) {
-    void logger.error('Error in password reset request', { error })
-    return c.json({
-      message: userMessage.forgotPasswordRequest,
-    })
+    return errorHandler(c, error)
   }
 })
 
 users.post('/password-reset-token', async (c) => {
   try {
     const passwordResetTokenRequest = await c.req.json<TokenRequest>()
+    const result = await passwordResetTokenService(passwordResetTokenRequest)
 
-    const validationResult = validate(
-      passwordResetTokenSchema,
-      passwordResetTokenRequest,
-    )
-
-    if (validationResult.error) {
-      return errorHandler(c, validationResult.error)
+    if ('error' in result) {
+      return errorHandler(c, result.error)
     }
 
-    const { token, password } = validationResult.data
-
-    const user = await DB.getUserBy('passwordResetToken', token)
-
-    if (!user?.passwordResetToken || !user.passwordResetExpires) {
-      throw new BadRequest(authMessage.invalidToken)
-    }
-
-    const expirationDate = new Date(user.passwordResetExpires)
-
-    if (expirationDate < new Date()) {
-      throw new Forbidden(authMessage.expiredToken)
-    }
-
-    const hashedPassword = await Bun.password.hash(password)
-
-    const userUpdated = await DB.updateUser(user.email, {
-      password: hashedPassword,
-      passwordResetToken: null,
-      passwordResetExpires: null,
-      updatedAt: new Date().toISOString(),
-    })
-
-    if (!userUpdated) {
-      throw new Error(userMessage.updateError)
-    }
-
-    return c.json({ email: userUpdated.email })
+    return c.json({ email: result.email })
   } catch (error) {
     return errorHandler(c, error)
   }
@@ -303,28 +117,9 @@ users.post('/password-reset-token', async (c) => {
 users.get('/profile', async (c) => {
   try {
     const jwtPayload = c.get('jwtPayload')
+    const user = await getUserProfile(jwtPayload.uuid)
 
-    const user = await DB.getUserBy('uuid', jwtPayload.uuid)
-
-    if (!user) {
-      throw new Error(userMessage.retrieveError)
-    }
-
-    const {
-      id,
-      uuid,
-      password,
-      verified,
-      verificationToken,
-      verificationExpires,
-      passwordResetToken,
-      passwordResetExpires,
-      createdAt,
-      updatedAt,
-      ...userWithoutCreds
-    } = user
-
-    return c.json(userWithoutCreds)
+    return c.json(user)
   } catch (error) {
     return errorHandler(c, error)
   }
@@ -333,39 +128,10 @@ users.get('/profile', async (c) => {
 users.patch('/profile', async (c) => {
   try {
     const jwtPayload = c.get('jwtPayload')
-
-    const user = await DB.getUserBy('uuid', jwtPayload.uuid)
-
-    if (!user) {
-      throw new Error(userMessage.retrieveError)
-    }
-
     const updateFields = await c.req.json<UserUpdateRequest>()
+    const user = await updateUserProfile(jwtPayload.uuid, updateFields)
 
-    const userUpdated = await DB.updateUser(user.email, {
-      ...updateFields,
-      updatedAt: new Date().toISOString(),
-    })
-
-    if (!userUpdated) {
-      throw new Error(userMessage.updateError)
-    }
-
-    const {
-      id,
-      uuid,
-      password,
-      verified,
-      verificationToken,
-      verificationExpires,
-      passwordResetToken,
-      passwordResetExpires,
-      createdAt,
-      updatedAt,
-      ...userWithoutCreds
-    } = userUpdated
-
-    return c.json(userWithoutCreds)
+    return c.json(user)
   } catch (error) {
     return errorHandler(c, error)
   }

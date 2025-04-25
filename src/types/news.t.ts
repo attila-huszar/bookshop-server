@@ -1,3 +1,3 @@
-import { news } from '../repository'
+import { newsTable } from '../repositories'
 
-export type NewsResponse = typeof news.$inferSelect
+export type NewsResponse = typeof newsTable.$inferSelect

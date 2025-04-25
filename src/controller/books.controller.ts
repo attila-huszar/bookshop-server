@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
+import { getBookById, getBooks } from '../services'
 import { errorHandler, NotFound } from '../errors'
 import type { BookQuery } from '../types'
-import * as DB from '../repository'
 
 export const books = new Hono()
 
@@ -13,7 +13,7 @@ books.get('/', async (c) => {
       query.genre = c.req.queries('genre')
     }
 
-    const { booksRecords, booksCount } = await DB.getBooks(query)
+    const { booksRecords, booksCount } = await getBooks(query)
 
     c.header('Access-Control-Expose-Headers', 'x-total-count')
     c.header('x-total-count', booksCount)
@@ -28,7 +28,7 @@ books.get('/:id', async (c) => {
   try {
     const id = c.req.param('id')
 
-    const bookRecord = await DB.getBookById(Number(id))
+    const bookRecord = await getBookById(Number(id))
 
     if (!bookRecord) {
       throw new NotFound('Book not found')

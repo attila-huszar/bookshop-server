@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { users } from '../repository'
+import { usersTable } from '../repositories'
 import type {
   loginSchema,
   registerSchema,
@@ -8,7 +8,7 @@ import type {
   passwordResetTokenSchema,
 } from '../validation'
 
-export type User = typeof users.$inferSelect
+export type User = typeof usersTable.$inferSelect
 
 export type LoginRequest = z.infer<typeof loginSchema>
 

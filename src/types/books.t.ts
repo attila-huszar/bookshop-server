@@ -1,4 +1,4 @@
-import { books } from '../repository'
+import { booksTable } from '../repositories'
 
 type BookRangeKeys<T extends string> = `${T}_gte` | `${T}_lte`
 
@@ -23,7 +23,7 @@ export type BookQuery = BookBaseQuery & {
 }
 
 export type BookResponse =
-  | (Omit<typeof books.$inferSelect, 'authorId'> & {
+  | (Omit<typeof booksTable.$inferSelect, 'authorId'> & {
       author: string | null
     })
   | undefined

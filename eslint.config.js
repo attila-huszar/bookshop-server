@@ -1,10 +1,12 @@
 import eslint from '@eslint/js'
 import tseslint from 'typescript-eslint'
 import globals from 'globals'
+import importPlugin from 'eslint-plugin-import'
 import prettier from 'eslint-plugin-prettier'
 
 export default tseslint.config(
   eslint.configs.recommended,
+  importPlugin.flatConfigs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
   ...tseslint.configs.stylisticTypeChecked,
   {
@@ -35,12 +37,19 @@ export default tseslint.config(
       '@typescript-eslint/consistent-type-definitions': 'off',
       'prettier/prettier': 'warn',
     },
+    settings: {
+      'import/resolver': {
+        typescript: {
+          bun: true,
+        },
+      },
+    },
     linterOptions: {
       reportUnusedDisableDirectives: 'warn',
     },
   },
   {
-    ignores: ['node_modules'],
+    ignores: ['node_modules', 'eslint.config.js'],
   },
   {
     files: ['**/*.js'],

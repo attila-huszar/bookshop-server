@@ -1,13 +1,13 @@
 import { z } from 'zod'
 import { Stripe } from 'stripe'
-import { orders } from '../repository'
+import { ordersTable } from '../repositories'
 import type {
   orderItemSchema,
   orderCreateSchema,
   orderUpdateSchema,
 } from '../validation'
 
-export type Order = typeof orders.$inferSelect
+export type Order = typeof ordersTable.$inferSelect
 
 export type OrderItem = z.infer<typeof orderItemSchema>
 

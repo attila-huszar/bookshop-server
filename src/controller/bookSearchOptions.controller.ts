@@ -1,12 +1,12 @@
 import { Hono } from 'hono'
+import { getBookSearchOptions } from '../services'
 import { errorHandler } from '../errors'
-import * as DB from '../repository'
 
 export const bookSearchOptions = new Hono()
 
 bookSearchOptions.get('/', async (c) => {
   try {
-    const options = await DB.getBookSearchOptions()
+    const options = await getBookSearchOptions()
 
     return c.json(options)
   } catch (error) {
