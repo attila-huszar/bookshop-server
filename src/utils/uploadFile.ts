@@ -1,23 +1,16 @@
-import { PutObjectCommand } from '@aws-sdk/client-s3'
-import { logger, s3 } from '../libs'
-import { env } from '../config'
+import { s3, write } from 'bun'
+import { logger } from '../libs'
 
 export const uploadFile = async (file: File) => {
   try {
-    const fileBuffer = await file.arrayBuffer()
+    const key = `avatars/${Date.now()}-${file.name}`
+    const metadata = s3.file(key)
 
-    const s3Key = `avatars/${Date.now()}-${file.name}`
+    await write(metadata, file)
+    const presignedUrl = metadata.presign()
+    const permanentUrl = presignedUrl.split('?')[0]
 
-    await s3.send(
-      new PutObjectCommand({
-        Bucket: env.awsBucket,
-        Key: s3Key,
-        Body: Buffer.from(fileBuffer),
-        ContentType: file.type,
-      }),
-    )
-
-    return `https://${env.awsBucket}.s3.${env.awsRegion}.amazonaws.com/${s3Key}`
+    return permanentUrl
   } catch (error) {
     void logger.error('Error uploading to AWS', {
       error,

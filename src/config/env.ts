@@ -17,7 +17,7 @@ export const env = {
   stripeSecret: Bun.env.STRIPE_SECRET,
   awsAccessKeyId: Bun.env.AWS_ACCESS_KEY_ID,
   awsSecretAccessKey: Bun.env.AWS_SECRET_ACCESS_KEY,
-  awsRegion: Bun.env.AWS_REGION ?? 'eu-central-1',
+  awsRegion: Bun.env.AWS_REGION,
   awsBucket: Bun.env.AWS_BUCKET,
   logtailSourceToken: Bun.env.LOGTAIL_SOURCE_TOKEN,
   logtailIngestingHost: Bun.env.LOGTAIL_INGESTING_HOST,

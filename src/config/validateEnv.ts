@@ -11,6 +11,7 @@ const requiredKeys = [
   'stripeSecret',
   'awsAccessKeyId',
   'awsSecretAccessKey',
+  'awsRegion',
   'awsBucket',
   'logtailSourceToken',
 ] as const as (keyof typeof env)[]
