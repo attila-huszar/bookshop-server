@@ -16,13 +16,9 @@ upload.post('/', async (c) => {
     const formData = await c.req.formData()
     const avatar = formData.get('avatar')
 
-    if (!(avatar instanceof File)) {
-      throw new Error('Avatar must be a file')
-    }
+    const user = await handleAvatarUpload(jwtPayload.uuid, avatar)
 
-    const result = await handleAvatarUpload(jwtPayload.uuid, avatar)
-
-    return c.json(result.user)
+    return c.json(user)
   } catch (error) {
     return errorHandler(c, error)
   }

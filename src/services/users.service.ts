@@ -54,7 +54,7 @@ export async function registerUser(formData: FormData) {
     avatar: formData.get('avatar'),
   }
 
-  const { firstName, lastName, email, password, avatar } = validate(
+  const { firstName, lastName, email, password } = validate(
     registerSchema,
     form,
   )
@@ -80,7 +80,8 @@ export async function registerUser(formData: FormData) {
   if (!emailResponse.accepted.includes(email))
     throw new Error(userMessage.sendEmail)
 
-  const avatarUrl = avatar ? await uploadFile(avatar) : null
+  const avatarUrl =
+    form.avatar instanceof File ? await uploadFile(form.avatar) : null
 
   const newUser = {
     uuid: crypto.randomUUID(),

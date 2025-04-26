@@ -3,11 +3,18 @@ import { imageUploadSchema, validate } from '../validation'
 import { uploadFile } from '../utils'
 import { userMessage } from '../constants'
 
-export async function handleAvatarUpload(userUuid: string, avatar: File) {
+export async function handleAvatarUpload(
+  userUuid: string,
+  avatar: Bun.FormDataEntryValue | null,
+) {
   const user = await usersDB.getUserBy('uuid', userUuid)
 
   if (!user) {
     throw new Error(userMessage.retrieveError)
+  }
+
+  if (!(avatar instanceof File)) {
+    throw new Error('Avatar must be a file')
   }
 
   validate(imageUploadSchema, avatar)
@@ -37,5 +44,5 @@ export async function handleAvatarUpload(userUuid: string, avatar: File) {
     ...userWithoutCreds
   } = userUpdated
 
-  return { user: userWithoutCreds }
+  return userWithoutCreds
 }

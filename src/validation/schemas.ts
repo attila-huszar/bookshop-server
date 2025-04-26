@@ -30,7 +30,18 @@ export const registerSchema = z.object({
       /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
       'Password must contain at least one uppercase letter, one lowercase letter, and one number',
     ),
-  avatar: z.instanceof(File, { message: 'Avatar must be a file' }).nullable(),
+  avatar: z
+    .object({
+      name: z.string().min(1, 'Avatar must be a file'),
+      size: z
+        .number()
+        .max(
+          MAX_IMAGE_SIZE * 1024,
+          `Image too large (max ${MAX_IMAGE_SIZE} KB)`,
+        ),
+      type: z.string().startsWith('image/', { message: 'Invalid file type' }),
+    })
+    .nullable(),
 })
 
 export const verificationSchema = z.object({
