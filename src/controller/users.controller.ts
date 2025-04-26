@@ -4,10 +4,11 @@ import { env, REFRESH_TOKEN, cookieOptions } from '../config'
 import {
   loginUser,
   registerUser,
-  verifyUser,
-  passwordResetRequestService,
-  passwordResetTokenService,
   getUserProfile,
+  verifyUser,
+  passwordResetRequest,
+  passwordResetToken,
+  passwordResetSubmit,
   updateUserProfile,
 } from '../services'
 import { signAccessToken, signRefreshToken, verifyJWTRefresh } from '../utils'
@@ -15,8 +16,10 @@ import { userMessage } from '../constants'
 import { errorHandler } from '../errors'
 import type {
   LoginRequest,
+  VerificationRequest,
   PasswordResetRequest,
-  TokenRequest,
+  PasswordResetToken,
+  PasswordResetSubmit,
   UserUpdateRequest,
 } from '../types'
 
@@ -61,7 +64,7 @@ users.post('/register', async (c) => {
 
 users.post('/verification', async (c) => {
   try {
-    const verificationRequest = await c.req.json<TokenRequest>()
+    const verificationRequest = await c.req.json<VerificationRequest>()
     const { email } = await verifyUser(verificationRequest)
 
     return c.json({ email })
@@ -72,8 +75,8 @@ users.post('/verification', async (c) => {
 
 users.post('/password-reset-request', async (c) => {
   try {
-    const passwordResetRequest = await c.req.json<PasswordResetRequest>()
-    const { message } = await passwordResetRequestService(passwordResetRequest)
+    const request = await c.req.json<PasswordResetRequest>()
+    const { message } = await passwordResetRequest(request)
 
     return c.json({ message })
   } catch (error) {
@@ -83,10 +86,21 @@ users.post('/password-reset-request', async (c) => {
 
 users.post('/password-reset-token', async (c) => {
   try {
-    const passwordResetTokenRequest = await c.req.json<TokenRequest>()
-    const { email } = await passwordResetTokenService(passwordResetTokenRequest)
+    const request = await c.req.json<PasswordResetToken>()
+    const { token } = await passwordResetToken(request)
 
-    return c.json({ email })
+    return c.json({ token })
+  } catch (error) {
+    return errorHandler(c, error)
+  }
+})
+
+users.post('/password-reset-submit', async (c) => {
+  try {
+    const request = await c.req.json<PasswordResetSubmit>()
+    const { message } = await passwordResetSubmit(request)
+
+    return c.json({ message })
   } catch (error) {
     return errorHandler(c, error)
   }

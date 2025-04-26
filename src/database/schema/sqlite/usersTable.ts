@@ -1,5 +1,6 @@
 import { int, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { timestamps } from './column.helpers'
+import { UserRole } from '../../../types'
 import type Stripe from 'stripe'
 
 export const usersTable = sqliteTable('users', {
@@ -7,9 +8,7 @@ export const usersTable = sqliteTable('users', {
   uuid: text().unique().notNull(),
   firstName: text('first_name').notNull(),
   lastName: text('last_name').notNull(),
-  role: text({ enum: ['admin', 'user'] })
-    .default('user')
-    .notNull(),
+  role: text().$type<UserRole>().default(UserRole.User).notNull(),
   email: text().unique().notNull(),
   password: text().notNull(),
   address: text({ mode: 'json' }).$type<Stripe.Address>(),

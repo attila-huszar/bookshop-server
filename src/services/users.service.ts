@@ -3,20 +3,23 @@ import {
   validate,
   loginSchema,
   registerSchema,
-  verificationSchema,
-  passwordResetRequestSchema,
-  passwordResetTokenSchema,
+  emailSchema,
+  tokenSchema,
+  passwordResetSchema,
 } from '../validation'
 import { env } from '../config'
 import { sendEmail } from '../libs'
 import { signAccessToken, signRefreshToken, uploadFile } from '../utils'
 import { authMessage, userMessage } from '../constants'
 import { BadRequest, Forbidden, Unauthorized } from '../errors'
-import type {
-  LoginRequest,
-  PasswordResetRequest,
-  TokenRequest,
-  UserUpdateRequest,
+import {
+  type LoginRequest,
+  type VerificationRequest,
+  type PasswordResetRequest,
+  type PasswordResetToken,
+  type PasswordResetSubmit,
+  type UserUpdateRequest,
+  UserRole,
 } from '../types'
 
 export async function loginUser(loginRequest: LoginRequest) {
@@ -90,7 +93,7 @@ export async function registerUser(formData: FormData) {
     email,
     password: await Bun.password.hash(password),
     avatar: avatarUrl,
-    role: 'user' as const,
+    role: UserRole.User,
     verified: false,
     verificationToken,
     verificationExpires,
@@ -107,8 +110,8 @@ export async function registerUser(formData: FormData) {
   return { email: userCreated.email }
 }
 
-export async function verifyUser(verificationRequest: TokenRequest) {
-  const { token } = validate(verificationSchema, verificationRequest)
+export async function verifyUser(verificationRequest: VerificationRequest) {
+  const { token } = validate(tokenSchema, verificationRequest)
 
   const user = await usersDB.getUserBy('verificationToken', token)
 
@@ -136,10 +139,10 @@ export async function verifyUser(verificationRequest: TokenRequest) {
   return { email: userUpdated.email }
 }
 
-export async function passwordResetRequestService(
+export async function passwordResetRequest(
   passwordResetRequest: PasswordResetRequest,
 ) {
-  const { email } = validate(passwordResetRequestSchema, passwordResetRequest)
+  const { email } = validate(emailSchema, passwordResetRequest)
 
   const user = await usersDB.getUserBy('email', email)
 
@@ -176,13 +179,10 @@ export async function passwordResetRequestService(
   return { message: userMessage.forgotPasswordRequest }
 }
 
-export async function passwordResetTokenService(
-  passwordResetTokenRequest: TokenRequest,
+export async function passwordResetToken(
+  passwordResetToken: PasswordResetToken,
 ) {
-  const { token, password } = validate(
-    passwordResetTokenSchema,
-    passwordResetTokenRequest,
-  )
+  const { token } = validate(tokenSchema, passwordResetToken)
 
   const user = await usersDB.getUserBy('passwordResetToken', token)
 
@@ -196,6 +196,20 @@ export async function passwordResetTokenService(
     throw new Forbidden(authMessage.expiredToken)
   }
 
+  return { token }
+}
+
+export async function passwordResetSubmit(
+  passwordResetSubmit: PasswordResetSubmit,
+) {
+  const { token, password } = validate(passwordResetSchema, passwordResetSubmit)
+
+  const user = await usersDB.getUserBy('passwordResetToken', token)
+
+  if (!user) {
+    throw new Error(userMessage.retrieveError)
+  }
+
   const userUpdated = await usersDB.updateUser(user.email, {
     password: await Bun.password.hash(password),
     passwordResetToken: null,
@@ -207,7 +221,7 @@ export async function passwordResetTokenService(
     throw new Error(userMessage.updateError)
   }
 
-  return { email: userUpdated.email }
+  return { message: userMessage.passwordResetSuccess }
 }
 
 export async function getUserProfile(uuid: string) {
@@ -242,6 +256,10 @@ export async function updateUserProfile(
 
   if (!user) {
     throw new Error(userMessage.retrieveError)
+  }
+
+  if (updateFields.password) {
+    updateFields.password = await Bun.password.hash(updateFields.password)
   }
 
   const userUpdated = await usersDB.updateUser(user.email, {

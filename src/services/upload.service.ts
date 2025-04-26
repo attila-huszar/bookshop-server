@@ -1,5 +1,5 @@
 import { usersDB } from '../repositories'
-import { imageUploadSchema, validate } from '../validation'
+import { imageSchema, validate } from '../validation'
 import { uploadFile } from '../utils'
 import { userMessage } from '../constants'
 
@@ -17,7 +17,7 @@ export async function handleAvatarUpload(
     throw new Error('Avatar must be a file')
   }
 
-  validate(imageUploadSchema, avatar)
+  validate(imageSchema, avatar)
 
   const url = await uploadFile(avatar)
 
