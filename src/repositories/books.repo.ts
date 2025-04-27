@@ -1,7 +1,8 @@
 import { count, eq, max, min } from 'drizzle-orm'
 import { booksTable, authorsTable } from './repoHandler'
-import { queryBuilder } from '../utils'
 import { db } from '../db'
+import { queryBuilder } from '../utils'
+import { PAGINATION } from '../constants'
 import type { BookQuery, BookResponse } from '../types'
 
 const {
@@ -22,15 +23,20 @@ const {
   updatedAt,
 } = booksTable
 
-export async function getBooks(query: BookQuery | undefined): Promise<{
+export async function getBooks(query?: BookQuery): Promise<{
   booksRecords: BookResponse[]
   booksCount: string
 }> {
-  const page = Math.min(Math.max(1, Number(query?.page) || 1), 100)
-  const limit = Math.min(Math.max(1, Number(query?.limit) || 8), 32)
+  const page = Math.min(
+    Math.max(1, Number(query?.page) || 1),
+    PAGINATION.MAX_PAGE,
+  )
+  const limit = Math.min(
+    Math.max(1, Number(query?.limit) || PAGINATION.DEFAULT_LIMIT),
+    PAGINATION.MAX_LIMIT,
+  )
   const offset = (page - 1) * limit
-
-  const conditions = query ? queryBuilder(query) : undefined
+  const conditions = queryBuilder(query)
 
   const [total] = await db
     .select({ count: count() })

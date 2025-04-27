@@ -1,73 +1,30 @@
 import { eq, gte, lte, and, inArray, like } from 'drizzle-orm'
-import { booksTable } from '../repositories'
+import { booksTable as c } from '../repositories'
 import type { BookQuery } from '../types'
 
-export function queryBuilder(query: BookQuery) {
-  const {
-    title,
-    authorId,
-    genre,
-    discount,
-    discountPrice,
-    publishYear,
-    rating,
-    newRelease,
-    topSellers,
-  } = booksTable
-  const conditions = []
+export function queryBuilder(q?: BookQuery) {
+  if (!q) return undefined
 
-  if (Array.isArray(query.genre)) {
-    conditions.push(inArray(genre, query.genre))
-  }
-  if (query.discount) {
-    conditions.push(eq(discount, parseFloat(query.discount)))
-  }
-  if (query.discountPrice) {
-    conditions.push(eq(discountPrice, parseFloat(query.discountPrice)))
-  }
-  if (query.publishYear) {
-    conditions.push(eq(publishYear, parseInt(query.publishYear, 10)))
-  }
-  if (query.rating) {
-    conditions.push(eq(rating, parseFloat(query.rating)))
-  }
-
-  if (query.discount_gte) {
-    conditions.push(gte(discount, parseFloat(query.discount_gte)))
-  }
-  if (query.discount_lte) {
-    conditions.push(lte(discount, parseFloat(query.discount_lte)))
-  }
-  if (query.discountPrice_gte) {
-    conditions.push(gte(discountPrice, parseFloat(query.discountPrice_gte)))
-  }
-  if (query.discountPrice_lte) {
-    conditions.push(lte(discountPrice, parseFloat(query.discountPrice_lte)))
-  }
-  if (query.publishYear_gte) {
-    conditions.push(gte(publishYear, parseInt(query.publishYear_gte, 10)))
-  }
-  if (query.publishYear_lte) {
-    conditions.push(lte(publishYear, parseInt(query.publishYear_lte, 10)))
-  }
-  if (query.rating_gte) {
-    conditions.push(gte(rating, parseFloat(query.rating_gte)))
-  }
-
-  if (query.newRelease) {
-    conditions.push(eq(newRelease, true))
-  }
-  if (query.topSellers) {
-    conditions.push(eq(topSellers, true))
-  }
-
-  if (query.title) {
-    conditions.push(like(title, `%${query.title}%`))
-  }
-
-  if (query.authorId) {
-    conditions.push(eq(authorId, query.authorId))
-  }
+  const conditions = [
+    Array.isArray(q.genre) && q.genre.length > 0 && inArray(c.genre, q.genre),
+    q.discount && eq(c.discount, parseFloat(q.discount)),
+    q.discountPrice && eq(c.discountPrice, parseFloat(q.discountPrice)),
+    q.publishYear && eq(c.publishYear, parseInt(q.publishYear, 10)),
+    q.rating && eq(c.rating, parseFloat(q.rating)),
+    q.discount_gte && gte(c.discount, parseFloat(q.discount_gte)),
+    q.discount_lte && lte(c.discount, parseFloat(q.discount_lte)),
+    q.discountPrice_gte &&
+      gte(c.discountPrice, parseFloat(q.discountPrice_gte)),
+    q.discountPrice_lte &&
+      lte(c.discountPrice, parseFloat(q.discountPrice_lte)),
+    q.publishYear_gte && gte(c.publishYear, parseInt(q.publishYear_gte, 10)),
+    q.publishYear_lte && lte(c.publishYear, parseInt(q.publishYear_lte, 10)),
+    q.rating_gte && gte(c.rating, parseFloat(q.rating_gte)),
+    q.newRelease && eq(c.newRelease, true),
+    q.topSellers && eq(c.topSellers, true),
+    q.title && like(c.title, `%${q.title}%`),
+    q.authorId && eq(c.authorId, q.authorId),
+  ].filter((cond) => typeof cond === 'object' && cond !== null)
 
   return and(...conditions)
 }
