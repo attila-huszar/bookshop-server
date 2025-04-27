@@ -15,6 +15,7 @@
     "hono": "^4.7.7",
     "hono-rate-limiter": "^0.4.2",
     "http-status": "^2.1.0",
+    "mjml": "^4.15.3",
     "nodemailer": "^6.10.1",
     "stripe": "^18.0.0",
     "zod": "^3.24.3"
@@ -22,6 +23,7 @@
   "devDependencies": {
     "@eslint/js": "^9.25.1",
     "@types/bun": "^1.2.10",
+    "@types/mjml": "^4.7.4",
     "@types/nodemailer": "^6.4.17",
     "drizzle-kit": "^0.31.0",
     "eslint-import-resolver-typescript": "^4.3.4",
