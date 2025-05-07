@@ -5,7 +5,6 @@ let sqlite
 
 try {
   sqlite = new Database('data/db.sqlite')
-  console.log('SQLite connected successfully.')
 } catch (error) {
   console.error('Failed to connect to SQLite:', error)
   process.exit(1)

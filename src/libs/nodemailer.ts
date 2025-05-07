@@ -20,7 +20,6 @@ type SendEmailProps = {
   toName: string
   tokenLink: string
   baseLink: string
-  logo: string
 }
 
 export async function sendEmail({
@@ -29,12 +28,13 @@ export async function sendEmail({
   toName,
   tokenLink,
   baseLink,
-  logo = 'bookshop-logo-cid',
 }: SendEmailProps) {
   const subject = {
     verification: 'Book Shop - Verify your email address',
     passwordReset: 'Book Shop - Forgotten Password',
   }[type]
+
+  const logo = 'bookshop-logo-cid'
 
   const html = {
     verification: verificationEmail({ toName, tokenLink, baseLink, logo }).html,

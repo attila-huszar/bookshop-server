@@ -5,10 +5,9 @@ export const REFRESH_TOKEN = 'refresh_token'
 export const cookieOptions: CookieOptions = {
   maxAge: Number(env.cookieMaxAge) || 1209600,
   httpOnly: true,
-  secure: Bun.env.NODE_ENV === 'production',
-  sameSite: Bun.env.NODE_ENV === 'production' ? 'none' : 'lax',
-  path:
-    Bun.env.NODE_ENV === 'production' ? '/users/refresh' : '/api/users/refresh',
+  secure: Bun.env.NODE_ENV === 'prod',
+  sameSite: Bun.env.NODE_ENV === 'prod' ? 'none' : 'lax',
+  path: Bun.env.NODE_ENV === 'prod' ? '/users/refresh' : '/api/users/refresh',
 }
 
 type CookieOptions = {

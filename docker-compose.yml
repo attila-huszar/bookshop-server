@@ -1,5 +1,5 @@
 services:
-  bun:
+  server:
     build:
       context: .
       dockerfile: Dockerfile
@@ -8,15 +8,18 @@ services:
     env_file: .env
     command: >
       sh -c "
-        if [ $SETUP ]; then
-          bun migrate && bun seed;
-        fi;
-        if [ \"$NODE_ENV\" = \"production\" ]; then
-          NODE_ENV=production bun src/app.ts;
-        else
-          bun dev;
-        fi;
-      "
+       set -e
+       echo '*/30 * * * * cd /bookshop-server && /usr/local/bin/bun src/scripts/cleanupTokens.ts' > /etc/crontabs/root
+       crond &
+       if [ -n \"$SETUP\" ]; then
+         bun migrate && bun seed
+       fi
+       if [ \"$NODE_ENV\" = \"prod\" ]; then
+         bun src/app.ts
+       else
+         bun dev
+       fi
+       "
     ports:
       - '${PORT}:${PORT}'
     volumes:

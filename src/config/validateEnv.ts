@@ -20,7 +20,7 @@ export function validateEnv(): void {
   const missing = requiredKeys.filter((key) => !env[key])
 
   if (missing.length > 0) {
-    const isDev = Bun.env.NODE_ENV !== 'production'
+    const isDev = Bun.env.NODE_ENV !== 'prod'
 
     if (isDev) {
       console.error('\n🚨 ENVIRONMENT CONFIGURATION ERROR 🚨')
