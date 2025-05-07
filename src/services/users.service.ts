@@ -115,14 +115,8 @@ export async function verifyUser(verificationRequest: VerificationRequest) {
 
   const user = await usersDB.getUserBy('verificationToken', token)
 
-  if (!user?.verificationToken || !user.verificationExpires) {
+  if (!user?.verificationToken) {
     throw new BadRequest(authMessage.invalidToken)
-  }
-
-  const expirationDate = new Date(user.verificationExpires)
-
-  if (expirationDate < new Date()) {
-    throw new Forbidden(authMessage.expiredToken)
   }
 
   const userUpdated = await usersDB.updateUser(user.email, {
@@ -186,14 +180,8 @@ export async function passwordResetToken(
 
   const user = await usersDB.getUserBy('passwordResetToken', token)
 
-  if (!user?.passwordResetToken || !user.passwordResetExpires) {
+  if (!user?.passwordResetToken) {
     throw new BadRequest(authMessage.invalidToken)
-  }
-
-  const expirationDate = new Date(user.passwordResetExpires)
-
-  if (expirationDate < new Date()) {
-    throw new Forbidden(authMessage.expiredToken)
   }
 
   return { token }

@@ -21,8 +21,7 @@ export const authMessage = {
     'Error sending password reset email, please try again later',
   resetPasswordError: 'Error resetting password, please try again later',
   verifyTokenError: 'Error verifying token, please try again later',
-  invalidToken: 'The provided token is invalid',
-  expiredToken: 'The provided token has expired',
+  invalidToken: 'The token provided is either expired or invalid',
 } as const
 
 export const paymentMessage = {
