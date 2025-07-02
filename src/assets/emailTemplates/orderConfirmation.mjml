@@ -2,16 +2,16 @@
   <mj-body background-color="#f4f4f4">
     <mj-section>
       <mj-column>
-        <mj-image width="100px" src="cid:bookshop-logo-cid" alt="Bookshop Logo" />
+        <mj-image width="100px" align="left" src="cid:bookshop-logo-cid" alt="Bookshop Logo" />
         <mj-text font-size="20px" font-weight="bold">Thank you for your order, {{toName}}!</mj-text>
-        <mj-text font-size="16px">
+        <mj-text font-size="16px" line-height="1.5">
           Your order <strong>#{{orderNumber}}</strong> has been received and paid.<br />
           Here are your order details:
         </mj-text>
         <mj-divider border-color="#5469d4" />
         <mj-table>
           <tr style="background-color: #e8e8e8">
-            <th align="left">Book</th>
+            <th align="left">Item</th>
             <th align="center">Price</th>
             <th align="center">Discount</th>
             <th align="center">Qty</th>
@@ -21,11 +21,11 @@
         </mj-table>
         <mj-divider border-color="#5469d4" />
         <mj-text font-size="16px"> <strong>Total:</strong> {{total}} {{currency}} </mj-text>
-        <mj-text font-size="14px" color="#888">
+        <mj-text font-size="14px" color="#888" line-height="1.5">
           Shipping to:<br />
           {{address}}
         </mj-text>
-        <mj-text font-size="14px">
+        <mj-text font-size="14px" line-height="1.5">
           If you have any questions, reply to this email.<br />
           Happy reading!<br />
           <strong>Bookshop Team</strong>

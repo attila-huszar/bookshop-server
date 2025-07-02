@@ -21,6 +21,11 @@ export async function cancelPaymentIntent(paymentId: string) {
 }
 
 export async function createOrder(orderRequest: Order) {
+  orderRequest.firstName ??= null
+  orderRequest.lastName ??= null
+  orderRequest.email ??= null
+  orderRequest.address ??= null
+
   const validatedOrder = validate(orderCreateSchema, orderRequest)
 
   const createdOrder = await ordersDB.createOrder(validatedOrder)
@@ -40,7 +45,7 @@ export async function updateOrder(orderUpdateRequest: OrderUpdate) {
     updatedAt: new Date().toISOString(),
   })
 
-  if (!updatedOrder) {
+  if (!updatedOrder?.email || !updatedOrder.firstName) {
     throw new Internal('Failed to update order')
   }
 

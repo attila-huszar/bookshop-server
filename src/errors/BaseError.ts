@@ -1,9 +1,9 @@
-import type { StatusCode } from 'hono/utils/http-status'
+import type { ContentfulStatusCode } from 'hono/utils/http-status'
 
 export class BaseError extends Error {
-  status: StatusCode
+  status: ContentfulStatusCode
 
-  constructor(message: string, name: string, status: StatusCode) {
+  constructor(message: string, name: string, status: ContentfulStatusCode) {
     super(message)
 
     this.name = name
