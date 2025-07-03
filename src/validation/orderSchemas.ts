@@ -1,69 +1,60 @@
-import { z } from 'zod'
+import { z } from 'zod/v4'
 import { OrderStatus, paymentIntentStatusValues } from '../types'
 
 export const orderItemSchema = z.object({
-  id: z.number({ required_error: 'Order item ID is required' }),
-  title: z.string({ required_error: 'Title is required' }),
-  price: z
-    .number({ required_error: 'Price is required' })
-    .positive('Price must be positive'),
+  id: z.number('Order item ID is required'),
+  title: z.string('Title is required'),
+  price: z.number('Price is required').positive('Price must be positive'),
   discount: z
     .number()
     .min(0, 'Discount must be at least 0')
     .max(100, 'Discount cannot exceed 100'),
   quantity: z
-    .number({ required_error: 'Quantity is required' })
+    .number('Quantity is required')
     .int('Quantity must be an integer')
     .positive('Quantity must be positive'),
 })
 
 export const orderCreateSchema = z.object({
-  paymentId: z.string({ required_error: 'Payment ID is required' }),
-  paymentIntentStatus: z.enum(paymentIntentStatusValues, {
-    required_error: 'Payment intent status is required',
-  }),
-  orderStatus: z.nativeEnum(OrderStatus, {
-    required_error: 'Order status is required',
-  }),
-  total: z
-    .number({ required_error: 'Total is required' })
-    .positive('Total must be positive'),
-  currency: z.string({ required_error: 'Currency is required' }),
+  paymentId: z.string('Payment ID is required'),
+  paymentIntentStatus: z.enum(
+    paymentIntentStatusValues,
+    'Payment intent status is required',
+  ),
+  orderStatus: z.enum(OrderStatus, 'Order status is required'),
+  total: z.number('Total is required').positive('Total must be positive'),
+  currency: z.string('Currency is required'),
   items: z
-    .array(orderItemSchema, { required_error: 'Order items are required' })
+    .array(orderItemSchema, 'Order items are required')
     .min(1, 'Order must contain at least one item'),
   firstName: z
-    .string({ required_error: 'First name is required' })
+    .string('First name is required')
     .min(2, 'First name must be at least 2 characters')
     .max(50, 'First name must be less than 50 characters')
-    .optional(),
+    .nullable(),
   lastName: z
-    .string({ required_error: 'Last name is required' })
+    .string('Last name is required')
     .min(2, 'Last name must be at least 2 characters')
     .max(50, 'Last name must be less than 50 characters')
-    .optional(),
-  email: z
-    .string({ required_error: 'Email is required' })
-    .email('Invalid email format')
-    .optional(),
+    .nullable(),
+  email: z.email('Invalid email').nullable(),
   phone: z.string().nullable().optional(),
   address: z
     .object({
-      line1: z.string().nullable(),
+      line1: z.string(),
       line2: z.string().nullable(),
-      city: z.string().nullable(),
-      state: z.string().nullable(),
-      postal_code: z.string().nullable(),
-      country: z.string().nullable(),
+      city: z.string(),
+      state: z.string(),
+      postal_code: z.string(),
+      country: z.string(),
     })
-    .nullable()
-    .optional(),
+    .nullable(),
 })
 
 export const orderUpdateSchema = z.object({
-  paymentId: z.string({ required_error: 'Payment ID is required' }),
+  paymentId: z.string('Payment ID is required'),
   fields: z
-    .record(z.unknown())
+    .record(z.string(), z.unknown())
     .refine((fields) => Object.keys(fields).length > 0, {
       message: 'At least one field must be updated',
     }),

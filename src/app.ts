@@ -37,8 +37,11 @@ app.use(trimTrailingSlash())
 app.use('*', corsMiddleware)
 app.use('*', payloadLimiter)
 app.use('*', timeout(10000))
-app.use(csrf({ origin: [env.clientBaseUrl!] }))
 app.use('/favicon.ico', serveStatic({ path: './static/favicon.ico' }))
+
+if (Bun.env.NODE_ENV === 'prod') {
+  app.use(csrf({ origin: [env.clientBaseUrl!] }))
+}
 
 app.get('/', (c) => {
   return c.html(

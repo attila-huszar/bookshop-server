@@ -4,6 +4,7 @@ import { ordersDB } from '../repositories'
 import { validate, orderCreateSchema, orderUpdateSchema } from '../validation'
 import { Internal } from '../errors'
 import type { Order, OrderUpdate, PaymentIntentCreate } from '../types'
+import { sendEmail } from '../libs'
 
 const stripe = new Stripe(env.stripeSecret!)
 
@@ -20,6 +21,11 @@ export async function cancelPaymentIntent(paymentId: string) {
 }
 
 export async function createOrder(orderRequest: Order) {
+  orderRequest.firstName ??= null
+  orderRequest.lastName ??= null
+  orderRequest.email ??= null
+  orderRequest.address ??= null
+
   const validatedOrder = validate(orderCreateSchema, orderRequest)
 
   const createdOrder = await ordersDB.createOrder(validatedOrder)
@@ -39,9 +45,16 @@ export async function updateOrder(orderUpdateRequest: OrderUpdate) {
     updatedAt: new Date().toISOString(),
   })
 
-  if (!updatedOrder) {
+  if (!updatedOrder?.email || !updatedOrder.firstName) {
     throw new Internal('Failed to update order')
   }
+
+  await sendEmail({
+    type: 'orderConfirmation',
+    toAddress: updatedOrder.email,
+    toName: updatedOrder.firstName,
+    order: updatedOrder,
+  })
 
   return updatedOrder
 }

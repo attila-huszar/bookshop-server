@@ -1,6 +1,5 @@
+import { z } from 'zod/v4'
 import { type Context } from 'hono'
-import { type ContentfulStatusCode } from 'hono/utils/http-status'
-import { ZodError } from 'zod'
 import { logger } from '../libs'
 import { BaseError } from './BaseError'
 
@@ -14,23 +13,22 @@ export function errorHandler(c: Context, error: unknown) {
 
   if (error instanceof BaseError) {
     void logger.warn(error.name, { error, request })
-
-    return c.json(
-      { error: error.message },
-      error.status as ContentfulStatusCode,
-    )
-  } else if (error instanceof ZodError) {
-    void logger.error('Validation error', { error, request })
-
-    return c.json({ error: error.errors[0].message }, 400)
-  } else if (error instanceof Error) {
-    void logger.error(error.name, { error, request })
-  } else {
-    void logger.error('Unknown error type', {
-      error: String(error),
-      request,
-    })
+    return c.json({ error: error.message }, error.status)
   }
 
+  if (error instanceof z.ZodError) {
+    void logger.error('Validation error', { error, request })
+    return c.json({ validation: z.flattenError(error) }, 400)
+  }
+
+  if (error instanceof Error) {
+    void logger.error(error.name, { error, request })
+    return c.json({ error: 'Internal server error' }, 500)
+  }
+
+  void logger.error('Unknown error', {
+    error: String(error),
+    request,
+  })
   return c.json({ error: 'Internal server error' }, 500)
 }

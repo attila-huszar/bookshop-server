@@ -3,6 +3,7 @@ import { booksTable } from '../repositories'
 type BookRangeKeys<T extends string> = `${T}_gte` | `${T}_lte`
 
 type BookBaseQuery = {
+  id?: string
   page?: string
   limit?: string
   genre?: string | string[]

@@ -73,11 +73,10 @@ export async function registerUser(formData: FormData) {
   const tokenLink = `${env.clientBaseUrl}/verification?token=${verificationToken}`
 
   const emailResponse = await sendEmail({
+    type: 'verification',
     toAddress: email,
     toName: firstName,
     tokenLink,
-    baseLink: env.clientBaseUrl!,
-    type: 'verification',
   })
 
   if (!emailResponse.accepted.includes(email))
@@ -149,11 +148,10 @@ export async function passwordResetRequest(
   const tokenLink = `${env.clientBaseUrl}/password-reset?token=${passwordResetToken}`
 
   const emailResponse = await sendEmail({
+    type: 'passwordReset',
     toAddress: user.email,
     toName: user.firstName,
     tokenLink,
-    baseLink: env.clientBaseUrl!,
-    type: 'passwordReset',
   })
 
   if (!emailResponse.accepted.includes(user.email)) {
