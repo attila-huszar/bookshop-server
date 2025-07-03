@@ -9,6 +9,14 @@ books.get('/', async (c) => {
   try {
     const query = c.req.query() as BookQuery | undefined
 
+    if (query?.id) {
+      const bookRecord = await getBookById(Number(query.id))
+      if (!bookRecord) {
+        throw new NotFound('Book not found')
+      }
+      return c.json(bookRecord)
+    }
+
     if (query?.genre) {
       query.genre = c.req.queries('genre')
     }
@@ -19,22 +27,6 @@ books.get('/', async (c) => {
     c.header('x-total-count', booksCount)
 
     return c.json(booksRecords)
-  } catch (error) {
-    return errorHandler(c, error)
-  }
-})
-
-books.get('/:id', async (c) => {
-  try {
-    const id = c.req.param('id')
-
-    const bookRecord = await getBookById(Number(id))
-
-    if (!bookRecord) {
-      throw new NotFound('Book not found')
-    }
-
-    return c.json(bookRecord)
   } catch (error) {
     return errorHandler(c, error)
   }

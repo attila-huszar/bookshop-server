@@ -18,7 +18,7 @@ export function errorHandler(c: Context, error: unknown) {
 
   if (error instanceof z.ZodError) {
     void logger.error('Validation error', { error, request })
-    return c.json({ error: z.flattenError(error) }, 400)
+    return c.json({ validation: z.flattenError(error) }, 400)
   }
 
   if (error instanceof Error) {
