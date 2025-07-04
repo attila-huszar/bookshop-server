@@ -1,4 +1,7 @@
 <mjml>
+  <mj-head>
+    <mj-style> @media only screen and (max-width:480px) { .order-table th, .order-table td { font-size: 10px; padding: 4px; } } </mj-style>
+  </mj-head>
   <mj-body background-color="#f4f4f4">
     <mj-section>
       <mj-column>
@@ -9,7 +12,7 @@
           Here are your order details:
         </mj-text>
         <mj-divider border-color="#5469d4" />
-        <mj-table>
+        <mj-table css-class="order-table">
           <tr style="background-color: #e8e8e8">
             <th align="left">Item</th>
             <th align="center">Price</th>
