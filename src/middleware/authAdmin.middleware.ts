@@ -1,0 +1,32 @@
+import type { MiddlewareHandler } from 'hono'
+import { jwt } from 'hono/jwt'
+import { env } from '../config'
+import { getUserProfile } from '../services'
+import { errorHandler } from '../errors'
+import { UserRole } from '../types'
+
+type Variables = {
+  jwtPayload: {
+    uuid: string
+  }
+}
+
+export const authAdminMiddleware: MiddlewareHandler<{
+  Variables: Variables
+}> = async (c, next) => {
+  try {
+    await jwt({ secret: env.jwtAccessSecret! })(c, async () => {
+      const jwtPayload = c.get('jwtPayload')
+      const user = await getUserProfile(jwtPayload.uuid)
+
+      if (user.role !== UserRole.Admin) {
+        c.json({ message: 'Forbidden' }, 403)
+        return
+      }
+
+      await next()
+    })
+  } catch (error) {
+    return errorHandler(c, error)
+  }
+}

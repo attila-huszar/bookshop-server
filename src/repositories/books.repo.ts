@@ -128,3 +128,12 @@ export async function getBookSearchOptions(): Promise<{
     genre: genres,
   }
 }
+
+export async function getAllBooks() {
+  const booksRecords = await db
+    .select()
+    .from(booksTable)
+    .leftJoin(authorsTable, eq(authorId, authorsTable.id))
+
+  return booksRecords
+}

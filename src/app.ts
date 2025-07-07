@@ -8,7 +8,11 @@ import { timeout } from 'hono/timeout'
 import { trimTrailingSlash } from 'hono/trailing-slash'
 import { serveStatic } from 'hono/bun'
 import { rateLimiter } from 'hono-rate-limiter'
-import { payloadLimiter, authMiddleware } from './middleware'
+import {
+  payloadLimiter,
+  authMiddleware,
+  authAdminMiddleware,
+} from './middleware'
 import { formatUptime, ngrokForward } from './utils'
 import * as controller from './controller'
 
@@ -55,6 +59,8 @@ app.use('/users/profile', authMiddleware)
 app.use('/users/logout', authMiddleware)
 app.use('/upload', authMiddleware)
 
+app.use('/cms', authAdminMiddleware)
+
 app.route('/books', controller.books)
 app.route('/authors', controller.authors)
 app.route('/news', controller.news)
@@ -62,6 +68,7 @@ app.route('/search_opts', controller.bookSearchOptions)
 app.route('/users', controller.users)
 app.route('/orders', controller.orders)
 app.route('/upload', controller.upload)
+app.route('/cms', controller.cms)
 
 if (env.ngrokAuthToken) void ngrokForward()
 
