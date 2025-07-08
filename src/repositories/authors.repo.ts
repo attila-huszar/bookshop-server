@@ -1,7 +1,7 @@
 import { eq, like } from 'drizzle-orm'
 import { authorsTable } from './repoHandler'
 import { db } from '../db'
-import type { AuthorResponse } from '../types'
+import type { Author, AuthorResponse } from '../types'
 
 const { id, name } = authorsTable
 
@@ -33,5 +33,10 @@ export async function getAuthorsBySearch(
     .from(authorsTable)
     .where(like(name, `%${searchString}%`))
 
+  return authorRecords
+}
+
+export async function getAllAuthors(): Promise<Author[]> {
+  const authorRecords = await db.select().from(authorsTable)
   return authorRecords
 }

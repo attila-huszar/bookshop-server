@@ -1,4 +1,4 @@
-import { booksDB, ordersDB, usersDB } from '../repositories'
+import { authorsDB, booksDB, ordersDB, usersDB } from '../repositories'
 
 export async function getAllOrders() {
   const orders = await ordersDB.getAllOrders()
@@ -20,4 +20,10 @@ export async function getAllBooks() {
   const books = await booksDB.getAllBooks()
 
   return books
+}
+
+export async function getAllAuthors() {
+  const authors = await authorsDB.getAllAuthors()
+
+  return authors
 }
