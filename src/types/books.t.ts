@@ -1,5 +1,7 @@
 import { booksTable } from '../repositories'
 
+export type Book = typeof booksTable.$inferSelect
+
 type BookRangeKeys<T extends string> = `${T}_gte` | `${T}_lte`
 
 type BookBaseQuery = {

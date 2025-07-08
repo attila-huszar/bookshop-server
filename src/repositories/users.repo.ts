@@ -59,6 +59,5 @@ export async function updateUser(
 
 export async function getAllUsers(): Promise<User[]> {
   const userRecords = await db.select().from(usersTable)
-
   return userRecords
 }

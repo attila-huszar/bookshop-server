@@ -60,6 +60,6 @@ export async function updateOrder(
 }
 
 export async function getAllOrders(): Promise<Order[]> {
-  const orders = await db.select().from(ordersTable)
-  return orders
+  const orderRecords = await db.select().from(ordersTable)
+  return orderRecords
 }
