@@ -16,9 +16,9 @@
     "hono-rate-limiter": "^0.4.2",
     "http-status": "^2.1.0",
     "mjml": "^4.15.3",
-    "nodemailer": "^7.0.4",
+    "nodemailer": "^7.0.5",
     "stripe": "^18.3.0",
-    "zod": "^3.25.73"
+    "zod": "^3.25.75"
   },
   "devDependencies": {
     "@eslint/js": "^9.30.1",
@@ -31,7 +31,7 @@
     "eslint-plugin-prettier": "^5.5.1",
     "globals": "^16.3.0",
     "prettier": "^3.6.2",
-    "typescript-eslint": "^8.35.1"
+    "typescript-eslint": "^8.36.0"
   },
   "peerDependencies": {
     "typescript": "^5.0.0"
