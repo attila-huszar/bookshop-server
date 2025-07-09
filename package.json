@@ -12,13 +12,14 @@
     "@logtail/node": "^0.5.5",
     "@ngrok/ngrok": "^1.5.1",
     "drizzle-orm": "^0.44.2",
+    "drizzle-zod": "^0.8.2",
     "hono": "^4.8.4",
     "hono-rate-limiter": "^0.4.2",
     "http-status": "^2.1.0",
     "mjml": "^4.15.3",
     "nodemailer": "^7.0.5",
     "stripe": "^18.3.0",
-    "zod": "^3.25.75"
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@eslint/js": "^9.30.1",
