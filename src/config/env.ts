@@ -5,6 +5,7 @@ export const env = {
   cookieMaxAge: Bun.env.COOKIE_MAX_AGE ?? '1209600',
   clientBaseUrl: Bun.env.CLIENT_BASE_URL,
   dbRepo: Bun.env.DB_REPO ?? 'SQLITE',
+  adminEmail: Bun.env.ADMIN_EMAIL,
   adminPassword: Bun.env.ADMIN_PASSWORD,
   mailerUser: Bun.env.MAILER_USER,
   mailerPass: Bun.env.MAILER_PASS,
