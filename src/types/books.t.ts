@@ -1,6 +1,14 @@
+import { z } from 'zod/v4'
 import { booksTable } from '../repositories'
+import type {
+  bookSchema,
+  bookCreateSchema,
+  bookUpdateSchema,
+} from '../validation'
 
-export type Book = typeof booksTable.$inferSelect
+export type Book = z.infer<typeof bookSchema>
+export type BookCreate = z.infer<typeof bookCreateSchema>
+export type BookUpdate = z.infer<typeof bookUpdateSchema>
 
 type BookRangeKeys<T extends string> = `${T}_gte` | `${T}_lte`
 

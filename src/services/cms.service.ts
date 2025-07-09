@@ -1,4 +1,6 @@
 import { authorsDB, booksDB, ordersDB, usersDB } from '../repositories'
+import { bookCreateSchema, validate } from '../validation'
+import type { BookCreate } from '../types'
 
 export async function getAllOrders() {
   const orders = await ordersDB.getAllOrders()
@@ -26,4 +28,11 @@ export async function getAllAuthors() {
   const authors = await authorsDB.getAllAuthors()
 
   return authors
+}
+
+export async function addBook(book: BookCreate) {
+  const validatedBook = validate(bookCreateSchema, book)
+  const newBook = await booksDB.insertBook(validatedBook)
+
+  return newBook
 }

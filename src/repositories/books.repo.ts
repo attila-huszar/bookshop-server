@@ -3,7 +3,7 @@ import { booksTable, authorsTable } from './repoHandler'
 import { db } from '../db'
 import { queryBuilder } from '../utils'
 import { PAGINATION } from '../constants'
-import type { Book, BookQuery, BookResponse } from '../types'
+import type { Book, BookQuery, BookResponse, BookCreate } from '../types'
 
 const {
   id,
@@ -132,4 +132,9 @@ export async function getBookSearchOptions(): Promise<{
 export async function getAllBooks(): Promise<Book[]> {
   const bookRecords = await db.select().from(booksTable)
   return bookRecords
+}
+
+export async function insertBook(book: BookCreate): Promise<Book> {
+  const [newBook] = await db.insert(booksTable).values(book).returning()
+  return newBook
 }
