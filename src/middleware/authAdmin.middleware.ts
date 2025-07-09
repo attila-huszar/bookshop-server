@@ -2,7 +2,7 @@ import type { MiddlewareHandler } from 'hono'
 import { jwt } from 'hono/jwt'
 import { env } from '../config'
 import { getUserProfile } from '../services'
-import { errorHandler } from '../errors'
+import { errorHandler, Forbidden } from '../errors'
 import { UserRole } from '../types'
 
 type Variables = {
@@ -20,8 +20,7 @@ export const authAdminMiddleware: MiddlewareHandler<{
       const user = await getUserProfile(jwtPayload.uuid)
 
       if (user.role !== UserRole.Admin) {
-        c.json({ message: 'Forbidden' }, 403)
-        return
+        throw new Forbidden(`Unauthorized access attempt: ${user.email}`)
       }
 
       await next()
