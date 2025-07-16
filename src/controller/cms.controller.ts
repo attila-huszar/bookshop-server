@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import {
   addBook,
+  deleteBooks,
   getAllAuthors,
   getAllBooks,
   getAllOrders,
@@ -52,6 +53,20 @@ cms.post('/books/add', async (c) => {
     const book = await c.req.json<BookCreate>()
     const newBook = await addBook(book)
     return c.json(newBook, 201)
+  } catch (error) {
+    return errorHandler(c, error)
+  }
+})
+
+cms.delete('/books/delete', async (c) => {
+  try {
+    const { bookIds } = await c.req.json<{ bookIds: number[] }>()
+    if (!Array.isArray(bookIds) || bookIds.length === 0) {
+      return c.json({ error: 'Invalid book IDs' }, 400)
+    }
+    const deletedBooks = await deleteBooks(bookIds)
+    const deletedIds = deletedBooks.map((book) => book.id)
+    return c.json(deletedIds)
   } catch (error) {
     return errorHandler(c, error)
   }

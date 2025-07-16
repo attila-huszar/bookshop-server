@@ -1,9 +1,15 @@
-import { count, eq, max, min } from 'drizzle-orm'
+import { count, eq, inArray, max, min } from 'drizzle-orm'
 import { booksTable, authorsTable } from './repoHandler'
 import { db } from '../db'
 import { queryBuilder } from '../utils'
 import { PAGINATION } from '../constants'
-import type { Book, BookQuery, BookResponse, BookCreate } from '../types'
+import type {
+  Book,
+  BookQuery,
+  BookResponse,
+  BookCreate,
+  BookUpdate,
+} from '../types'
 
 const {
   id,
@@ -137,4 +143,24 @@ export async function getAllBooks(): Promise<Book[]> {
 export async function insertBook(book: BookCreate): Promise<Book> {
   const [newBook] = await db.insert(booksTable).values(book).returning()
   return newBook
+}
+
+export async function updateBook(
+  bookId: number,
+  book: BookUpdate,
+): Promise<Book> {
+  const [updatedBook] = await db
+    .update(booksTable)
+    .set(book)
+    .where(eq(booksTable.id, bookId))
+    .returning()
+  return updatedBook
+}
+
+export async function deleteBooks(bookIds: number[]): Promise<Book[]> {
+  const deletedBooks = await db
+    .delete(booksTable)
+    .where(inArray(booksTable.id, bookIds))
+    .returning()
+  return deletedBooks
 }
