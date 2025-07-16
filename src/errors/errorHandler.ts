@@ -1,4 +1,4 @@
-import { z } from 'zod/v4'
+import { z } from 'zod'
 import { HTTPException } from 'hono/http-exception'
 import { type Context } from 'hono'
 import { logger } from '../libs'

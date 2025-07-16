@@ -1,4 +1,4 @@
-import { z } from 'zod/v4'
+import { z } from 'zod'
 import { OrderStatus, paymentIntentStatusValues } from '../types'
 
 export const orderItemSchema = z.object({
