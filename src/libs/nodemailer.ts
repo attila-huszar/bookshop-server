@@ -19,7 +19,7 @@ const transporter = nodemailer.createTransport({
   },
 })
 
-type SendEmailProps =
+export type SendEmailProps =
   | {
       type: 'orderConfirmation'
       toAddress: string

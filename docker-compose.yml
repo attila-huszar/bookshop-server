@@ -3,14 +3,12 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: bookshop
+    container_name: bookshop-server
     restart: always
     env_file: .env
     command: >
       sh -c "
        set -e
-       echo '*/30 * * * * cd /bookshop-server && /usr/local/bin/bun src/scripts/cleanupTokens.ts' > /etc/crontabs/root
-       crond &
        if [ -n \"$SETUP\" ]; then
          bun migrate && bun seed
        fi
@@ -26,5 +24,33 @@ services:
       - ./src:/bookshop-server/src
       - sqlite_data:/bookshop-server/data
 
+  redis:
+    image: redis:alpine
+    container_name: bookshop-redis
+    restart: always
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bookshop-worker
+    restart: always
+    env_file: .env
+    command: >
+      sh -c "
+       set -e
+       echo '*/30 * * * * cd /bookshop-server && /usr/local/bin/bun src/scripts/cleanupTokens.ts' > /etc/crontabs/root
+       crond &
+       bun worker:email
+       "
+    volumes:
+      - ./src:/bookshop-server/src
+      - sqlite_data:/bookshop-server/data
+
 volumes:
   sqlite_data:
+  redis_data:

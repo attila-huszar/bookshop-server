@@ -10,6 +10,7 @@ import {
 import { env } from '../config'
 import { sendEmail } from '../libs'
 import { signAccessToken, signRefreshToken, uploadFile } from '../utils'
+import { emailQueue } from '../queues'
 import { authMessage, userMessage } from '../constants'
 import { BadRequest, Forbidden, Unauthorized } from '../errors'
 import {
@@ -72,16 +73,6 @@ export async function registerUser(formData: FormData) {
   const verificationExpires = new Date(Date.now() + 86400000).toISOString()
   const tokenLink = `${env.clientBaseUrl}/verification?token=${verificationToken}`
 
-  const emailResponse = await sendEmail({
-    type: 'verification',
-    toAddress: email,
-    toName: firstName,
-    tokenLink,
-  })
-
-  if (!emailResponse.accepted.includes(email))
-    throw new Error(userMessage.sendEmail)
-
   const avatarUrl =
     form.avatar instanceof File ? await uploadFile(form.avatar) : null
 
@@ -105,6 +96,23 @@ export async function registerUser(formData: FormData) {
   if (!userCreated) {
     throw new Error(userMessage.createError)
   }
+
+  void emailQueue.add(
+    'send-verification-email',
+    {
+      type: 'verification',
+      toAddress: email,
+      toName: firstName,
+      tokenLink,
+    },
+    {
+      attempts: 3,
+      backoff: {
+        type: 'exponential',
+        delay: 5000,
+      },
+    },
+  )
 
   return { email: userCreated.email }
 }
