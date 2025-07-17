@@ -5,7 +5,7 @@ import {
   bookUpdateSchema,
   validate,
 } from '../validation'
-import type { AuthorCreate, BookCreate } from '../types'
+import type { AuthorCreate, BookCreate, BookUpdate } from '../types'
 
 export async function getAllOrders() {
   const orders = await ordersDB.getAllOrders()
@@ -42,7 +42,7 @@ export async function addBook(book: BookCreate) {
   return newBook
 }
 
-export async function updateBook(bookId: number, book: BookCreate) {
+export async function updateBook(bookId: number, book: BookUpdate) {
   const validatedBook = validate(bookUpdateSchema, book)
   const updatedBook = await booksDB.updateBook(bookId, validatedBook)
 

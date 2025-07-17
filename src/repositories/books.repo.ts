@@ -6,9 +6,9 @@ import { PAGINATION } from '../constants'
 import type {
   Book,
   BookQuery,
-  BookResponse,
   BookCreate,
   BookUpdate,
+  BookWithAuthor,
 } from '../types'
 
 const {
@@ -30,7 +30,7 @@ const {
 } = booksTable
 
 export async function getBooks(query?: BookQuery): Promise<{
-  booksRecords: BookResponse[]
+  booksRecords: BookWithAuthor[]
   booksCount: string
 }> {
   const page = Math.min(
@@ -78,7 +78,7 @@ export async function getBooks(query?: BookQuery): Promise<{
   return { booksRecords, booksCount }
 }
 
-export async function getBookById(bookId: number): Promise<BookResponse> {
+export async function getBookById(bookId: number): Promise<BookWithAuthor> {
   const bookRecords = await db
     .select({
       id,
