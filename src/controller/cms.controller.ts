@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import {
+  addAuthor,
   addBook,
   deleteBooks,
   getAllAuthors,
@@ -8,7 +9,7 @@ import {
   getAllUsers,
 } from '../services'
 import { errorHandler } from '../errors'
-import type { BookCreate } from '../types'
+import type { AuthorCreate, BookCreate } from '../types'
 
 export const cms = new Hono()
 
@@ -67,6 +68,16 @@ cms.delete('/books/delete', async (c) => {
     const deletedBooks = await deleteBooks(bookIds)
     const deletedIds = deletedBooks.map((book) => book.id)
     return c.json(deletedIds)
+  } catch (error) {
+    return errorHandler(c, error)
+  }
+})
+
+cms.post('/authors/add', async (c) => {
+  try {
+    const author = await c.req.json<AuthorCreate>()
+    const newAuthor = await addAuthor(author)
+    return c.json(newAuthor, 201)
   } catch (error) {
     return errorHandler(c, error)
   }

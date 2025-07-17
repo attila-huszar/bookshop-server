@@ -1,6 +1,11 @@
 import { authorsDB, booksDB, ordersDB, usersDB } from '../repositories'
-import { bookCreateSchema, bookUpdateSchema, validate } from '../validation'
-import type { BookCreate } from '../types'
+import {
+  authorCreateSchema,
+  bookCreateSchema,
+  bookUpdateSchema,
+  validate,
+} from '../validation'
+import type { AuthorCreate, BookCreate } from '../types'
 
 export async function getAllOrders() {
   const orders = await ordersDB.getAllOrders()
@@ -48,4 +53,11 @@ export async function deleteBooks(bookIds: number[]) {
   const deletedBooks = await booksDB.deleteBooks(bookIds)
 
   return deletedBooks
+}
+
+export async function addAuthor(author: AuthorCreate) {
+  const validatedAuthor = validate(authorCreateSchema, author)
+  const newAuthor = await authorsDB.insertAuthor(validatedAuthor)
+
+  return newAuthor
 }

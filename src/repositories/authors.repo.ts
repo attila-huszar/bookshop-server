@@ -1,7 +1,7 @@
 import { eq, like } from 'drizzle-orm'
 import { authorsTable } from './repoHandler'
 import { db } from '../db'
-import type { Author, AuthorResponse } from '../types'
+import type { Author, AuthorCreate, AuthorResponse } from '../types'
 
 const { id, name } = authorsTable
 
@@ -39,4 +39,10 @@ export async function getAuthorsBySearch(
 export async function getAllAuthors(): Promise<Author[]> {
   const authorRecords = await db.select().from(authorsTable)
   return authorRecords
+}
+
+export async function insertAuthor(author: AuthorCreate): Promise<Author> {
+  const [newAuthor] = await db.insert(authorsTable).values(author).returning()
+
+  return newAuthor
 }
