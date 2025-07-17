@@ -1,6 +1,7 @@
 import { env } from './env'
 
 const requiredKeys = [
+  'adminEmail',
   'adminPassword',
   'clientBaseUrl',
   'cookieSecret',

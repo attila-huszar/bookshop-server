@@ -1,4 +1,4 @@
-import { z } from 'zod/v4'
+import { z } from 'zod'
 import { usersTable } from '../repositories'
 import type {
   loginSchema,
@@ -9,6 +9,7 @@ import type {
 } from '../validation'
 
 export type User = typeof usersTable.$inferSelect
+
 export type LoginRequest = z.infer<typeof loginSchema>
 export type RegisterRequest = z.infer<typeof registerSchema>
 export type VerificationRequest = z.infer<typeof tokenSchema>

@@ -1,9 +1,15 @@
-import { count, eq, max, min } from 'drizzle-orm'
+import { count, eq, inArray, max, min } from 'drizzle-orm'
 import { booksTable, authorsTable } from './repoHandler'
 import { db } from '../db'
 import { queryBuilder } from '../utils'
 import { PAGINATION } from '../constants'
-import type { BookQuery, BookResponse } from '../types'
+import type {
+  Book,
+  BookQuery,
+  BookCreate,
+  BookUpdate,
+  BookWithAuthor,
+} from '../types'
 
 const {
   id,
@@ -24,7 +30,7 @@ const {
 } = booksTable
 
 export async function getBooks(query?: BookQuery): Promise<{
-  booksRecords: BookResponse[]
+  booksRecords: BookWithAuthor[]
   booksCount: string
 }> {
   const page = Math.min(
@@ -72,7 +78,7 @@ export async function getBooks(query?: BookQuery): Promise<{
   return { booksRecords, booksCount }
 }
 
-export async function getBookById(bookId: number): Promise<BookResponse> {
+export async function getBookById(bookId: number): Promise<BookWithAuthor> {
   const bookRecords = await db
     .select({
       id,
@@ -127,4 +133,34 @@ export async function getBookSearchOptions(): Promise<{
     ],
     genre: genres,
   }
+}
+
+export async function getAllBooks(): Promise<Book[]> {
+  const bookRecords = await db.select().from(booksTable)
+  return bookRecords
+}
+
+export async function insertBook(book: BookCreate): Promise<Book> {
+  const [newBook] = await db.insert(booksTable).values(book).returning()
+  return newBook
+}
+
+export async function updateBook(
+  bookId: number,
+  book: BookUpdate,
+): Promise<Book> {
+  const [updatedBook] = await db
+    .update(booksTable)
+    .set(book)
+    .where(eq(booksTable.id, bookId))
+    .returning()
+  return updatedBook
+}
+
+export async function deleteBooks(bookIds: number[]): Promise<Book[]> {
+  const deletedBooks = await db
+    .delete(booksTable)
+    .where(inArray(booksTable.id, bookIds))
+    .returning()
+  return deletedBooks
 }

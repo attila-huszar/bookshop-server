@@ -58,3 +58,8 @@ export async function updateOrder(
 
   return orderRecords[0]
 }
+
+export async function getAllOrders(): Promise<Order[]> {
+  const orderRecords = await db.select().from(ordersTable)
+  return orderRecords
+}

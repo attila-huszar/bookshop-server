@@ -1,4 +1,4 @@
-import { z } from 'zod/v4'
+import { z } from 'zod'
 import { Stripe } from 'stripe'
 import { ordersTable } from '../repositories'
 import type {
