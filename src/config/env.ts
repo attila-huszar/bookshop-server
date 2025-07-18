@@ -22,4 +22,5 @@ export const env = {
   awsBucket: Bun.env.AWS_BUCKET,
   logtailSourceToken: Bun.env.LOGTAIL_SOURCE_TOKEN,
   logtailIngestingHost: Bun.env.LOGTAIL_INGESTING_HOST,
+  redisUrl: Bun.env.REDIS_URL,
 }

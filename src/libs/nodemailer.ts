@@ -5,7 +5,7 @@ import {
   passwordResetEmail,
   orderConfirmationEmail,
 } from './emailTemplates'
-import { userMessage } from '../constants'
+import { userMessage, type EmailJobType } from '../constants'
 import type { Order } from '../types'
 
 const transporter = nodemailer.createTransport({
@@ -19,15 +19,15 @@ const transporter = nodemailer.createTransport({
   },
 })
 
-type SendEmailProps =
+export type SendEmailProps =
   | {
-      type: 'orderConfirmation'
+      type: Extract<EmailJobType, 'orderConfirmation'>
       toAddress: string
       toName: string
       order: Order
     }
   | {
-      type: 'verification' | 'passwordReset'
+      type: Extract<EmailJobType, 'verification' | 'passwordReset'>
       toAddress: string
       toName: string
       tokenLink: string

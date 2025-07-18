@@ -15,6 +15,7 @@ const requiredKeys = [
   'awsRegion',
   'awsBucket',
   'logtailSourceToken',
+  'redisUrl',
 ] as const as (keyof typeof env)[]
 
 export function validateEnv(): void {
