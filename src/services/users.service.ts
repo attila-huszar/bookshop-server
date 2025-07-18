@@ -8,10 +8,10 @@ import {
   passwordResetSchema,
 } from '../validation'
 import { env } from '../config'
-import { sendEmail } from '../libs'
+import { logger, type SendEmailProps } from '../libs'
 import { signAccessToken, signRefreshToken, uploadFile } from '../utils'
 import { emailQueue } from '../queues'
-import { authMessage, userMessage } from '../constants'
+import { authMessage, jobOpts, QUEUE, userMessage } from '../constants'
 import { BadRequest, Forbidden, Unauthorized } from '../errors'
 import {
   type LoginRequest,
@@ -97,22 +97,23 @@ export async function registerUser(formData: FormData) {
     throw new Error(userMessage.createError)
   }
 
-  void emailQueue.add(
-    'send-verification-email',
-    {
-      type: 'verification',
-      toAddress: email,
-      toName: firstName,
-      tokenLink,
-    },
-    {
-      attempts: 3,
-      backoff: {
-        type: 'exponential',
-        delay: 5000,
-      },
-    },
-  )
+  void emailQueue
+    .add(
+      QUEUE.EMAIL.JOB.VERIFICATION,
+      {
+        type: QUEUE.EMAIL.JOB.VERIFICATION,
+        toAddress: email,
+        toName: firstName,
+        tokenLink,
+      } satisfies SendEmailProps,
+      jobOpts,
+    )
+    .catch((error: Error) => {
+      void logger.error(
+        '[QUEUE] Failed to queue registration verification email',
+        { error },
+      )
+    })
 
   return { email: userCreated.email }
 }
@@ -155,17 +156,6 @@ export async function passwordResetRequest(
   const passwordResetExpires = new Date(Date.now() + 86400000).toISOString()
   const tokenLink = `${env.clientBaseUrl}/password-reset?token=${passwordResetToken}`
 
-  const emailResponse = await sendEmail({
-    type: 'passwordReset',
-    toAddress: user.email,
-    toName: user.firstName,
-    tokenLink,
-  })
-
-  if (!emailResponse.accepted.includes(user.email)) {
-    throw new Error(userMessage.sendEmail)
-  }
-
   const userUpdated = await usersDB.updateUser(user.email, {
     passwordResetToken,
     passwordResetExpires,
@@ -175,6 +165,23 @@ export async function passwordResetRequest(
   if (!userUpdated) {
     throw new Error(userMessage.updateError)
   }
+
+  void emailQueue
+    .add(
+      QUEUE.EMAIL.JOB.PASSWORD_RESET,
+      {
+        type: QUEUE.EMAIL.JOB.PASSWORD_RESET,
+        toAddress: user.email,
+        toName: user.firstName,
+        tokenLink,
+      } satisfies SendEmailProps,
+      jobOpts,
+    )
+    .catch((error: Error) => {
+      void logger.error('[QUEUE] Failed to queue password reset email', {
+        error,
+      })
+    })
 
   return { message: userMessage.forgotPasswordRequest }
 }
