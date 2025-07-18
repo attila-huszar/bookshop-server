@@ -30,7 +30,7 @@ services:
     restart: always
     ports:
       - '6379:6379'
-    command: redis-server --maxmemory 128mb --maxmemory-policy allkeys-lru
+    command: redis-server --maxmemory 128mb --maxmemory-policy noeviction
 
   worker:
     build:
