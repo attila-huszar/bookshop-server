@@ -6,7 +6,7 @@ import { concurrency, QUEUE } from '../constants'
 
 const connection = new IORedis(env.redisUrl!, { maxRetriesPerRequest: null })
 
-const emailWorker = new Worker(
+export const emailWorker = new Worker(
   QUEUE.EMAIL.NAME,
   async (job: { data: SendEmailProps }) => await sendEmail(job.data),
   { connection, concurrency },
