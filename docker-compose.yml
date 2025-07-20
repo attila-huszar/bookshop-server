@@ -37,6 +37,9 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: bookshop-worker
+    depends_on:
+      - redis
+      - server
     restart: always
     env_file: .env
     command: >
