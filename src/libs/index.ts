@@ -1,2 +1,2 @@
 export { sendEmail, type SendEmailProps } from './nodemailer'
-export { logtail as logger } from './logtail'
+export { logtailServer as logger, logtailWorker as logWorker } from './logtail'

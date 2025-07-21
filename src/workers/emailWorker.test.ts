@@ -18,7 +18,7 @@ const mockIORedis = mock(() => mockWorker)
 beforeAll(async () => {
   await mock.module('../libs', () => ({
     sendEmail: mockSendEmail,
-    logger: mockLogger,
+    logWorker: mockLogger,
   }))
 
   await mock.module('ioredis', () => ({
