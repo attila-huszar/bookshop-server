@@ -9,10 +9,6 @@ export const QUEUE = {
   },
 } as const
 
-export type QueueName = typeof QUEUE.EMAIL.NAME
-export type EmailJobType =
-  (typeof QUEUE.EMAIL.JOB)[keyof typeof QUEUE.EMAIL.JOB]
-
 export const jobOpts = {
   attempts: 3,
   backoff: {

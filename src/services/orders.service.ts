@@ -2,11 +2,16 @@ import { Stripe } from 'stripe'
 import { env } from '../config'
 import { ordersDB } from '../repositories'
 import { validate, orderCreateSchema, orderUpdateSchema } from '../validation'
-import { logger, type SendEmailProps } from '../libs'
+import { logger } from '../libs'
 import { emailQueue } from '../queues'
 import { jobOpts, QUEUE } from '../constants'
 import { Internal } from '../errors'
-import type { Order, OrderUpdate, PaymentIntentCreate } from '../types'
+import type {
+  Order,
+  OrderUpdate,
+  PaymentIntentCreate,
+  SendEmailProps,
+} from '../types'
 
 const stripe = new Stripe(env.stripeSecret!)
 

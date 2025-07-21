@@ -1,6 +1,6 @@
 import { describe, it, expect, mock, beforeAll, beforeEach } from 'bun:test'
 import { QUEUE } from '../constants'
-import type { SendEmailProps } from '../libs'
+import type { SendEmailProps } from '../types'
 
 const mockSendEmail = mock()
 const mockLogger = {

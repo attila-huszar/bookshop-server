@@ -5,7 +5,7 @@
   <mj-body background-color="#f4f4f4">
     <mj-section>
       <mj-column>
-        <mj-image width="100px" align="left" src="cid:bookshop-logo-cid" alt="Bookshop Logo" />
+        <mj-image src="cid:{{cid}}" alt="Bookshop Logo" href="{{baseLink}}" width="97px" align="left" />
         <mj-text font-size="20px" font-weight="bold">Thank you for your order, {{toName}}!</mj-text>
         <mj-text font-size="16px" line-height="1.5">
           Your order <strong>#{{orderNumber}}</strong> has been received and paid.<br />

@@ -8,7 +8,7 @@ import {
   passwordResetSchema,
 } from '../validation'
 import { env } from '../config'
-import { logger, type SendEmailProps } from '../libs'
+import { logger } from '../libs'
 import { signAccessToken, signRefreshToken, uploadFile } from '../utils'
 import { emailQueue } from '../queues'
 import { authMessage, jobOpts, QUEUE, userMessage } from '../constants'
@@ -20,6 +20,7 @@ import {
   type PasswordResetToken,
   type PasswordResetSubmit,
   type UserUpdateRequest,
+  type SendEmailProps,
   UserRole,
 } from '../types'
 

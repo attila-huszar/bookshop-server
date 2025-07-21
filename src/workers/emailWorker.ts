@@ -1,8 +1,9 @@
 import IORedis from 'ioredis'
 import { Worker } from 'bullmq'
 import { env } from '../config'
-import { logWorker, sendEmail, type SendEmailProps } from '../libs'
+import { logWorker, sendEmail } from '../libs'
 import { concurrency, QUEUE } from '../constants'
+import type { SendEmailProps } from '../types'
 
 const connection = new IORedis(env.redisUrl!, { maxRetriesPerRequest: null })
 
