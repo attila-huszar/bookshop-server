@@ -1,4 +1,4 @@
-import { usersDB } from '../repositories'
+import { usersDB } from '@/repositories'
 import {
   validate,
   loginSchema,
@@ -6,12 +6,13 @@ import {
   emailSchema,
   tokenSchema,
   passwordResetSchema,
-} from '../validation'
-import { env } from '../config'
-import { sendEmail } from '../libs'
-import { signAccessToken, signRefreshToken, uploadFile } from '../utils'
-import { authMessage, userMessage } from '../constants'
-import { BadRequest, Forbidden, Unauthorized } from '../errors'
+} from '@/validation'
+import { env } from '@/config'
+import { log } from '@/libs'
+import { signAccessToken, signRefreshToken, uploadFile } from '@/utils'
+import { emailQueue } from '@/queues'
+import { authMessage, jobOpts, QUEUE, userMessage } from '@/constants'
+import { BadRequest, Forbidden, Unauthorized } from '@/errors'
 import {
   type LoginRequest,
   type VerificationRequest,
@@ -19,8 +20,9 @@ import {
   type PasswordResetToken,
   type PasswordResetSubmit,
   type UserUpdateRequest,
+  type SendEmailProps,
   UserRole,
-} from '../types'
+} from '@/types'
 
 export async function loginUser(loginRequest: LoginRequest) {
   const { email, password } = validate(loginSchema, loginRequest)
@@ -72,16 +74,6 @@ export async function registerUser(formData: FormData) {
   const verificationExpires = new Date(Date.now() + 86400000).toISOString()
   const tokenLink = `${env.clientBaseUrl}/verification?token=${verificationToken}`
 
-  const emailResponse = await sendEmail({
-    type: 'verification',
-    toAddress: email,
-    toName: firstName,
-    tokenLink,
-  })
-
-  if (!emailResponse.accepted.includes(email))
-    throw new Error(userMessage.sendEmail)
-
   const avatarUrl =
     form.avatar instanceof File ? await uploadFile(form.avatar) : null
 
@@ -105,6 +97,24 @@ export async function registerUser(formData: FormData) {
   if (!userCreated) {
     throw new Error(userMessage.createError)
   }
+
+  void emailQueue
+    .add(
+      QUEUE.EMAIL.JOB.VERIFICATION,
+      {
+        type: QUEUE.EMAIL.JOB.VERIFICATION,
+        toAddress: email,
+        toName: firstName,
+        tokenLink,
+      } satisfies SendEmailProps,
+      jobOpts,
+    )
+    .catch((error: Error) => {
+      void log.error(
+        '[QUEUE] Failed to queue registration verification email',
+        { error },
+      )
+    })
 
   return { email: userCreated.email }
 }
@@ -147,17 +157,6 @@ export async function passwordResetRequest(
   const passwordResetExpires = new Date(Date.now() + 86400000).toISOString()
   const tokenLink = `${env.clientBaseUrl}/password-reset?token=${passwordResetToken}`
 
-  const emailResponse = await sendEmail({
-    type: 'passwordReset',
-    toAddress: user.email,
-    toName: user.firstName,
-    tokenLink,
-  })
-
-  if (!emailResponse.accepted.includes(user.email)) {
-    throw new Error(userMessage.sendEmail)
-  }
-
   const userUpdated = await usersDB.updateUser(user.email, {
     passwordResetToken,
     passwordResetExpires,
@@ -167,6 +166,23 @@ export async function passwordResetRequest(
   if (!userUpdated) {
     throw new Error(userMessage.updateError)
   }
+
+  void emailQueue
+    .add(
+      QUEUE.EMAIL.JOB.PASSWORD_RESET,
+      {
+        type: QUEUE.EMAIL.JOB.PASSWORD_RESET,
+        toAddress: user.email,
+        toName: user.firstName,
+        tokenLink,
+      } satisfies SendEmailProps,
+      jobOpts,
+    )
+    .catch((error: Error) => {
+      void log.error('[QUEUE] Failed to queue password reset email', {
+        error,
+      })
+    })
 
   return { message: userMessage.forgotPasswordRequest }
 }

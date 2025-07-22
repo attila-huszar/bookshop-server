@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { OrderStatus, paymentIntentStatusValues } from '../types'
+import { OrderStatus, paymentIntentStatusValues } from '@/types'
 
 export const orderItemSchema = z.object({
   id: z.number('Order item ID is required'),

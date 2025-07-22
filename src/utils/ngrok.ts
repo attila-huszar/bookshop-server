@@ -1,5 +1,5 @@
 import ngrok from '@ngrok/ngrok'
-import { env } from '../config'
+import { env } from '@/config'
 
 export async function ngrokForward() {
   const listener = await ngrok.forward({

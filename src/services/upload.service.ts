@@ -1,7 +1,7 @@
-import { usersDB } from '../repositories'
-import { imageSchema, validate } from '../validation'
-import { uploadFile } from '../utils'
-import { userMessage } from '../constants'
+import { usersDB } from '@/repositories'
+import { imageSchema, validate } from '@/validation'
+import { uploadFile } from '@/utils'
+import { userMessage } from '@/constants'
 
 export async function handleAvatarUpload(
   userUuid: string,

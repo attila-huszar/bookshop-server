@@ -1,5 +1,5 @@
 import { s3, write } from 'bun'
-import { logger } from '../libs'
+import { log } from '@/libs'
 
 export const uploadFile = async (file: File) => {
   try {
@@ -12,7 +12,7 @@ export const uploadFile = async (file: File) => {
 
     return permanentUrl
   } catch (error) {
-    void logger.error('Error uploading to AWS', {
+    void log.error('Error uploading to AWS', {
       error,
       file: file.name,
     })

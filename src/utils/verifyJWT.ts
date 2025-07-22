@@ -1,5 +1,5 @@
 import { verify } from 'hono/jwt'
-import { env } from '../config'
+import { env } from '@/config'
 
 export const verifyJWTAccess = (token: string) => {
   try {

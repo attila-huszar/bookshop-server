@@ -13,7 +13,7 @@
           <em>These links are valid for 24 hours</em>
         </mj-text>
         <mj-text font-size="16px" font-weight="bold" padding-bottom="10px">Book Shop Team</mj-text>
-        <mj-image src="cid:{{logo}}" alt="logo" href="{{baseLink}}" width="97px" align="left" />
+        <mj-image src="cid:{{cid}}" alt="Bookshop Logo" href="{{baseLink}}" width="97px" align="left" />
       </mj-column>
     </mj-section>
   </mj-body>

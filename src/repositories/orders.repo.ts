@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm'
-import { db } from '../db'
+import { db } from '@/db'
 import { ordersTable } from './repoHandler'
-import { type Order, OrderStatus } from '../types'
+import { type Order, OrderStatus } from '@/types'
 
 export async function createOrder(
   order: typeof ordersTable.$inferInsert,

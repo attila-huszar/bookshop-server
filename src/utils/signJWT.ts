@@ -1,5 +1,5 @@
 import { sign } from 'hono/jwt'
-import { env } from '../config'
+import { env } from '@/config'
 
 export const signAccessToken = async (uuid: string, timestamp: number) => {
   const accessToken = await sign(

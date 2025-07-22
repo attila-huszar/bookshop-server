@@ -7,9 +7,9 @@ import {
   getAllBooks,
   getAllOrders,
   getAllUsers,
-} from '../services'
-import { errorHandler } from '../errors'
-import type { AuthorCreate, BookCreate } from '../types'
+} from '@/services'
+import { errorHandler } from '@/errors'
+import type { AuthorCreate, BookCreate } from '@/types'
 
 export const cms = new Hono()
 

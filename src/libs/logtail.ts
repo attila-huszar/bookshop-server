@@ -1,6 +1,10 @@
 import { Logtail } from '@logtail/node'
-import { env } from '../config'
+import { env } from '@/config'
 
-export const logtail = new Logtail(env.logtailSourceToken!, {
-  endpoint: env.logtailIngestingHost,
+export const log = new Logtail(env.logtailServerSourceToken!, {
+  endpoint: env.logtailServerIngestingHost,
+})
+
+export const logWorker = new Logtail(env.logtailWorkerSourceToken!, {
+  endpoint: env.logtailWorkerIngestingHost,
 })

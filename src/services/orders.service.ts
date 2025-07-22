@@ -1,10 +1,17 @@
 import { Stripe } from 'stripe'
-import { env } from '../config'
-import { ordersDB } from '../repositories'
-import { validate, orderCreateSchema, orderUpdateSchema } from '../validation'
-import { Internal } from '../errors'
-import type { Order, OrderUpdate, PaymentIntentCreate } from '../types'
-import { sendEmail } from '../libs'
+import { env } from '@/config'
+import { ordersDB } from '@/repositories'
+import { validate, orderCreateSchema, orderUpdateSchema } from '@/validation'
+import { log } from '@/libs'
+import { emailQueue } from '@/queues'
+import { jobOpts, QUEUE } from '@/constants'
+import { Internal } from '@/errors'
+import type {
+  Order,
+  OrderUpdate,
+  PaymentIntentCreate,
+  SendEmailProps,
+} from '@/types'
 
 const stripe = new Stripe(env.stripeSecret!)
 
@@ -49,12 +56,22 @@ export async function updateOrder(orderUpdateRequest: OrderUpdate) {
     throw new Internal('Failed to update order')
   }
 
-  await sendEmail({
-    type: 'orderConfirmation',
-    toAddress: updatedOrder.email,
-    toName: updatedOrder.firstName,
-    order: updatedOrder,
-  })
+  void emailQueue
+    .add(
+      QUEUE.EMAIL.JOB.ORDER_CONFIRMATION,
+      {
+        type: QUEUE.EMAIL.JOB.ORDER_CONFIRMATION,
+        toAddress: updatedOrder.email,
+        toName: updatedOrder.firstName,
+        order: updatedOrder,
+      } satisfies SendEmailProps,
+      jobOpts,
+    )
+    .catch((error: Error) => {
+      void log.error('[QUEUE] Order confirmation email queueing failed', {
+        error,
+      })
+    })
 
   return updatedOrder
 }

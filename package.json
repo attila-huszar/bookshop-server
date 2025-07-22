@@ -6,16 +6,26 @@
     "dev": "bun run --hot src/app.ts",
     "lint": "eslint . --max-warnings 0",
     "migrate": "bun src/database/migrate.ts",
-    "seed": "bun src/database/seed.ts"
+    "seed": "bun src/database/seed.ts",
+    "worker:email": "bun src/workers/emailWorker.ts"
+  },
+  "bun": {
+    "test": {
+      "preload": [
+        "src/tests/test-setup.ts"
+      ]
+    }
   },
   "dependencies": {
     "@logtail/node": "^0.5.5",
     "@ngrok/ngrok": "^1.5.1",
+    "bullmq": "^5.56.4",
     "drizzle-orm": "^0.44.3",
     "drizzle-zod": "^0.8.2",
     "hono": "^4.8.5",
     "hono-rate-limiter": "^0.4.2",
     "http-status": "^2.1.0",
+    "ioredis": "^5.6.1",
     "mjml": "^4.15.3",
     "nodemailer": "^7.0.5",
     "stripe": "^18.3.0",

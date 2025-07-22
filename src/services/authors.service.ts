@@ -1,4 +1,4 @@
-import { authorsDB } from '../repositories'
+import { authorsDB } from '@/repositories'
 
 export async function getAuthorsByName(name: string) {
   return authorsDB.getAuthorsBySearch(name)

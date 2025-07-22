@@ -1,5 +1,5 @@
-import * as sqlite from '../database/schema/sqlite'
-import { env } from '../config'
+import * as sqlite from '@/database/schema/sqlite'
+import { env } from '@/config'
 
 const repoHandlers = {
   SQLITE: sqlite,

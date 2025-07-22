@@ -1,5 +1,5 @@
-import { MAX_IMAGE_SIZE, MAX_JSON_SIZE } from '../constants'
-import type { MiddlewareHandler } from 'hono'
+import { type MiddlewareHandler } from 'hono'
+import { MAX_IMAGE_SIZE, MAX_JSON_SIZE } from '@/constants'
 
 export const payloadLimiter: MiddlewareHandler = async (c, next) => {
   if (['GET', 'HEAD', 'OPTIONS'].includes(c.req.method)) {

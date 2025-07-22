@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm'
-import { db } from '../db'
+import { db } from '@/db'
 import { usersTable } from './repoHandler'
-import type { UserUpdateRequest, User } from '../types'
+import type { UserUpdateRequest, User } from '@/types'
 
 export async function getUserBy(
   field: 'uuid' | 'email' | 'verificationToken' | 'passwordResetToken',

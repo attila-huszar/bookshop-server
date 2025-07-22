@@ -1,6 +1,6 @@
 import { eq, gte, lte, and, inArray, like } from 'drizzle-orm'
-import { booksTable as c } from '../repositories'
-import type { BookQuery } from '../types'
+import { booksTable as c } from '@/repositories'
+import type { BookQuery } from '@/types'
 
 export function queryBuilder(q?: BookQuery) {
   if (!q) return undefined

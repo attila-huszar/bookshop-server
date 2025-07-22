@@ -1,7 +1,7 @@
 import { eq, like } from 'drizzle-orm'
 import { authorsTable } from './repoHandler'
-import { db } from '../db'
-import type { Author, AuthorCreate, AuthorReference } from '../types'
+import { db } from '@/db'
+import type { Author, AuthorCreate, AuthorReference } from '@/types'
 
 const { id, name } = authorsTable
 

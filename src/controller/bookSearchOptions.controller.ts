@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
-import { getBookSearchOptions } from '../services'
-import { errorHandler } from '../errors'
+import { getBookSearchOptions } from '@/services'
+import { errorHandler } from '@/errors'
 
 export const bookSearchOptions = new Hono()
 

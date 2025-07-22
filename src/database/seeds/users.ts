@@ -1,8 +1,8 @@
 import { getTableName } from 'drizzle-orm'
-import { db } from '../../db'
-import { usersTable } from '../../repositories'
-import { env } from '../../config'
-import { UserRole } from '../../types'
+import { db } from '@/db'
+import { usersTable } from '@/repositories'
+import { env } from '@/config'
+import { UserRole } from '@/types'
 
 export async function seedUsers() {
   const admin: typeof usersTable.$inferInsert = {

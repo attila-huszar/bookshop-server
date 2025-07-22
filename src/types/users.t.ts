@@ -1,12 +1,12 @@
 import { z } from 'zod'
-import { usersTable } from '../repositories'
+import { usersTable } from '@/repositories'
 import type {
   loginSchema,
   registerSchema,
   emailSchema,
   tokenSchema,
   passwordResetSchema,
-} from '../validation'
+} from '@/validation'
 
 export type User = typeof usersTable.$inferSelect
 

@@ -1,7 +1,7 @@
 import { int, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import type { Stripe } from 'stripe'
 import { timestamps } from './column.helpers'
-import { UserRole } from '../../../types'
-import type Stripe from 'stripe'
+import { UserRole } from '@/types'
 
 export const usersTable = sqliteTable('users', {
   id: int().primaryKey({ autoIncrement: true }),

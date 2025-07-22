@@ -1,4 +1,4 @@
-import { booksDB } from '../repositories'
+import { booksDB } from '@/repositories'
 
 export async function getBookSearchOptions() {
   return booksDB.getBookSearchOptions()

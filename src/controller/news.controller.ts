@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
-import { getNews } from '../services'
-import { errorHandler } from '../errors'
+import { getNews } from '@/services'
+import { errorHandler } from '@/errors'
 
 export const news = new Hono()
 

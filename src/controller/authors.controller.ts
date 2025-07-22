@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
-import { getAuthorById, getAuthorsByName } from '../services'
-import { errorHandler } from '../errors'
+import { getAuthorById, getAuthorsByName } from '@/services'
+import { errorHandler } from '@/errors'
 
 export const authors = new Hono()
 

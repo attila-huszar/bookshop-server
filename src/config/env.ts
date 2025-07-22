@@ -20,6 +20,9 @@ export const env = {
   awsSecretAccessKey: Bun.env.AWS_SECRET_ACCESS_KEY,
   awsRegion: Bun.env.AWS_REGION,
   awsBucket: Bun.env.AWS_BUCKET,
-  logtailSourceToken: Bun.env.LOGTAIL_SOURCE_TOKEN,
-  logtailIngestingHost: Bun.env.LOGTAIL_INGESTING_HOST,
+  logtailServerSourceToken: Bun.env.LOGTAIL_SERVER_SOURCE_TOKEN,
+  logtailServerIngestingHost: Bun.env.LOGTAIL_SERVER_INGESTING_HOST,
+  logtailWorkerSourceToken: Bun.env.LOGTAIL_WORKER_SOURCE_TOKEN,
+  logtailWorkerIngestingHost: Bun.env.LOGTAIL_WORKER_INGESTING_HOST,
+  redisUrl: Bun.env.REDIS_URL,
 }

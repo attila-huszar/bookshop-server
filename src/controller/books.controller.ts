@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
-import { getBookById, getBooks } from '../services'
-import { errorHandler, NotFound } from '../errors'
-import type { BookQuery } from '../types'
+import { getBookById, getBooks } from '@/services'
+import { errorHandler, NotFound } from '@/errors'
+import type { BookQuery } from '@/types'
 
 export const books = new Hono()
 

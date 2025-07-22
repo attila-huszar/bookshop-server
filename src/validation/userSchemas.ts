@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { MAX_IMAGE_SIZE } from '../constants'
+import { MAX_IMAGE_SIZE } from '@/constants'
 
 export const emailSchema = z.object({
   email: z.email('Invalid email'),
