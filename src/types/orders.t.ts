@@ -1,11 +1,11 @@
 import { z } from 'zod'
 import { Stripe } from 'stripe'
-import { ordersTable } from '../repositories'
+import { ordersTable } from '@/repositories'
 import type {
   orderItemSchema,
   orderCreateSchema,
   orderUpdateSchema,
-} from '../validation'
+} from '@/validation'
 
 export type Order = typeof ordersTable.$inferSelect
 

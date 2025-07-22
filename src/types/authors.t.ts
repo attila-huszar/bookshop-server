@@ -3,7 +3,7 @@ import type {
   authorSchema,
   authorCreateSchema,
   authorUpdateSchema,
-} from '../validation'
+} from '@/validation'
 
 export type Author = z.infer<typeof authorSchema>
 export type AuthorCreate = z.infer<typeof authorCreateSchema>

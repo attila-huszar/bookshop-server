@@ -5,9 +5,9 @@ import {
   cancelPaymentIntent,
   createOrder,
   updateOrder,
-} from '../services'
-import { errorHandler } from '../errors'
-import type { Order, OrderUpdate, PaymentIntentCreate } from '../types'
+} from '@/services'
+import { errorHandler } from '@/errors'
+import type { Order, OrderUpdate, PaymentIntentCreate } from '@/types'
 
 export const orders = new Hono()
 

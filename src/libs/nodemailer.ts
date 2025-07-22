@@ -1,8 +1,8 @@
 import nodemailer from 'nodemailer'
-import { env } from '../config'
-import { getEmailHtml } from '../utils'
-import { attachments, subjectMap, userMessage } from '../constants'
-import type { SendEmailProps } from '../types'
+import { env } from '@/config'
+import { getEmailHtml } from '@/utils'
+import { attachments, subjectMap, userMessage } from '@/constants'
+import type { SendEmailProps } from '@/types'
 
 const transportOptions = {
   service: 'gmail',
@@ -18,15 +18,15 @@ const transportOptions = {
 const transporter = nodemailer.createTransport(transportOptions)
 
 export async function sendEmail(props: SendEmailProps) {
-  const mailOptions = {
-    from: env.mailerUser,
-    to: props.toAddress,
-    subject: subjectMap[props.type],
-    html: getEmailHtml(props),
-    attachments,
-  }
-
   try {
+    const mailOptions = {
+      from: env.mailerUser,
+      to: props.toAddress,
+      subject: subjectMap[props.type],
+      html: getEmailHtml(props),
+      attachments,
+    }
+
     return await transporter.sendMail(mailOptions)
   } catch (error) {
     throw new Error(userMessage.sendEmail, { cause: error })

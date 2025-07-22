@@ -1,11 +1,11 @@
-import { authorsDB, booksDB, ordersDB, usersDB } from '../repositories'
+import { authorsDB, booksDB, ordersDB, usersDB } from '@/repositories'
 import {
   authorCreateSchema,
   bookCreateSchema,
   bookUpdateSchema,
   validate,
-} from '../validation'
-import type { AuthorCreate, BookCreate, BookUpdate } from '../types'
+} from '@/validation'
+import type { AuthorCreate, BookCreate, BookUpdate } from '@/types'
 
 export async function getAllOrders() {
   const orders = await ordersDB.getAllOrders()

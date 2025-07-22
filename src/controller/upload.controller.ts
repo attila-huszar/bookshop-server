@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
-import { handleAvatarUpload } from '../services'
-import { errorHandler } from '../errors'
+import { handleAvatarUpload } from '@/services'
+import { errorHandler } from '@/errors'
 
 type Variables = {
   jwtPayload: {

@@ -1,5 +1,5 @@
 import type { Order } from './orders.t'
-import type { QUEUE } from '../constants'
+import type { QUEUE } from '@/constants'
 
 export type QueueName = typeof QUEUE.EMAIL.NAME
 

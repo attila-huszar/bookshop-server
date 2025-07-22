@@ -1,4 +1,4 @@
-import type { EmailJobType } from '../types'
+import type { EmailJobType } from '@/types'
 
 export const subjectMap: Record<EmailJobType, string> = {
   verification: 'Book Shop - Verify your email address',

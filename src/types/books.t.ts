@@ -3,7 +3,7 @@ import type {
   bookSchema,
   bookCreateSchema,
   bookUpdateSchema,
-} from '../validation'
+} from '@/validation'
 
 export type Book = z.infer<typeof bookSchema>
 export type BookCreate = z.infer<typeof bookCreateSchema>

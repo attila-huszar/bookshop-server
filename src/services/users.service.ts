@@ -1,4 +1,4 @@
-import { usersDB } from '../repositories'
+import { usersDB } from '@/repositories'
 import {
   validate,
   loginSchema,
@@ -6,13 +6,13 @@ import {
   emailSchema,
   tokenSchema,
   passwordResetSchema,
-} from '../validation'
-import { env } from '../config'
-import { logger } from '../libs'
-import { signAccessToken, signRefreshToken, uploadFile } from '../utils'
-import { emailQueue } from '../queues'
-import { authMessage, jobOpts, QUEUE, userMessage } from '../constants'
-import { BadRequest, Forbidden, Unauthorized } from '../errors'
+} from '@/validation'
+import { env } from '@/config'
+import { log } from '@/libs'
+import { signAccessToken, signRefreshToken, uploadFile } from '@/utils'
+import { emailQueue } from '@/queues'
+import { authMessage, jobOpts, QUEUE, userMessage } from '@/constants'
+import { BadRequest, Forbidden, Unauthorized } from '@/errors'
 import {
   type LoginRequest,
   type VerificationRequest,
@@ -22,7 +22,7 @@ import {
   type UserUpdateRequest,
   type SendEmailProps,
   UserRole,
-} from '../types'
+} from '@/types'
 
 export async function loginUser(loginRequest: LoginRequest) {
   const { email, password } = validate(loginSchema, loginRequest)
@@ -110,7 +110,7 @@ export async function registerUser(formData: FormData) {
       jobOpts,
     )
     .catch((error: Error) => {
-      void logger.error(
+      void log.error(
         '[QUEUE] Failed to queue registration verification email',
         { error },
       )
@@ -179,7 +179,7 @@ export async function passwordResetRequest(
       jobOpts,
     )
     .catch((error: Error) => {
-      void logger.error('[QUEUE] Failed to queue password reset email', {
+      void log.error('[QUEUE] Failed to queue password reset email', {
         error,
       })
     })

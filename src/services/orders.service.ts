@@ -1,17 +1,17 @@
 import { Stripe } from 'stripe'
-import { env } from '../config'
-import { ordersDB } from '../repositories'
-import { validate, orderCreateSchema, orderUpdateSchema } from '../validation'
-import { logger } from '../libs'
-import { emailQueue } from '../queues'
-import { jobOpts, QUEUE } from '../constants'
-import { Internal } from '../errors'
+import { env } from '@/config'
+import { ordersDB } from '@/repositories'
+import { validate, orderCreateSchema, orderUpdateSchema } from '@/validation'
+import { log } from '@/libs'
+import { emailQueue } from '@/queues'
+import { jobOpts, QUEUE } from '@/constants'
+import { Internal } from '@/errors'
 import type {
   Order,
   OrderUpdate,
   PaymentIntentCreate,
   SendEmailProps,
-} from '../types'
+} from '@/types'
 
 const stripe = new Stripe(env.stripeSecret!)
 
@@ -68,7 +68,7 @@ export async function updateOrder(orderUpdateRequest: OrderUpdate) {
       jobOpts,
     )
     .catch((error: Error) => {
-      void logger.error('[QUEUE] Order confirmation email queueing failed', {
+      void log.error('[QUEUE] Order confirmation email queueing failed', {
         error,
       })
     })

@@ -1,34 +1,6 @@
-import { describe, it, expect, mock, beforeAll, beforeEach } from 'bun:test'
-import { QUEUE } from '../constants'
-import type { SendEmailProps } from '../types'
-
-const mockSendEmail = mock()
-const mockLogger = {
-  info: mock(),
-  error: mock(),
-}
-
-const mockWorker = {
-  on: mock(),
-  close: mock(() => Promise.resolve()),
-}
-
-const mockIORedis = mock(() => mockWorker)
-
-beforeAll(async () => {
-  await mock.module('../libs', () => ({
-    sendEmail: mockSendEmail,
-    logWorker: mockLogger,
-  }))
-
-  await mock.module('ioredis', () => ({
-    default: mockIORedis,
-  }))
-
-  await mock.module('bullmq', () => ({
-    Worker: mock(() => mockWorker),
-  }))
-})
+import { describe, it, expect, beforeEach } from 'bun:test'
+import { mockLogger, mockSendEmail, mockWorker } from './test-setup'
+import type { SendEmailProps } from '@/types'
 
 describe('Email Worker', () => {
   beforeEach(() => {
@@ -40,7 +12,7 @@ describe('Email Worker', () => {
   })
 
   it('should create worker with correct configuration', async () => {
-    const { emailWorker } = await import('./emailWorker')
+    const { emailWorker } = await import('@/workers/emailWorker')
 
     expect(emailWorker).toBeDefined()
     expect(mockWorker.on).toHaveBeenCalledWith(
@@ -52,7 +24,7 @@ describe('Email Worker', () => {
 
   it('should call sendEmail when processing a job', async () => {
     const jobData: SendEmailProps = {
-      type: QUEUE.EMAIL.JOB.VERIFICATION,
+      type: 'verification',
       toAddress: 'test@example.com',
       toName: 'Test User',
       tokenLink: 'https://example.com/verify?token=abc123',
@@ -66,7 +38,7 @@ describe('Email Worker', () => {
 
   it('should log success when job completes', () => {
     const jobData: SendEmailProps = {
-      type: QUEUE.EMAIL.JOB.VERIFICATION,
+      type: 'verification',
       toAddress: 'test@example.com',
       toName: 'Test User',
       tokenLink: 'https://example.com/verify?token=abc123',
@@ -74,29 +46,26 @@ describe('Email Worker', () => {
 
     const mockJob = {
       id: '12345',
-      name: QUEUE.EMAIL.JOB.VERIFICATION,
+      name: 'verification',
       data: jobData,
     }
 
-    mockLogger.info('[WORKER] Email sent successfully', {
+    mockLogger.info('Email sent successfully', {
       id: mockJob.id,
       name: mockJob.name,
       email: mockJob.data.toAddress,
     })
 
-    expect(mockLogger.info).toHaveBeenCalledWith(
-      '[WORKER] Email sent successfully',
-      {
-        id: '12345',
-        name: QUEUE.EMAIL.JOB.VERIFICATION,
-        email: 'test@example.com',
-      },
-    )
+    expect(mockLogger.info).toHaveBeenCalledWith('Email sent successfully', {
+      id: '12345',
+      name: 'verification',
+      email: 'test@example.com',
+    })
   })
 
   it('should log error when job fails', () => {
     const jobData: SendEmailProps = {
-      type: QUEUE.EMAIL.JOB.VERIFICATION,
+      type: 'verification',
       toAddress: 'test@example.com',
       toName: 'Test User',
       tokenLink: 'https://example.com/verify?token=abc123',
@@ -104,27 +73,24 @@ describe('Email Worker', () => {
 
     const mockJob = {
       id: '12345',
-      name: QUEUE.EMAIL.JOB.VERIFICATION,
+      name: 'verification',
       data: jobData,
     }
 
     const mockError = new Error('Email sending failed')
 
-    mockLogger.error('[WORKER] Email sending failed', {
+    mockLogger.error('Email sending failed', {
       id: mockJob.id,
       name: mockJob.name,
       email: mockJob.data.toAddress,
       error: mockError,
     })
 
-    expect(mockLogger.error).toHaveBeenCalledWith(
-      '[WORKER] Email sending failed',
-      {
-        id: '12345',
-        name: QUEUE.EMAIL.JOB.VERIFICATION,
-        email: 'test@example.com',
-        error: mockError,
-      },
-    )
+    expect(mockLogger.error).toHaveBeenCalledWith('Email sending failed', {
+      id: '12345',
+      name: 'verification',
+      email: 'test@example.com',
+      error: mockError,
+    })
   })
 })

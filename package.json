@@ -9,6 +9,13 @@
     "seed": "bun src/database/seed.ts",
     "worker:email": "bun src/workers/emailWorker.ts"
   },
+  "bun": {
+    "test": {
+      "preload": [
+        "src/tests/test-setup.ts"
+      ]
+    }
+  },
   "dependencies": {
     "@logtail/node": "^0.5.5",
     "@ngrok/ngrok": "^1.5.1",

@@ -1,6 +1,6 @@
 import { getTableName } from 'drizzle-orm'
-import { db } from '../../db'
-import { newsTable } from '../../repositories'
+import { db } from '@/db'
+import { newsTable } from '@/repositories'
 import newsData from './news.json'
 
 export async function seedNews() {

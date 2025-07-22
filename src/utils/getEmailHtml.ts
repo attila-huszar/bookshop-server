@@ -1,10 +1,10 @@
 import mjml2html from 'mjml'
-import verification from '../assets/emailTemplates/verification.mjml' with { type: 'text' }
-import passwordReset from '../assets/emailTemplates/passwordReset.mjml' with { type: 'text' }
-import orderConfirmation from '../assets/emailTemplates/orderConfirmation.mjml' with { type: 'text' }
-import { env } from '../config'
-import { cid } from '../constants'
-import type { SendEmailProps } from '../types'
+import verification from '@/assets/emailTemplates/verification.mjml' with { type: 'text' }
+import passwordReset from '@/assets/emailTemplates/passwordReset.mjml' with { type: 'text' }
+import orderConfirmation from '@/assets/emailTemplates/orderConfirmation.mjml' with { type: 'text' }
+import { env } from '@/config'
+import { cid } from '@/constants'
+import type { SendEmailProps } from '@/types'
 
 const baseLink = env.clientBaseUrl!
 
@@ -36,56 +36,50 @@ const renderOrderItems = (
     .join('')
 
 export function getEmailHtml(props: SendEmailProps): string {
-  if (props.type === 'orderConfirmation') {
-    const { toName, order } = props
-
-    const mjmlString = interpolate(orderConfirmation, {
-      toName,
-      orderNumber: order.paymentId.slice(-6).toUpperCase(),
-      eachItems: renderOrderItems(order.items),
-      total: order.total.toFixed(2),
-      currency: order.currency,
-      address: [
-        order.address?.line1,
-        order.address?.line2,
-        order.address?.city,
-        order.address?.state,
-        order.address?.country,
-      ]
-        .filter(Boolean)
-        .join(', '),
-      baseLink,
-      cid,
-    })
-
-    return mjml2html(mjmlString).html
+  switch (props.type) {
+    case 'orderConfirmation': {
+      const { toName, order } = props
+      const mjmlString = interpolate(orderConfirmation, {
+        toName,
+        orderNumber: order.paymentId.slice(-6).toUpperCase(),
+        eachItems: renderOrderItems(order.items),
+        total: order.total.toFixed(2),
+        currency: order.currency,
+        address: [
+          order.address?.line1,
+          order.address?.line2,
+          order.address?.city,
+          order.address?.state,
+          order.address?.country,
+        ]
+          .filter(Boolean)
+          .join(', '),
+        baseLink,
+        cid,
+      })
+      return mjml2html(mjmlString).html
+    }
+    case 'verification': {
+      const { toName, tokenLink } = props
+      const mjmlString = interpolate(verification, {
+        toName,
+        tokenLink,
+        baseLink,
+        cid,
+      })
+      return mjml2html(mjmlString).html
+    }
+    case 'passwordReset': {
+      const { toName, tokenLink } = props
+      const mjmlString = interpolate(passwordReset, {
+        toName,
+        tokenLink,
+        baseLink,
+        cid,
+      })
+      return mjml2html(mjmlString).html
+    }
+    default:
+      throw new Error('Unknown email type')
   }
-
-  if (props.type === 'verification') {
-    const { toName, tokenLink } = props
-
-    const mjmlString = interpolate(verification, {
-      toName,
-      tokenLink,
-      baseLink,
-      cid,
-    })
-
-    return mjml2html(mjmlString).html
-  }
-
-  if (props.type === 'passwordReset') {
-    const { toName, tokenLink } = props
-
-    const mjmlString = interpolate(passwordReset, {
-      toName,
-      tokenLink,
-      baseLink,
-      cid,
-    })
-
-    return mjml2html(mjmlString).html
-  }
-
-  throw new Error('Invalid email type')
 }

@@ -1,6 +1,6 @@
 import { getTableName } from 'drizzle-orm'
-import { db } from '../../db'
-import { booksTable } from '../../repositories'
+import { db } from '@/db'
+import { booksTable } from '@/repositories'
 import booksData from './books.json'
 
 export async function seedBooks() {

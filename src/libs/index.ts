@@ -1,2 +1,2 @@
 export { sendEmail } from './nodemailer'
-export { logtailServer as logger, logtailWorker as logWorker } from './logtail'
+export { log, logWorker } from './logtail'

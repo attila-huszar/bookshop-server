@@ -1,15 +1,15 @@
 import { count, eq, inArray, max, min } from 'drizzle-orm'
 import { booksTable, authorsTable } from './repoHandler'
-import { db } from '../db'
-import { queryBuilder } from '../utils'
-import { PAGINATION } from '../constants'
+import { db } from '@/db'
+import { queryBuilder } from '@/utils'
+import { PAGINATION } from '@/constants'
 import type {
   Book,
   BookQuery,
   BookCreate,
   BookUpdate,
   BookWithAuthor,
-} from '../types'
+} from '@/types'
 
 const {
   id,

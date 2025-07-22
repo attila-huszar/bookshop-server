@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { setSignedCookie, deleteCookie, getSignedCookie } from 'hono/cookie'
-import { env, REFRESH_TOKEN, cookieOptions } from '../config'
+import { env, REFRESH_TOKEN, cookieOptions } from '@/config'
 import {
   loginUser,
   registerUser,
@@ -10,10 +10,10 @@ import {
   passwordResetToken,
   passwordResetSubmit,
   updateUserProfile,
-} from '../services'
-import { signAccessToken, signRefreshToken, verifyJWTRefresh } from '../utils'
-import { userMessage } from '../constants'
-import { errorHandler } from '../errors'
+} from '@/services'
+import { signAccessToken, signRefreshToken, verifyJWTRefresh } from '@/utils'
+import { userMessage } from '@/constants'
+import { errorHandler } from '@/errors'
 import type {
   LoginRequest,
   VerificationRequest,
@@ -21,7 +21,7 @@ import type {
   PasswordResetToken,
   PasswordResetSubmit,
   UserUpdateRequest,
-} from '../types'
+} from '@/types'
 
 type Variables = {
   jwtPayload: {
