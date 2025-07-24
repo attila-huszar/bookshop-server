@@ -1,6 +1,6 @@
 import { lt } from 'drizzle-orm'
 import { db } from '@/db'
-import { usersTable } from '@/repositories/repoHandler'
+import { usersTable } from '@/models/sqlite'
 
 export async function cleanupExpiredTokens() {
   const now = new Date().toISOString()

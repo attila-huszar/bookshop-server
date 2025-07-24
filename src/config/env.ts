@@ -1,10 +1,14 @@
+import { DB_REPO } from '@/constants'
+
 export const env = {
   serverBaseUrl: Bun.env.SERVER_BASE_URL ?? 'http://localhost:5000',
   port: Bun.env.PORT ?? '5000',
   cookieSecret: Bun.env.COOKIE_SECRET,
   cookieMaxAge: Bun.env.COOKIE_MAX_AGE ?? '1209600',
   clientBaseUrl: Bun.env.CLIENT_BASE_URL,
-  dbRepo: Bun.env.DB_REPO ?? 'SQLITE',
+  dbRepo: Bun.env.DB_REPO === DB_REPO.SQLITE ? DB_REPO.SQLITE : DB_REPO.MONGO,
+  dbSqliteFile: Bun.env.DB_SQLITE_FILE ?? 'data/db.sqlite',
+  dbMongoUrl: Bun.env.DB_MONGO_URL ?? 'mongodb://mongo:27017',
   adminEmail: Bun.env.ADMIN_EMAIL,
   adminPassword: Bun.env.ADMIN_PASSWORD,
   mailerUser: Bun.env.MAILER_USER,

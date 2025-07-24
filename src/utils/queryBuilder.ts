@@ -1,5 +1,5 @@
 import { eq, gte, lte, and, inArray, like } from 'drizzle-orm'
-import { booksTable as c } from '@/repositories'
+import { booksTable as c } from '@/models/sqlite'
 import type { BookQuery } from '@/types'
 
 export function queryBuilder(q?: BookQuery) {

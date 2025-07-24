@@ -1,25 +1,37 @@
 import { getTableName } from 'drizzle-orm'
 import { db } from '@/db'
-import { usersTable } from '@/repositories'
+import { usersTable } from '@/models/sqlite'
+import { User } from '@/models/mongo'
 import { env } from '@/config'
-import { UserRole } from '@/types'
+import { DB_REPO } from '@/constants'
+import { UserRole, type UserInsert } from '@/types'
+
+const admin: UserInsert = {
+  uuid: crypto.randomUUID(),
+  firstName: 'Admin',
+  lastName: 'Admin',
+  email: env.adminEmail!,
+  password: Bun.password.hashSync(env.adminPassword!),
+  role: UserRole.Admin,
+  verified: true,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+}
 
 export async function seedUsers() {
-  const admin: typeof usersTable.$inferInsert = {
-    uuid: crypto.randomUUID(),
-    firstName: 'Admin',
-    lastName: 'Admin',
-    email: env.adminEmail!,
-    password: Bun.password.hashSync(env.adminPassword!),
-    role: UserRole.Admin,
-    verified: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+  if (env.dbRepo === DB_REPO.SQLITE) {
+    await db.insert(usersTable).values(admin)
+
+    return {
+      [getTableName(usersTable)]: admin.email,
+    }
   }
 
-  await db.insert(usersTable).values(admin)
+  if (env.dbRepo === DB_REPO.MONGO) {
+    const createdUser = await User.create(admin)
 
-  return {
-    [getTableName(usersTable)]: admin.email,
+    return {
+      [User.collection.collectionName]: createdUser.email,
+    }
   }
 }

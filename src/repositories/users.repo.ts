@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { db } from '@/db'
-import { usersTable } from './repoHandler'
-import type { UserUpdateRequest, User } from '@/types'
+import { usersTable } from '@/models/sqlite'
+import type { UserUpdateRequest, User, UserInsert } from '@/types'
 
 export async function getUserBy(
   field: 'uuid' | 'email' | 'verificationToken' | 'passwordResetToken',
@@ -20,9 +20,7 @@ export async function getUserBy(
   return userRecords[0]
 }
 
-export async function createUser(
-  values: typeof usersTable.$inferInsert,
-): Promise<User | null> {
+export async function createUser(values: UserInsert): Promise<User | null> {
   await db.insert(usersTable).values(values)
 
   const userRecords = await db
