@@ -1,8 +1,11 @@
 import { getTableName } from 'drizzle-orm'
 import { db } from '@/db'
 import { authorsTable } from '@/models/sqlite'
-import authorsData from './authors.json'
+import { Author } from '@/models/mongo'
+import { env } from '@/config'
+import { DB_REPO } from '@/constants'
 import type { AuthorInsert } from '@/types'
+import authorsData from './authors.json'
 
 export async function seedAuthors() {
   const seedValues: AuthorInsert[] = authorsData.map((author) => ({
@@ -17,9 +20,19 @@ export async function seedAuthors() {
     updatedAt: new Date().toISOString(),
   }))
 
-  await db.insert(authorsTable).values(seedValues)
+  if (env.dbRepo === DB_REPO.SQLITE) {
+    await db.insert(authorsTable).values(seedValues)
 
-  return {
-    [getTableName(authorsTable)]: seedValues.length,
+    return {
+      [getTableName(authorsTable)]: seedValues.length,
+    }
+  }
+
+  if (env.dbRepo === DB_REPO.MONGO) {
+    await Author.create(seedValues)
+
+    return {
+      [Author.collection.collectionName]: seedValues.length,
+    }
   }
 }

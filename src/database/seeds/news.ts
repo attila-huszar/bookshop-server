@@ -1,8 +1,11 @@
 import { getTableName } from 'drizzle-orm'
 import { db } from '@/db'
 import { newsTable } from '@/models/sqlite'
-import newsData from './news.json'
+import { News } from '@/models/mongo'
+import { env } from '@/config'
+import { DB_REPO } from '@/constants'
 import type { NewsInsert } from '@/types'
+import newsData from './news.json'
 
 export async function seedNews() {
   const seedValues: NewsInsert[] = newsData.map((news) => ({
@@ -14,9 +17,19 @@ export async function seedNews() {
     updatedAt: new Date().toISOString(),
   }))
 
-  await db.insert(newsTable).values(seedValues)
+  if (env.dbRepo === DB_REPO.SQLITE) {
+    await db.insert(newsTable).values(seedValues)
 
-  return {
-    [getTableName(newsTable)]: seedValues.length,
+    return {
+      [getTableName(newsTable)]: seedValues.length,
+    }
+  }
+
+  if (env.dbRepo === DB_REPO.MONGO) {
+    await News.create(seedValues)
+
+    return {
+      [News.collection.collectionName]: seedValues.length,
+    }
   }
 }

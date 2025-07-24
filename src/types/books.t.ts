@@ -6,7 +6,7 @@ import type {
 } from '@/validation'
 import type { booksTable } from '@/models/sqlite'
 
-export type BookInsert = typeof booksTable.$inferInsert
+export type BookInsertSQL = typeof booksTable.$inferInsert
 
 export type Book = z.infer<typeof bookSchema>
 export type BookCreate = z.infer<typeof bookCreateSchema>

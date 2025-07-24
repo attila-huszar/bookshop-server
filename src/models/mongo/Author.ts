@@ -2,6 +2,7 @@ import mongoose from 'mongoose'
 
 const authorSchema = new mongoose.Schema(
   {
+    id: { type: Number, required: true, unique: true },
     name: { type: String, required: true },
     fullName: String,
     birthYear: String,

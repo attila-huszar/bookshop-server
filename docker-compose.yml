@@ -24,6 +24,16 @@ services:
       - ./src:/bookshop-server/src
       - sqlite_data:/bookshop-server/data
 
+  mongodb:
+    image: mongo
+    container_name: bookshop-mongodb
+    profiles: ['mongo']
+    ports:
+      - '27017:27017'
+    mem_limit: 512m
+    volumes:
+      - mongodb_data:/data/db
+
   redis:
     image: redis:alpine
     container_name: bookshop-redis
@@ -55,3 +65,4 @@ services:
 
 volumes:
   sqlite_data:
+  mongodb_data:

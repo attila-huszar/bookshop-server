@@ -1,11 +1,23 @@
 import { getTableName } from 'drizzle-orm'
 import { db } from '@/db'
 import { booksTable } from '@/models/sqlite'
+import { Author, Book } from '@/models/mongo'
+import { env } from '@/config'
+import { DB_REPO } from '@/constants'
+import type { BookInsertSQL } from '@/types'
 import booksData from './books.json'
-import type { BookInsert } from '@/types'
 
 export async function seedBooks() {
-  const seedValues: BookInsert[] = booksData.map((book) => {
+  const authorIdMap: Record<number, string> = {}
+  const authors = await Author.find()
+
+  authors.forEach((author) => {
+    const id = author.id as number
+    if (!id) return
+    authorIdMap[id] = author._id.toString()
+  })
+
+  const seedValues = booksData.map((book) => {
     const discountPrice = book.discount
       ? book.price - (book.price * book.discount) / 100
       : book.price
@@ -13,7 +25,8 @@ export async function seedBooks() {
     return {
       id: book.id,
       title: book.title,
-      authorId: book.author,
+      authorId:
+        env.dbRepo === DB_REPO.MONGO ? authorIdMap[book.author] : book.author,
       genre: book.genre,
       imgUrl: book.imgUrl,
       description: book.description,
@@ -29,9 +42,19 @@ export async function seedBooks() {
     }
   })
 
-  await db.insert(booksTable).values(seedValues)
+  if (env.dbRepo === DB_REPO.SQLITE) {
+    await db.insert(booksTable).values(seedValues as BookInsertSQL[])
 
-  return {
-    [getTableName(booksTable)]: seedValues.length,
+    return {
+      [getTableName(booksTable)]: seedValues.length,
+    }
+  }
+
+  if (env.dbRepo === DB_REPO.MONGO) {
+    await Book.create(seedValues)
+
+    return {
+      [Book.collection.collectionName]: seedValues.length,
+    }
   }
 }
