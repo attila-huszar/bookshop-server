@@ -1,5 +1,5 @@
 import { count, eq, inArray, max, min } from 'drizzle-orm'
-import { booksTable, authorsTable } from './repoHandler'
+import { booksTable, authorsTable } from '@/models/sqlite'
 import { db } from '@/db'
 import { queryBuilder } from '@/utils'
 import { PAGINATION } from '@/constants'

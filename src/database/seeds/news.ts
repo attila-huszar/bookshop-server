@@ -1,23 +1,34 @@
 import { getTableName } from 'drizzle-orm'
 import { db } from '@/db'
-import { newsTable } from '@/repositories'
+import { newsTable } from '@/models/sqlite'
+import { NewsModel } from '@/models/mongo'
+import { env } from '@/config'
+import { DB_REPO } from '@/constants'
+import type { NewsInsert } from '@/types'
 import newsData from './news.json'
 
 export async function seedNews() {
-  const seedValues: (typeof newsTable.$inferInsert)[] = newsData.map(
-    (news) => ({
-      id: news.id,
-      title: news.title,
-      content: news.content,
-      img: news.img,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    }),
-  )
+  const seedValues: NewsInsert[] = newsData.map((news) => ({
+    title: news.title,
+    content: news.content,
+    img: news.img,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  }))
 
-  await db.insert(newsTable).values(seedValues)
+  if (env.dbRepo === DB_REPO.SQLITE) {
+    await db.insert(newsTable).values(seedValues)
 
-  return {
-    [getTableName(newsTable)]: seedValues.length,
+    return {
+      [getTableName(newsTable)]: seedValues.length,
+    }
+  }
+
+  if (env.dbRepo === DB_REPO.MONGO) {
+    await NewsModel.create(seedValues)
+
+    return {
+      [NewsModel.collection.collectionName]: seedValues.length,
+    }
   }
 }

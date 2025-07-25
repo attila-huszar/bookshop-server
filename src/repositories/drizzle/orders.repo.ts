@@ -1,11 +1,9 @@
 import { eq } from 'drizzle-orm'
 import { db } from '@/db'
-import { ordersTable } from './repoHandler'
-import { type Order, OrderStatus } from '@/types'
+import { ordersTable } from '@/models/sqlite'
+import { type Order, type OrderCreate, OrderStatus } from '@/types'
 
-export async function createOrder(
-  order: typeof ordersTable.$inferInsert,
-): Promise<Order | null> {
+export async function createOrder(order: OrderCreate): Promise<Order | null> {
   const orderInsert = {
     paymentId: order.paymentId,
     paymentIntentStatus: 'processing' as const,

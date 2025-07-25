@@ -8,6 +8,7 @@ async function seed() {
 
   console.info('Database seeded \u2705')
   console.info({ ...authors, ...books, ...news, ...users })
+  process.exit(0)
 }
 
 void seed()

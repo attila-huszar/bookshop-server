@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { Stripe } from 'stripe'
-import { ordersTable } from '@/repositories'
+import { ordersTable } from '@/models/sqlite'
 import type {
   orderItemSchema,
   orderCreateSchema,
@@ -9,11 +9,10 @@ import type {
 
 export type Order = typeof ordersTable.$inferSelect
 
-export type OrderItem = z.infer<typeof orderItemSchema>
-
 export type OrderCreate = z.infer<typeof orderCreateSchema>
-
 export type OrderUpdate = z.infer<typeof orderUpdateSchema>
+
+export type OrderItem = z.infer<typeof orderItemSchema>
 
 export enum OrderStatus {
   Pending = 'PENDING',

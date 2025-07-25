@@ -1,5 +1,5 @@
 import { eq, like } from 'drizzle-orm'
-import { authorsTable } from './repoHandler'
+import { authorsTable } from '@/models/sqlite'
 import { db } from '@/db'
 import type { Author, AuthorCreate, AuthorReference } from '@/types'
 

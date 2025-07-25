@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { usersTable } from '@/repositories'
+import { usersTable } from '@/models/sqlite'
 import type {
   loginSchema,
   registerSchema,
@@ -9,6 +9,7 @@ import type {
 } from '@/validation'
 
 export type User = typeof usersTable.$inferSelect
+export type UserInsert = typeof usersTable.$inferInsert
 
 export type LoginRequest = z.infer<typeof loginSchema>
 export type RegisterRequest = z.infer<typeof registerSchema>

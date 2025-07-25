@@ -4,6 +4,9 @@ import type {
   authorCreateSchema,
   authorUpdateSchema,
 } from '@/validation'
+import type { authorsTable } from '@/models/sqlite'
+
+export type AuthorInsert = typeof authorsTable.$inferInsert
 
 export type Author = z.infer<typeof authorSchema>
 export type AuthorCreate = z.infer<typeof authorCreateSchema>
