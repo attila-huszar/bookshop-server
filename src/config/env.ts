@@ -6,7 +6,7 @@ export const env = {
   cookieSecret: Bun.env.COOKIE_SECRET,
   cookieMaxAge: Bun.env.COOKIE_MAX_AGE ?? '1209600',
   clientBaseUrl: Bun.env.CLIENT_BASE_URL,
-  dbRepo: Bun.env.DB_REPO === DB_REPO.SQLITE ? DB_REPO.SQLITE : DB_REPO.MONGO,
+  dbRepo: Bun.env.DB_REPO === DB_REPO.MONGO ? DB_REPO.MONGO : DB_REPO.SQLITE,
   dbSqliteFile: Bun.env.DB_SQLITE_FILE ?? 'data/db.sqlite',
   dbMongoUrl:
     Bun.env.DB_MONGO_URL ?? 'mongodb://host.docker.internal:27017/bookshop',

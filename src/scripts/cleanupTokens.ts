@@ -1,9 +1,9 @@
-import { cleanupExpiredTokens } from '@/services'
+import { usersDB } from '@/repositories'
 import { log } from '@/libs'
 import { db } from '@/db'
 
 try {
-  const result = await cleanupExpiredTokens()
+  const result = await usersDB.cleanupExpiredTokens()
 
   if (result.deletedUsers.length) {
     void log.info('Unverified users cleaned up', {

@@ -1,7 +1,7 @@
 import { getTableName } from 'drizzle-orm'
 import { db } from '@/db'
 import { usersTable } from '@/models/sqlite'
-import { User } from '@/models/mongo'
+import { UserModel } from '@/models/mongo'
 import { env } from '@/config'
 import { DB_REPO } from '@/constants'
 import { UserRole, type UserInsert } from '@/types'
@@ -28,10 +28,10 @@ export async function seedUsers() {
   }
 
   if (env.dbRepo === DB_REPO.MONGO) {
-    const createdUser = await User.create(admin)
+    const createdUser = await UserModel.create(admin)
 
     return {
-      [User.collection.collectionName]: createdUser.email,
+      [UserModel.collection.collectionName]: createdUser.email,
     }
   }
 }

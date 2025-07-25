@@ -1,7 +1,7 @@
 import { getTableName } from 'drizzle-orm'
 import { db } from '@/db'
 import { booksTable } from '@/models/sqlite'
-import { Author, Book } from '@/models/mongo'
+import { AuthorModel, BookModel } from '@/models/mongo'
 import { env } from '@/config'
 import { DB_REPO } from '@/constants'
 import type { BookInsertSQL } from '@/types'
@@ -9,7 +9,7 @@ import booksData from './books.json'
 
 export async function seedBooks() {
   const authorIdMap: Record<number, string> = {}
-  const authors = await Author.find()
+  const authors = await AuthorModel.find()
 
   authors.forEach((author) => {
     const id = author.id as number
@@ -23,7 +23,6 @@ export async function seedBooks() {
       : book.price
 
     return {
-      id: book.id,
       title: book.title,
       authorId:
         env.dbRepo === DB_REPO.MONGO ? authorIdMap[book.author] : book.author,
@@ -51,10 +50,10 @@ export async function seedBooks() {
   }
 
   if (env.dbRepo === DB_REPO.MONGO) {
-    await Book.create(seedValues)
+    await BookModel.create(seedValues)
 
     return {
-      [Book.collection.collectionName]: seedValues.length,
+      [BookModel.collection.collectionName]: seedValues.length,
     }
   }
 }

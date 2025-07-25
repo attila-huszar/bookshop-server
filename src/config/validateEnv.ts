@@ -22,7 +22,7 @@ const requiredKeys = [
 
 export function validateEnv(): void {
   if (env.dbRepo !== DB_REPO.SQLITE && env.dbRepo !== DB_REPO.MONGO) {
-    console.error('❌ Invalid DB_REPO value.')
+    console.error(`❌ Invalid DB_REPO: ${Bun.env.DB_REPO}`)
     process.exit(1)
   }
 

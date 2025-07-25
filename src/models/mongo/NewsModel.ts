@@ -1,7 +1,9 @@
 import mongoose from 'mongoose'
+import { autoIncrementPlugin } from './plugins/autoIncrement'
 
 const newsSchema = new mongoose.Schema(
   {
+    id: { type: Number, unique: true, index: true },
     title: { type: String, required: true },
     content: { type: String, required: true },
     img: String,
@@ -11,4 +13,6 @@ const newsSchema = new mongoose.Schema(
   { timestamps: true },
 )
 
-export const News = mongoose.model('News', newsSchema)
+newsSchema.plugin(autoIncrementPlugin)
+
+export const NewsModel = mongoose.model('News', newsSchema)

@@ -1,15 +1,17 @@
 import mongoose from 'mongoose'
+import { autoIncrementPlugin } from './plugins/autoIncrement'
 import { UserRole } from '@/types'
 
 const userSchema = new mongoose.Schema(
   {
+    id: { type: Number, unique: true, index: true },
     uuid: { type: String, unique: true, required: true },
     firstName: { type: String, required: true },
     lastName: { type: String, required: true },
     role: { type: String, default: UserRole.User, required: true },
     email: { type: String, unique: true, required: true },
     password: { type: String, required: true },
-    address: { type: mongoose.Schema.Types.Mixed }, // Stripe.Address object
+    address: { type: mongoose.Schema.Types.Mixed },
     phone: String,
     avatar: String,
     verified: { type: Boolean, default: false, required: true },
@@ -23,4 +25,6 @@ const userSchema = new mongoose.Schema(
   { timestamps: true },
 )
 
-export const User = mongoose.model('User', userSchema)
+userSchema.plugin(autoIncrementPlugin)
+
+export const UserModel = mongoose.model('User', userSchema)

@@ -1,33 +1,32 @@
 export const userMessage = {
-  sessionExpired: 'Session expired, please log in',
+  noSession: 'Session unavailable',
   verifyFirst: 'Please verify your email address before logging in',
   emailTaken: 'Email address is already registered',
-  sendEmail: 'Error sending email, please try again later',
-  retrieveError: 'Error retrieving user, please try again later',
-  createError: 'Error creating user, please try again later',
-  updateError: 'Error updating user, please try again later',
+  sendEmail: 'Error sending email',
+  getError: 'Error getting user',
+  createError: 'Error creating user',
+  updateError: 'Error updating user',
   forgotPasswordRequest:
     "If you're registered with us, you'll receive a password reset link shortly",
-  passwordResetSuccess: 'Password reset successfully',
+  passwordResetSuccess: 'Password successfully reset',
 } as const
 
 export const authMessage = {
   authError: 'Email or password is incorrect',
-  loginError: 'Error logging in, please try again later',
-  logoutError: 'Error logging out, please try again later',
-  registerError: 'Error registering, please try again later',
-  verifyError: 'Error verifying email, please try again later',
-  forgotPasswordError:
-    'Error sending password reset email, please try again later',
-  resetPasswordError: 'Error resetting password, please try again later',
-  verifyTokenError: 'Error verifying token, please try again later',
+  loginError: 'Login error',
+  logoutError: 'Logout error',
+  registerError: 'Register error',
+  verifyError: 'Error verifying email',
+  forgotPasswordError: 'Error sending password reset email',
+  resetPasswordError: 'Error resetting password',
+  verifyTokenError: 'Error verifying token',
   invalidToken: 'The token provided is either expired or invalid',
 } as const
 
 export const paymentMessage = {
-  paymentError: 'Error processing payment, please try again later',
+  paymentError: 'Error processing payment',
   paymentSuccess: 'Payment processed successfully',
-  paymentFailed: 'Payment failed, please try again later',
+  paymentFailed: 'Payment failed',
   paymentPending: 'Payment is pending, please check back later',
   paymentCancelled: 'Payment has been cancelled',
   paymentRefunded: 'Payment has been refunded',

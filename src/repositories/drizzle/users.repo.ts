@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { eq, lt } from 'drizzle-orm'
 import { db } from '@/db'
 import { usersTable } from '@/models/sqlite'
 import type { UserUpdateRequest, User, UserInsert } from '@/types'
@@ -58,4 +58,43 @@ export async function updateUser(
 export async function getAllUsers(): Promise<User[]> {
   const userRecords = await db.select().from(usersTable)
   return userRecords
+}
+
+export async function deleteUserByEmail(email: string): Promise<{
+  email: string
+  message: string
+} | null> {
+  const deleteResult = db.delete(usersTable).where(eq(usersTable.email, email))
+  return deleteResult
+    .then(() => ({ email, message: 'User deleted successfully' }))
+    .catch(() => null)
+}
+
+export async function cleanupExpiredTokens() {
+  const now = new Date().toISOString()
+
+  const usersToDelete = await db
+    .select()
+    .from(usersTable)
+    .where(lt(usersTable.verificationExpires, now))
+
+  await db.delete(usersTable).where(lt(usersTable.verificationExpires, now))
+
+  const usersToUpdate = await db
+    .select()
+    .from(usersTable)
+    .where(lt(usersTable.passwordResetExpires, now))
+
+  await db
+    .update(usersTable)
+    .set({
+      passwordResetToken: null,
+      passwordResetExpires: null,
+    })
+    .where(lt(usersTable.passwordResetExpires, now))
+
+  return {
+    deletedUsers: usersToDelete,
+    updatedUsers: usersToUpdate,
+  }
 }

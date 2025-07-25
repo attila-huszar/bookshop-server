@@ -1,7 +1,9 @@
 import mongoose from 'mongoose'
+import { autoIncrementPlugin } from './plugins/autoIncrement'
 
 const bookSchema = new mongoose.Schema(
   {
+    id: { type: Number, unique: true, index: true },
     title: { type: String, required: true },
     authorId: { type: mongoose.Schema.Types.ObjectId, ref: 'Author' },
     genre: String,
@@ -20,4 +22,6 @@ const bookSchema = new mongoose.Schema(
   { timestamps: true },
 )
 
-export const Book = mongoose.model('Book', bookSchema)
+bookSchema.plugin(autoIncrementPlugin)
+
+export const BookModel = mongoose.model('Book', bookSchema)

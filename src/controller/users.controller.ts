@@ -148,7 +148,7 @@ users.post('/refresh', async (c) => {
     )
 
     if (!refreshTokenCookie) {
-      return c.json({ message: userMessage.sessionExpired }, 200)
+      return c.json({ message: userMessage.noSession }, 200)
     }
 
     const payload = (await verifyJWTRefresh(refreshTokenCookie)) as {

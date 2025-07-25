@@ -4,6 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: bookshop-server
+    profiles: ['sqlite']
     restart: always
     env_file: .env
     command: >
@@ -15,7 +16,7 @@ services:
        if [ \"$NODE_ENV\" = \"prod\" ]; then
          bun src/app.ts
        else
-         bun dev
+         bun dev --watch
        fi
        "
     ports:
@@ -23,6 +24,33 @@ services:
     volumes:
       - ./src:/bookshop-server/src
       - sqlite_data:/bookshop-server/data
+
+  server-with-mongo:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bookshop-server
+    profiles: ['mongo']
+    depends_on:
+      - mongodb
+    restart: always
+    env_file: .env
+    command: >
+      sh -c "
+       set -e
+       if [ -n \"$SETUP\" ]; then
+         bun seed
+       fi
+       if [ \"$NODE_ENV\" = \"prod\" ]; then
+         bun src/app.ts
+       else
+         bun dev --watch
+       fi
+       "
+    ports:
+      - '${PORT}:${PORT}'
+    volumes:
+      - ./src:/bookshop-server/src
 
   mongodb:
     image: mongo
@@ -47,6 +75,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: bookshop-worker
+    profiles: ['sqlite']
     depends_on:
       - redis
       - server
@@ -62,6 +91,27 @@ services:
     volumes:
       - ./src:/bookshop-server/src
       - sqlite_data:/bookshop-server/data
+
+  worker-with-mongo:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bookshop-worker
+    profiles: ['mongo']
+    depends_on:
+      - redis
+      - server-with-mongo
+    restart: always
+    env_file: .env
+    command: >
+      sh -c "
+       set -e
+       echo '*/30 * * * * cd /bookshop-server && /usr/local/bin/bun src/scripts/cleanupTokens.ts' > /etc/crontabs/root
+       crond &
+       bun worker:email
+       "
+    volumes:
+      - ./src:/bookshop-server/src
 
 volumes:
   sqlite_data:
