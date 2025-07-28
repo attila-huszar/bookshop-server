@@ -27,7 +27,7 @@ export async function getAuthorById(
 ): Promise<AuthorReference> {
   const author = await AuthorModel.findOne(
     { id: authorId },
-    { _id: 1, name: 1 },
+    { id: true, name: true },
   ).lean()
 
   if (!author) {
@@ -45,7 +45,7 @@ export async function getAuthorsBySearch(
 ): Promise<AuthorReference[]> {
   const authors = await AuthorModel.find(
     { name: { $regex: searchString, $options: 'i' } },
-    { _id: 1, name: 1 },
+    { id: true, name: true },
   ).lean()
 
   return authors.map((author) => ({

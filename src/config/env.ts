@@ -8,8 +8,7 @@ export const env = {
   clientBaseUrl: Bun.env.CLIENT_BASE_URL,
   dbRepo: Bun.env.DB_REPO === DB_REPO.MONGO ? DB_REPO.MONGO : DB_REPO.SQLITE,
   dbSqliteFile: Bun.env.DB_SQLITE_FILE ?? 'data/db.sqlite',
-  dbMongoUrl:
-    Bun.env.DB_MONGO_URL ?? 'mongodb://host.docker.internal:27017/bookshop',
+  dbMongoUrl: Bun.env.DB_MONGO_URL ?? 'mongodb://mongodb:27017/bookshop',
   adminEmail: Bun.env.ADMIN_EMAIL,
   adminPassword: Bun.env.ADMIN_PASSWORD,
   mailerUser: Bun.env.MAILER_USER,

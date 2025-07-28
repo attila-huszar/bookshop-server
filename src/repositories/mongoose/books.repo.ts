@@ -1,4 +1,4 @@
-import { BookModel } from '@/models/mongo'
+import { BookModel, AuthorModel } from '@/models/mongo'
 import { mongoQueryBuilder } from '@/utils'
 import { PAGINATION } from '@/constants'
 import type {
@@ -31,15 +31,26 @@ export async function getBooks(query?: BookQuery): Promise<{
   )
   const offset = (page - 1) * limit
 
-  const filter = mongoQueryBuilder(query)
+  let filter = mongoQueryBuilder(query)
 
-  const booksCount = await BookModel.countDocuments(filter)
-  const booksRecords = await BookModel.find(filter)
+  if (query?.authorId) {
+    const author = await AuthorModel.findOne({ id: query.authorId })
+      .select({ _id: true })
+      .lean()
+
+    if (!author) {
+      return { booksRecords: [], booksCount: '0' }
+    }
+
+    filter = { ...filter, authorId: author._id }
+  }
+
+  const booksCount = await BookModel.countDocuments(filter ?? {})
+  const booksRecords = await BookModel.find(filter ?? {})
     .populate('authorId', 'name')
     .skip(offset)
     .limit(limit)
     .lean()
-
   const mapped: BookWithAuthor[] = booksRecords.map((book) => {
     const populatedAuthor = book.authorId as
       | { _id: string; name: string }
@@ -72,6 +83,7 @@ export async function getBookById(
   const book = await BookModel.findOne({ id: bookId })
     .populate('authorId', 'name')
     .lean()
+
   if (!book) return null
 
   const populatedAuthor = book.authorId as
@@ -152,8 +164,25 @@ export async function getAllBooks(): Promise<Book[]> {
 }
 
 export async function insertBook(book: BookCreate): Promise<Book> {
-  const created = await BookModel.create(book)
+  let authorObjectId = null
+  if (book.authorId) {
+    const author = await AuthorModel.findOne({ id: book.authorId })
+      .select('_id')
+      .lean()
+    if (!author) {
+      throw new Error(`Author with id ${book.authorId} not found`)
+    }
+    authorObjectId = author._id
+  }
+
+  const bookData = {
+    ...book,
+    authorId: authorObjectId,
+  }
+
+  const created = await BookModel.create(bookData)
   const savedBook = created.toObject()
+
   return {
     id: savedBook.id!,
     title: savedBook.title,
@@ -167,7 +196,7 @@ export async function insertBook(book: BookCreate): Promise<Book> {
     discountPrice: savedBook.discountPrice,
     topSellers: savedBook.topSellers ?? null,
     newRelease: savedBook.newRelease ?? null,
-    authorId: Number(savedBook.authorId?.toString() ?? '0'),
+    authorId: book.authorId ?? null,
     createdAt: savedBook.createdAt.toISOString(),
     updatedAt: savedBook.updatedAt.toISOString(),
   }
@@ -177,9 +206,25 @@ export async function updateBook(
   bookId: number,
   book: BookUpdate,
 ): Promise<Book | null> {
-  const updated = await BookModel.findOneAndUpdate({ id: bookId }, book, {
+  const updateData: Record<string, unknown> = { ...book }
+  if (book.authorId !== undefined) {
+    if (book.authorId === null) {
+      updateData.authorId = null
+    } else {
+      const author = await AuthorModel.findOne({ id: book.authorId })
+        .select('_id')
+        .lean()
+      if (!author) {
+        throw new Error(`Author with id ${book.authorId} not found`)
+      }
+      updateData.authorId = author._id
+    }
+  }
+
+  const updated = await BookModel.findOneAndUpdate({ id: bookId }, updateData, {
     new: true,
   }).lean()
+
   if (!updated) return null
 
   return {
@@ -195,30 +240,36 @@ export async function updateBook(
     discountPrice: updated.discountPrice,
     topSellers: updated.topSellers ?? null,
     newRelease: updated.newRelease ?? null,
-    authorId: Number(updated.authorId?.toString() ?? '0'),
+    authorId: book.authorId ?? null,
     createdAt: updated.createdAt.toISOString(),
     updatedAt: updated.updatedAt.toISOString(),
   }
 }
 
 export async function deleteBooks(bookIds: number[]): Promise<Book[]> {
-  const deleted = await BookModel.find({ id: { $in: bookIds } }).lean()
+  const deleted = await BookModel.find({ id: { $in: bookIds } })
+    .populate('authorId', 'id')
+    .lean()
   await BookModel.deleteMany({ id: { $in: bookIds } })
-  return deleted.map((book) => ({
-    id: book.id!,
-    title: book.title,
-    genre: book.genre ?? null,
-    imgUrl: book.imgUrl ?? null,
-    description: book.description ?? null,
-    publishYear: book.publishYear ?? null,
-    rating: book.rating ?? null,
-    price: book.price,
-    discount: book.discount ?? null,
-    discountPrice: book.discountPrice,
-    topSellers: book.topSellers ?? null,
-    newRelease: book.newRelease ?? null,
-    authorId: Number(book.authorId?.toString() ?? '0'),
-    createdAt: book.createdAt.toISOString(),
-    updatedAt: book.updatedAt.toISOString(),
-  }))
+
+  return deleted.map((book) => {
+    const populatedAuthor = book.authorId as { id: number } | undefined
+    return {
+      id: book.id!,
+      title: book.title,
+      genre: book.genre ?? null,
+      imgUrl: book.imgUrl ?? null,
+      description: book.description ?? null,
+      publishYear: book.publishYear ?? null,
+      rating: book.rating ?? null,
+      price: book.price,
+      discount: book.discount ?? null,
+      discountPrice: book.discountPrice,
+      topSellers: book.topSellers ?? null,
+      newRelease: book.newRelease ?? null,
+      authorId: populatedAuthor?.id ?? null,
+      createdAt: book.createdAt.toISOString(),
+      updatedAt: book.updatedAt.toISOString(),
+    }
+  })
 }

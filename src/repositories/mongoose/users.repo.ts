@@ -86,14 +86,34 @@ export async function updateUser(
 }
 
 export async function getAllUsers(): Promise<User[]> {
-  return await UserModel.find()
+  const users = await UserModel.find().lean()
+
+  return users.map((user) => ({
+    id: user.id!,
+    uuid: user.uuid,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    role: user.role as UserRole,
+    email: user.email,
+    password: user.password,
+    address: user.address as Stripe.Address,
+    phone: user.phone ?? null,
+    avatar: user.avatar ?? null,
+    verified: user.verified,
+    verificationToken: user.verificationToken ?? null,
+    verificationExpires: user.verificationExpires ?? null,
+    passwordResetToken: user.passwordResetToken ?? null,
+    passwordResetExpires: user.passwordResetExpires ?? null,
+    createdAt: user.createdAt.toISOString(),
+    updatedAt: user.updatedAt.toISOString(),
+  }))
 }
 
 export async function deleteUserByEmail(email: string): Promise<{
   email: string
   message: string
 } | null> {
-  const deleteResult = await UserModel.deleteOne({ email })
+  const deleteResult = await UserModel.deleteOne({ email }).lean()
   if (deleteResult.deletedCount === 0) return null
   return {
     email,

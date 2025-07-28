@@ -1,4 +1,5 @@
 import { getTableName } from 'drizzle-orm'
+import { Types } from 'mongoose'
 import { db } from '@/db'
 import { booksTable } from '@/models/sqlite'
 import { AuthorModel, BookModel } from '@/models/mongo'
@@ -8,13 +9,15 @@ import type { BookInsertSQL } from '@/types'
 import booksData from './books.json'
 
 export async function seedBooks() {
-  const authorIdMap: Record<number, string> = {}
+  const authorIdMap: Record<number, Types.ObjectId> = {}
   const authors = await AuthorModel.find()
+    .select({ _id: true, id: true })
+    .lean()
 
   authors.forEach((author) => {
-    const id = author.id as number
+    const id = author.id
     if (!id) return
-    authorIdMap[id] = author._id.toString()
+    authorIdMap[id] = author._id
   })
 
   const seedValues = booksData.map((book) => {
@@ -22,10 +25,23 @@ export async function seedBooks() {
       ? book.price - (book.price * book.discount) / 100
       : book.price
 
+    const getAuthorId = () => {
+      if (env.dbRepo === DB_REPO.MONGO) {
+        const authorObjectId = authorIdMap[book.author]
+        if (!authorObjectId) {
+          console.warn(
+            `No author found for book "${book.title}" with author ID ${book.author}`,
+          )
+          return null
+        }
+        return authorObjectId
+      }
+      return book.author
+    }
+
     return {
       title: book.title,
-      authorId:
-        env.dbRepo === DB_REPO.MONGO ? authorIdMap[book.author] : book.author,
+      authorId: getAuthorId(),
       genre: book.genre,
       imgUrl: book.imgUrl,
       description: book.description,

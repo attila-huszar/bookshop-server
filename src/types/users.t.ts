@@ -22,5 +22,4 @@ export type UserUpdateRequest = Partial<Omit<User, 'id' | 'uuid' | 'createdAt'>>
 export const enum UserRole {
   Admin = 'admin',
   User = 'user',
-  Guest = 'guest',
 }

@@ -9,6 +9,7 @@ import authorsData from './authors.json'
 
 export async function seedAuthors() {
   const seedValues: AuthorInsert[] = authorsData.map((author) => ({
+    id: author.id,
     name: author.name,
     fullName: author.fullName,
     birthYear: author.birthYear,

@@ -3,14 +3,13 @@ import { booksTable as c } from '@/models/sqlite'
 import type { BookQuery } from '@/types'
 
 export function queryBuilder(q?: BookQuery) {
-  if (!q) return undefined
+  if (!q) return
 
   const conditions = [
     Array.isArray(q.genre) && q.genre.length > 0 && inArray(c.genre, q.genre),
     q.discount && eq(c.discount, parseFloat(q.discount)),
     q.discountPrice && eq(c.discountPrice, parseFloat(q.discountPrice)),
     q.publishYear && eq(c.publishYear, parseInt(q.publishYear, 10)),
-    q.rating && eq(c.rating, parseFloat(q.rating)),
     q.discount_gte && gte(c.discount, parseFloat(q.discount_gte)),
     q.discount_lte && lte(c.discount, parseFloat(q.discount_lte)),
     q.discountPrice_gte &&
@@ -29,67 +28,59 @@ export function queryBuilder(q?: BookQuery) {
   return and(...conditions)
 }
 
-export function mongoQueryBuilder(q?: BookQuery): Record<string, unknown> {
-  if (!q) return {}
+export function mongoQueryBuilder(
+  q?: BookQuery,
+): Record<string, unknown> | undefined {
+  if (!q) return
 
   const filter: Record<string, unknown> = {}
 
+  const addFilter = (key: string, value: unknown) => {
+    if (value !== undefined && value !== null) {
+      filter[key] = value
+    }
+  }
+
+  const addRangeFilter = (
+    key: string,
+    gteValue?: string,
+    lteValue?: string,
+    parser: (val: string) => number = parseFloat,
+  ) => {
+    const rangeFilter: Record<string, number> = {}
+    if (gteValue) rangeFilter.$gte = parser(gteValue)
+    if (lteValue) rangeFilter.$lte = parser(lteValue)
+    if (Object.keys(rangeFilter).length > 0) {
+      filter[key] = rangeFilter
+    }
+  }
+
   if (Array.isArray(q.genre) && q.genre.length > 0) {
-    filter.genre = { $in: q.genre }
+    addFilter('genre', { $in: q.genre })
   }
-  if (q.discount) {
-    filter.discount = parseFloat(q.discount)
-  }
-  if (q.discountPrice) {
-    filter.discountPrice = parseFloat(q.discountPrice)
-  }
-  if (q.publishYear) {
-    filter.publishYear = parseInt(q.publishYear, 10)
-  }
-  if (q.rating) {
-    filter.rating = parseFloat(q.rating)
-  }
-  if (q.discount_gte || q.discount_lte) {
-    const discountFilter: Record<string, number> = {}
-    if (q.discount_gte) discountFilter.$gte = parseFloat(q.discount_gte)
-    if (q.discount_lte) discountFilter.$lte = parseFloat(q.discount_lte)
-    filter.discount = discountFilter
-  }
-  if (q.discountPrice_gte || q.discountPrice_lte) {
-    const discountPriceFilter: Record<string, number> = {}
-    if (q.discountPrice_gte) {
-      discountPriceFilter.$gte = parseFloat(q.discountPrice_gte)
-    }
-    if (q.discountPrice_lte) {
-      discountPriceFilter.$lte = parseFloat(q.discountPrice_lte)
-    }
-    filter.discountPrice = discountPriceFilter
-  }
-  if (q.publishYear_gte || q.publishYear_lte) {
-    const publishYearFilter: Record<string, number> = {}
-    if (q.publishYear_gte) {
-      publishYearFilter.$gte = parseInt(q.publishYear_gte, 10)
-    }
-    if (q.publishYear_lte) {
-      publishYearFilter.$lte = parseInt(q.publishYear_lte, 10)
-    }
-    filter.publishYear = publishYearFilter
-  }
-  if (q.rating_gte) {
-    filter.rating = { $gte: parseFloat(q.rating_gte) }
-  }
-  if (q.newRelease) {
-    filter.newRelease = true
-  }
-  if (q.topSellers) {
-    filter.topSellers = true
-  }
+
+  addFilter('discount', q.discount ? parseFloat(q.discount) : undefined)
+  addFilter(
+    'discountPrice',
+    q.discountPrice ? parseFloat(q.discountPrice) : undefined,
+  )
+  addFilter(
+    'publishYear',
+    q.publishYear ? parseInt(q.publishYear, 10) : undefined,
+  )
+  addFilter('newRelease', q.newRelease ? true : undefined)
+  addFilter('topSellers', q.topSellers ? true : undefined)
+
   if (q.title) {
-    filter.title = { $regex: q.title, $options: 'i' }
+    addFilter('title', { $regex: q.title, $options: 'i' })
   }
-  if (q.authorId) {
-    filter.authorId = q.authorId
-  }
+
+  addRangeFilter('discount', q.discount_gte, q.discount_lte)
+  addRangeFilter('discountPrice', q.discountPrice_gte, q.discountPrice_lte)
+  addRangeFilter('publishYear', q.publishYear_gte, q.publishYear_lte, (val) =>
+    parseInt(val, 10),
+  )
+  addRangeFilter('rating', q.rating_gte, undefined)
 
   return filter
 }
