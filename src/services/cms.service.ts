@@ -61,3 +61,9 @@ export async function addAuthor(author: AuthorCreate) {
 
   return newAuthor
 }
+
+export async function deleteAuthors(authorIds: number[]) {
+  const deletedAuthors = await authorsDB.deleteAuthors(authorIds)
+
+  return deletedAuthors
+}

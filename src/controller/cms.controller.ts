@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import {
   addAuthor,
   addBook,
+  deleteAuthors,
   deleteBooks,
   getAllAuthors,
   getAllBooks,
@@ -13,7 +14,7 @@ import type { AuthorCreate, BookCreate } from '@/types'
 
 export const cms = new Hono()
 
-cms.get('/orders/all', async (c) => {
+cms.get('/orders/list', async (c) => {
   try {
     const ordersList = await getAllOrders()
     return c.json(ordersList)
@@ -22,7 +23,7 @@ cms.get('/orders/all', async (c) => {
   }
 })
 
-cms.get('/users/all', async (c) => {
+cms.get('/users/list', async (c) => {
   try {
     const usersList = await getAllUsers()
     return c.json(usersList)
@@ -31,7 +32,7 @@ cms.get('/users/all', async (c) => {
   }
 })
 
-cms.get('/books/all', async (c) => {
+cms.get('/books/list', async (c) => {
   try {
     const booksList = await getAllBooks()
     return c.json(booksList)
@@ -40,7 +41,7 @@ cms.get('/books/all', async (c) => {
   }
 })
 
-cms.get('/authors/all', async (c) => {
+cms.get('/authors/list', async (c) => {
   try {
     const authorsList = await getAllAuthors()
     return c.json(authorsList)
@@ -49,7 +50,7 @@ cms.get('/authors/all', async (c) => {
   }
 })
 
-cms.post('/books/add', async (c) => {
+cms.post('/books/create', async (c) => {
   try {
     const book = await c.req.json<BookCreate>()
     const newBook = await addBook(book)
@@ -73,11 +74,25 @@ cms.delete('/books/delete', async (c) => {
   }
 })
 
-cms.post('/authors/add', async (c) => {
+cms.post('/authors/create', async (c) => {
   try {
     const author = await c.req.json<AuthorCreate>()
     const newAuthor = await addAuthor(author)
     return c.json(newAuthor, 201)
+  } catch (error) {
+    return errorHandler(c, error)
+  }
+})
+
+cms.delete('/authors/delete', async (c) => {
+  try {
+    const { authorIds } = await c.req.json<{ authorIds: number[] }>()
+    if (!Array.isArray(authorIds) || authorIds.length === 0) {
+      return c.json({ error: 'Invalid author IDs' }, 400)
+    }
+    const deletedAuthors = await deleteAuthors(authorIds)
+    const deletedIds = deletedAuthors.map((author) => author.id)
+    return c.json(deletedIds)
   } catch (error) {
     return errorHandler(c, error)
   }

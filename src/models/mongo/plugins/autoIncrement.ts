@@ -1,27 +1,21 @@
 import mongoose from 'mongoose'
 import { log } from '@/libs'
 
-type CounterDocument = {
-  _id: string
-  seq: number
-}
-
 type AutoIncrementOptions<T = Record<string, unknown>> = {
   field?: keyof T & string
   startAt?: number
 }
 
-const CounterSchema = new mongoose.Schema<CounterDocument>({
-  _id: { type: String, required: true },
+const counterSchema = new mongoose.Schema({
   seq: { type: Number, default: 0 },
 })
 
-const Counter = mongoose.model<CounterDocument>('Counter', CounterSchema)
+const CounterModel = mongoose.model('Counter', counterSchema)
 
 async function getNextSequence(name: string, startAt = 1): Promise<number> {
-  const counter = await Counter.findByIdAndUpdate(
+  const counter = await CounterModel.findByIdAndUpdate(
     name,
-    { $inc: { seq: 1 } },
+    { $inc: { seq: true } },
     { new: true, upsert: true, setDefaultsOnInsert: true },
   )
 
@@ -30,7 +24,7 @@ async function getNextSequence(name: string, startAt = 1): Promise<number> {
   }
 
   if (counter.seq === 1 && startAt > 1) {
-    const updatedCounter = await Counter.findByIdAndUpdate(
+    const updatedCounter = await CounterModel.findByIdAndUpdate(
       name,
       { seq: startAt },
       { new: true },

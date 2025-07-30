@@ -1,4 +1,4 @@
-import { eq, like } from 'drizzle-orm'
+import { eq, inArray, like } from 'drizzle-orm'
 import { authorsTable } from '@/models/sqlite'
 import { db } from '@/db'
 import type { Author, AuthorCreate, AuthorReference } from '@/types'
@@ -47,4 +47,12 @@ export async function insertAuthor(author: AuthorCreate): Promise<Author> {
   const [newAuthor] = await db.insert(authorsTable).values(author).returning()
 
   return newAuthor
+}
+
+export async function deleteAuthors(authorIds: number[]): Promise<Author[]> {
+  const deletedAuthors = await db
+    .delete(authorsTable)
+    .where(inArray(authorsTable.id, authorIds))
+    .returning()
+  return deletedAuthors
 }

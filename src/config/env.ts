@@ -1,7 +1,7 @@
 import { DB_REPO } from '@/constants'
 
 export const env = {
-  serverBaseUrl: Bun.env.SERVER_BASE_URL ?? 'http://localhost:5000',
+  serverBaseUrl: Bun.env.SERVER_BASE_URL ?? 'http://localhost',
   port: Bun.env.PORT ?? '5000',
   cookieSecret: Bun.env.COOKIE_SECRET,
   cookieMaxAge: Bun.env.COOKIE_MAX_AGE ?? '1209600',
@@ -29,4 +29,6 @@ export const env = {
   logtailWorkerSourceToken: Bun.env.LOGTAIL_WORKER_SOURCE_TOKEN,
   logtailWorkerIngestingHost: Bun.env.LOGTAIL_WORKER_INGESTING_HOST,
   redisUrl: Bun.env.REDIS_URL,
+  seqUrl: Bun.env.SEQ_URL ?? 'http://localhost:5341',
+  seqApiKey: Bun.env.SEQ_API_KEY,
 }

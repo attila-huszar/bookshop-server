@@ -113,6 +113,19 @@ services:
     volumes:
       - ./src:/bookshop-server/src
 
+  seq:
+    image: datalust/seq:latest
+    container_name: bookshop-logger
+    ports:
+      - '5341:80'
+    environment:
+      - ACCEPT_EULA=Y
+      - SEQ_FIRSTRUN_ADMINPASSWORD=${ADMIN_PASSWORD}
+    restart: unless-stopped
+    volumes:
+      - seq_data:/data
+
 volumes:
   sqlite_data:
   mongodb_data:
+  seq_data:

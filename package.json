@@ -29,6 +29,7 @@
     "mjml": "^4.15.3",
     "mongoose": "^8.16.5",
     "nodemailer": "^7.0.5",
+    "seq-logging": "^3.0.0",
     "stripe": "^18.3.0",
     "zod": "^4.0.14"
   },
