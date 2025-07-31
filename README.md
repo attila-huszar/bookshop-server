@@ -7,7 +7,6 @@
 [![Drizzle](https://img.shields.io/badge/Drizzle-C5F74F?logo=drizzle&logoColor=000)](https://orm.drizzle.team/)
 [![SQLite](https://img.shields.io/badge/SQLite-003B57?logo=sqlite)](https://www.sqlite.org/)
 [![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=fff)](https://www.docker.com/)
-[![Amazon EC2](https://img.shields.io/badge/EC2-FF9900?logo=amazonec2&logoColor=fff)](https://aws.amazon.com/ec2/)
 [![ngrok](https://img.shields.io/badge/ngrok-1F1E37?logo=ngrok)](https://ngrok.com/)
 
 [![CI](https://github.com/attila-huszar/bookshop-server/actions/workflows/bun.yml/badge.svg)](https://github.com/attila-huszar/bookshop-server/actions/workflows/bun.yml)

@@ -1,4 +1,5 @@
 import { env } from './env'
+import { DB_REPO } from '@/constants'
 
 const requiredKeys = [
   'adminEmail',
@@ -14,12 +15,15 @@ const requiredKeys = [
   'awsSecretAccessKey',
   'awsRegion',
   'awsBucket',
-  'logtailServerSourceToken',
-  'logtailWorkerSourceToken',
   'redisUrl',
 ] as const as (keyof typeof env)[]
 
 export function validateEnv(): void {
+  if (env.dbRepo !== DB_REPO.SQLITE && env.dbRepo !== DB_REPO.MONGO) {
+    console.error(`❌ Invalid DB_REPO: ${Bun.env.DB_REPO}`)
+    process.exit(1)
+  }
+
   const missing = requiredKeys.filter((key) => !env[key])
 
   if (missing.length > 0) {

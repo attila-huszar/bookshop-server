@@ -1,13 +1,34 @@
-import { Database } from 'bun:sqlite'
-import { drizzle } from 'drizzle-orm/bun-sqlite'
+import { env } from './config'
+import { DB_REPO } from './constants'
+import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite'
+import type { Mongoose } from 'mongoose'
 
-let sqlite
+let sqlite: BunSQLiteDatabase
+let mongo: Mongoose
 
-try {
-  sqlite = new Database('data/db.sqlite')
-} catch (error) {
-  console.error('Failed to connect to SQLite:', error)
-  process.exit(1)
+if (env.dbRepo === DB_REPO.SQLITE) {
+  try {
+    const { drizzle } = await import('drizzle-orm/bun-sqlite')
+    const { Database } = await import('bun:sqlite')
+
+    sqlite = drizzle({
+      client: new Database(env.dbSqliteFile),
+      casing: 'snake_case',
+    })
+  } catch (error) {
+    console.error('Error connecting to SQLite:', error)
+    process.exit(1)
+  }
 }
 
-export const db = drizzle({ client: sqlite, casing: 'snake_case' })
+if (env.dbRepo === DB_REPO.MONGO) {
+  try {
+    const mongoose = await import('mongoose')
+    mongo = await mongoose.connect(env.dbMongoUrl)
+  } catch (error) {
+    console.error('Error connecting to MongoDB:', error)
+    process.exit(1)
+  }
+}
+
+export { sqlite as db, mongo }

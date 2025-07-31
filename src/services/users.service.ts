@@ -12,7 +12,7 @@ import { log } from '@/libs'
 import { signAccessToken, signRefreshToken, uploadFile } from '@/utils'
 import { emailQueue } from '@/queues'
 import { authMessage, jobOpts, QUEUE, userMessage } from '@/constants'
-import { BadRequest, Forbidden, Unauthorized } from '@/errors'
+import { BadRequest, Forbidden, NotFound, Unauthorized } from '@/errors'
 import {
   type LoginRequest,
   type VerificationRequest,
@@ -209,7 +209,7 @@ export async function passwordResetSubmit(
   const user = await usersDB.getUserBy('passwordResetToken', token)
 
   if (!user) {
-    throw new Error(userMessage.retrieveError)
+    throw new NotFound(userMessage.getError)
   }
 
   const userUpdated = await usersDB.updateUser(user.email, {
@@ -230,7 +230,7 @@ export async function getUserProfile(uuid: string) {
   const user = await usersDB.getUserBy('uuid', uuid)
 
   if (!user) {
-    throw new Error(userMessage.retrieveError)
+    throw new NotFound(userMessage.getError)
   }
 
   const {
@@ -257,7 +257,7 @@ export async function updateUserProfile(
   const user = await usersDB.getUserBy('uuid', uuid)
 
   if (!user) {
-    throw new Error(userMessage.retrieveError)
+    throw new NotFound(userMessage.getError)
   }
 
   if (updateFields.password) {

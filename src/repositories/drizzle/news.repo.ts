@@ -1,4 +1,4 @@
-import { newsTable } from './repoHandler'
+import { newsTable } from '@/models/sqlite'
 import { db } from '@/db'
 import type { News } from '@/types'
 

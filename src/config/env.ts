@@ -1,10 +1,14 @@
+import { DB_REPO } from '@/constants'
+
 export const env = {
-  serverBaseUrl: Bun.env.SERVER_BASE_URL ?? 'http://localhost:5000',
+  serverBaseUrl: Bun.env.SERVER_BASE_URL ?? 'http://localhost',
   port: Bun.env.PORT ?? '5000',
   cookieSecret: Bun.env.COOKIE_SECRET,
   cookieMaxAge: Bun.env.COOKIE_MAX_AGE ?? '1209600',
   clientBaseUrl: Bun.env.CLIENT_BASE_URL,
-  dbRepo: Bun.env.DB_REPO ?? 'SQLITE',
+  dbRepo: Bun.env.DB_REPO === DB_REPO.MONGO ? DB_REPO.MONGO : DB_REPO.SQLITE,
+  dbSqliteFile: Bun.env.DB_SQLITE_FILE ?? 'data/db.sqlite',
+  dbMongoUrl: Bun.env.DB_MONGO_URL ?? 'mongodb://mongodb:27017/bookshop',
   adminEmail: Bun.env.ADMIN_EMAIL,
   adminPassword: Bun.env.ADMIN_PASSWORD,
   mailerUser: Bun.env.MAILER_USER,
@@ -20,9 +24,7 @@ export const env = {
   awsSecretAccessKey: Bun.env.AWS_SECRET_ACCESS_KEY,
   awsRegion: Bun.env.AWS_REGION,
   awsBucket: Bun.env.AWS_BUCKET,
-  logtailServerSourceToken: Bun.env.LOGTAIL_SERVER_SOURCE_TOKEN,
-  logtailServerIngestingHost: Bun.env.LOGTAIL_SERVER_INGESTING_HOST,
-  logtailWorkerSourceToken: Bun.env.LOGTAIL_WORKER_SOURCE_TOKEN,
-  logtailWorkerIngestingHost: Bun.env.LOGTAIL_WORKER_INGESTING_HOST,
   redisUrl: Bun.env.REDIS_URL,
+  seqUrl: Bun.env.SEQ_URL ?? 'http://seq:5341',
+  seqApiKey: Bun.env.SEQ_API_KEY,
 }

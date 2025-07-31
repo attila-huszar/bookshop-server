@@ -1,4 +1,4 @@
-export { queryBuilder } from './queryBuilder'
+export { queryBuilder, mongoQueryBuilder } from './queryBuilder'
 export { ngrokForward } from './ngrok'
 export { formatUptime } from './formatUptime'
 export { verifyJWTAccess, verifyJWTRefresh } from './verifyJWT'

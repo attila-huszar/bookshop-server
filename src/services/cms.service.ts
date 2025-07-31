@@ -50,9 +50,9 @@ export async function updateBook(bookId: number, book: BookUpdate) {
 }
 
 export async function deleteBooks(bookIds: number[]) {
-  const deletedBooks = await booksDB.deleteBooks(bookIds)
+  const deletedIds = await booksDB.deleteBooks(bookIds)
 
-  return deletedBooks
+  return deletedIds
 }
 
 export async function addAuthor(author: AuthorCreate) {
@@ -60,4 +60,10 @@ export async function addAuthor(author: AuthorCreate) {
   const newAuthor = await authorsDB.insertAuthor(validatedAuthor)
 
   return newAuthor
+}
+
+export async function deleteAuthors(authorIds: number[]) {
+  const deletedIds = await authorsDB.deleteAuthors(authorIds)
+
+  return deletedIds
 }
