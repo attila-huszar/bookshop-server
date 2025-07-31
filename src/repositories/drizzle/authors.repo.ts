@@ -1,7 +1,12 @@
-import { eq, inArray, like } from 'drizzle-orm'
+import { eq, inArray, like, sql } from 'drizzle-orm'
 import { authorsTable } from '@/models/sqlite'
 import { db } from '@/db'
-import type { Author, AuthorCreate, AuthorReference } from '@/types'
+import type {
+  Author,
+  AuthorCreate,
+  AuthorReference,
+  AuthorUpdate,
+} from '@/types'
 
 const { id, name } = authorsTable
 
@@ -47,6 +52,26 @@ export async function insertAuthor(author: AuthorCreate): Promise<Author> {
   const [newAuthor] = await db.insert(authorsTable).values(author).returning()
 
   return newAuthor
+}
+
+export async function updateAuthor(
+  authorId: number,
+  updates: AuthorUpdate,
+): Promise<Author> {
+  const [updatedAuthor] = await db
+    .update(authorsTable)
+    .set({
+      ...updates,
+      updatedAt: sql`CURRENT_TIMESTAMP`,
+    })
+    .where(eq(authorsTable.id, authorId))
+    .returning()
+
+  if (!updatedAuthor) {
+    throw new Error('Author does not exist')
+  }
+
+  return updatedAuthor
 }
 
 export async function deleteAuthors(
