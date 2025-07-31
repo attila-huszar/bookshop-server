@@ -49,10 +49,10 @@ export async function insertAuthor(author: AuthorCreate): Promise<Author> {
   return newAuthor
 }
 
-export async function deleteAuthors(authorIds: number[]): Promise<Author[]> {
-  const deletedAuthors = await db
-    .delete(authorsTable)
-    .where(inArray(authorsTable.id, authorIds))
-    .returning()
-  return deletedAuthors
+export async function deleteAuthors(
+  authorIds: number[],
+): Promise<Author['id'][]> {
+  await db.delete(authorsTable).where(inArray(authorsTable.id, authorIds))
+
+  return authorIds
 }

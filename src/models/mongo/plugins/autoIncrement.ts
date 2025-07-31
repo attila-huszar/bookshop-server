@@ -1,8 +1,8 @@
 import mongoose from 'mongoose'
 import { log } from '@/libs'
 
-type AutoIncrementOptions<T = Record<string, unknown>> = {
-  field?: keyof T & string
+type AutoIncrementOptions = {
+  field?: string
   startAt?: number
 }
 
@@ -13,84 +13,74 @@ const counterSchema = new mongoose.Schema({
 
 const CounterModel = mongoose.model('Counter', counterSchema)
 
-async function getHighestIdFromCollection(
-  modelName: string,
-  field: string,
-): Promise<number> {
+async function getHighestId(modelName: string): Promise<number> {
   try {
-    const Model = mongoose.models[modelName] || mongoose.model(modelName)
-    const result = await Model.findOne({}, { [field]: 1 })
-      .sort({ [field]: -1 })
-      .lean()
-      .exec()
-    return (result as Record<string, number>)?.[field] ?? 0
+    const Model = mongoose.models[modelName]
+
+    const result = (await Model.findOne()
+      .sort({ id: -1 })
+      .select('id')
+      .lean()) as { id?: number } | null
+
+    if (!result) return 0
+
+    return result.id ?? 0
   } catch {
     return 0
   }
 }
 
 async function getNextSequence(
-  name: string,
+  modelName: string,
   startAt = 1,
-  field = 'id',
 ): Promise<number> {
-  let counter = await CounterModel.findById(name)
+  let counter = await CounterModel.findById(modelName)
 
   if (!counter) {
-    const highestId = await getHighestIdFromCollection(name, field)
-    const initialSeq = Math.max(highestId, startAt - 1)
-    counter = await CounterModel.create({ _id: name, seq: initialSeq + 1 })
+    const highestId = await getHighestId(modelName)
+    const initialSeq = Math.max(highestId, startAt)
+    counter = await CounterModel.create({ _id: modelName, seq: initialSeq + 1 })
     return counter.seq
   }
 
   const updated = await CounterModel.findByIdAndUpdate(
-    name,
-    { $inc: { seq: 1 } },
+    modelName,
+    { $inc: { seq: true } },
     { new: true },
   )
   return updated!.seq
 }
 
-export function autoIncrementPlugin<
-  T extends Record<string, unknown> = Record<string, unknown>,
->(schema: mongoose.Schema<T>, options: AutoIncrementOptions<T> = {}): void {
-  const { field = 'id' as keyof T & string, startAt = 1 } = options
+export function autoIncrementPlugin(
+  schema: mongoose.Schema,
+  options: AutoIncrementOptions = {},
+): void {
+  const { field = 'id', startAt = 1 } = options
 
-  schema.pre('save', async function (this: mongoose.Document & T, next) {
-    if (this.isNew && !this[field]) {
-      try {
-        const modelName = (this.constructor as typeof mongoose.Model).modelName
-        ;(this as Record<string, number>)[field] = await getNextSequence(
-          modelName,
-          startAt,
-          String(field),
-        )
-      } catch (error) {
-        log.error('Auto-increment error', { error })
-        return next(error as Error)
+  schema.pre(
+    'save',
+    async function (this: mongoose.Document & Record<string, unknown>, next) {
+      if (this.isNew && !this[field]) {
+        try {
+          const modelName = (this.constructor as typeof mongoose.Model)
+            .modelName
+          this[field] = await getNextSequence(modelName, startAt)
+        } catch (error) {
+          log.error('Auto-increment error', { error })
+          return next(error as Error)
+        }
       }
-    }
-    next()
-  })
+      next()
+    },
+  )
 }
 
-export async function resetCounterFromCollection(
-  modelName: string,
-  field = 'id',
-): Promise<void> {
-  try {
-    const highestId = await getHighestIdFromCollection(modelName, field)
-    await CounterModel.findByIdAndUpdate(
-      modelName,
-      { seq: highestId },
-      { upsert: true },
-    )
-    log.info(`Counter reset for ${modelName}`, { modelName, field, highestId })
-  } catch (error) {
-    log.error(`Failed to reset counter for ${modelName}`, {
-      error,
-      modelName,
-      field,
-    })
-  }
+export async function setSequence(modelName: string): Promise<void> {
+  const highestId = await getHighestId(modelName)
+
+  await CounterModel.findByIdAndUpdate(
+    modelName,
+    { seq: highestId },
+    { upsert: true },
+  )
 }

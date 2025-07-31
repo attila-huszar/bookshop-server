@@ -93,19 +93,10 @@ export async function updateAuthor(
   }
 }
 
-export async function deleteAuthors(authorIds: string[]): Promise<Author[]> {
-  const deleted = await AuthorModel.find({ _id: { $in: authorIds } }).lean()
-  await AuthorModel.deleteMany({ _id: { $in: authorIds } })
+export async function deleteAuthors(
+  authorIds: number[],
+): Promise<Author['id'][]> {
+  await AuthorModel.deleteMany({ id: { $in: authorIds } })
 
-  return deleted.map((author) => ({
-    id: author.id!,
-    name: author.name,
-    fullName: author.fullName ?? null,
-    birthYear: author.birthYear ?? null,
-    deathYear: author.deathYear ?? null,
-    homeland: author.homeland ?? null,
-    biography: author.biography ?? null,
-    createdAt: author.createdAt.toISOString(),
-    updatedAt: author.updatedAt.toISOString(),
-  }))
+  return authorIds
 }

@@ -1,7 +1,7 @@
 import { getTableName } from 'drizzle-orm'
 import { db } from '@/db'
 import { usersTable } from '@/models/sqlite'
-import { UserModel, resetCounterFromCollection } from '@/models/mongo'
+import { UserModel } from '@/models/mongo'
 import { env } from '@/config'
 import { DB_REPO } from '@/constants'
 import { UserRole, type UserInsert } from '@/types'
@@ -30,7 +30,6 @@ export async function seedUsers() {
 
   if (env.dbRepo === DB_REPO.MONGO) {
     const createdUser = await UserModel.create(admin)
-    await resetCounterFromCollection('User', 'id')
 
     return {
       [UserModel.collection.collectionName]: createdUser.email,

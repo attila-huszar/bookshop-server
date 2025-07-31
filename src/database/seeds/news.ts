@@ -1,7 +1,7 @@
 import { getTableName } from 'drizzle-orm'
 import { db } from '@/db'
 import { newsTable } from '@/models/sqlite'
-import { NewsModel, resetCounterFromCollection } from '@/models/mongo'
+import { NewsModel } from '@/models/mongo'
 import { env } from '@/config'
 import { DB_REPO } from '@/constants'
 import type { NewsInsert } from '@/types'
@@ -27,7 +27,6 @@ export async function seedNews() {
 
   if (env.dbRepo === DB_REPO.MONGO) {
     await NewsModel.create(seedValues)
-    await resetCounterFromCollection('News', 'id')
 
     return {
       [NewsModel.collection.collectionName]: seedValues.length,

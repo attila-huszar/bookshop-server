@@ -58,7 +58,6 @@ services:
     profiles: ['mongo']
     ports:
       - '27017:27017'
-    mem_limit: 512m
     volumes:
       - mongodb_data:/data/db
 

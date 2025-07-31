@@ -157,10 +157,8 @@ export async function updateBook(
   return updatedBook
 }
 
-export async function deleteBooks(bookIds: number[]): Promise<Book[]> {
-  const deletedBooks = await db
-    .delete(booksTable)
-    .where(inArray(booksTable.id, bookIds))
-    .returning()
-  return deletedBooks
+export async function deleteBooks(bookIds: number[]): Promise<Book['id'][]> {
+  await db.delete(booksTable).where(inArray(booksTable.id, bookIds))
+
+  return bookIds
 }

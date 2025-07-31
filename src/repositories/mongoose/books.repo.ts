@@ -246,30 +246,8 @@ export async function updateBook(
   }
 }
 
-export async function deleteBooks(bookIds: number[]): Promise<Book[]> {
-  const deleted = await BookModel.find({ id: { $in: bookIds } })
-    .populate('authorId', 'id')
-    .lean()
+export async function deleteBooks(bookIds: number[]): Promise<Book['id'][]> {
   await BookModel.deleteMany({ id: { $in: bookIds } })
 
-  return deleted.map((book) => {
-    const populatedAuthor = book.authorId as { id: number } | undefined
-    return {
-      id: book.id!,
-      title: book.title,
-      genre: book.genre ?? null,
-      imgUrl: book.imgUrl ?? null,
-      description: book.description ?? null,
-      publishYear: book.publishYear ?? null,
-      rating: book.rating ?? null,
-      price: book.price,
-      discount: book.discount ?? null,
-      discountPrice: book.discountPrice,
-      topSellers: book.topSellers ?? null,
-      newRelease: book.newRelease ?? null,
-      authorId: populatedAuthor?.id ?? null,
-      createdAt: book.createdAt.toISOString(),
-      updatedAt: book.updatedAt.toISOString(),
-    }
-  })
+  return bookIds
 }
