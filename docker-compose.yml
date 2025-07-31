@@ -5,6 +5,10 @@ services:
       dockerfile: Dockerfile
     container_name: bookshop-server
     profiles: ['sqlite']
+    ports:
+      - '${PORT}:${PORT}'
+    depends_on:
+      - seq
     restart: always
     env_file: .env
     command: >
@@ -19,8 +23,6 @@ services:
          bun dev --watch
        fi
        "
-    ports:
-      - '${PORT}:${PORT}'
     volumes:
       - ./src:/bookshop-server/src
       - sqlite_data:/bookshop-server/data
@@ -31,8 +33,11 @@ services:
       dockerfile: Dockerfile
     container_name: bookshop-server
     profiles: ['mongo']
+    ports:
+      - '${PORT}:${PORT}'
     depends_on:
       - mongodb
+      - seq
     restart: always
     env_file: .env
     command: >
@@ -47,8 +52,6 @@ services:
          bun dev --watch
        fi
        "
-    ports:
-      - '${PORT}:${PORT}'
     volumes:
       - ./src:/bookshop-server/src
 

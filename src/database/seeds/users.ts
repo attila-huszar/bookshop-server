@@ -1,7 +1,7 @@
 import { getTableName } from 'drizzle-orm'
 import { db } from '@/db'
 import { usersTable } from '@/models/sqlite'
-import { UserModel } from '@/models/mongo'
+import { getHighestId, setSequence, UserModel } from '@/models/mongo'
 import { env } from '@/config'
 import { DB_REPO } from '@/constants'
 import { UserRole, type UserInsert } from '@/types'
@@ -30,6 +30,8 @@ export async function seedUsers() {
 
   if (env.dbRepo === DB_REPO.MONGO) {
     const createdUser = await UserModel.create(admin)
+    const highestId = await getHighestId(UserModel)
+    await setSequence(UserModel, highestId)
 
     return {
       [UserModel.collection.collectionName]: createdUser.email,

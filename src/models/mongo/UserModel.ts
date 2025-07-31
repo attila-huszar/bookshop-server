@@ -1,5 +1,5 @@
 import mongoose from 'mongoose'
-import { autoIncrementPlugin } from './plugins/autoIncrement'
+import { autoIncrementPlugin } from './'
 import { UserRole } from '@/types'
 
 const userSchema = new mongoose.Schema(

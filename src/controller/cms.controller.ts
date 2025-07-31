@@ -66,8 +66,7 @@ cms.delete('/books/delete', async (c) => {
     if (!Array.isArray(bookIds) || bookIds.length === 0) {
       return c.json({ error: 'Invalid book IDs' }, 400)
     }
-    const deletedBooks = await deleteBooks(bookIds)
-    const deletedIds = deletedBooks.map((book) => book.id)
+    const deletedIds = await deleteBooks(bookIds)
     return c.json(deletedIds)
   } catch (error) {
     return errorHandler(c, error)
@@ -90,8 +89,7 @@ cms.delete('/authors/delete', async (c) => {
     if (!Array.isArray(authorIds) || authorIds.length === 0) {
       return c.json({ error: 'Invalid author IDs' }, 400)
     }
-    const deletedAuthors = await deleteAuthors(authorIds)
-    const deletedIds = deletedAuthors.map((author) => author.id)
+    const deletedIds = await deleteAuthors(authorIds)
     return c.json(deletedIds)
   } catch (error) {
     return errorHandler(c, error)

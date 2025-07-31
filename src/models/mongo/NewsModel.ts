@@ -1,5 +1,5 @@
 import mongoose from 'mongoose'
-import { autoIncrementPlugin } from './plugins/autoIncrement'
+import { autoIncrementPlugin } from './'
 
 const newsSchema = new mongoose.Schema(
   {

@@ -2,7 +2,12 @@ import { getTableName } from 'drizzle-orm'
 import { Types } from 'mongoose'
 import { db } from '@/db'
 import { booksTable } from '@/models/sqlite'
-import { AuthorModel, BookModel } from '@/models/mongo'
+import {
+  AuthorModel,
+  BookModel,
+  getHighestId,
+  setSequence,
+} from '@/models/mongo'
 import { env } from '@/config'
 import { DB_REPO } from '@/constants'
 import type { BookInsertSQL } from '@/types'
@@ -68,6 +73,8 @@ export async function seedBooks() {
 
   if (env.dbRepo === DB_REPO.MONGO) {
     await BookModel.create(seedValues)
+    const highestId = await getHighestId(BookModel)
+    await setSequence(BookModel, highestId)
 
     return {
       [BookModel.collection.collectionName]: seedValues.length,
