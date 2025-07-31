@@ -17,20 +17,19 @@
     }
   },
   "dependencies": {
-    "@logtail/node": "^0.5.5",
     "@ngrok/ngrok": "^1.5.1",
-    "bullmq": "^5.56.8",
+    "bullmq": "^5.56.9",
     "drizzle-orm": "^0.44.4",
     "drizzle-zod": "^0.8.2",
     "hono": "^4.8.10",
     "hono-rate-limiter": "^0.4.2",
     "http-status": "^2.1.0",
-    "ioredis": "^5.6.1",
+    "ioredis": "^5.7.0",
     "mjml": "^4.15.3",
-    "mongoose": "^8.16.5",
+    "mongoose": "^8.17.0",
     "nodemailer": "^7.0.5",
     "seq-logging": "^3.0.0",
-    "stripe": "^18.3.0",
+    "stripe": "^18.4.0",
     "zod": "^4.0.14"
   },
   "devDependencies": {

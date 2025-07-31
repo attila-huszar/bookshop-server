@@ -15,8 +15,6 @@ const requiredKeys = [
   'awsSecretAccessKey',
   'awsRegion',
   'awsBucket',
-  'logtailServerSourceToken',
-  'logtailWorkerSourceToken',
   'redisUrl',
 ] as const as (keyof typeof env)[]
 

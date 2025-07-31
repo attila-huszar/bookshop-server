@@ -24,11 +24,7 @@ export const env = {
   awsSecretAccessKey: Bun.env.AWS_SECRET_ACCESS_KEY,
   awsRegion: Bun.env.AWS_REGION,
   awsBucket: Bun.env.AWS_BUCKET,
-  logtailServerSourceToken: Bun.env.LOGTAIL_SERVER_SOURCE_TOKEN,
-  logtailServerIngestingHost: Bun.env.LOGTAIL_SERVER_INGESTING_HOST,
-  logtailWorkerSourceToken: Bun.env.LOGTAIL_WORKER_SOURCE_TOKEN,
-  logtailWorkerIngestingHost: Bun.env.LOGTAIL_WORKER_INGESTING_HOST,
   redisUrl: Bun.env.REDIS_URL,
-  seqUrl: Bun.env.SEQ_URL ?? 'http://localhost:5341',
+  seqUrl: Bun.env.SEQ_URL ?? 'http://seq:5341',
   seqApiKey: Bun.env.SEQ_API_KEY,
 }
