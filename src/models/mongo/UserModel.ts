@@ -1,8 +1,8 @@
-import mongoose from 'mongoose'
+import { model, Schema } from 'mongoose'
 import { autoIncrementPlugin } from './'
 import { UserRole } from '@/types'
 
-const userSchema = new mongoose.Schema(
+const userSchema = new Schema(
   {
     id: { type: Number, unique: true, index: true },
     uuid: { type: String, unique: true, required: true },
@@ -11,7 +11,7 @@ const userSchema = new mongoose.Schema(
     role: { type: String, default: UserRole.User, required: true },
     email: { type: String, unique: true, required: true },
     password: { type: String, required: true },
-    address: { type: mongoose.Schema.Types.Mixed },
+    address: { type: Schema.Types.Mixed },
     phone: String,
     avatar: String,
     verified: { type: Boolean, default: false, required: true },
@@ -19,12 +19,10 @@ const userSchema = new mongoose.Schema(
     verificationExpires: String,
     passwordResetToken: String,
     passwordResetExpires: String,
-    createdAt: { type: Date, default: Date.now },
-    updatedAt: { type: Date, default: Date.now },
   },
   { timestamps: true },
 )
 
 userSchema.plugin(autoIncrementPlugin)
 
-export const UserModel = mongoose.model('User', userSchema)
+export const UserModel = model('User', userSchema)

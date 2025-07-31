@@ -1,6 +1,5 @@
 import { usersDB } from '@/repositories'
 import { log } from '@/libs'
-import { db } from '@/db'
 
 try {
   const result = await usersDB.cleanupExpiredTokens()
@@ -21,6 +20,5 @@ try {
 } catch (error) {
   void log.error('Cleanup script failed', { error })
 } finally {
-  db.$client.close()
   process.exit(0)
 }

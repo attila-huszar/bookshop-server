@@ -1,7 +1,7 @@
-import mongoose from 'mongoose'
+import { model, Schema } from 'mongoose'
 import { autoIncrementPlugin } from './'
 
-const orderSchema = new mongoose.Schema(
+const orderSchema = new Schema(
   {
     id: { type: Number, unique: true, index: true },
     paymentId: { type: String, unique: true, required: true },
@@ -13,18 +13,16 @@ const orderSchema = new mongoose.Schema(
     orderStatus: { type: String, default: 'pending', required: true },
     total: { type: Number, required: true },
     currency: { type: String, required: true },
-    items: { type: [mongoose.Schema.Types.Mixed], required: true },
+    items: { type: [Schema.Types.Mixed], required: true },
     firstName: String,
     lastName: String,
     email: String,
     phone: String,
-    address: { type: mongoose.Schema.Types.Mixed },
-    createdAt: { type: Date, default: Date.now },
-    updatedAt: { type: Date, default: Date.now },
+    address: { type: Schema.Types.Mixed },
   },
   { timestamps: true },
 )
 
 orderSchema.plugin(autoIncrementPlugin)
 
-export const OrderModel = mongoose.model('Order', orderSchema)
+export const OrderModel = model('Order', orderSchema)

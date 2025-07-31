@@ -1,11 +1,11 @@
-import mongoose from 'mongoose'
+import { model, Schema } from 'mongoose'
 import { autoIncrementPlugin } from './'
 
-const bookSchema = new mongoose.Schema(
+const bookSchema = new Schema(
   {
     id: { type: Number, unique: true, index: true },
     title: { type: String, required: true },
-    authorId: { type: mongoose.Schema.Types.ObjectId, ref: 'Author' },
+    authorId: { type: Schema.Types.ObjectId, ref: 'Author' },
     genre: String,
     imgUrl: String,
     description: String,
@@ -16,12 +16,10 @@ const bookSchema = new mongoose.Schema(
     discountPrice: { type: Number, required: true },
     topSellers: { type: Boolean, default: false },
     newRelease: { type: Boolean, default: false },
-    createdAt: { type: Date, default: Date.now },
-    updatedAt: { type: Date, default: Date.now },
   },
   { timestamps: true },
 )
 
 bookSchema.plugin(autoIncrementPlugin)
 
-export const BookModel = mongoose.model('Book', bookSchema)
+export const BookModel = model('Book', bookSchema)

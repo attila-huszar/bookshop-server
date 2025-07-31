@@ -1,7 +1,7 @@
-import mongoose from 'mongoose'
+import { model, Schema } from 'mongoose'
 import { autoIncrementPlugin } from './'
 
-const authorSchema = new mongoose.Schema(
+const authorSchema = new Schema(
   {
     id: { type: Number, unique: true, index: true },
     name: { type: String, required: true },
@@ -10,12 +10,10 @@ const authorSchema = new mongoose.Schema(
     deathYear: { type: String, default: null },
     homeland: { type: String, default: null },
     biography: { type: String, default: null },
-    createdAt: { type: Date, default: Date.now },
-    updatedAt: { type: Date, default: Date.now },
   },
   { timestamps: true },
 )
 
 authorSchema.plugin(autoIncrementPlugin)
 
-export const AuthorModel = mongoose.model('Author', authorSchema)
+export const AuthorModel = model('Author', authorSchema)

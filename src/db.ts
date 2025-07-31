@@ -1,8 +1,10 @@
 import { env } from './config'
 import { DB_REPO } from './constants'
+import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite'
+import type { Mongoose } from 'mongoose'
 
-let sqlite: unknown
-let mongo: unknown
+let sqlite: BunSQLiteDatabase
+let mongo: Mongoose
 
 if (env.dbRepo === DB_REPO.SQLITE) {
   try {

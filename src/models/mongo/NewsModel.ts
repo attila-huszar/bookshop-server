@@ -1,18 +1,16 @@
-import mongoose from 'mongoose'
+import { model, Schema } from 'mongoose'
 import { autoIncrementPlugin } from './'
 
-const newsSchema = new mongoose.Schema(
+const newsSchema = new Schema(
   {
     id: { type: Number, unique: true, index: true },
     title: { type: String, required: true },
     content: { type: String, required: true },
     img: String,
-    createdAt: { type: Date, default: Date.now },
-    updatedAt: { type: Date, default: Date.now },
   },
   { timestamps: true },
 )
 
 newsSchema.plugin(autoIncrementPlugin)
 
-export const NewsModel = mongoose.model('News', newsSchema)
+export const NewsModel = model('News', newsSchema)
