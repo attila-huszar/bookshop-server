@@ -5,9 +5,11 @@ import type { BookInsertSQL } from '@/types'
 
 export async function seedBooks() {
   if (env.dbRepo === DB_REPO.SQLITE) {
+    const { drizzle: _drizzle } = await import('drizzle-orm/bun-sqlite')
     const { getTableName } = await import('drizzle-orm')
     const { booksTable } = await import('@/models/sqlite')
     const { db } = await import('@/db')
+    const drizzleDb = db as ReturnType<typeof _drizzle>
 
     const seedValues: BookInsertSQL[] = booksData.map((book) => {
       const discountPrice = book.discount
@@ -33,7 +35,7 @@ export async function seedBooks() {
       }
     })
 
-    await db.insert(booksTable).values(seedValues)
+    await drizzleDb.insert(booksTable).values(seedValues)
 
     return {
       [getTableName(booksTable)]: seedValues.length,

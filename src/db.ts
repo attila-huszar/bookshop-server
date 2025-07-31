@@ -1,14 +1,14 @@
-import mongoose from 'mongoose'
-import { Database } from 'bun:sqlite'
-import { drizzle } from 'drizzle-orm/bun-sqlite'
 import { env } from './config'
 import { DB_REPO } from './constants'
 
-let sqlite: ReturnType<typeof drizzle>
-let mongo: typeof mongoose
+let sqlite: unknown
+let mongo: unknown
 
 if (env.dbRepo === DB_REPO.SQLITE) {
   try {
+    const { drizzle } = await import('drizzle-orm/bun-sqlite')
+    const { Database } = await import('bun:sqlite')
+
     sqlite = drizzle({
       client: new Database(env.dbSqliteFile),
       casing: 'snake_case',
@@ -21,6 +21,7 @@ if (env.dbRepo === DB_REPO.SQLITE) {
 
 if (env.dbRepo === DB_REPO.MONGO) {
   try {
+    const mongoose = await import('mongoose')
     mongo = await mongoose.connect(env.dbMongoUrl)
   } catch (error) {
     console.error('Error connecting to MongoDB:', error)
