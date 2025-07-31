@@ -1,70 +1,39 @@
-import { getTableName } from 'drizzle-orm'
-import { Types } from 'mongoose'
-import { db } from '@/db'
-import { booksTable } from '@/models/sqlite'
-import {
-  AuthorModel,
-  BookModel,
-  getHighestId,
-  setSequence,
-} from '@/models/mongo'
 import { env } from '@/config'
 import { DB_REPO } from '@/constants'
-import type { BookInsertSQL } from '@/types'
 import booksData from './books.json'
+import type { BookInsertSQL } from '@/types'
 
 export async function seedBooks() {
-  const authorIdMap: Record<number, Types.ObjectId> = {}
-  const authors = await AuthorModel.find()
-    .select({ _id: true, id: true })
-    .lean()
-
-  authors.forEach((author) => {
-    const id = author.id
-    if (!id) return
-    authorIdMap[id] = author._id
-  })
-
-  const seedValues = booksData.map((book) => {
-    const discountPrice = book.discount
-      ? book.price - (book.price * book.discount) / 100
-      : book.price
-
-    const getAuthorId = () => {
-      if (env.dbRepo === DB_REPO.MONGO) {
-        const authorObjectId = authorIdMap[book.author]
-        if (!authorObjectId) {
-          console.warn(
-            `No author found for book "${book.title}" with author ID ${book.author}`,
-          )
-          return null
-        }
-        return authorObjectId
-      }
-      return book.author
-    }
-
-    return {
-      id: book.id,
-      title: book.title,
-      authorId: getAuthorId(),
-      genre: book.genre,
-      imgUrl: book.imgUrl,
-      description: book.description,
-      publishYear: book.publishYear,
-      rating: book.rating,
-      price: book.price,
-      discount: book.discount,
-      discountPrice,
-      topSellers: book.topSellers ?? false,
-      newRelease: book.newRelease ?? false,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    }
-  })
-
   if (env.dbRepo === DB_REPO.SQLITE) {
-    await db.insert(booksTable).values(seedValues as BookInsertSQL[])
+    const { getTableName } = await import('drizzle-orm')
+    const { booksTable } = await import('@/models/sqlite')
+    const { db } = await import('@/db')
+
+    const seedValues: BookInsertSQL[] = booksData.map((book) => {
+      const discountPrice = book.discount
+        ? book.price - (book.price * book.discount) / 100
+        : book.price
+
+      return {
+        id: book.id,
+        title: book.title,
+        authorId: book.author,
+        genre: book.genre,
+        imgUrl: book.imgUrl,
+        description: book.description,
+        publishYear: book.publishYear,
+        rating: book.rating,
+        price: book.price,
+        discount: book.discount,
+        discountPrice,
+        topSellers: book.topSellers ?? false,
+        newRelease: book.newRelease ?? false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }
+    })
+
+    await db.insert(booksTable).values(seedValues)
 
     return {
       [getTableName(booksTable)]: seedValues.length,
@@ -72,12 +41,51 @@ export async function seedBooks() {
   }
 
   if (env.dbRepo === DB_REPO.MONGO) {
-    await BookModel.create(seedValues)
+    const { AuthorModel, BookModel, getHighestId, setSequence } = await import(
+      '@/models/mongo'
+    )
+
+    const authorIdMap: Record<number, string> = {}
+    const authors = await AuthorModel.find()
+      .select({ _id: true, id: true })
+      .lean()
+
+    authors.forEach((author) => {
+      const id = author.id
+      if (!id) return
+      authorIdMap[id] = author._id as unknown as string
+    })
+
+    const mongoSeedValues = booksData.map((book) => {
+      const discountPrice = book.discount
+        ? book.price - (book.price * book.discount) / 100
+        : book.price
+
+      return {
+        id: book.id,
+        title: book.title,
+        authorId: authorIdMap[book.author] ?? null,
+        genre: book.genre,
+        imgUrl: book.imgUrl,
+        description: book.description,
+        publishYear: book.publishYear,
+        rating: book.rating,
+        price: book.price,
+        discount: book.discount,
+        discountPrice,
+        topSellers: book.topSellers ?? false,
+        newRelease: book.newRelease ?? false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }
+    })
+
+    await BookModel.create(mongoSeedValues)
     const highestId = await getHighestId(BookModel)
     await setSequence(BookModel, highestId)
 
     return {
-      [BookModel.collection.collectionName]: seedValues.length,
+      [BookModel.collection.collectionName]: mongoSeedValues.length,
     }
   }
 }

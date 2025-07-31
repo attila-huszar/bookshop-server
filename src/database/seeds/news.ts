@@ -1,11 +1,7 @@
-import { getTableName } from 'drizzle-orm'
-import { db } from '@/db'
-import { newsTable } from '@/models/sqlite'
-import { getHighestId, NewsModel, setSequence } from '@/models/mongo'
 import { env } from '@/config'
 import { DB_REPO } from '@/constants'
-import type { NewsInsert } from '@/types'
 import newsData from './news.json'
+import type { NewsInsert } from '@/types'
 
 export async function seedNews() {
   const seedValues: NewsInsert[] = newsData.map((news) => ({
@@ -18,6 +14,10 @@ export async function seedNews() {
   }))
 
   if (env.dbRepo === DB_REPO.SQLITE) {
+    const { getTableName } = await import('drizzle-orm')
+    const { newsTable } = await import('@/models/sqlite')
+    const { db } = await import('@/db')
+
     await db.insert(newsTable).values(seedValues)
 
     return {
@@ -26,6 +26,10 @@ export async function seedNews() {
   }
 
   if (env.dbRepo === DB_REPO.MONGO) {
+    const { NewsModel, getHighestId, setSequence } = await import(
+      '@/models/mongo'
+    )
+
     await NewsModel.create(seedValues)
     const highestId = await getHighestId(NewsModel)
     await setSequence(NewsModel, highestId)

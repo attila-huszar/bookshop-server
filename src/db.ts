@@ -4,9 +4,7 @@ import { drizzle } from 'drizzle-orm/bun-sqlite'
 import { env } from './config'
 import { DB_REPO } from './constants'
 
-type DrizzleConn = ReturnType<typeof drizzle>
-
-let sqlite: DrizzleConn
+let sqlite: ReturnType<typeof drizzle>
 let mongo: typeof mongoose
 
 if (env.dbRepo === DB_REPO.SQLITE) {

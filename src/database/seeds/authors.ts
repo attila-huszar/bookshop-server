@@ -1,11 +1,7 @@
-import { getTableName } from 'drizzle-orm'
-import { db } from '@/db'
-import { authorsTable } from '@/models/sqlite'
-import { AuthorModel, getHighestId, setSequence } from '@/models/mongo'
 import { env } from '@/config'
 import { DB_REPO } from '@/constants'
-import type { AuthorInsert } from '@/types'
 import authorsData from './authors.json'
+import type { AuthorInsert } from '@/types'
 
 export async function seedAuthors() {
   const seedValues: AuthorInsert[] = authorsData.map((author) => ({
@@ -21,6 +17,10 @@ export async function seedAuthors() {
   }))
 
   if (env.dbRepo === DB_REPO.SQLITE) {
+    const { getTableName } = await import('drizzle-orm')
+    const { authorsTable } = await import('@/models/sqlite')
+    const { db } = await import('@/db')
+
     await db.insert(authorsTable).values(seedValues)
 
     return {
@@ -29,6 +29,10 @@ export async function seedAuthors() {
   }
 
   if (env.dbRepo === DB_REPO.MONGO) {
+    const { AuthorModel, getHighestId, setSequence } = await import(
+      '@/models/mongo'
+    )
+
     await AuthorModel.create(seedValues)
     const highestId = await getHighestId(AuthorModel)
     await setSequence(AuthorModel, highestId)
