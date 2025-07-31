@@ -12,8 +12,6 @@ export async function seedAuthors() {
     deathYear: author.deathYear,
     homeland: author.homeland,
     biography: author.biography,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
   }))
 
   if (env.dbRepo === DB_REPO.SQLITE) {

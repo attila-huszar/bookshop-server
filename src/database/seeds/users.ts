@@ -11,8 +11,6 @@ const admin: UserInsert = {
   password: Bun.password.hashSync(env.adminPassword!),
   role: UserRole.Admin,
   verified: true,
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
 }
 
 export async function seedUsers() {

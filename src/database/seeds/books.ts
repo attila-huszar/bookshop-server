@@ -3,35 +3,34 @@ import { DB_REPO } from '@/constants'
 import booksData from './books.json'
 import type { BookInsertSQL } from '@/types'
 
+function calculateDiscountPrice(
+  price: number,
+  discount: number | null,
+): number {
+  return discount ? price - (price * discount) / 100 : price
+}
+
 export async function seedBooks() {
   if (env.dbRepo === DB_REPO.SQLITE) {
     const { getTableName } = await import('drizzle-orm')
     const { booksTable } = await import('@/models/sqlite')
     const { db } = await import('@/db')
 
-    const seedValues: BookInsertSQL[] = booksData.map((book) => {
-      const discountPrice = book.discount
-        ? book.price - (book.price * book.discount) / 100
-        : book.price
-
-      return {
-        id: book.id,
-        title: book.title,
-        authorId: book.author,
-        genre: book.genre,
-        imgUrl: book.imgUrl,
-        description: book.description,
-        publishYear: book.publishYear,
-        rating: book.rating,
-        price: book.price,
-        discount: book.discount,
-        discountPrice,
-        topSellers: book.topSellers ?? false,
-        newRelease: book.newRelease ?? false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }
-    })
+    const seedValues: BookInsertSQL[] = booksData.map((book) => ({
+      id: book.id,
+      title: book.title,
+      authorId: book.author,
+      genre: book.genre,
+      imgUrl: book.imgUrl,
+      description: book.description,
+      publishYear: book.publishYear,
+      rating: book.rating,
+      price: book.price,
+      discount: book.discount,
+      discountPrice: calculateDiscountPrice(book.price, book.discount),
+      topSellers: book.topSellers ?? false,
+      newRelease: book.newRelease ?? false,
+    }))
 
     await db.insert(booksTable).values(seedValues)
 
@@ -56,29 +55,21 @@ export async function seedBooks() {
       authorIdMap[id] = author._id.toHexString()
     })
 
-    const mongoSeedValues = booksData.map((book) => {
-      const discountPrice = book.discount
-        ? book.price - (book.price * book.discount) / 100
-        : book.price
-
-      return {
-        id: book.id,
-        title: book.title,
-        authorId: authorIdMap[book.author] ?? null,
-        genre: book.genre,
-        imgUrl: book.imgUrl,
-        description: book.description,
-        publishYear: book.publishYear,
-        rating: book.rating,
-        price: book.price,
-        discount: book.discount,
-        discountPrice,
-        topSellers: book.topSellers ?? false,
-        newRelease: book.newRelease ?? false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }
-    })
+    const mongoSeedValues = booksData.map((book) => ({
+      id: book.id,
+      title: book.title,
+      authorId: authorIdMap[book.author] ?? null,
+      genre: book.genre,
+      imgUrl: book.imgUrl,
+      description: book.description,
+      publishYear: book.publishYear,
+      rating: book.rating,
+      price: book.price,
+      discount: book.discount,
+      discountPrice: calculateDiscountPrice(book.price, book.discount),
+      topSellers: book.topSellers ?? false,
+      newRelease: book.newRelease ?? false,
+    }))
 
     await BookModel.create(mongoSeedValues)
     const highestId = await getHighestId(BookModel)

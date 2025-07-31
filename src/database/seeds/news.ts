@@ -9,8 +9,6 @@ export async function seedNews() {
     title: news.title,
     content: news.content,
     img: news.img,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
   }))
 
   if (env.dbRepo === DB_REPO.SQLITE) {
