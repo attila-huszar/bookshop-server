@@ -46,7 +46,7 @@ export async function getHighestId<T extends { id?: number | null }>(
 
 export function autoIncrementPlugin(schema: Schema): void {
   schema.pre('save', async function (this, next) {
-    if (this.isNew && !this.id) {
+    if (this.isNew && this.id == null) {
       try {
         this.id = await getNextSequence(this.$model())
       } catch (error) {
