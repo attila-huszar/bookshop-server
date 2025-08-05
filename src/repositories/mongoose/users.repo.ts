@@ -109,16 +109,13 @@ export async function getAllUsers(): Promise<User[]> {
   }))
 }
 
-export async function deleteUserByEmail(email: string): Promise<{
-  email: string
-  message: string
-} | null> {
+export async function deleteUserByEmail(
+  email: string,
+): Promise<User['email'] | null> {
   const deleteResult = await UserModel.deleteOne({ email }).lean()
+
   if (deleteResult.deletedCount === 0) return null
-  return {
-    email,
-    message: 'User deleted successfully',
-  }
+  return email
 }
 
 export async function cleanupExpiredTokens() {

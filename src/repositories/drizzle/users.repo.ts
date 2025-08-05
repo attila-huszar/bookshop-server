@@ -60,14 +60,17 @@ export async function getAllUsers(): Promise<User[]> {
   return userRecords
 }
 
-export async function deleteUserByEmail(email: string): Promise<{
-  email: string
-  message: string
-} | null> {
-  const deleteResult = db.delete(usersTable).where(eq(usersTable.email, email))
-  return deleteResult
-    .then(() => ({ email, message: 'User deleted successfully' }))
-    .catch(() => null)
+export async function deleteUserByEmail(
+  email: string,
+): Promise<User['email'] | null> {
+  const deleteResult = await db
+    .delete(usersTable)
+    .where(eq(usersTable.email, email))
+    .limit(1)
+    .returning()
+
+  if (deleteResult.length === 0) return null
+  return email
 }
 
 export async function cleanupExpiredTokens() {
