@@ -1,29 +1,30 @@
-import mongoose from 'mongoose'
+import { mongo } from '@/db'
 import { log } from '@/libs'
+import type { Schema, Model } from 'mongoose'
 
-const counterSchema = new mongoose.Schema({
+const counterSchema = new mongo.Schema({
   _id: { type: String, required: true },
   seq: { type: Number, default: 0 },
 })
 
-const CounterModel = mongoose.model('Counter', counterSchema)
+const CounterModel = mongo.model('Counter', counterSchema)
 
-async function getNextSequence(modelName: string): Promise<number> {
+async function getNextSequence(model: Model<unknown>): Promise<number> {
   try {
     const counter = await CounterModel.findByIdAndUpdate(
-      modelName,
+      model.modelName,
       { $inc: { seq: 1 } },
       { new: true, upsert: true },
     )
     return counter.seq
   } catch (error) {
-    log.error('Failed to get next sequence', { modelName, error })
+    log.error('Failed to get next sequence', { model, error })
     throw error
   }
 }
 
 export async function setSequence<T>(
-  model: mongoose.Model<T>,
+  model: Model<T>,
   value: number,
 ): Promise<void> {
   await CounterModel.findByIdAndUpdate(
@@ -34,7 +35,7 @@ export async function setSequence<T>(
 }
 
 export async function getHighestId<T extends { id?: number | null }>(
-  model: mongoose.Model<T>,
+  model: Model<T>,
 ): Promise<number> {
   const result = await model.findOne().sort({ id: -1 }).select('id').lean()
 
@@ -43,12 +44,11 @@ export async function getHighestId<T extends { id?: number | null }>(
   return typeof result.id === 'number' ? (result.id as number) : 0
 }
 
-export function autoIncrementPlugin(schema: mongoose.Schema): void {
+export function autoIncrementPlugin(schema: Schema): void {
   schema.pre('save', async function (this, next) {
     if (this.isNew && !this.id) {
       try {
-        const constructor = this.constructor as typeof mongoose.Model
-        this.id = await getNextSequence(constructor.modelName)
+        this.id = await getNextSequence(this.$model())
       } catch (error) {
         log.error('Auto-increment error', { error })
         return next(error as Error)

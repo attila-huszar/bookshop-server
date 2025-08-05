@@ -1,7 +1,7 @@
-import { model, Schema } from 'mongoose'
+import { mongo } from '@/db'
 import { autoIncrementPlugin } from './'
 
-const newsSchema = new Schema(
+const newsSchema = new mongo.Schema(
   {
     id: { type: Number, unique: true, index: true },
     title: { type: String, required: true },
@@ -13,4 +13,4 @@ const newsSchema = new Schema(
 
 newsSchema.plugin(autoIncrementPlugin)
 
-export const NewsModel = model('News', newsSchema)
+export const NewsModel = mongo.model('News', newsSchema)

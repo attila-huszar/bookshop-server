@@ -1,7 +1,7 @@
-import { model, Schema } from 'mongoose'
+import { mongo } from '@/db'
 import { autoIncrementPlugin } from './'
 
-const authorSchema = new Schema(
+const authorSchema = new mongo.Schema(
   {
     id: { type: Number, unique: true, index: true },
     name: { type: String, required: true },
@@ -16,4 +16,4 @@ const authorSchema = new Schema(
 
 authorSchema.plugin(autoIncrementPlugin)
 
-export const AuthorModel = model('Author', authorSchema)
+export const AuthorModel = mongo.model('Author', authorSchema)
