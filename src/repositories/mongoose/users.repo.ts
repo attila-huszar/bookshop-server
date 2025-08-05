@@ -1,6 +1,8 @@
-import { UserModel } from '@/models/mongo'
+import model from '@/models'
 import type { User, UserInsert, UserUpdateRequest, UserRole } from '@/types'
 import type Stripe from 'stripe'
+
+const { UserModel } = model as MongoModel
 
 export async function getUserBy(
   field: 'uuid' | 'email' | 'verificationToken' | 'passwordResetToken',

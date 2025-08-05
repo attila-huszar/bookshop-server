@@ -1,6 +1,6 @@
 import { eq, inArray, like, sql } from 'drizzle-orm'
-import { authorsTable } from '@/models/sqlite'
 import { db } from '@/db'
+import model from '@/models'
 import type {
   Author,
   AuthorCreate,
@@ -8,6 +8,7 @@ import type {
   AuthorUpdate,
 } from '@/types'
 
+const { authorsTable } = model as SQLiteModel
 const { id, name } = authorsTable
 
 export async function getAuthorById(

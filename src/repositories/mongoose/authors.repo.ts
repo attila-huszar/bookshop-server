@@ -1,10 +1,12 @@
-import { AuthorModel } from '@/models/mongo'
+import model from '@/models'
 import type {
   Author,
   AuthorCreate,
   AuthorUpdate,
   AuthorReference,
 } from '@/types'
+
+const { AuthorModel } = model as MongoModel
 
 export async function getAllAuthors(): Promise<Author[]> {
   const authors = await AuthorModel.find().lean()

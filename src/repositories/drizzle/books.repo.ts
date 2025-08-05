@@ -1,6 +1,6 @@
 import { count, eq, inArray, max, min } from 'drizzle-orm'
-import { booksTable, authorsTable } from '@/models/sqlite'
 import { db } from '@/db'
+import model from '@/models'
 import { queryBuilder } from '@/utils'
 import { PAGINATION } from '@/constants'
 import type {
@@ -10,6 +10,8 @@ import type {
   BookUpdate,
   BookWithAuthor,
 } from '@/types'
+
+const { booksTable, authorsTable } = model as SQLiteModel
 
 const {
   id,

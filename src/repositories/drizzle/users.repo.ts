@@ -1,7 +1,9 @@
 import { eq, lt } from 'drizzle-orm'
 import { db } from '@/db'
-import { usersTable } from '@/models/sqlite'
+import model from '@/models'
 import type { UserUpdateRequest, User, UserInsert } from '@/types'
+
+const { usersTable } = model as SQLiteModel
 
 export async function getUserBy(
   field: 'uuid' | 'email' | 'verificationToken' | 'passwordResetToken',

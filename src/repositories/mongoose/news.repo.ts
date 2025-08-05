@@ -1,5 +1,7 @@
-import { NewsModel } from '@/models/mongo'
+import model from '@/models'
 import type { News, NewsInsert } from '@/types'
+
+const { NewsModel } = model as MongoModel
 
 export async function getNews(): Promise<News[]> {
   const news = await NewsModel.find().lean()

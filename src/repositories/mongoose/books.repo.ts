@@ -1,4 +1,4 @@
-import { BookModel, AuthorModel } from '@/models/mongo'
+import model from '@/models'
 import { mongoQueryBuilder } from '@/utils'
 import { PAGINATION } from '@/constants'
 import type {
@@ -16,6 +16,8 @@ type _AggregateResult = {
   minYear: number
   maxYear: number
 }
+
+const { BookModel, AuthorModel } = model as MongoModel
 
 export async function getBooks(query?: BookQuery): Promise<{
   booksRecords: BookWithAuthor[]
