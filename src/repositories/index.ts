@@ -1,12 +1,7 @@
-export {
-  booksTable,
-  authorsTable,
-  usersTable,
-  newsTable,
-  ordersTable,
-} from './repoHandler'
-export * as booksDB from './books.repo'
-export * as authorsDB from './authors.repo'
-export * as newsDB from './news.repo'
-export * as usersDB from './users.repo'
-export * as ordersDB from './orders.repo'
+import { DB_REPO } from '@/constants'
+import { env } from '@/config'
+import * as drizzleRepo from './drizzle'
+import * as mongoRepo from './mongoose'
+
+export const { authorsDB, booksDB, newsDB, ordersDB, usersDB } =
+  env.dbRepo === DB_REPO.MONGO ? mongoRepo : drizzleRepo

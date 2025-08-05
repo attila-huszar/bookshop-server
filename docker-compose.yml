@@ -4,6 +4,11 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: bookshop-server
+    profiles: ['sqlite']
+    ports:
+      - '${PORT}:${PORT}'
+    depends_on:
+      - seq
     restart: always
     env_file: .env
     command: >
@@ -15,14 +20,49 @@ services:
        if [ \"$NODE_ENV\" = \"prod\" ]; then
          bun src/app.ts
        else
-         bun dev
+         bun dev --watch
        fi
        "
-    ports:
-      - '${PORT}:${PORT}'
     volumes:
       - ./src:/bookshop-server/src
       - sqlite_data:/bookshop-server/data
+
+  server-with-mongo:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bookshop-server
+    profiles: ['mongo']
+    ports:
+      - '${PORT}:${PORT}'
+    depends_on:
+      - mongodb
+      - seq
+    restart: always
+    env_file: .env
+    command: >
+      sh -c "
+       set -e
+       if [ -n \"$SETUP\" ]; then
+         bun seed
+       fi
+       if [ \"$NODE_ENV\" = \"prod\" ]; then
+         bun src/app.ts
+       else
+         bun dev --watch
+       fi
+       "
+    volumes:
+      - ./src:/bookshop-server/src
+
+  mongodb:
+    image: mongo
+    container_name: bookshop-mongodb
+    profiles: ['mongo']
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongodb_data:/data/db
 
   redis:
     image: redis:alpine
@@ -37,6 +77,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: bookshop-worker
+    profiles: ['sqlite']
     depends_on:
       - redis
       - server
@@ -53,5 +94,40 @@ services:
       - ./src:/bookshop-server/src
       - sqlite_data:/bookshop-server/data
 
+  worker-with-mongo:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bookshop-worker
+    profiles: ['mongo']
+    depends_on:
+      - redis
+      - server-with-mongo
+    restart: always
+    env_file: .env
+    command: >
+      sh -c "
+       set -e
+       echo '*/30 * * * * cd /bookshop-server && /usr/local/bin/bun src/scripts/cleanupTokens.ts' > /etc/crontabs/root
+       crond &
+       bun worker:email
+       "
+    volumes:
+      - ./src:/bookshop-server/src
+
+  seq:
+    image: datalust/seq:latest
+    container_name: bookshop-logger
+    ports:
+      - '5341:80'
+    environment:
+      - ACCEPT_EULA=Y
+      - SEQ_FIRSTRUN_ADMINPASSWORD=${ADMIN_PASSWORD}
+    restart: unless-stopped
+    volumes:
+      - seq_data:/data
+
 volumes:
   sqlite_data:
+  mongodb_data:
+  seq_data:

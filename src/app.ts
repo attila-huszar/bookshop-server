@@ -55,6 +55,9 @@ app.get('/', (c) => {
   )
 })
 
+app.get('/health', (c) => c.text('OK', 200))
+app.get('/logs', (c) => c.redirect(`${env.serverBaseUrl}:5341`))
+
 app.use('/users/profile', authMiddleware)
 app.use('/users/logout', authMiddleware)
 app.use('/upload', authMiddleware)

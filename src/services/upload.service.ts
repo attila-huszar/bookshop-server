@@ -10,7 +10,7 @@ export async function handleAvatarUpload(
   const user = await usersDB.getUserBy('uuid', userUuid)
 
   if (!user) {
-    throw new Error(userMessage.retrieveError)
+    throw new Error(userMessage.getError)
   }
 
   if (!(avatar instanceof File)) {

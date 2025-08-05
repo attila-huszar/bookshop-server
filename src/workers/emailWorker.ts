@@ -1,7 +1,7 @@
 import IORedis from 'ioredis'
 import { Worker } from 'bullmq'
 import { env } from '@/config'
-import { logWorker, sendEmail } from '@/libs'
+import { log, sendEmail } from '@/libs'
 import { concurrency, QUEUE } from '@/constants'
 import type { SendEmailProps } from '@/types'
 
@@ -14,7 +14,7 @@ export const emailWorker = new Worker(
 )
 
 emailWorker.on('completed', (job) => {
-  void logWorker.info('Email sent successfully', {
+  void log.info('[WORKER] Email sent successfully', {
     id: job.id,
     name: job.name,
     email: job.data.toAddress,
@@ -22,7 +22,7 @@ emailWorker.on('completed', (job) => {
 })
 
 emailWorker.on('failed', (job, error) => {
-  void logWorker.error('Email sending failed', {
+  void log.error('[WORKER] Email sending failed', {
     id: job?.id,
     name: job?.name,
     email: job?.data.toAddress,
@@ -31,5 +31,5 @@ emailWorker.on('failed', (job, error) => {
 })
 
 emailWorker.on('error', (error) => {
-  void logWorker.error('Email worker error', { error })
+  void log.error('[WORKER] Email worker error', { error })
 })
