@@ -12,7 +12,6 @@ import {
   updateUserProfile,
 } from '@/services'
 import { signAccessToken, signRefreshToken, verifyJWTRefresh } from '@/utils'
-import { userMessage } from '@/constants'
 import { errorHandler } from '@/errors'
 import type {
   LoginRequest,
@@ -133,7 +132,7 @@ users.post('/logout', (c) => {
   try {
     deleteCookie(c, REFRESH_TOKEN, cookieOptions)
 
-    return c.json({ message: 'Successfully logged out' })
+    return c.json({ success: true })
   } catch (error) {
     return errorHandler(c, error)
   }
@@ -148,7 +147,7 @@ users.post('/refresh', async (c) => {
     )
 
     if (!refreshTokenCookie) {
-      return c.json({ message: userMessage.noSession }, 200)
+      return c.json({ accessToken: null }, 200)
     }
 
     const payload = (await verifyJWTRefresh(refreshTokenCookie)) as {
