@@ -3,7 +3,7 @@ import { env } from '@/config'
 
 export async function ngrokForward() {
   const listener = await ngrok.forward({
-    addr: 80,
+    addr: 'nginx:80',
     authtoken: env.ngrokAuthToken,
     domain: env.ngrokDomain,
   })
