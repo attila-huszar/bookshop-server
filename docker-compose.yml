@@ -9,7 +9,7 @@ services:
       - '${PORT}:${PORT}'
     depends_on:
       - seq
-    restart: always
+    restart: unless-stopped
     env_file: .env
     command: >
       sh -c "
@@ -38,7 +38,7 @@ services:
     depends_on:
       - mongodb
       - seq
-    restart: always
+    restart: unless-stopped
     env_file: .env
     command: >
       sh -c "
@@ -63,11 +63,12 @@ services:
       - '27017:27017'
     volumes:
       - mongodb_data:/data/db
+    restart: unless-stopped
 
   redis:
     image: redis:alpine
     container_name: bookshop-redis
-    restart: always
+    restart: unless-stopped
     ports:
       - '6379:6379'
     command: redis-server --maxmemory 128mb --maxmemory-policy noeviction
@@ -81,7 +82,7 @@ services:
     depends_on:
       - redis
       - server
-    restart: always
+    restart: unless-stopped
     env_file: .env
     command: >
       sh -c "
@@ -103,7 +104,7 @@ services:
     depends_on:
       - redis
       - server-with-mongo
-    restart: always
+    restart: unless-stopped
     env_file: .env
     command: >
       sh -c "
@@ -126,6 +127,18 @@ services:
     restart: unless-stopped
     volumes:
       - seq_data:/data
+
+  nginx:
+    image: nginx:alpine
+    container_name: bookshop-nginx
+    restart: unless-stopped
+    depends_on:
+      - server
+      - seq
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
 
 volumes:
   sqlite_data:
