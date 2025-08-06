@@ -4,10 +4,10 @@
     "": {
       "name": "bookshop-server",
       "dependencies": {
-        "@ngrok/ngrok": "^1.5.1",
+        "@ngrok/ngrok": "^1.5.2",
         "bullmq": "^5.56.9",
         "drizzle-orm": "^0.44.4",
-        "drizzle-zod": "^0.8.2",
+        "drizzle-zod": "^0.8.3",
         "hono": "^4.8.12",
         "hono-rate-limiter": "^0.4.2",
         "http-status": "^2.1.0",
@@ -17,7 +17,7 @@
         "nodemailer": "^7.0.5",
         "seq-logging": "^3.0.0",
         "stripe": "^18.4.0",
-        "zod": "^4.0.14",
+        "zod": "^4.0.15",
       },
       "devDependencies": {
         "@eslint/js": "^9.32.0",
@@ -150,33 +150,33 @@
 
     "@napi-rs/wasm-runtime": ["@napi-rs/wasm-runtime@0.2.12", "", { "dependencies": { "@emnapi/core": "^1.4.3", "@emnapi/runtime": "^1.4.3", "@tybys/wasm-util": "^0.10.0" } }, "sha512-ZVWUcfwY4E/yPitQJl481FjFo3K22D6qF0DuFH6Y/nbnE11GY5uguDxZMGXPQ8WQ0128MXQD7TnfHyK4oWoIJQ=="],
 
-    "@ngrok/ngrok": ["@ngrok/ngrok@1.5.1", "", { "optionalDependencies": { "@ngrok/ngrok-android-arm64": "1.5.1", "@ngrok/ngrok-darwin-arm64": "1.5.1", "@ngrok/ngrok-darwin-universal": "1.5.1", "@ngrok/ngrok-darwin-x64": "1.5.1", "@ngrok/ngrok-freebsd-x64": "1.5.1", "@ngrok/ngrok-linux-arm-gnueabihf": "1.5.1", "@ngrok/ngrok-linux-arm64-gnu": "1.5.1", "@ngrok/ngrok-linux-arm64-musl": "1.5.1", "@ngrok/ngrok-linux-x64-gnu": "1.5.1", "@ngrok/ngrok-linux-x64-musl": "1.5.1", "@ngrok/ngrok-win32-arm64-msvc": "1.5.1", "@ngrok/ngrok-win32-ia32-msvc": "1.5.1", "@ngrok/ngrok-win32-x64-msvc": "1.5.1" } }, "sha512-sfcgdpiAJHqmuO3e6QjQGbavIrR3E72do/NAsnGhm+7SGstLj1aM3Sd8mkfTORb2Hj7ATMuoBYuED5ylKuRQCg=="],
+    "@ngrok/ngrok": ["@ngrok/ngrok@1.5.2", "", { "optionalDependencies": { "@ngrok/ngrok-android-arm64": "1.5.2", "@ngrok/ngrok-darwin-arm64": "1.5.2", "@ngrok/ngrok-darwin-universal": "1.5.2", "@ngrok/ngrok-darwin-x64": "1.5.2", "@ngrok/ngrok-freebsd-x64": "1.5.2", "@ngrok/ngrok-linux-arm-gnueabihf": "1.5.2", "@ngrok/ngrok-linux-arm64-gnu": "1.5.2", "@ngrok/ngrok-linux-arm64-musl": "1.5.2", "@ngrok/ngrok-linux-x64-gnu": "1.5.2", "@ngrok/ngrok-linux-x64-musl": "1.5.2", "@ngrok/ngrok-win32-arm64-msvc": "1.5.2", "@ngrok/ngrok-win32-ia32-msvc": "1.5.2", "@ngrok/ngrok-win32-x64-msvc": "1.5.2" } }, "sha512-gN7KKdLTKer+wBSk9s9eDx53MUFdcnXNHsXxiC5sJLLD5HY9JRMSn6UzcCqnk7IgeIgCgw5h1k6YDqhjx6lmtg=="],
 
-    "@ngrok/ngrok-android-arm64": ["@ngrok/ngrok-android-arm64@1.5.1", "", { "os": "android", "cpu": "arm64" }, "sha512-2Tokwi5GVWNLw3JEoM0Ieb/ypALniZu6fciUTgpuByutbKxOjvahD4fYOKwW3KMdV9bCb3XGGtWJCZXfRPPq1g=="],
+    "@ngrok/ngrok-android-arm64": ["@ngrok/ngrok-android-arm64@1.5.2", "", { "os": "android", "cpu": "arm64" }, "sha512-v81VbxxAgg2W7jbjhEcn8K9R2aUf0h1AuTx+8tDlw3L4H1YEmbmllIpBAGgMjHRBxLZKOo5GBi0k7oS+VRM5TA=="],
 
-    "@ngrok/ngrok-darwin-arm64": ["@ngrok/ngrok-darwin-arm64@1.5.1", "", { "os": "darwin", "cpu": "arm64" }, "sha512-HNOhrPDP+nJJY7Bh45DOeh6jmcGASWINGbUuseZM0C8psQMp7crPywjRh0inkRegUrb4K8y06sfmgt2fmsF6jQ=="],
+    "@ngrok/ngrok-darwin-arm64": ["@ngrok/ngrok-darwin-arm64@1.5.2", "", { "os": "darwin", "cpu": "arm64" }, "sha512-8CVzS9AveYpNhWbydm7cJ6XqmVg29/VRKF15l4kJ2djlNoJxuGSibgM9A627dWRdnJyj5uhmU3VzsgeU8t+/3g=="],
 
-    "@ngrok/ngrok-darwin-universal": ["@ngrok/ngrok-darwin-universal@1.5.1", "", { "os": "darwin" }, "sha512-EsMxYC/tY+ZqhjbeZtVq5MFIuD8SEPgAlHINEszsHd8ZRICc2U9Xl15CbDrew3pcfEg/ZVFrOH9CyC4aZ/V/cA=="],
+    "@ngrok/ngrok-darwin-universal": ["@ngrok/ngrok-darwin-universal@1.5.2", "", { "os": "darwin" }, "sha512-mEMH1OxN6RxnqRSWb4xY9RqbtdlCpv+WlRKxq4lVy8JVsxEyFNnzVQ0jn+iuiy981jCXjokctzJeGMvECuSQBQ=="],
 
-    "@ngrok/ngrok-darwin-x64": ["@ngrok/ngrok-darwin-x64@1.5.1", "", { "os": "darwin", "cpu": "x64" }, "sha512-H/x1BsYpAoTMhOtv4oYvwY6WHqbY0MsJ1XFcJQgrpAIjgmYqlwsnsUMHvEdBB/KY9kXF9DPgKUdRMfJwUIpwGA=="],
+    "@ngrok/ngrok-darwin-x64": ["@ngrok/ngrok-darwin-x64@1.5.2", "", { "os": "darwin", "cpu": "x64" }, "sha512-rGdcADw4NtMSU7SHUTly7uvMVYX6eMeMCppKyL5g3CSlEQntKf3AWs/89ah2TBWJA2WVl0UgGLkXp4xs1tg9eQ=="],
 
-    "@ngrok/ngrok-freebsd-x64": ["@ngrok/ngrok-freebsd-x64@1.5.1", "", { "os": "freebsd", "cpu": "x64" }, "sha512-dY2W6HUv7e2xkpdfVj7fIk+5qmvrC7kVu6PJWJ8/rshW1FrU7qMcpnU53JvoQJRZzUf5k8xMNdx30zai/8mqYA=="],
+    "@ngrok/ngrok-freebsd-x64": ["@ngrok/ngrok-freebsd-x64@1.5.2", "", { "os": "freebsd", "cpu": "x64" }, "sha512-WgY54qUekaUGa5+lFvzYUMjlzf22IEXuZHhxnzJM2/gMqa7gjU8N5W4U8XNDjVW/oz6DekrzIjuoAEPO+2icDg=="],
 
-    "@ngrok/ngrok-linux-arm-gnueabihf": ["@ngrok/ngrok-linux-arm-gnueabihf@1.5.1", "", { "os": "linux", "cpu": "arm" }, "sha512-JvbI/IIycw4Qq02ysyOBsSK5E0bZDgRqXSslHLTwuDAfw14lmrq2U0QkBeEOL8qwJ7wCwCH1PEOJacUyrqa9bg=="],
+    "@ngrok/ngrok-linux-arm-gnueabihf": ["@ngrok/ngrok-linux-arm-gnueabihf@1.5.2", "", { "os": "linux", "cpu": "arm" }, "sha512-azMxr/TGEeFU4JAUbSu5MO2aZEvdq+TzcxiLw6d+yhdEtNAjDW9TOyCczTrIZPOG5fP8G3lcCd8TP7mVIWdOnw=="],
 
-    "@ngrok/ngrok-linux-arm64-gnu": ["@ngrok/ngrok-linux-arm64-gnu@1.5.1", "", { "os": "linux", "cpu": "arm64" }, "sha512-yLFAlqTYYvH7QRg589HJarQGw1QrKQZcHiw0gm175eCqc+jpUG/Zcf8wohCTIJVLylMIzjDzVFSUsXC7UtMJdQ=="],
+    "@ngrok/ngrok-linux-arm64-gnu": ["@ngrok/ngrok-linux-arm64-gnu@1.5.2", "", { "os": "linux", "cpu": "arm64" }, "sha512-79eFCxio4rM0ICRBXx/CVvbXDeWk1Jxr7szkezEYWtHaL+gXivrtS1QjtMnJpGY1GJlLTQL+49w2lGydqPOJQA=="],
 
-    "@ngrok/ngrok-linux-arm64-musl": ["@ngrok/ngrok-linux-arm64-musl@1.5.1", "", { "os": "linux", "cpu": "arm64" }, "sha512-momB/ZjjrxaGYOZ3YPAw1kT4DAfWT1x3dAHL0YoSVfNCpc8Fw0189ZAcxGn0hUFqkGDmSARS9o8b7hYd1b41oA=="],
+    "@ngrok/ngrok-linux-arm64-musl": ["@ngrok/ngrok-linux-arm64-musl@1.5.2", "", { "os": "linux", "cpu": "arm64" }, "sha512-ou9Z7iPQJIQ0RX5bdBhb3y7GwYRt+X0G9tenyRzKLXXvs0XfUUcg/23aBP61hmdRvBq7xpliV1PnvEVBgUIYMg=="],
 
-    "@ngrok/ngrok-linux-x64-gnu": ["@ngrok/ngrok-linux-x64-gnu@1.5.1", "", { "os": "linux", "cpu": "x64" }, "sha512-fmMaz0b1Ry2CDLLn0mV8b9nLxqm0taQ2jYyn+C9OrazYNMT4XYYDKRQSm4UEaNoakdnoH+f2FsrWi/712GFxAQ=="],
+    "@ngrok/ngrok-linux-x64-gnu": ["@ngrok/ngrok-linux-x64-gnu@1.5.2", "", { "os": "linux", "cpu": "x64" }, "sha512-VI1mmtl3Ie5uXTVAR9thPiMNMsCWeqkjBUbHAyk2vZ2OXR4Vs2DGjOPXK+wTl/hjF29FXoxunjhMy6caF9ht0Q=="],
 
-    "@ngrok/ngrok-linux-x64-musl": ["@ngrok/ngrok-linux-x64-musl@1.5.1", "", { "os": "linux", "cpu": "x64" }, "sha512-6Ajl9wpJSlvukl4WrkIw+WxVwAr7WTGnE35Voec6CERWtKMsO/F+BOSu3pfAa6iwxGK//JBpsTT1IwLLw7b2xQ=="],
+    "@ngrok/ngrok-linux-x64-musl": ["@ngrok/ngrok-linux-x64-musl@1.5.2", "", { "os": "linux", "cpu": "x64" }, "sha512-F4j9EyC/0R3IgYSd+OER4bC8bxuBubvj33e24GvQnRF/IQaKhpybkvQbz54fnvsL7y0j2BB42NAIm2CFtk7tCw=="],
 
-    "@ngrok/ngrok-win32-arm64-msvc": ["@ngrok/ngrok-win32-arm64-msvc@1.5.1", "", { "os": "win32", "cpu": "arm64" }, "sha512-JUH2yZxDPQGmQNT1d2KIu64u2k/R6uG1kEIXjcbsoff37v9aI6nUlzldRWB/wFSYkpZ4W/EuovM4Epar+fQOxQ=="],
+    "@ngrok/ngrok-win32-arm64-msvc": ["@ngrok/ngrok-win32-arm64-msvc@1.5.2", "", { "os": "win32", "cpu": "arm64" }, "sha512-0OMXNjWElM1MQX7lMBnpRtafS9+3ybauqGD4m2dZcIm6hFvexsJFwNgx0mCa5aKxe2mQ4zNarEUd+SqG2Aa4/g=="],
 
-    "@ngrok/ngrok-win32-ia32-msvc": ["@ngrok/ngrok-win32-ia32-msvc@1.5.1", "", { "os": "win32", "cpu": "ia32" }, "sha512-zS1JsMTJHnY+lPJFUwKnB5fzPm4GZCKeeZLehHrXP0LpQaKN8Y/vywqDGhuC0WtymvWE88+oreMV/6hQdviLSA=="],
+    "@ngrok/ngrok-win32-ia32-msvc": ["@ngrok/ngrok-win32-ia32-msvc@1.5.2", "", { "os": "win32", "cpu": "ia32" }, "sha512-hdvhnr7Br4XhUblpW67v5XP6FyoQwJ2xSbwas4KW4hZ3F4cw0m6sqXpssRfmqg3/5HJony1H5B2jLi0x4J7uOw=="],
 
-    "@ngrok/ngrok-win32-x64-msvc": ["@ngrok/ngrok-win32-x64-msvc@1.5.1", "", { "os": "win32", "cpu": "x64" }, "sha512-HegRwV9Gchh4p7K7sC6SPpWmFRwDEgwPByrb8tkuWDyP+EWNgpt3GKp8OAIK2xdWWHnN5VIwMa9u3COE/e5S8w=="],
+    "@ngrok/ngrok-win32-x64-msvc": ["@ngrok/ngrok-win32-x64-msvc@1.5.2", "", { "os": "win32", "cpu": "x64" }, "sha512-aHuMiRti9Taow9DlYLGVmu9CXtXD/v4CBQWpZlmt7VGuK1KsTWWLaGIBFVp6UXnyW87b0A+KC69Kn/Xjylw+sg=="],
 
     "@nodelib/fs.scandir": ["@nodelib/fs.scandir@2.1.5", "", { "dependencies": { "@nodelib/fs.stat": "2.0.5", "run-parallel": "^1.1.9" } }, "sha512-vq24Bq3ym5HEQm2NKCr3yXDwjc7vTsEThRDnkp2DK9p1uqLR+DHurm/NOTo0KG7HYHU7eppKZj3MyqYuMBf62g=="],
 
@@ -406,7 +406,7 @@
 
     "drizzle-orm": ["drizzle-orm@0.44.4", "", { "peerDependencies": { "@aws-sdk/client-rds-data": ">=3", "@cloudflare/workers-types": ">=4", "@electric-sql/pglite": ">=0.2.0", "@libsql/client": ">=0.10.0", "@libsql/client-wasm": ">=0.10.0", "@neondatabase/serverless": ">=0.10.0", "@op-engineering/op-sqlite": ">=2", "@opentelemetry/api": "^1.4.1", "@planetscale/database": ">=1.13", "@prisma/client": "*", "@tidbcloud/serverless": "*", "@types/better-sqlite3": "*", "@types/pg": "*", "@types/sql.js": "*", "@upstash/redis": ">=1.34.7", "@vercel/postgres": ">=0.8.0", "@xata.io/client": "*", "better-sqlite3": ">=7", "bun-types": "*", "expo-sqlite": ">=14.0.0", "gel": ">=2", "knex": "*", "kysely": "*", "mysql2": ">=2", "pg": ">=8", "postgres": ">=3", "sql.js": ">=1", "sqlite3": ">=5" }, "optionalPeers": ["@aws-sdk/client-rds-data", "@cloudflare/workers-types", "@electric-sql/pglite", "@libsql/client", "@libsql/client-wasm", "@neondatabase/serverless", "@op-engineering/op-sqlite", "@opentelemetry/api", "@planetscale/database", "@prisma/client", "@tidbcloud/serverless", "@types/better-sqlite3", "@types/pg", "@types/sql.js", "@upstash/redis", "@vercel/postgres", "@xata.io/client", "better-sqlite3", "bun-types", "expo-sqlite", "gel", "knex", "kysely", "mysql2", "pg", "postgres", "sql.js", "sqlite3"] }, "sha512-ZyzKFpTC/Ut3fIqc2c0dPZ6nhchQXriTsqTNs4ayRgl6sZcFlMs9QZKPSHXK4bdOf41GHGWf+FrpcDDYwW+W6Q=="],
 
-    "drizzle-zod": ["drizzle-zod@0.8.2", "", { "peerDependencies": { "drizzle-orm": ">=0.36.0", "zod": "^3.25.1" } }, "sha512-9Do/16OjFFNrQDZgvMtxtDDwKWbFOxUAIwNPKX98SfxrP8H18vhN1BvNXbhelLcdgCE7GEaXDJqBjMExSkhpkA=="],
+    "drizzle-zod": ["drizzle-zod@0.8.3", "", { "peerDependencies": { "drizzle-orm": ">=0.36.0", "zod": "^3.25.0 || ^4.0.0" } }, "sha512-66yVOuvGhKJnTdiqj1/Xaaz9/qzOdRJADpDa68enqS6g3t0kpNkwNYjUuaeXgZfO/UWuIM9HIhSlJ6C5ZraMww=="],
 
     "dunder-proto": ["dunder-proto@1.0.1", "", { "dependencies": { "call-bind-apply-helpers": "^1.0.1", "es-errors": "^1.3.0", "gopd": "^1.2.0" } }, "sha512-KIN/nDJBQRcXw0MLVhZE9iQHmG68qAVIBg9CqmUYjmQIhgij9U5MFvrqkUL5FbtyyzZuOeOt0zdeRe4UY7ct+A=="],
 
@@ -1010,7 +1010,7 @@
 
     "yocto-queue": ["yocto-queue@0.1.0", "", {}, "sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q=="],
 
-    "zod": ["zod@4.0.14", "", {}, "sha512-nGFJTnJN6cM2v9kXL+SOBq3AtjQby3Mv5ySGFof5UGRHrRioSJ5iG680cYNjE/yWk671nROcpPj4hAS8nyLhSw=="],
+    "zod": ["zod@4.0.15", "", {}, "sha512-2IVHb9h4Mt6+UXkyMs0XbfICUh1eUrlJJAOupBHUhLRnKkruawyDddYRCs0Eizt900ntIMk9/4RksYl+FgSpcQ=="],
 
     "@esbuild-kit/core-utils/esbuild": ["esbuild@0.18.20", "", { "optionalDependencies": { "@esbuild/android-arm": "0.18.20", "@esbuild/android-arm64": "0.18.20", "@esbuild/android-x64": "0.18.20", "@esbuild/darwin-arm64": "0.18.20", "@esbuild/darwin-x64": "0.18.20", "@esbuild/freebsd-arm64": "0.18.20", "@esbuild/freebsd-x64": "0.18.20", "@esbuild/linux-arm": "0.18.20", "@esbuild/linux-arm64": "0.18.20", "@esbuild/linux-ia32": "0.18.20", "@esbuild/linux-loong64": "0.18.20", "@esbuild/linux-mips64el": "0.18.20", "@esbuild/linux-ppc64": "0.18.20", "@esbuild/linux-riscv64": "0.18.20", "@esbuild/linux-s390x": "0.18.20", "@esbuild/linux-x64": "0.18.20", "@esbuild/netbsd-x64": "0.18.20", "@esbuild/openbsd-x64": "0.18.20", "@esbuild/sunos-x64": "0.18.20", "@esbuild/win32-arm64": "0.18.20", "@esbuild/win32-ia32": "0.18.20", "@esbuild/win32-x64": "0.18.20" }, "bin": { "esbuild": "bin/esbuild" } }, "sha512-ceqxoedUrcayh7Y7ZX6NdbbDzGROiyVBgC4PriJThBKSVPWnnFHZAkfI1lJT8QFkOwH4qOS2SJkS4wvpGl8BpA=="],
 
