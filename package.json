@@ -18,32 +18,32 @@
   },
   "dependencies": {
     "@ngrok/ngrok": "^1.5.2",
-    "bullmq": "^5.56.9",
+    "bullmq": "^5.56.10",
     "drizzle-orm": "^0.44.4",
     "drizzle-zod": "^0.8.3",
-    "hono": "^4.8.12",
+    "hono": "^4.9.1",
     "hono-rate-limiter": "^0.4.2",
     "http-status": "^2.1.0",
     "ioredis": "^5.7.0",
     "mjml": "^4.15.3",
-    "mongoose": "^8.17.0",
+    "mongoose": "^8.17.1",
     "nodemailer": "^7.0.5",
     "seq-logging": "^3.0.0",
     "stripe": "^18.4.0",
-    "zod": "^4.0.15"
+    "zod": "^4.0.17"
   },
   "devDependencies": {
-    "@eslint/js": "^9.32.0",
-    "@types/bun": "^1.2.19",
+    "@eslint/js": "^9.33.0",
+    "@types/bun": "^1.2.20",
     "@types/mjml": "^4.7.4",
     "@types/nodemailer": "^6.4.17",
     "drizzle-kit": "^0.31.4",
     "eslint-import-resolver-typescript": "^4.4.4",
     "eslint-plugin-import": "^2.32.0",
-    "eslint-plugin-prettier": "^5.5.3",
+    "eslint-plugin-prettier": "^5.5.4",
     "globals": "^16.3.0",
     "prettier": "^3.6.2",
-    "typescript-eslint": "^8.39.0"
+    "typescript-eslint": "^8.39.1"
   },
   "peerDependencies": {
     "typescript": "^5.0.0"
