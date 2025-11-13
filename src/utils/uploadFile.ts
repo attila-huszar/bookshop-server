@@ -1,9 +1,14 @@
 import { s3, write } from 'bun'
 import { log } from '@/libs'
 
-export const uploadFile = async (file: File) => {
+export const enum Folder {
+  Avatars = 'avatars',
+  ProductImages = 'product-images',
+}
+
+export const uploadFile = async (file: File, folder: Folder) => {
   try {
-    const key = `avatars/${Date.now()}-${file.name}`
+    const key = `${folder}/${Date.now()}-${file.name}`
     const metadata = s3.file(key)
 
     await write(metadata, file)
@@ -12,7 +17,7 @@ export const uploadFile = async (file: File) => {
 
     return permanentUrl
   } catch (error) {
-    void log.error('Error uploading to AWS', {
+    void log.error('Error uploading to S3', {
       error,
       file: file.name,
     })

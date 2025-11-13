@@ -6,10 +6,11 @@ import {
   emailSchema,
   tokenSchema,
   passwordResetSchema,
+  imageSchema,
 } from '@/validation'
 import { env } from '@/config'
 import { log } from '@/libs'
-import { signAccessToken, signRefreshToken, uploadFile } from '@/utils'
+import { Folder, signAccessToken, signRefreshToken, uploadFile } from '@/utils'
 import { emailQueue } from '@/queues'
 import { authMessage, jobOpts, QUEUE, userMessage } from '@/constants'
 import { BadRequest, Forbidden, NotFound, Unauthorized } from '@/errors'
@@ -75,7 +76,9 @@ export async function registerUser(formData: FormData) {
   const tokenLink = `${env.clientBaseUrl}/verification?token=${verificationToken}`
 
   const avatarUrl =
-    form.avatar instanceof File ? await uploadFile(form.avatar) : null
+    form.avatar instanceof File
+      ? await uploadFile(form.avatar, Folder.Avatars)
+      : null
 
   const newUser = {
     uuid: crypto.randomUUID(),
@@ -276,6 +279,50 @@ export async function updateUserProfile(
   const {
     id,
     uuid: _uuid,
+    password,
+    verified,
+    verificationToken,
+    verificationExpires,
+    passwordResetToken,
+    passwordResetExpires,
+    createdAt,
+    updatedAt,
+    ...userWithoutCreds
+  } = userUpdated
+
+  return userWithoutCreds
+}
+
+export async function uploadUserAvatar(
+  userUuid: string,
+  avatar: Bun.FormDataEntryValue | null,
+) {
+  const user = await usersDB.getUserBy('uuid', userUuid)
+
+  if (!user) {
+    throw new NotFound(userMessage.getError)
+  }
+
+  if (!(avatar instanceof File)) {
+    throw new BadRequest('Avatar must be a file')
+  }
+
+  validate(imageSchema, avatar)
+
+  const url = await uploadFile(avatar, Folder.Avatars)
+
+  const userUpdated = await usersDB.updateUser(user.email, {
+    avatar: url,
+    updatedAt: new Date().toISOString(),
+  })
+
+  if (!userUpdated) {
+    throw new Error(userMessage.updateError)
+  }
+
+  const {
+    id,
+    uuid,
     password,
     verified,
     verificationToken,

@@ -3,8 +3,10 @@ import {
   authorCreateSchema,
   bookCreateSchema,
   bookUpdateSchema,
+  imageSchema,
   validate,
 } from '@/validation'
+import { Folder, uploadFile } from '@/utils'
 import type { AuthorCreate, BookCreate, BookUpdate } from '@/types'
 
 export async function getAllOrders() {
@@ -66,4 +68,16 @@ export async function deleteAuthors(authorIds: number[]) {
   const deletedIds = await authorsDB.deleteAuthors(authorIds)
 
   return deletedIds
+}
+
+export async function uploadProductImage(image: Bun.FormDataEntryValue | null) {
+  if (!(image instanceof File)) {
+    throw new Error('Image must be a file')
+  }
+
+  validate(imageSchema, image)
+
+  const url = await uploadFile(image, Folder.ProductImages)
+
+  return { url }
 }

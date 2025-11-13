@@ -10,6 +10,7 @@ import {
   passwordResetToken,
   passwordResetSubmit,
   updateUserProfile,
+  uploadUserAvatar,
 } from '@/services'
 import { signAccessToken, signRefreshToken, verifyJWTRefresh } from '@/utils'
 import { errorHandler } from '@/errors'
@@ -173,6 +174,20 @@ users.post('/refresh', async (c) => {
     const accessToken = await signAccessToken(payload.uuid, timestamp)
 
     return c.json({ accessToken })
+  } catch (error) {
+    return errorHandler(c, error)
+  }
+})
+
+users.post('/avatar', async (c) => {
+  try {
+    const jwtPayload = c.get('jwtPayload')
+    const formData = await c.req.formData()
+    const avatar = formData.get('avatar')
+
+    const user = await uploadUserAvatar(jwtPayload.uuid, avatar)
+
+    return c.json(user)
   } catch (error) {
     return errorHandler(c, error)
   }

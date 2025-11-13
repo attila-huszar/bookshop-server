@@ -8,6 +8,7 @@ import {
   getAllBooks,
   getAllOrders,
   getAllUsers,
+  uploadProductImage,
 } from '@/services'
 import { errorHandler } from '@/errors'
 import type { AuthorCreate, BookCreate } from '@/types'
@@ -91,6 +92,19 @@ cms.delete('/authors/delete', async (c) => {
     }
     const deletedIds = await deleteAuthors(authorIds)
     return c.json(deletedIds)
+  } catch (error) {
+    return errorHandler(c, error)
+  }
+})
+
+cms.post('/product-image', async (c) => {
+  try {
+    const formData = await c.req.formData()
+    const image = formData.get('image')
+
+    const result = await uploadProductImage(image)
+
+    return c.json(result)
   } catch (error) {
     return errorHandler(c, error)
   }

@@ -59,7 +59,7 @@ app.get('/health', (c) => c.text('OK', 200))
 
 app.use('/users/profile', authMiddleware)
 app.use('/users/logout', authMiddleware)
-app.use('/upload', authMiddleware)
+app.use('/users/avatar', authMiddleware)
 
 app.use('/cms/*', authAdminMiddleware)
 
@@ -69,7 +69,6 @@ app.route('/news', controller.news)
 app.route('/search_opts', controller.bookSearchOptions)
 app.route('/users', controller.users)
 app.route('/orders', controller.orders)
-app.route('/upload', controller.upload)
 app.route('/cms', controller.cms)
 
 if (env.ngrokAuthToken) void ngrokForward()
