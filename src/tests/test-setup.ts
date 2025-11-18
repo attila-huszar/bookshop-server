@@ -57,12 +57,17 @@ await mock.module('@/validation', () => ({
   emailSchema: {},
   tokenSchema: {},
   passwordResetSchema: {},
+  imageSchema: {},
 }))
 
 await mock.module('@/utils', () => ({
   signAccessToken: mockSignAccessToken,
   signRefreshToken: mockSignRefreshToken,
   uploadFile: mockUploadFile,
+  Folder: {
+    Avatars: 'avatars',
+    ProductImages: 'product-images',
+  },
 }))
 
 await mock.module('@/queues', () => ({
