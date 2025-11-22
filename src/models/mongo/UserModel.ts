@@ -13,6 +13,7 @@ const userSchema = new mongo.Schema(
     password: { type: String, required: true },
     address: { type: mongo.Schema.Types.Mixed },
     phone: String,
+    country: { type: String, required: true, default: 'hu' },
     avatar: String,
     verified: { type: Boolean, default: false, required: true },
     verificationToken: String,

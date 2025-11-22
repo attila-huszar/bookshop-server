@@ -57,10 +57,11 @@ export async function registerUser(formData: FormData) {
     lastName: formData.get('lastName'),
     email: formData.get('email'),
     password: formData.get('password'),
+    country: formData.get('country'),
     avatar: formData.get('avatar'),
   }
 
-  const { firstName, lastName, email, password } = validate(
+  const { firstName, lastName, email, password, country } = validate(
     registerSchema,
     form,
   )
@@ -87,6 +88,7 @@ export async function registerUser(formData: FormData) {
     email,
     password: await Bun.password.hash(password),
     avatar: avatarUrl,
+    country,
     role: UserRole.User,
     verified: false,
     verificationToken,

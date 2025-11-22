@@ -48,6 +48,10 @@ export const registerSchema = z.object({
     .max(50, 'Last name must be less than 50 characters'),
   ...emailSchema.shape,
   ...passwordSchema.shape,
+  country: z
+    .string('Country is required')
+    .length(2, 'Country code must be 2 characters (ISO 3166-1 alpha-2)')
+    .toLowerCase(),
   avatar: imageSchema.nullable(),
 })
 

@@ -13,6 +13,7 @@ export const usersTable = sqliteTable('users', {
   password: text().notNull(),
   address: text({ mode: 'json' }).$type<Stripe.Address>(),
   phone: text(),
+  country: text().notNull().default('hu'),
   avatar: text(),
   verified: int({ mode: 'boolean' }).default(false).notNull(),
   verificationToken: text('verification_token'),
