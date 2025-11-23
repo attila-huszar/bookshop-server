@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "82a6b71f-dd6c-42d0-bf6b-03f3dc44d665",
+  "id": "b9a41097-baab-4e07-aa87-d112db0bf90c",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "authors": {
@@ -453,6 +453,14 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "country": {
+          "name": "country",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'hu'"
         },
         "avatar": {
           "name": "avatar",

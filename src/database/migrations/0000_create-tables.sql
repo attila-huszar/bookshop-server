@@ -66,6 +66,7 @@ CREATE TABLE `users` (
 	`password` text NOT NULL,
 	`address` text,
 	`phone` text,
+	`country` text DEFAULT 'hu' NOT NULL,
 	`avatar` text,
 	`verified` integer DEFAULT false NOT NULL,
 	`verification_token` text,

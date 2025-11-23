@@ -8,5 +8,5 @@ export default defineConfig({
     url: 'file:data/db.sqlite',
   },
   out: './src/database/migrations',
-  schema: `./src/database/schema/${dbType}`,
+  schema: `./src/models/${dbType}`,
 })
