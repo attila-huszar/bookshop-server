@@ -1,5 +1,6 @@
 import { mongo } from '@/db'
 import { autoIncrementPlugin } from './'
+import { defaultCountry } from '@/constants'
 import { UserRole } from '@/types'
 
 const userSchema = new mongo.Schema(
@@ -13,7 +14,7 @@ const userSchema = new mongo.Schema(
     password: { type: String, required: true },
     address: { type: mongo.Schema.Types.Mixed },
     phone: String,
-    country: { type: String, required: true, default: 'hu' },
+    country: { type: String, required: true, default: defaultCountry },
     avatar: String,
     verified: { type: Boolean, default: false, required: true },
     verificationToken: String,
