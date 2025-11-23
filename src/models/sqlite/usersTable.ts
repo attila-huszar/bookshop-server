@@ -1,6 +1,7 @@
 import { int, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import type { Stripe } from 'stripe'
 import { timestamps } from './column.helpers'
+import { defaultCountry } from '@/constants'
 import { UserRole } from '@/types'
 
 export const usersTable = sqliteTable('users', {
@@ -13,6 +14,7 @@ export const usersTable = sqliteTable('users', {
   password: text().notNull(),
   address: text({ mode: 'json' }).$type<Stripe.Address>(),
   phone: text(),
+  country: text().notNull().default(defaultCountry),
   avatar: text(),
   verified: int({ mode: 'boolean' }).default(false).notNull(),
   verificationToken: text('verification_token'),
