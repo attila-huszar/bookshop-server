@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { db } from '@/db'
 import model from '@/models'
+import { defaultCurrency } from '@/constants'
 import { type Order, type OrderCreate, OrderStatus } from '@/types'
 
 const { ordersTable } = model as SQLiteModel
@@ -16,7 +17,7 @@ export async function createOrder(order: OrderCreate): Promise<Order | null> {
     phone: order.phone ?? null,
     address: order.address,
     total: order.total,
-    currency: order.currency,
+    currency: defaultCurrency,
     items: order.items,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),

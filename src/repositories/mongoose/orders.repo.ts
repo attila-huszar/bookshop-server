@@ -1,6 +1,7 @@
-import model from '@/models'
-import { type Order, type OrderCreate, OrderStatus } from '@/types'
 import type { Stripe } from 'stripe'
+import model from '@/models'
+import { defaultCurrency } from '@/constants'
+import { type Order, type OrderCreate, OrderStatus } from '@/types'
 
 const { OrderModel } = model as MongoModel
 
@@ -15,7 +16,7 @@ export async function createOrder(order: OrderCreate): Promise<Order | null> {
     phone: order.phone ?? null,
     address: order.address,
     total: order.total,
-    currency: order.currency,
+    currency: defaultCurrency,
     items: order.items,
   }
 

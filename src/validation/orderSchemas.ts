@@ -23,7 +23,6 @@ export const orderCreateSchema = z.object({
   ),
   orderStatus: z.enum(OrderStatus, 'Order status is required'),
   total: z.number('Total is required').positive('Total must be positive'),
-  currency: z.string('Currency is required'),
   items: z
     .array(orderItemSchema, 'Order items are required')
     .min(1, 'Order must contain at least one item'),
