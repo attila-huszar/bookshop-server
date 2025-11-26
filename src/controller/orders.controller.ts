@@ -1,26 +1,14 @@
 import { Hono } from 'hono'
 import {
-  createPaymentIntent,
   retrievePaymentIntent,
   cancelPaymentIntent,
-  createOrder,
+  createOrderWithPayment,
   updateOrder,
 } from '@/services'
 import { errorHandler } from '@/errors'
-import type { Order, OrderUpdate, PaymentIntentCreate } from '@/types'
+import type { OrderUpdate, OrderCreateRequest } from '@/types'
 
 export const orders = new Hono()
-
-orders.post('/payment-intent', async (c) => {
-  try {
-    const createRequest = await c.req.json<PaymentIntentCreate>()
-    const paymentIntent = await createPaymentIntent(createRequest)
-
-    return c.json({ clientSecret: paymentIntent.client_secret })
-  } catch (error) {
-    return errorHandler(c, error)
-  }
-})
 
 orders.get('/payment-intent/:paymentId', async (c) => {
   try {
@@ -44,12 +32,12 @@ orders.delete('/payment-intent/:paymentId', async (c) => {
   }
 })
 
-orders.post('/create', async (c) => {
+orders.post('/create-with-payment', async (c) => {
   try {
-    const orderRequest = await c.req.json<Order>()
-    const { paymentId } = await createOrder(orderRequest)
+    const orderRequest = await c.req.json<OrderCreateRequest>()
+    const { clientSecret, amount } = await createOrderWithPayment(orderRequest)
 
-    return c.json({ paymentId })
+    return c.json({ clientSecret, amount })
   } catch (error) {
     return errorHandler(c, error)
   }

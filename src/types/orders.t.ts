@@ -3,11 +3,16 @@ import { Stripe } from 'stripe'
 import { ordersTable } from '@/models/sqlite'
 import type {
   orderItemSchema,
+  orderItemRequestSchema,
   orderCreateSchema,
+  orderCreateRequestSchema,
   orderUpdateSchema,
 } from '@/validation'
 
 export type Order = typeof ordersTable.$inferSelect
+
+export type OrderItemRequest = z.infer<typeof orderItemRequestSchema>
+export type OrderCreateRequest = z.infer<typeof orderCreateRequestSchema>
 
 export type OrderCreate = z.infer<typeof orderCreateSchema>
 export type OrderUpdate = z.infer<typeof orderUpdateSchema>

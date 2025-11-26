@@ -1,16 +1,24 @@
 import { Stripe } from 'stripe'
 import { env } from '@/config'
-import { ordersDB } from '@/repositories'
-import { validate, orderCreateSchema, orderUpdateSchema } from '@/validation'
+import { booksDB, ordersDB } from '@/repositories'
+import {
+  validate,
+  orderCreateSchema,
+  orderCreateRequestSchema,
+  orderUpdateSchema,
+} from '@/validation'
 import { log } from '@/libs'
 import { emailQueue } from '@/queues'
-import { jobOpts, QUEUE } from '@/constants'
-import { Internal } from '@/errors'
+import { jobOpts, QUEUE, defaultCurrency } from '@/constants'
+import { Internal, NotFound } from '@/errors'
 import type {
   Order,
   OrderUpdate,
+  OrderCreateRequest,
+  OrderItem,
   PaymentIntentCreate,
   SendEmailProps,
+  OrderStatus,
 } from '@/types'
 
 const stripe = new Stripe(env.stripeSecret!)
@@ -42,6 +50,107 @@ export async function createOrder(orderRequest: Order) {
   }
 
   return { paymentId: createdOrder.paymentId }
+}
+
+export async function createOrderWithPayment(
+  orderRequest: OrderCreateRequest,
+): Promise<{ clientSecret: string; amount: number }> {
+  const validatedRequest = validate(orderCreateRequestSchema, orderRequest)
+
+  const orderItems: OrderItem[] = []
+  let total = 0
+
+  for (const item of validatedRequest.items) {
+    const book = await booksDB.getBookById(item.id)
+
+    if (!book) {
+      throw new NotFound(`Book with ID ${item.id} not found`)
+    }
+
+    const itemTotal =
+      item.quantity * book.price * (1 - (book.discount ?? 0) / 100)
+    total += itemTotal
+
+    orderItems.push({
+      id: book.id,
+      title: book.title,
+      price: book.price,
+      discount: book.discount ?? 0,
+      quantity: item.quantity,
+    })
+  }
+
+  total = Number(total.toFixed(2))
+
+  const amountInCents = Math.round(total * 100)
+
+  let stripePaymentId: string | null = null
+
+  try {
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amountInCents,
+      currency: defaultCurrency.toLowerCase(),
+      description: `Order with ${orderItems.length} item(s)`,
+    })
+
+    if (!paymentIntent?.client_secret) {
+      throw new Internal(
+        'Failed to create payment intent: missing client secret',
+      )
+    }
+
+    const clientSecret = paymentIntent.client_secret
+    const paymentIdMatch = /^pi_[^_]+/.exec(clientSecret)
+
+    if (!paymentIdMatch) {
+      throw new Internal('Invalid client secret format from Stripe')
+    }
+
+    stripePaymentId = paymentIdMatch[0]
+
+    const orderData = {
+      paymentId: stripePaymentId,
+      paymentIntentStatus: paymentIntent.status,
+      orderStatus: 'PENDING' as OrderStatus,
+      total,
+      items: orderItems,
+      firstName: validatedRequest.firstName,
+      lastName: validatedRequest.lastName,
+      email: validatedRequest.email,
+      phone: validatedRequest.phone,
+      address: validatedRequest.address,
+    }
+
+    const createdOrder = await ordersDB.createOrder(orderData)
+
+    if (!createdOrder) {
+      throw new Internal('Failed to create order in database')
+    }
+
+    return {
+      clientSecret,
+      amount: amountInCents,
+    }
+  } catch (error) {
+    if (stripePaymentId) {
+      try {
+        await stripe.paymentIntents.cancel(stripePaymentId)
+        void log.warn(
+          'Rolled back Stripe payment intent after order creation failed',
+          {
+            paymentId: stripePaymentId,
+          },
+        )
+      } catch (rollbackError) {
+        void log.error('Failed to rollback Stripe payment intent', {
+          paymentId: stripePaymentId,
+          rollbackError,
+        })
+      }
+    }
+
+    throw error
+  }
 }
 
 export async function updateOrder(orderUpdateRequest: OrderUpdate) {
