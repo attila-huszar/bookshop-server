@@ -8,9 +8,10 @@ import {
   orderUpdateSchema,
 } from '@/validation'
 import { log } from '@/libs'
+import { extractCustomerFields } from '@/utils'
 import { emailQueue } from '@/queues'
 import { jobOpts, QUEUE, defaultCurrency } from '@/constants'
-import { Internal, NotFound } from '@/errors'
+import { BadRequest, Internal, NotFound } from '@/errors'
 import type {
   Order,
   OrderUpdate,
@@ -18,8 +19,8 @@ import type {
   OrderItem,
   PaymentIntentCreate,
   SendEmailProps,
-  OrderStatus,
 } from '@/types'
+import { OrderStatus } from '@/types'
 
 const stripe = new Stripe(env.stripeSecret!)
 
@@ -32,7 +33,171 @@ export async function retrievePaymentIntent(paymentId: string) {
 }
 
 export async function cancelPaymentIntent(paymentId: string) {
-  return stripe.paymentIntents.cancel(paymentId)
+  const cancelledIntent = await stripe.paymentIntents.cancel(paymentId)
+
+  // Update order status in database
+  await ordersDB.updateOrder(paymentId, {
+    paymentIntentStatus: 'canceled',
+    orderStatus: OrderStatus.Canceled,
+    updatedAt: new Date().toISOString(),
+  })
+
+  return cancelledIntent
+}
+
+export async function getOrderByPaymentId(paymentId: string) {
+  const order = await ordersDB.getOrderByPaymentId(paymentId)
+
+  if (!order) {
+    throw new NotFound('Order not found')
+  }
+
+  return order
+}
+
+export async function processStripeWebhook(
+  payload: string,
+  signature: string,
+): Promise<{ received: boolean }> {
+  if (!env.stripeWebhookSecret) {
+    throw new Internal('Stripe webhook secret not configured')
+  }
+
+  let event: Stripe.Event
+
+  try {
+    event = stripe.webhooks.constructEvent(
+      payload,
+      signature,
+      env.stripeWebhookSecret,
+    )
+  } catch (err) {
+    throw new BadRequest(
+      `Webhook signature verification failed: ${err instanceof Error ? err.message : 'Unknown error'}`,
+    )
+  }
+
+  switch (event.type) {
+    case 'payment_intent.succeeded': {
+      const paymentIntent = event.data.object
+      const existingOrder = await ordersDB.getOrderByPaymentId(paymentIntent.id)
+
+      if (!existingOrder) {
+        void log.warn('Webhook received for missing order', {
+          paymentId: paymentIntent.id,
+          eventType: event.type,
+        })
+        break
+      }
+
+      const wasAlreadyPaid = existingOrder.orderStatus === OrderStatus.Paid
+
+      const updatedOrder = await ordersDB.updateOrder(paymentIntent.id, {
+        ...extractCustomerFields(paymentIntent),
+        paymentIntentStatus: paymentIntent.status,
+        orderStatus: OrderStatus.Paid,
+        updatedAt: new Date().toISOString(),
+      })
+
+      if (!wasAlreadyPaid && updatedOrder?.email && updatedOrder.firstName) {
+        void emailQueue
+          .add(
+            QUEUE.EMAIL.JOB.ORDER_CONFIRMATION,
+            {
+              type: QUEUE.EMAIL.JOB.ORDER_CONFIRMATION,
+              toAddress: updatedOrder.email,
+              toName: updatedOrder.firstName,
+              order: updatedOrder,
+            } satisfies SendEmailProps,
+            jobOpts,
+          )
+          .catch((error: Error) => {
+            void log.error('[QUEUE] Order confirmation email queueing failed', {
+              error,
+              paymentId: paymentIntent.id,
+            })
+          })
+      }
+
+      void log.info('Payment succeeded via webhook', {
+        paymentId: paymentIntent.id,
+        wasAlreadyPaid,
+      })
+      break
+    }
+
+    case 'payment_intent.amount_capturable_updated': {
+      const paymentIntent = event.data.object
+      const existingOrder = await ordersDB.getOrderByPaymentId(paymentIntent.id)
+
+      if (!existingOrder) {
+        void log.warn('Webhook received for missing order', {
+          paymentId: paymentIntent.id,
+          eventType: event.type,
+        })
+        break
+      }
+
+      await ordersDB.updateOrder(paymentIntent.id, {
+        ...extractCustomerFields(paymentIntent),
+        paymentIntentStatus: paymentIntent.status,
+        orderStatus: OrderStatus.Captured,
+        updatedAt: new Date().toISOString(),
+      })
+
+      void log.info('Payment capturable via webhook', {
+        paymentId: paymentIntent.id,
+      })
+
+      break
+    }
+
+    case 'payment_intent.payment_failed': {
+      const paymentIntent = event.data.object
+      await ordersDB.updateOrder(paymentIntent.id, {
+        paymentIntentStatus: paymentIntent.status,
+        updatedAt: new Date().toISOString(),
+      })
+
+      void log.warn('Payment failed via webhook', {
+        paymentId: paymentIntent.id,
+        error: paymentIntent.last_payment_error?.message,
+      })
+      break
+    }
+
+    case 'payment_intent.canceled': {
+      const paymentIntent = event.data.object
+      await ordersDB.updateOrder(paymentIntent.id, {
+        paymentIntentStatus: 'canceled',
+        orderStatus: OrderStatus.Canceled,
+        updatedAt: new Date().toISOString(),
+      })
+
+      void log.info('Payment canceled via webhook', {
+        paymentId: paymentIntent.id,
+      })
+      break
+    }
+
+    case 'payment_intent.requires_action': {
+      const paymentIntent = event.data.object
+      await ordersDB.updateOrder(paymentIntent.id, {
+        paymentIntentStatus: 'requires_action',
+        updatedAt: new Date().toISOString(),
+      })
+
+      void log.info('Payment requires action via webhook', {
+        paymentId: paymentIntent.id,
+      })
+      break
+    }
+
+    default:
+      void log.info(`Unhandled webhook event type: ${event.type}`)
+  }
+
+  return { received: true }
 }
 
 export async function createOrder(orderRequest: Order) {
@@ -111,14 +276,14 @@ export async function createOrderWithPayment(
     const orderData = {
       paymentId: stripePaymentId,
       paymentIntentStatus: paymentIntent.status,
-      orderStatus: 'PENDING' as OrderStatus,
+      orderStatus: OrderStatus.Pending,
       total,
       items: orderItems,
-      firstName: validatedRequest.firstName,
-      lastName: validatedRequest.lastName,
-      email: validatedRequest.email,
-      phone: validatedRequest.phone,
-      address: validatedRequest.address,
+      firstName: null,
+      lastName: null,
+      email: null,
+      phone: null,
+      address: null,
     }
 
     const createdOrder = await ordersDB.createOrder(orderData)
@@ -161,26 +326,33 @@ export async function updateOrder(orderUpdateRequest: OrderUpdate) {
     updatedAt: new Date().toISOString(),
   })
 
-  if (!updatedOrder?.email || !updatedOrder.firstName) {
+  if (!updatedOrder) {
     throw new Internal('Failed to update order')
   }
 
-  void emailQueue
-    .add(
-      QUEUE.EMAIL.JOB.ORDER_CONFIRMATION,
-      {
-        type: QUEUE.EMAIL.JOB.ORDER_CONFIRMATION,
-        toAddress: updatedOrder.email,
-        toName: updatedOrder.firstName,
-        order: updatedOrder,
-      } satisfies SendEmailProps,
-      jobOpts,
-    )
-    .catch((error: Error) => {
-      void log.error('[QUEUE] Order confirmation email queueing failed', {
-        error,
+  // Only send confirmation email if we have email and name (for paid orders)
+  if (
+    updatedOrder.email &&
+    updatedOrder.firstName &&
+    updatedOrder.orderStatus === OrderStatus.Paid
+  ) {
+    void emailQueue
+      .add(
+        QUEUE.EMAIL.JOB.ORDER_CONFIRMATION,
+        {
+          type: QUEUE.EMAIL.JOB.ORDER_CONFIRMATION,
+          toAddress: updatedOrder.email,
+          toName: updatedOrder.firstName,
+          order: updatedOrder,
+        } satisfies SendEmailProps,
+        jobOpts,
+      )
+      .catch((error: Error) => {
+        void log.error('[QUEUE] Order confirmation email queueing failed', {
+          error,
+        })
       })
-    })
+  }
 
   return updatedOrder
 }

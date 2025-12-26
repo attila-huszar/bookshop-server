@@ -74,7 +74,7 @@ export async function insertAuthor(author: AuthorCreate): Promise<Author> {
 }
 
 export async function updateAuthor(
-  authorId: string,
+  authorId: number,
   author: AuthorUpdate,
 ): Promise<Author | null> {
   const updated = await AuthorModel.findByIdAndUpdate(authorId, author, {

@@ -22,6 +22,7 @@ export type OrderItem = z.infer<typeof orderItemSchema>
 export enum OrderStatus {
   Pending = 'PENDING',
   Paid = 'PAID',
+  Captured = 'CAPTURED',
   Canceled = 'CANCELED',
 }
 

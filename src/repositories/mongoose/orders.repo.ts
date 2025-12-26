@@ -70,6 +70,31 @@ export async function updateOrder(
   }
 }
 
+export async function getOrderByPaymentId(
+  paymentId: string,
+): Promise<Order | null> {
+  const order = await OrderModel.findOne({ paymentId }).lean()
+  if (!order) return null
+
+  return {
+    id: order.id!,
+    paymentId: order.paymentId,
+    paymentIntentStatus:
+      order.paymentIntentStatus as Stripe.PaymentIntent.Status,
+    orderStatus: order.orderStatus as OrderStatus,
+    total: order.total,
+    currency: order.currency,
+    items: order.items as Order['items'],
+    firstName: order.firstName ?? null,
+    lastName: order.lastName ?? null,
+    email: order.email ?? null,
+    phone: order.phone ?? null,
+    address: order.address as Stripe.Address,
+    createdAt: order.createdAt.toISOString(),
+    updatedAt: order.updatedAt.toISOString(),
+  }
+}
+
 export async function getAllOrders(): Promise<Order[]> {
   const orders = await OrderModel.find().lean()
   return orders.map((order) => ({
@@ -89,4 +114,12 @@ export async function getAllOrders(): Promise<Order[]> {
     createdAt: order.createdAt.toISOString(),
     updatedAt: order.updatedAt.toISOString(),
   }))
+}
+
+export async function deleteOrdersByIds(
+  orderIds: number[],
+): Promise<Order['id'][]> {
+  await OrderModel.deleteMany({ id: { $in: orderIds } })
+
+  return orderIds
 }

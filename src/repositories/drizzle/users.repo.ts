@@ -1,4 +1,4 @@
-import { eq, lt } from 'drizzle-orm'
+import { eq, inArray, lt } from 'drizzle-orm'
 import { db } from '@/db'
 import model from '@/models'
 import type { UserUpdateRequest, User, UserInsert } from '@/types'
@@ -73,6 +73,14 @@ export async function deleteUserByEmail(
 
   if (deleteResult.length === 0) return null
   return email
+}
+
+export async function deleteUsersByIds(
+  userIds: number[],
+): Promise<User['id'][]> {
+  await db.delete(usersTable).where(inArray(usersTable.id, userIds))
+
+  return userIds
 }
 
 export async function cleanupExpiredTokens() {

@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
 import { db } from '@/db'
 import model from '@/models'
 import { defaultCurrency } from '@/constants'
@@ -23,44 +23,48 @@ export async function createOrder(order: OrderCreate): Promise<Order | null> {
     updatedAt: new Date().toISOString(),
   }
 
-  await db.insert(ordersTable).values(orderInsert)
+  const [createdOrder] = await db
+    .insert(ordersTable)
+    .values(orderInsert)
+    .returning()
 
+  return createdOrder ?? null
+}
+
+export async function getOrderByPaymentId(
+  paymentId: string,
+): Promise<Order | null> {
   const orderRecords = await db
     .select()
     .from(ordersTable)
-    .where(eq(ordersTable.paymentId, order.paymentId))
+    .where(eq(ordersTable.paymentId, paymentId))
     .limit(1)
 
-  if (!orderRecords.length) {
-    return null
-  }
-
-  return orderRecords[0]
+  return orderRecords[0] ?? null
 }
 
 export async function updateOrder(
   paymentId: string,
   fields: Partial<Order>,
 ): Promise<Order | null> {
-  await db
+  const [updatedOrder] = await db
     .update(ordersTable)
     .set(fields)
     .where(eq(ordersTable.paymentId, paymentId))
+    .returning()
 
-  const orderRecords = await db
-    .select()
-    .from(ordersTable)
-    .where(eq(ordersTable.paymentId, paymentId))
-    .limit(1)
-
-  if (!orderRecords.length) {
-    return null
-  }
-
-  return orderRecords[0]
+  return updatedOrder ?? null
 }
 
 export async function getAllOrders(): Promise<Order[]> {
   const orderRecords = await db.select().from(ordersTable)
   return orderRecords
+}
+
+export async function deleteOrdersByIds(
+  orderIds: number[],
+): Promise<Order['id'][]> {
+  await db.delete(ordersTable).where(inArray(ordersTable.id, orderIds))
+
+  return orderIds
 }

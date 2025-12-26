@@ -20,6 +20,7 @@ export const env = {
   ngrokAuthToken: Bun.env.NGROK_AUTHTOKEN,
   ngrokDomain: Bun.env.NGROK_DOMAIN,
   stripeSecret: Bun.env.STRIPE_SECRET,
+  stripeWebhookSecret: Bun.env.STRIPE_WEBHOOK_SECRET,
   awsAccessKeyId: Bun.env.AWS_ACCESS_KEY_ID,
   awsSecretAccessKey: Bun.env.AWS_SECRET_ACCESS_KEY,
   awsRegion: Bun.env.AWS_REGION,

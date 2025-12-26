@@ -124,6 +124,14 @@ export async function deleteUserByEmail(
   return email
 }
 
+export async function deleteUsersByIds(
+  userIds: number[],
+): Promise<User['id'][]> {
+  await UserModel.deleteMany({ id: { $in: userIds } })
+
+  return userIds
+}
+
 export async function cleanupExpiredTokens() {
   const now = new Date().toISOString()
 

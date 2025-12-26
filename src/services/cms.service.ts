@@ -1,13 +1,19 @@
 import { authorsDB, booksDB, ordersDB, usersDB } from '@/repositories'
 import {
   authorCreateSchema,
+  authorUpdateSchema,
   bookCreateSchema,
   bookUpdateSchema,
   imageSchema,
   validate,
 } from '@/validation'
 import { Folder, uploadFile } from '@/utils'
-import type { AuthorCreate, BookCreate, BookUpdate } from '@/types'
+import type {
+  AuthorCreate,
+  AuthorUpdate,
+  BookCreate,
+  BookUpdate,
+} from '@/types'
 
 export async function getAllOrders() {
   const orders = await ordersDB.getAllOrders()
@@ -64,8 +70,27 @@ export async function addAuthor(author: AuthorCreate) {
   return newAuthor
 }
 
+export async function updateAuthor(authorId: number, author: AuthorUpdate) {
+  const validatedAuthor = validate(authorUpdateSchema, author)
+  const updatedAuthor = await authorsDB.updateAuthor(authorId, validatedAuthor)
+
+  return updatedAuthor
+}
+
 export async function deleteAuthors(authorIds: number[]) {
   const deletedIds = await authorsDB.deleteAuthors(authorIds)
+
+  return deletedIds
+}
+
+export async function deleteUsers(userIds: number[]) {
+  const deletedIds = await usersDB.deleteUsersByIds(userIds)
+
+  return deletedIds
+}
+
+export async function deleteOrders(orderIds: number[]) {
+  const deletedIds = await ordersDB.deleteOrdersByIds(orderIds)
 
   return deletedIds
 }
