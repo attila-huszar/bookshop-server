@@ -11,3 +11,5 @@ export const authorsTable = sqliteTable('authors', {
   biography: text(),
   ...timestamps,
 })
+
+export type AuthorSQL = typeof authorsTable.$inferSelect

@@ -12,9 +12,11 @@ export const booksTable = sqliteTable('books', {
   publishYear: int('publish_year'),
   rating: real(),
   price: real().notNull(),
-  discount: real().default(0),
+  discount: real().notNull().default(0),
   discountPrice: real('discount_price').notNull(),
-  topSellers: int('top_sellers', { mode: 'boolean' }).default(false),
-  newRelease: int('new_release', { mode: 'boolean' }).default(false),
+  topSellers: int('top_sellers', { mode: 'boolean' }).notNull().default(false),
+  newRelease: int('new_release', { mode: 'boolean' }).notNull().default(false),
   ...timestamps,
 })
+
+export type BookSQL = typeof booksTable.$inferSelect

@@ -1,7 +1,10 @@
 import { mongo } from '@/db'
 import { autoIncrementPlugin } from './'
+import type { AuthorSQL, WithDateTimestamps } from '@/models/sqlite'
 
-const authorSchema = new mongo.Schema(
+type IAuthor = WithDateTimestamps<AuthorSQL>
+
+const authorSchema = new mongo.Schema<IAuthor>(
   {
     id: { type: Number, unique: true, index: true },
     name: { type: String, required: true },
@@ -16,4 +19,4 @@ const authorSchema = new mongo.Schema(
 
 authorSchema.plugin(autoIncrementPlugin)
 
-export const AuthorModel = mongo.model('Author', authorSchema)
+export const AuthorModel = mongo.model<IAuthor>('Author', authorSchema)

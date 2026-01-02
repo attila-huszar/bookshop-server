@@ -23,8 +23,8 @@ async function getNextSequence(model: Model<unknown>): Promise<number> {
   }
 }
 
-export async function setSequence<T>(
-  model: Model<T>,
+export async function setSequence(
+  model: Model<unknown>,
   value: number,
 ): Promise<void> {
   await CounterModel.findByIdAndUpdate(
@@ -34,26 +34,25 @@ export async function setSequence<T>(
   )
 }
 
-export async function getHighestId<T extends { id?: number | null }>(
-  model: Model<T>,
-): Promise<number> {
-  const result = await model.findOne().sort({ id: -1 }).select('id').lean()
+export async function getHighestId(model: Model<unknown>): Promise<number> {
+  const result = await model
+    .findOne()
+    .sort({ id: -1 })
+    .select('id')
+    .lean<{ id?: number | null }>()
 
-  if (!result) return 0
-
-  return typeof result.id === 'number' ? (result.id as number) : 0
+  return result?.id ?? 0
 }
 
 export function autoIncrementPlugin(schema: Schema): void {
-  schema.pre('save', async function (this, next) {
-    if (this.isNew && this.id == null) {
-      try {
-        this.id = await getNextSequence(this.$model())
-      } catch (error) {
-        log.error('Auto-increment error', { error })
-        return next(error as Error)
-      }
+  schema.pre('save', async function () {
+    const doc = this as unknown as {
+      isNew: boolean
+      id?: number
+      $model(): Model<unknown>
     }
-    next()
+    if (doc.isNew && doc.id == null) {
+      doc.id = await getNextSequence(doc.$model())
+    }
   })
 }

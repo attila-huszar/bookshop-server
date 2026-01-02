@@ -330,29 +330,5 @@ export async function updateOrder(orderUpdateRequest: OrderUpdate) {
     throw new Internal('Failed to update order')
   }
 
-  // Only send confirmation email if we have email and name (for paid orders)
-  if (
-    updatedOrder.email &&
-    updatedOrder.firstName &&
-    updatedOrder.orderStatus === OrderStatus.Paid
-  ) {
-    void emailQueue
-      .add(
-        QUEUE.EMAIL.JOB.ORDER_CONFIRMATION,
-        {
-          type: QUEUE.EMAIL.JOB.ORDER_CONFIRMATION,
-          toAddress: updatedOrder.email,
-          toName: updatedOrder.firstName,
-          order: updatedOrder,
-        } satisfies SendEmailProps,
-        jobOpts,
-      )
-      .catch((error: Error) => {
-        void log.error('[QUEUE] Order confirmation email queueing failed', {
-          error,
-        })
-      })
-  }
-
   return updatedOrder
 }
