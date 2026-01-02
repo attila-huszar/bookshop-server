@@ -1,6 +1,9 @@
 import { env } from '@/config'
 import { DB_REPO } from '@/constants'
 import { UserRole, type UserInsert } from '@/types'
+import type { getHighestId } from '@/models/mongo'
+
+type ModelWithId = Parameters<typeof getHighestId>[0]
 
 const admin: UserInsert = {
   id: 1,
@@ -27,13 +30,12 @@ export async function seedUsers() {
   }
 
   if (env.dbRepo === DB_REPO.MONGO) {
-    const { UserModel, getHighestId, setSequence } = await import(
-      '@/models/mongo'
-    )
+    const { UserModel, getHighestId, setSequence } =
+      await import('@/models/mongo')
 
     const createdUser = await UserModel.create(admin)
-    const highestId = await getHighestId(UserModel)
-    await setSequence(UserModel, highestId)
+    const highestId = await getHighestId(UserModel as ModelWithId)
+    await setSequence(UserModel as ModelWithId, highestId)
 
     return {
       [UserModel.collection.collectionName]: createdUser.email,

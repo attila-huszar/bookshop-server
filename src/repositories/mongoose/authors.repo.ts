@@ -12,7 +12,7 @@ export async function getAllAuthors(): Promise<Author[]> {
   const authors = await AuthorModel.find().lean()
 
   return authors.map((author) => ({
-    id: author.id!,
+    id: author.id,
     name: author.name,
     fullName: author.fullName ?? null,
     birthYear: author.birthYear ?? null,
@@ -37,7 +37,7 @@ export async function getAuthorById(
   }
 
   return {
-    id: author.id!,
+    id: author.id,
     name: author.name,
   }
 }
@@ -51,7 +51,7 @@ export async function getAuthorsBySearch(
   ).lean()
 
   return authors.map((author) => ({
-    id: author.id!,
+    id: author.id,
     name: author.name,
   }))
 }
@@ -61,7 +61,7 @@ export async function insertAuthor(author: AuthorCreate): Promise<Author> {
   const savedAuthor = created.toObject()
 
   return {
-    id: savedAuthor.id!,
+    id: savedAuthor.id,
     name: savedAuthor.name,
     fullName: savedAuthor.fullName ?? null,
     birthYear: savedAuthor.birthYear ?? null,
@@ -77,13 +77,13 @@ export async function updateAuthor(
   authorId: number,
   author: AuthorUpdate,
 ): Promise<Author | null> {
-  const updated = await AuthorModel.findByIdAndUpdate(authorId, author, {
+  const updated = await AuthorModel.findOneAndUpdate({ id: authorId }, author, {
     new: true,
   }).lean()
   if (!updated) return null
 
   return {
-    id: updated.id!,
+    id: updated.id,
     name: updated.name,
     fullName: updated.fullName ?? null,
     birthYear: updated.birthYear ?? null,

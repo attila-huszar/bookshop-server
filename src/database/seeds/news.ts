@@ -24,9 +24,8 @@ export async function seedNews() {
   }
 
   if (env.dbRepo === DB_REPO.MONGO) {
-    const { NewsModel, getHighestId, setSequence } = await import(
-      '@/models/mongo'
-    )
+    const { NewsModel, getHighestId, setSequence } =
+      await import('@/models/mongo')
 
     await NewsModel.create(seedValues)
     const highestId = await getHighestId(NewsModel)

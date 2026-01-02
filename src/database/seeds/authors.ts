@@ -27,9 +27,8 @@ export async function seedAuthors() {
   }
 
   if (env.dbRepo === DB_REPO.MONGO) {
-    const { AuthorModel, getHighestId, setSequence } = await import(
-      '@/models/mongo'
-    )
+    const { AuthorModel, getHighestId, setSequence } =
+      await import('@/models/mongo')
 
     await AuthorModel.create(seedValues)
     const highestId = await getHighestId(AuthorModel)

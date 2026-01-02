@@ -40,9 +40,8 @@ export async function seedBooks() {
   }
 
   if (env.dbRepo === DB_REPO.MONGO) {
-    const { AuthorModel, BookModel, getHighestId, setSequence } = await import(
-      '@/models/mongo'
-    )
+    const { AuthorModel, BookModel, getHighestId, setSequence } =
+      await import('@/models/mongo')
 
     const authorIdMap: Record<number, string> = {}
     const authors = await AuthorModel.find()

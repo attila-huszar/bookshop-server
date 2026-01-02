@@ -9,7 +9,7 @@ const counterSchema = new mongo.Schema({
 
 const CounterModel = mongo.model('Counter', counterSchema)
 
-async function getNextSequence(model: Model<unknown>): Promise<number> {
+async function getNextSequence<T>(model: Model<T>): Promise<number> {
   try {
     const counter = await CounterModel.findByIdAndUpdate(
       model.modelName,
@@ -23,8 +23,8 @@ async function getNextSequence(model: Model<unknown>): Promise<number> {
   }
 }
 
-export async function setSequence(
-  model: Model<unknown>,
+export async function setSequence<T>(
+  model: Model<T>,
   value: number,
 ): Promise<void> {
   await CounterModel.findByIdAndUpdate(
@@ -34,7 +34,7 @@ export async function setSequence(
   )
 }
 
-export async function getHighestId(model: Model<unknown>): Promise<number> {
+export async function getHighestId<T>(model: Model<T>): Promise<number> {
   const result = await model
     .findOne()
     .sort({ id: -1 })
@@ -49,7 +49,7 @@ export function autoIncrementPlugin(schema: Schema): void {
     const doc = this as unknown as {
       isNew: boolean
       id?: number
-      $model(): Model<unknown>
+      $model<T>(): Model<T>
     }
     if (doc.isNew && doc.id == null) {
       doc.id = await getNextSequence(doc.$model())

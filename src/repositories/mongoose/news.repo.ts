@@ -6,7 +6,7 @@ const { NewsModel } = model as MongoModel
 export async function getNews(): Promise<News[]> {
   const news = await NewsModel.find().lean()
   return news.map((item) => ({
-    id: item.id!,
+    id: item.id,
     title: item.title,
     content: item.content,
     img: item.img ?? null,
@@ -20,7 +20,7 @@ export async function getNewsById(newsId: string): Promise<News | null> {
   if (!news) return null
 
   return {
-    id: news.id!,
+    id: news.id,
     title: news.title,
     content: news.content,
     img: news.img ?? null,
@@ -34,7 +34,7 @@ export async function insertNews(news: NewsInsert): Promise<News> {
   const savedNews = created.toObject()
 
   return {
-    id: savedNews.id!,
+    id: savedNews.id,
     title: savedNews.title,
     content: savedNews.content,
     img: savedNews.img ?? null,
@@ -53,7 +53,7 @@ export async function updateNews(
   if (!updated) return null
 
   return {
-    id: updated.id!,
+    id: updated.id,
     title: updated.title,
     content: updated.content,
     img: updated.img ?? null,
@@ -67,7 +67,7 @@ export async function deleteNews(newsIds: string[]): Promise<News[]> {
   await NewsModel.deleteMany({ _id: { $in: newsIds } })
 
   return deleted.map((item) => ({
-    id: item.id!,
+    id: item.id,
     title: item.title,
     content: item.content,
     img: item.img ?? null,
