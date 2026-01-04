@@ -5,6 +5,6 @@ import {
 } from 'drizzle-zod'
 import { authorsTable } from '@/models/sqlite'
 
-export const authorSchema = createSelectSchema(authorsTable)
-export const authorCreateSchema = createInsertSchema(authorsTable)
+export const authorSelectSchema = createSelectSchema(authorsTable)
+export const authorInsertSchema = createInsertSchema(authorsTable)
 export const authorUpdateSchema = createUpdateSchema(authorsTable)

@@ -1,17 +1,19 @@
 import { authorsDB, booksDB, ordersDB, usersDB } from '@/repositories'
 import {
-  authorCreateSchema,
+  authorInsertSchema,
   authorUpdateSchema,
-  bookCreateSchema,
+  bookInsertSchema,
   bookUpdateSchema,
   imageSchema,
+  idsSchema,
+  idSchema,
   validate,
 } from '@/validation'
 import { Folder, uploadFile } from '@/utils'
 import type {
-  AuthorCreate,
+  AuthorInsert,
   AuthorUpdate,
-  BookCreate,
+  BookInsert,
   BookUpdate,
 } from '@/types'
 
@@ -43,54 +45,63 @@ export async function getAllAuthors() {
   return authors
 }
 
-export async function addBook(book: BookCreate) {
-  const validatedBook = validate(bookCreateSchema, book)
+export async function addBook(book: BookInsert) {
+  const validatedBook = validate(bookInsertSchema, book)
   const newBook = await booksDB.insertBook(validatedBook)
 
   return newBook
 }
 
 export async function updateBook(bookId: number, book: BookUpdate) {
+  const validatedId = validate(idSchema, bookId)
   const validatedBook = validate(bookUpdateSchema, book)
-  const updatedBook = await booksDB.updateBook(bookId, validatedBook)
+  const updatedBook = await booksDB.updateBook(validatedId, validatedBook)
 
   return updatedBook
 }
 
 export async function deleteBooks(bookIds: number[]) {
-  const deletedIds = await booksDB.deleteBooks(bookIds)
+  const validatedIds = validate(idsSchema, bookIds)
+  const deletedIds = await booksDB.deleteBooks(validatedIds)
 
   return deletedIds
 }
 
-export async function addAuthor(author: AuthorCreate) {
-  const validatedAuthor = validate(authorCreateSchema, author)
+export async function addAuthor(author: AuthorInsert) {
+  const validatedAuthor = validate(authorInsertSchema, author)
   const newAuthor = await authorsDB.insertAuthor(validatedAuthor)
 
   return newAuthor
 }
 
 export async function updateAuthor(authorId: number, author: AuthorUpdate) {
+  const validatedId = validate(idSchema, authorId)
   const validatedAuthor = validate(authorUpdateSchema, author)
-  const updatedAuthor = await authorsDB.updateAuthor(authorId, validatedAuthor)
+  const updatedAuthor = await authorsDB.updateAuthor(
+    validatedId,
+    validatedAuthor,
+  )
 
   return updatedAuthor
 }
 
 export async function deleteAuthors(authorIds: number[]) {
-  const deletedIds = await authorsDB.deleteAuthors(authorIds)
+  const validatedIds = validate(idsSchema, authorIds)
+  const deletedIds = await authorsDB.deleteAuthors(validatedIds)
 
   return deletedIds
 }
 
 export async function deleteUsers(userIds: number[]) {
-  const deletedIds = await usersDB.deleteUsersByIds(userIds)
+  const validatedIds = validate(idsSchema, userIds)
+  const deletedIds = await usersDB.deleteUsersByIds(validatedIds)
 
   return deletedIds
 }
 
 export async function deleteOrders(orderIds: number[]) {
-  const deletedIds = await ordersDB.deleteOrdersByIds(orderIds)
+  const validatedIds = validate(idsSchema, orderIds)
+  const deletedIds = await ordersDB.deleteOrdersByIds(validatedIds)
 
   return deletedIds
 }

@@ -1,7 +1,26 @@
 import { z } from 'zod'
-import { OrderStatus, paymentIntentStatusValues } from '@/types'
+import {
+  createSelectSchema,
+  createInsertSchema,
+  createUpdateSchema,
+} from 'drizzle-zod'
+import { ordersTable } from '@/models/sqlite'
+import { OrderStatus, type PaymentIntentStatus } from '@/types'
 
-export const orderItemRequestSchema = z.object({
+export const orderSelectSchema = createSelectSchema(ordersTable, {
+  paymentIntentStatus: () => z.custom<PaymentIntentStatus>(),
+  orderStatus: () => z.enum(OrderStatus),
+})
+export const orderInsertSchema = createInsertSchema(ordersTable, {
+  paymentIntentStatus: () => z.custom<PaymentIntentStatus>(),
+  orderStatus: () => z.enum(OrderStatus),
+})
+export const orderUpdateSchema = createUpdateSchema(ordersTable, {
+  paymentIntentStatus: () => z.custom<PaymentIntentStatus>().optional(),
+  orderStatus: () => z.enum(OrderStatus).optional(),
+})
+
+export const cartItemSchema = z.object({
   id: z.number('Order item ID is required').int().positive(),
   quantity: z
     .number('Quantity is required')
@@ -10,9 +29,9 @@ export const orderItemRequestSchema = z.object({
     .max(50, 'Quantity cannot exceed 50'),
 })
 
-export const orderCreateRequestSchema = z.object({
+export const checkoutCartSchema = z.object({
   items: z
-    .array(orderItemRequestSchema, 'Order items are required')
+    .array(cartItemSchema, 'Order items are required')
     .min(1, 'Order must contain at least one item'),
 })
 
@@ -28,76 +47,4 @@ export const orderItemSchema = z.object({
     .number('Quantity is required')
     .int('Quantity must be an integer')
     .positive('Quantity must be positive'),
-})
-
-export const orderCreateSchema = z.object({
-  paymentId: z.string('Payment ID is required'),
-  paymentIntentStatus: z.enum(
-    paymentIntentStatusValues,
-    'Payment intent status is required',
-  ),
-  orderStatus: z.enum(OrderStatus, 'Order status is required'),
-  total: z.number('Total is required').positive('Total must be positive'),
-  items: z
-    .array(orderItemSchema, 'Order items are required')
-    .min(1, 'Order must contain at least one item'),
-  firstName: z
-    .string('First name is required')
-    .min(2, 'First name must be at least 2 characters')
-    .max(50, 'First name must be less than 50 characters')
-    .nullable(),
-  lastName: z
-    .string('Last name is required')
-    .min(2, 'Last name must be at least 2 characters')
-    .max(50, 'Last name must be less than 50 characters')
-    .nullable(),
-  email: z.email('Invalid email').nullable(),
-  phone: z.string().nullable().optional(),
-  address: z
-    .object({
-      line1: z.string(),
-      line2: z.string().nullable(),
-      city: z.string(),
-      state: z.string(),
-      postal_code: z.string(),
-      country: z.string(),
-    })
-    .nullable(),
-})
-
-export const orderUpdateSchema = z.object({
-  paymentId: z.string('Payment ID is required'),
-  fields: z
-    .object({
-      paymentIntentStatus: z.enum(paymentIntentStatusValues).optional(),
-      orderStatus: z.nativeEnum(OrderStatus).optional(),
-      firstName: z
-        .string()
-        .min(2, 'First name must be at least 2 characters')
-        .max(50, 'First name must be less than 50 characters')
-        .nullable()
-        .optional(),
-      lastName: z
-        .string()
-        .min(2, 'Last name must be at least 2 characters')
-        .max(50, 'Last name must be less than 50 characters')
-        .nullable()
-        .optional(),
-      email: z.email('Invalid email').nullable().optional(),
-      phone: z.string().nullable().optional(),
-      address: z
-        .object({
-          line1: z.string(),
-          line2: z.string().nullable(),
-          city: z.string(),
-          state: z.string(),
-          postal_code: z.string(),
-          country: z.string(),
-        })
-        .nullable()
-        .optional(),
-    })
-    .refine((fields) => Object.keys(fields).length > 0, {
-      message: 'At least one field must be updated',
-    }),
 })

@@ -7,7 +7,7 @@ import {
   getOrderByPaymentId,
 } from '@/services'
 import { errorHandler } from '@/errors'
-import type { OrderUpdate, OrderCreateRequest } from '@/types'
+import type { OrderUpdate, CheckoutCart } from '@/types'
 
 export const orders = new Hono()
 
@@ -46,7 +46,7 @@ orders.get('/:paymentId', async (c) => {
 
 orders.post('/', async (c) => {
   try {
-    const orderRequest = await c.req.json<OrderCreateRequest>()
+    const orderRequest = await c.req.json<CheckoutCart>()
     const { clientSecret, amount } = await createOrderWithPayment(orderRequest)
 
     return c.json({ clientSecret, amount })
@@ -58,8 +58,8 @@ orders.post('/', async (c) => {
 orders.patch('/:paymentId', async (c) => {
   try {
     const paymentId = c.req.param('paymentId')
-    const { fields } = await c.req.json<Pick<OrderUpdate, 'fields'>>()
-    const updatedOrder = await updateOrder({ paymentId, fields } as OrderUpdate)
+    const fields = await c.req.json<OrderUpdate>()
+    const updatedOrder = await updateOrder(paymentId, fields)
 
     return c.json(updatedOrder)
   } catch (error) {

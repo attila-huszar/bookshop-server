@@ -7,6 +7,7 @@ import {
   tokenSchema,
   passwordResetSchema,
   imageSchema,
+  userUpdateSchema,
 } from '@/validation'
 import { env } from '@/config'
 import { log } from '@/libs'
@@ -20,7 +21,7 @@ import {
   type PasswordResetRequest,
   type PasswordResetToken,
   type PasswordResetSubmit,
-  type UserUpdateRequest,
+  type UserUpdate,
   type SendEmailProps,
   UserRole,
 } from '@/types'
@@ -257,20 +258,22 @@ export async function getUserProfile(uuid: string) {
 
 export async function updateUserProfile(
   uuid: string,
-  updateFields: UserUpdateRequest,
+  updateFields: UserUpdate,
 ) {
+  const validatedFields = validate(userUpdateSchema, updateFields)
+
   const user = await usersDB.getUserBy('uuid', uuid)
 
   if (!user) {
     throw new NotFound(userMessage.getError)
   }
 
-  if (updateFields.password) {
-    updateFields.password = await Bun.password.hash(updateFields.password)
+  if (validatedFields.password) {
+    validatedFields.password = await Bun.password.hash(validatedFields.password)
   }
 
   const userUpdated = await usersDB.updateUser(user.email, {
-    ...updateFields,
+    ...validatedFields,
     updatedAt: new Date().toISOString(),
   })
 

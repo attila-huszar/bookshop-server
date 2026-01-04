@@ -18,5 +18,3 @@ export const booksTable = sqliteTable('books', {
   newRelease: int('new_release', { mode: 'boolean' }).notNull().default(false),
   ...timestamps,
 })
-
-export type BookSQL = typeof booksTable.$inferSelect

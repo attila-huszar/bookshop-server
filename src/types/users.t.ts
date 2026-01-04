@@ -1,6 +1,8 @@
 import { z } from 'zod'
-import { usersTable } from '@/models/sqlite'
 import type {
+  userSelectSchema,
+  userInsertSchema,
+  userUpdateSchema,
   loginSchema,
   registerSchema,
   emailSchema,
@@ -8,8 +10,9 @@ import type {
   passwordResetSchema,
 } from '@/validation'
 
-export type User = typeof usersTable.$inferSelect
-export type UserInsert = typeof usersTable.$inferInsert
+export type User = z.infer<typeof userSelectSchema>
+export type UserInsert = z.infer<typeof userInsertSchema>
+export type UserUpdate = z.infer<typeof userUpdateSchema>
 
 export type LoginRequest = z.infer<typeof loginSchema>
 export type RegisterRequest = z.infer<typeof registerSchema>
@@ -17,7 +20,6 @@ export type VerificationRequest = z.infer<typeof tokenSchema>
 export type PasswordResetRequest = z.infer<typeof emailSchema>
 export type PasswordResetToken = z.infer<typeof tokenSchema>
 export type PasswordResetSubmit = z.infer<typeof passwordResetSchema>
-export type UserUpdateRequest = Partial<Omit<User, 'id' | 'uuid' | 'createdAt'>>
 
 export const enum UserRole {
   Admin = 'admin',

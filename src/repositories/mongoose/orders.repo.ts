@@ -1,22 +1,21 @@
-import type { Stripe } from 'stripe'
 import model from '@/models'
-import { defaultCurrency } from '@/constants'
-import { type Order, type OrderCreate, OrderStatus } from '@/types'
+import { type Order, type OrderInsert, OrderStatus } from '@/types'
 
 const { OrderModel } = model as MongoModel
 
-export async function createOrder(order: OrderCreate): Promise<Order | null> {
+export async function createOrder(
+  order: OrderInsert,
+): Promise<WithDateTimestamps<Order> | null> {
   const orderInsert = {
     paymentId: order.paymentId,
-    paymentIntentStatus: 'processing' as const,
+    paymentIntentStatus: 'processing',
     orderStatus: OrderStatus.Pending,
     firstName: order.firstName,
     lastName: order.lastName,
     email: order.email,
-    phone: order.phone ?? null,
-    address: order.address,
+    shipping: order.shipping,
     total: order.total,
-    currency: defaultCurrency,
+    currency: order.currency,
     items: order.items,
   }
 
@@ -24,21 +23,19 @@ export async function createOrder(order: OrderCreate): Promise<Order | null> {
   const savedOrder = created.toObject()
 
   return {
-    id: savedOrder.id!,
+    id: savedOrder.id,
     paymentId: savedOrder.paymentId,
-    paymentIntentStatus:
-      savedOrder.paymentIntentStatus as Stripe.PaymentIntent.Status,
-    orderStatus: savedOrder.orderStatus as OrderStatus,
+    paymentIntentStatus: savedOrder.paymentIntentStatus,
+    orderStatus: savedOrder.orderStatus,
     total: savedOrder.total,
     currency: savedOrder.currency,
-    items: savedOrder.items as Order['items'],
-    firstName: savedOrder.firstName ?? null,
-    lastName: savedOrder.lastName ?? null,
-    email: savedOrder.email ?? null,
-    phone: savedOrder.phone ?? null,
-    address: savedOrder.address as Stripe.Address,
-    createdAt: savedOrder.createdAt.toISOString(),
-    updatedAt: savedOrder.updatedAt.toISOString(),
+    items: savedOrder.items,
+    firstName: savedOrder.firstName,
+    lastName: savedOrder.lastName,
+    email: savedOrder.email,
+    shipping: savedOrder.shipping,
+    createdAt: savedOrder.createdAt,
+    updatedAt: savedOrder.updatedAt,
   }
 }
 
@@ -52,19 +49,17 @@ export async function updateOrder(
   if (!updated) return null
 
   return {
-    id: updated.id!,
+    id: updated.id,
     paymentId: updated.paymentId,
-    paymentIntentStatus:
-      updated.paymentIntentStatus as Stripe.PaymentIntent.Status,
-    orderStatus: updated.orderStatus as OrderStatus,
+    paymentIntentStatus: updated.paymentIntentStatus,
+    orderStatus: updated.orderStatus,
     total: updated.total,
     currency: updated.currency,
-    items: updated.items as Order['items'],
-    firstName: updated.firstName ?? null,
-    lastName: updated.lastName ?? null,
-    email: updated.email ?? null,
-    phone: updated.phone ?? null,
-    address: updated.address as Stripe.Address,
+    items: updated.items,
+    firstName: updated.firstName,
+    lastName: updated.lastName,
+    email: updated.email,
+    shipping: updated.shipping,
     createdAt: updated.createdAt.toISOString(),
     updatedAt: updated.updatedAt.toISOString(),
   }
@@ -77,19 +72,17 @@ export async function getOrderByPaymentId(
   if (!order) return null
 
   return {
-    id: order.id!,
+    id: order.id,
     paymentId: order.paymentId,
-    paymentIntentStatus:
-      order.paymentIntentStatus as Stripe.PaymentIntent.Status,
-    orderStatus: order.orderStatus as OrderStatus,
+    paymentIntentStatus: order.paymentIntentStatus,
+    orderStatus: order.orderStatus,
     total: order.total,
     currency: order.currency,
-    items: order.items as Order['items'],
-    firstName: order.firstName ?? null,
-    lastName: order.lastName ?? null,
-    email: order.email ?? null,
-    phone: order.phone ?? null,
-    address: order.address as Stripe.Address,
+    items: order.items,
+    firstName: order.firstName,
+    lastName: order.lastName,
+    email: order.email,
+    shipping: order.shipping,
     createdAt: order.createdAt.toISOString(),
     updatedAt: order.updatedAt.toISOString(),
   }
@@ -98,19 +91,17 @@ export async function getOrderByPaymentId(
 export async function getAllOrders(): Promise<Order[]> {
   const orders = await OrderModel.find().lean()
   return orders.map((order) => ({
-    id: order.id!,
+    id: order.id,
     paymentId: order.paymentId,
-    paymentIntentStatus:
-      order.paymentIntentStatus as Stripe.PaymentIntent.Status,
-    orderStatus: order.orderStatus as OrderStatus,
+    paymentIntentStatus: order.paymentIntentStatus,
+    orderStatus: order.orderStatus,
     total: order.total,
     currency: order.currency,
-    items: order.items as Order['items'],
-    firstName: order.firstName ?? null,
-    lastName: order.lastName ?? null,
-    email: order.email ?? null,
-    phone: order.phone ?? null,
-    address: order.address as Stripe.Address,
+    items: order.items,
+    firstName: order.firstName,
+    lastName: order.lastName,
+    email: order.email,
+    shipping: order.shipping,
     createdAt: order.createdAt.toISOString(),
     updatedAt: order.updatedAt.toISOString(),
   }))

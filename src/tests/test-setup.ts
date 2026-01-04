@@ -58,6 +58,7 @@ await mock.module('@/validation', () => ({
   tokenSchema: {},
   passwordResetSchema: {},
   imageSchema: {},
+  userUpdateSchema: {},
 }))
 
 await mock.module('@/utils', () => ({

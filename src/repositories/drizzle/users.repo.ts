@@ -1,7 +1,7 @@
 import { eq, inArray, lt } from 'drizzle-orm'
 import { db } from '@/db'
 import model from '@/models'
-import type { UserUpdateRequest, User, UserInsert } from '@/types'
+import type { UserUpdate, User, UserInsert } from '@/types'
 
 const { usersTable } = model as SQLiteModel
 
@@ -40,7 +40,7 @@ export async function createUser(values: UserInsert): Promise<User | null> {
 
 export async function updateUser(
   email: string,
-  fields: UserUpdateRequest,
+  fields: UserUpdate,
 ): Promise<User | null> {
   await db.update(usersTable).set(fields).where(eq(usersTable.email, email))
 

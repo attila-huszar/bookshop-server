@@ -1,4 +1,5 @@
 import { booksDB } from '@/repositories'
+import { validate, idSchema } from '@/validation'
 import type { BookQuery } from '@/types'
 
 export async function getBooks(query?: BookQuery) {
@@ -6,5 +7,6 @@ export async function getBooks(query?: BookQuery) {
 }
 
 export async function getBookById(id: number) {
-  return booksDB.getBookById(id)
+  const validatedId = validate(idSchema, id)
+  return booksDB.getBookById(validatedId)
 }

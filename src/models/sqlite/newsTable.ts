@@ -8,5 +8,3 @@ export const newsTable = sqliteTable('news', {
   img: text(),
   ...timestamps,
 })
-
-export type NewsSQL = typeof newsTable.$inferSelect

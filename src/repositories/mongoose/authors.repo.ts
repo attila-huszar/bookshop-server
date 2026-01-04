@@ -1,7 +1,7 @@
 import model from '@/models'
 import type {
   Author,
-  AuthorCreate,
+  AuthorInsert,
   AuthorUpdate,
   AuthorReference,
 } from '@/types'
@@ -56,7 +56,7 @@ export async function getAuthorsBySearch(
   }))
 }
 
-export async function insertAuthor(author: AuthorCreate): Promise<Author> {
+export async function insertAuthor(author: AuthorInsert): Promise<Author> {
   const created = await AuthorModel.create(author)
   const savedAuthor = created.toObject()
 

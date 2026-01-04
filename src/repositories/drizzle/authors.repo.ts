@@ -3,7 +3,7 @@ import { db } from '@/db'
 import model from '@/models'
 import type {
   Author,
-  AuthorCreate,
+  AuthorInsert,
   AuthorReference,
   AuthorUpdate,
 } from '@/types'
@@ -49,7 +49,7 @@ export async function getAllAuthors(): Promise<Author[]> {
   return authorRecords
 }
 
-export async function insertAuthor(author: AuthorCreate): Promise<Author> {
+export async function insertAuthor(author: AuthorInsert): Promise<Author> {
   const [newAuthor] = await db.insert(authorsTable).values(author).returning()
 
   return newAuthor

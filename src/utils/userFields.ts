@@ -41,9 +41,7 @@ export function extractCustomerFields(
     if (lastName) fields.lastName = lastName
   }
 
-  const phone = shipping?.phone?.trim()
-  if (phone) fields.phone = phone
-  if (shipping?.address) fields.address = shipping.address
+  if (shipping) fields.shipping = shipping
 
   return fields
 }

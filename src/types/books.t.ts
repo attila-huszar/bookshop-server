@@ -1,15 +1,12 @@
 import { z } from 'zod'
 import type {
-  bookSchema,
-  bookCreateSchema,
+  bookSelectSchema,
+  bookInsertSchema,
   bookUpdateSchema,
 } from '@/validation'
-import type { booksTable } from '@/models/sqlite'
 
-export type BookInsertSQL = typeof booksTable.$inferInsert
-
-export type Book = z.infer<typeof bookSchema>
-export type BookCreate = z.infer<typeof bookCreateSchema>
+export type Book = z.infer<typeof bookSelectSchema>
+export type BookInsert = z.infer<typeof bookInsertSchema>
 export type BookUpdate = z.infer<typeof bookUpdateSchema>
 
 export type BookWithAuthor = Omit<Book, 'authorId'> & {

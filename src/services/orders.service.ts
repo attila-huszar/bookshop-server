@@ -3,9 +3,10 @@ import { env } from '@/config'
 import { booksDB, ordersDB } from '@/repositories'
 import {
   validate,
-  orderCreateSchema,
-  orderCreateRequestSchema,
+  orderInsertSchema,
+  checkoutCartSchema,
   orderUpdateSchema,
+  paymentIdSchema,
 } from '@/validation'
 import { log } from '@/libs'
 import { extractCustomerFields } from '@/utils'
@@ -15,7 +16,7 @@ import { BadRequest, Internal, NotFound } from '@/errors'
 import type {
   Order,
   OrderUpdate,
-  OrderCreateRequest,
+  CheckoutCart,
   OrderItem,
   PaymentIntentCreate,
   SendEmailProps,
@@ -29,14 +30,15 @@ export async function createPaymentIntent(createRequest: PaymentIntentCreate) {
 }
 
 export async function retrievePaymentIntent(paymentId: string) {
-  return stripe.paymentIntents.retrieve(paymentId)
+  const validatedId = validate(paymentIdSchema, paymentId)
+  return stripe.paymentIntents.retrieve(validatedId)
 }
 
 export async function cancelPaymentIntent(paymentId: string) {
-  const cancelledIntent = await stripe.paymentIntents.cancel(paymentId)
+  const validatedId = validate(paymentIdSchema, paymentId)
+  const cancelledIntent = await stripe.paymentIntents.cancel(validatedId)
 
-  // Update order status in database
-  await ordersDB.updateOrder(paymentId, {
+  await ordersDB.updateOrder(validatedId, {
     paymentIntentStatus: 'canceled',
     orderStatus: OrderStatus.Canceled,
     updatedAt: new Date().toISOString(),
@@ -46,7 +48,8 @@ export async function cancelPaymentIntent(paymentId: string) {
 }
 
 export async function getOrderByPaymentId(paymentId: string) {
-  const order = await ordersDB.getOrderByPaymentId(paymentId)
+  const validatedId = validate(paymentIdSchema, paymentId)
+  const order = await ordersDB.getOrderByPaymentId(validatedId)
 
   if (!order) {
     throw new NotFound('Order not found')
@@ -66,7 +69,7 @@ export async function processStripeWebhook(
   let event: Stripe.Event
 
   try {
-    event = stripe.webhooks.constructEvent(
+    event = await stripe.webhooks.constructEventAsync(
       payload,
       signature,
       env.stripeWebhookSecret,
@@ -204,9 +207,10 @@ export async function createOrder(orderRequest: Order) {
   orderRequest.firstName ??= null
   orderRequest.lastName ??= null
   orderRequest.email ??= null
-  orderRequest.address ??= null
+  orderRequest.shipping ??= null
+  orderRequest.currency ??= defaultCurrency
 
-  const validatedOrder = validate(orderCreateSchema, orderRequest)
+  const validatedOrder = validate(orderInsertSchema, orderRequest)
 
   const createdOrder = await ordersDB.createOrder(validatedOrder)
 
@@ -218,9 +222,9 @@ export async function createOrder(orderRequest: Order) {
 }
 
 export async function createOrderWithPayment(
-  orderRequest: OrderCreateRequest,
+  orderRequest: CheckoutCart,
 ): Promise<{ clientSecret: string; amount: number }> {
-  const validatedRequest = validate(orderCreateRequestSchema, orderRequest)
+  const validatedRequest = validate(checkoutCartSchema, orderRequest)
 
   const orderItems: OrderItem[] = []
   let total = 0
@@ -278,12 +282,12 @@ export async function createOrderWithPayment(
       paymentIntentStatus: paymentIntent.status,
       orderStatus: OrderStatus.Pending,
       total,
+      currency: defaultCurrency,
       items: orderItems,
       firstName: null,
       lastName: null,
       email: null,
-      phone: null,
-      address: null,
+      shipping: null,
     }
 
     const createdOrder = await ordersDB.createOrder(orderData)
@@ -318,11 +322,12 @@ export async function createOrderWithPayment(
   }
 }
 
-export async function updateOrder(orderUpdateRequest: OrderUpdate) {
-  const { paymentId, fields } = validate(orderUpdateSchema, orderUpdateRequest)
+export async function updateOrder(paymentId: string, fields: OrderUpdate) {
+  const validatedId = validate(paymentIdSchema, paymentId)
+  const validatedFields = validate(orderUpdateSchema, fields)
 
-  const updatedOrder = await ordersDB.updateOrder(paymentId, {
-    ...fields,
+  const updatedOrder = await ordersDB.updateOrder(validatedId, {
+    ...validatedFields,
     updatedAt: new Date().toISOString(),
   })
 

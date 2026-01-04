@@ -1,10 +1,10 @@
 import { mongo } from '@/db'
 import { autoIncrementPlugin } from './'
-import type { NewsSQL, WithDateTimestamps } from '@/models/sqlite'
+import type { News } from '@/types'
 
-type INews = WithDateTimestamps<NewsSQL>
+type NewsDoc = WithDateTimestamps<News>
 
-const newsSchema = new mongo.Schema<INews>(
+const newsSchema = new mongo.Schema<NewsDoc>(
   {
     id: { type: Number, unique: true, index: true },
     title: { type: String, required: true },
@@ -16,4 +16,4 @@ const newsSchema = new mongo.Schema<INews>(
 
 newsSchema.plugin(autoIncrementPlugin)
 
-export const NewsModel = mongo.model<INews>('News', newsSchema)
+export const NewsModel = mongo.model<NewsDoc>('News', newsSchema)

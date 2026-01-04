@@ -1,21 +1,21 @@
 import { mongo } from '@/db'
 import { autoIncrementPlugin } from './'
 import type { Types } from 'mongoose'
-import type { BookSQL, WithDateTimestamps } from '@/models/sqlite'
+import type { Book } from '@/types'
 
-export type IBook = WithDateTimestamps<Omit<BookSQL, 'authorId'>> & {
+export type BookDoc = WithDateTimestamps<Omit<Book, 'authorId'>> & {
   authorId: Types.ObjectId | null
 }
 
-export type IBookPopulatedWithAuthorName = Omit<IBook, 'authorId'> & {
+export type BookDocPopulatedWithAuthorName = Omit<BookDoc, 'authorId'> & {
   authorId: { _id: Types.ObjectId; name: string } | null
 }
 
-export type IBookPopulatedWithAuthorId = Omit<IBook, 'authorId'> & {
+export type BookDocPopulatedWithAuthorId = Omit<BookDoc, 'authorId'> & {
   authorId: { _id: Types.ObjectId; id: number } | null
 }
 
-const bookSchema = new mongo.Schema<IBook>(
+const bookSchema = new mongo.Schema<BookDoc>(
   {
     id: { type: Number, unique: true, index: true },
     title: { type: String, required: true },
@@ -40,4 +40,4 @@ const bookSchema = new mongo.Schema<IBook>(
 
 bookSchema.plugin(autoIncrementPlugin)
 
-export const BookModel = mongo.model<IBook>('Book', bookSchema)
+export const BookModel = mongo.model<BookDoc>('Book', bookSchema)

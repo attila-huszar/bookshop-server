@@ -1,5 +1,5 @@
 import model from '@/models'
-import type { User, UserInsert, UserUpdateRequest, UserRole } from '@/types'
+import type { User, UserInsert, UserUpdate, UserRole } from '@/types'
 import type Stripe from 'stripe'
 
 const { UserModel } = model as MongoModel
@@ -61,7 +61,7 @@ export async function createUser(values: UserInsert): Promise<User | null> {
 
 export async function updateUser(
   email: string,
-  fields: UserUpdateRequest,
+  fields: UserUpdate,
 ): Promise<User | null> {
   const updated = await UserModel.findOneAndUpdate({ email }, fields, {
     new: true,

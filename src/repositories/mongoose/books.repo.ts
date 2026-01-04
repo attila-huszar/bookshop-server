@@ -1,14 +1,14 @@
 import model from '@/models'
 import type {
-  IBookPopulatedWithAuthorName,
-  IBookPopulatedWithAuthorId,
+  BookDocPopulatedWithAuthorName,
+  BookDocPopulatedWithAuthorId,
 } from '@/models/mongo/BookModel'
 import { mongoQueryBuilder } from '@/utils'
 import { PAGINATION } from '@/constants'
 import type {
   Book,
   BookQuery,
-  BookCreate,
+  BookInsert,
   BookUpdate,
   BookWithAuthor,
 } from '@/types'
@@ -56,7 +56,7 @@ export async function getBooks(query?: BookQuery): Promise<{
     .populate('authorId', 'name')
     .skip(offset)
     .limit(limit)
-    .lean<IBookPopulatedWithAuthorName[]>()
+    .lean<BookDocPopulatedWithAuthorName[]>()
 
   const mapped: BookWithAuthor[] = booksRecords.map((book) => ({
     id: book.id,
@@ -84,7 +84,7 @@ export async function getBookById(
 ): Promise<BookWithAuthor | null> {
   const book = await BookModel.findOne({ id: bookId })
     .populate('authorId', 'name')
-    .lean<IBookPopulatedWithAuthorName>()
+    .lean<BookDocPopulatedWithAuthorName>()
 
   if (!book) return null
 
@@ -138,7 +138,7 @@ export async function getBookSearchOptions(): Promise<{
 export async function getAllBooks(): Promise<Book[]> {
   const books = await BookModel.find()
     .populate('authorId', 'id')
-    .lean<IBookPopulatedWithAuthorId[]>()
+    .lean<BookDocPopulatedWithAuthorId[]>()
 
   return books.map((book) => ({
     id: book.id,
@@ -159,7 +159,7 @@ export async function getAllBooks(): Promise<Book[]> {
   }))
 }
 
-export async function insertBook(book: BookCreate): Promise<Book> {
+export async function insertBook(book: BookInsert): Promise<Book> {
   let authorObjectId = null
   if (book.authorId) {
     const author = await AuthorModel.findOne({ id: book.authorId })

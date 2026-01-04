@@ -6,7 +6,7 @@ import { PAGINATION } from '@/constants'
 import type {
   Book,
   BookQuery,
-  BookCreate,
+  BookInsert,
   BookUpdate,
   BookWithAuthor,
 } from '@/types'
@@ -142,7 +142,7 @@ export async function getAllBooks(): Promise<Book[]> {
   return bookRecords
 }
 
-export async function insertBook(book: BookCreate): Promise<Book> {
+export async function insertBook(book: BookInsert): Promise<Book> {
   const [newBook] = await db.insert(booksTable).values(book).returning()
   return newBook
 }

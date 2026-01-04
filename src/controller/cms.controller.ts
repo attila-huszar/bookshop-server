@@ -16,9 +16,9 @@ import {
 } from '@/services'
 import { errorHandler } from '@/errors'
 import type {
-  AuthorCreate,
+  AuthorInsert,
   AuthorUpdate,
-  BookCreate,
+  BookInsert,
   BookUpdate,
 } from '@/types'
 
@@ -36,10 +36,6 @@ cms.get('/orders', async (c) => {
 cms.delete('/orders', async (c) => {
   try {
     const { orderIds } = await c.req.json<{ orderIds: number[] }>()
-    if (!Array.isArray(orderIds) || orderIds.length === 0) {
-      return c.json({ error: 'Invalid order IDs' }, 400)
-    }
-
     const deletedIds = await deleteOrders(orderIds)
     return c.json(deletedIds)
   } catch (error) {
@@ -59,10 +55,6 @@ cms.get('/users', async (c) => {
 cms.delete('/users', async (c) => {
   try {
     const { userIds } = await c.req.json<{ userIds: number[] }>()
-    if (!Array.isArray(userIds) || userIds.length === 0) {
-      return c.json({ error: 'Invalid user IDs' }, 400)
-    }
-
     const deletedIds = await deleteUsers(userIds)
     return c.json(deletedIds)
   } catch (error) {
@@ -90,7 +82,7 @@ cms.get('/authors', async (c) => {
 
 cms.post('/books', async (c) => {
   try {
-    const book = await c.req.json<BookCreate>()
+    const book = await c.req.json<BookInsert>()
     const newBook = await addBook(book)
     return c.json(newBook, 201)
   } catch (error) {
@@ -111,9 +103,6 @@ cms.patch('/books', async (c) => {
 cms.delete('/books', async (c) => {
   try {
     const { bookIds } = await c.req.json<{ bookIds: number[] }>()
-    if (!Array.isArray(bookIds) || bookIds.length === 0) {
-      return c.json({ error: 'Invalid book IDs' }, 400)
-    }
     const deletedIds = await deleteBooks(bookIds)
     return c.json(deletedIds)
   } catch (error) {
@@ -123,7 +112,7 @@ cms.delete('/books', async (c) => {
 
 cms.post('/authors', async (c) => {
   try {
-    const author = await c.req.json<AuthorCreate>()
+    const author = await c.req.json<AuthorInsert>()
     const newAuthor = await addAuthor(author)
     return c.json(newAuthor, 201)
   } catch (error) {
@@ -144,9 +133,6 @@ cms.patch('/authors', async (c) => {
 cms.delete('/authors', async (c) => {
   try {
     const { authorIds } = await c.req.json<{ authorIds: number[] }>()
-    if (!Array.isArray(authorIds) || authorIds.length === 0) {
-      return c.json({ error: 'Invalid author IDs' }, 400)
-    }
     const deletedIds = await deleteAuthors(authorIds)
     return c.json(deletedIds)
   } catch (error) {

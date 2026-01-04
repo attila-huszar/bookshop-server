@@ -1,12 +1,11 @@
 import { eq, inArray } from 'drizzle-orm'
 import { db } from '@/db'
 import model from '@/models'
-import { defaultCurrency } from '@/constants'
-import { type Order, type OrderCreate, OrderStatus } from '@/types'
+import { type Order, type OrderInsert, OrderStatus } from '@/types'
 
 const { ordersTable } = model as SQLiteModel
 
-export async function createOrder(order: OrderCreate): Promise<Order | null> {
+export async function createOrder(order: OrderInsert): Promise<Order | null> {
   const orderInsert = {
     paymentId: order.paymentId,
     paymentIntentStatus: 'processing' as const,
@@ -14,10 +13,9 @@ export async function createOrder(order: OrderCreate): Promise<Order | null> {
     firstName: order.firstName,
     lastName: order.lastName,
     email: order.email,
-    phone: order.phone ?? null,
-    address: order.address,
+    shipping: order.shipping,
     total: order.total,
-    currency: defaultCurrency,
+    currency: order.currency,
     items: order.items,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
