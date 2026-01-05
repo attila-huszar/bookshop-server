@@ -25,13 +25,12 @@
     "hono": "^4.11.3",
     "hono-rate-limiter": "^0.5.3",
     "http-status": "^2.1.0",
-    "ioredis": "^5.8.2",
     "mjml": "^4.18.0",
-    "mongoose": "^9.1.1",
+    "mongoose": "^9.1.2",
     "nodemailer": "^7.0.12",
     "seq-logging": "^3.0.0",
     "stripe": "^20.1.0",
-    "zod": "^4.3.4"
+    "zod": "^4.3.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",
@@ -44,7 +43,7 @@
     "eslint-plugin-prettier": "^5.5.4",
     "globals": "^17.0.0",
     "prettier": "^3.7.4",
-    "typescript-eslint": "^8.51.0"
+    "typescript-eslint": "^8.52.0"
   },
   "peerDependencies": {
     "typescript": "^5.0.0"

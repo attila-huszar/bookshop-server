@@ -9,7 +9,7 @@ const newsSchema = new mongo.Schema<NewsDoc>(
     id: { type: Number, unique: true, index: true },
     title: { type: String, required: true },
     content: { type: String, required: true },
-    img: { type: String, default: null },
+    img: { type: String, required: true },
   },
   { timestamps: true },
 )

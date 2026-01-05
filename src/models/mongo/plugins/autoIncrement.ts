@@ -2,6 +2,12 @@ import { mongo } from '@/db'
 import { log } from '@/libs'
 import type { Schema, Model } from 'mongoose'
 
+type AutoIncrementDoc = {
+  isNew: boolean
+  id?: number
+  $model<T>(): Model<T>
+}
+
 const counterSchema = new mongo.Schema({
   _id: { type: String, required: true },
   seq: { type: Number, default: 0 },
@@ -45,14 +51,9 @@ export async function getHighestId<T>(model: Model<T>): Promise<number> {
 }
 
 export function autoIncrementPlugin(schema: Schema): void {
-  schema.pre('save', async function () {
-    const doc = this as unknown as {
-      isNew: boolean
-      id?: number
-      $model<T>(): Model<T>
-    }
-    if (doc.isNew && doc.id == null) {
-      doc.id = await getNextSequence(doc.$model())
+  schema.pre('save', async function (this: AutoIncrementDoc) {
+    if (this.isNew && this.id == null) {
+      this.id = await getNextSequence(this.$model())
     }
   })
 }

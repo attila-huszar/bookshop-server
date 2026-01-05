@@ -21,7 +21,7 @@ export type PasswordResetRequest = z.infer<typeof emailSchema>
 export type PasswordResetToken = z.infer<typeof tokenSchema>
 export type PasswordResetSubmit = z.infer<typeof passwordResetSchema>
 
-export const enum UserRole {
+export enum UserRole {
   Admin = 'admin',
   User = 'user',
 }

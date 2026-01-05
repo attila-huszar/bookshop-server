@@ -5,37 +5,29 @@ import type { UserUpdate, User, UserInsert } from '@/types'
 
 const { usersTable } = model as SQLiteModel
 
-export async function getUserBy(
-  field: 'uuid' | 'email' | 'verificationToken' | 'passwordResetToken',
-  token: string,
+export async function getUserBy<T extends keyof User>(
+  field: T,
+  value: string,
 ): Promise<User | null> {
-  const userRecords = await db
+  const [user] = await db
     .select()
     .from(usersTable)
-    .where(eq(usersTable[field], token))
+    .where(eq(usersTable[field], value))
     .limit(1)
 
-  if (!userRecords.length) {
-    return null
-  }
-
-  return userRecords[0]
+  return user ?? null
 }
 
 export async function createUser(values: UserInsert): Promise<User | null> {
   await db.insert(usersTable).values(values)
 
-  const userRecords = await db
+  const [user] = await db
     .select()
     .from(usersTable)
     .where(eq(usersTable.email, values.email))
     .limit(1)
 
-  if (!userRecords.length) {
-    return null
-  }
-
-  return userRecords[0]
+  return user ?? null
 }
 
 export async function updateUser(
@@ -44,17 +36,13 @@ export async function updateUser(
 ): Promise<User | null> {
   await db.update(usersTable).set(fields).where(eq(usersTable.email, email))
 
-  const userRecords = await db
+  const [user] = await db
     .select()
     .from(usersTable)
     .where(eq(usersTable.email, email))
     .limit(1)
 
-  if (!userRecords.length) {
-    return null
-  }
-
-  return userRecords[0]
+  return user ?? null
 }
 
 export async function getAllUsers(): Promise<User[]> {
@@ -101,8 +89,8 @@ export async function cleanupExpiredTokens() {
   await db
     .update(usersTable)
     .set({
-      passwordResetToken: null,
-      passwordResetExpires: null,
+      passwordResetToken: '',
+      passwordResetExpires: '',
     })
     .where(lt(usersTable.passwordResetExpires, now))
 

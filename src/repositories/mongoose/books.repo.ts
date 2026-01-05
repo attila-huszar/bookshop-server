@@ -13,7 +13,7 @@ import type {
   BookWithAuthor,
 } from '@/types'
 
-type _AggregateResult = {
+type AggregateResult = {
   _id: null
   minPrice: number
   maxPrice: number
@@ -58,25 +58,14 @@ export async function getBooks(query?: BookQuery): Promise<{
     .limit(limit)
     .lean<BookDocPopulatedWithAuthorName[]>()
 
-  const mapped: BookWithAuthor[] = booksRecords.map((book) => ({
-    id: book.id,
-    title: book.title,
+  const booksWithAuthor: BookWithAuthor[] = booksRecords.map((book) => ({
+    ...book,
     author: book.authorId?.name ?? null,
-    genre: book.genre ?? null,
-    imgUrl: book.imgUrl ?? null,
-    description: book.description ?? null,
-    publishYear: book.publishYear ?? null,
-    rating: book.rating ?? null,
-    price: book.price,
-    discount: book.discount ?? null,
-    discountPrice: book.discountPrice,
-    topSellers: book.topSellers ?? null,
-    newRelease: book.newRelease ?? null,
     createdAt: book.createdAt.toISOString(),
     updatedAt: book.updatedAt.toISOString(),
   }))
 
-  return { booksRecords: mapped, booksCount: booksCount.toString() }
+  return { booksRecords: booksWithAuthor, booksCount: booksCount.toString() }
 }
 
 export async function getBookById(
@@ -87,21 +76,11 @@ export async function getBookById(
     .lean<BookDocPopulatedWithAuthorName>()
 
   if (!book) return null
+  const author = book?.authorId?.name ?? null
 
   return {
-    id: book.id,
-    title: book.title,
-    author: book.authorId?.name ?? null,
-    genre: book.genre ?? null,
-    imgUrl: book.imgUrl ?? null,
-    description: book.description ?? null,
-    publishYear: book.publishYear ?? null,
-    rating: book.rating ?? null,
-    price: book.price,
-    discount: book.discount ?? null,
-    discountPrice: book.discountPrice,
-    topSellers: book.topSellers ?? null,
-    newRelease: book.newRelease ?? null,
+    ...book,
+    author,
     createdAt: book.createdAt.toISOString(),
     updatedAt: book.updatedAt.toISOString(),
   }
@@ -112,7 +91,7 @@ export async function getBookSearchOptions(): Promise<{
   price: [number, number]
   publishYear: [number, number]
 }> {
-  const prices = await BookModel.aggregate<_AggregateResult>([
+  const prices = await BookModel.aggregate<AggregateResult>([
     {
       $group: {
         _id: null,
@@ -140,23 +119,18 @@ export async function getAllBooks(): Promise<Book[]> {
     .populate('authorId', 'id')
     .lean<BookDocPopulatedWithAuthorId[]>()
 
-  return books.map((book) => ({
-    id: book.id,
-    title: book.title,
-    authorId: book.authorId?.id ?? null,
-    genre: book.genre ?? null,
-    imgUrl: book.imgUrl ?? null,
-    description: book.description ?? null,
-    publishYear: book.publishYear ?? null,
-    rating: book.rating ?? null,
-    price: book.price,
-    discount: book.discount ?? null,
-    discountPrice: book.discountPrice,
-    topSellers: book.topSellers ?? null,
-    newRelease: book.newRelease ?? null,
-    createdAt: book.createdAt.toISOString(),
-    updatedAt: book.updatedAt.toISOString(),
-  }))
+  return books.map((book) => {
+    const authorId = book.authorId?.id
+    if (authorId == null) {
+      throw new Error(`Book ${book.id} has no authorId`)
+    }
+    return {
+      ...book,
+      authorId,
+      createdAt: book.createdAt.toISOString(),
+      updatedAt: book.updatedAt.toISOString(),
+    }
+  })
 }
 
 export async function insertBook(book: BookInsert): Promise<Book> {
@@ -171,40 +145,20 @@ export async function insertBook(book: BookInsert): Promise<Book> {
     authorObjectId = author._id
   }
 
-  const bookData = {
-    title: book.title,
-    price: book.price,
-    discountPrice: book.discountPrice,
+  const bookWithAuthor = {
+    ...book,
     authorId: authorObjectId,
-    genre: book.genre,
-    imgUrl: book.imgUrl,
-    description: book.description,
-    publishYear: book.publishYear,
-    rating: book.rating,
-    discount: book.discount,
-    topSellers: book.topSellers,
-    newRelease: book.newRelease,
   }
 
-  const created = await BookModel.create(bookData)
-  const savedBook = created.toObject()
+  const { id, createdAt, updatedAt, ...bookData } = bookWithAuthor
 
+  const created = await BookModel.create(bookData)
+  const bookObj = created.toObject()
   return {
-    id: savedBook.id,
-    title: savedBook.title,
-    genre: savedBook.genre ?? null,
-    imgUrl: savedBook.imgUrl ?? null,
-    description: savedBook.description ?? null,
-    publishYear: savedBook.publishYear ?? null,
-    rating: savedBook.rating ?? null,
-    price: savedBook.price,
-    discount: savedBook.discount ?? null,
-    discountPrice: savedBook.discountPrice,
-    topSellers: savedBook.topSellers ?? null,
-    newRelease: savedBook.newRelease ?? null,
-    authorId: book.authorId ?? null,
-    createdAt: savedBook.createdAt.toISOString(),
-    updatedAt: savedBook.updatedAt.toISOString(),
+    ...bookObj,
+    authorId: book.authorId,
+    createdAt: bookObj.createdAt.toISOString(),
+    updatedAt: bookObj.updatedAt.toISOString(),
   }
 }
 
@@ -229,24 +183,20 @@ export async function updateBook(
 
   const updated = await BookModel.findOneAndUpdate({ id: bookId }, updateData, {
     new: true,
-  }).lean()
+  })
+    .populate('authorId', 'id')
+    .lean<BookDocPopulatedWithAuthorId>()
 
   if (!updated) return null
 
+  const authorId = updated.authorId?.id
+  if (authorId == null) {
+    throw new Error(`Book ${bookId} has no authorId`)
+  }
+
   return {
-    id: updated.id,
-    title: updated.title,
-    genre: updated.genre ?? null,
-    imgUrl: updated.imgUrl ?? null,
-    description: updated.description ?? null,
-    publishYear: updated.publishYear ?? null,
-    rating: updated.rating ?? null,
-    price: updated.price,
-    discount: updated.discount ?? null,
-    discountPrice: updated.discountPrice,
-    topSellers: updated.topSellers ?? null,
-    newRelease: updated.newRelease ?? null,
-    authorId: book.authorId ?? null,
+    ...updated,
+    authorId,
     createdAt: updated.createdAt.toISOString(),
     updatedAt: updated.updatedAt.toISOString(),
   }
@@ -254,6 +204,5 @@ export async function updateBook(
 
 export async function deleteBooks(bookIds: number[]): Promise<Book['id'][]> {
   await BookModel.deleteMany({ id: { $in: bookIds } })
-
   return bookIds
 }

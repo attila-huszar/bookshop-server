@@ -23,11 +23,12 @@ export async function getAuthorById(
     .where(eq(authorsTable.id, authorId))
     .limit(1)
 
-  if (!authorRecords.length) {
+  const authorRecord = authorRecords[0]
+  if (!authorRecord) {
     throw new Error('Author does not exist')
   }
 
-  return authorRecords[0]
+  return authorRecord
 }
 
 export async function getAuthorsBySearch(
@@ -51,7 +52,9 @@ export async function getAllAuthors(): Promise<Author[]> {
 
 export async function insertAuthor(author: AuthorInsert): Promise<Author> {
   const [newAuthor] = await db.insert(authorsTable).values(author).returning()
-
+  if (!newAuthor) {
+    throw new Error('Failed to create author')
+  }
   return newAuthor
 }
 

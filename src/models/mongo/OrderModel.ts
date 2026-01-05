@@ -1,6 +1,6 @@
 import { mongo } from '@/db'
 import { autoIncrementPlugin } from './'
-import type { Order } from '@/types'
+import type { Order, PaymentIntentStatus } from '@/types'
 import { OrderStatus } from '@/types'
 
 type OrderDoc = WithDateTimestamps<Order>
@@ -11,7 +11,7 @@ const orderSchema = new mongo.Schema<OrderDoc>(
     paymentId: { type: String, unique: true, required: true },
     paymentIntentStatus: {
       type: String,
-      default: 'processing',
+      default: 'processing' as PaymentIntentStatus,
       required: true,
     },
     orderStatus: {
@@ -23,10 +23,10 @@ const orderSchema = new mongo.Schema<OrderDoc>(
     total: { type: Number, required: true },
     currency: { type: String, required: true },
     items: { type: [Object], required: true },
-    firstName: String,
-    lastName: String,
-    email: String,
-    shipping: Object,
+    firstName: { type: String, required: true },
+    lastName: { type: String, required: true },
+    email: { type: String, required: true },
+    shipping: { type: Object, required: true },
   },
   { timestamps: true },
 )

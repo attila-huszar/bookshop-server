@@ -1,7 +1,6 @@
 import { int, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import type { Stripe } from 'stripe'
 import { timestamps } from './column.helpers'
-import { defaultCountry } from '@/constants'
 import { UserRole } from '@/types'
 
 export const usersTable = sqliteTable('users', {
@@ -12,14 +11,14 @@ export const usersTable = sqliteTable('users', {
   role: text().$type<UserRole>().default(UserRole.User).notNull(),
   email: text().unique().notNull(),
   password: text().notNull(),
-  address: text({ mode: 'json' }).$type<Stripe.Address>(),
-  phone: text(),
-  country: text().notNull().default(defaultCountry),
-  avatar: text(),
-  verified: int({ mode: 'boolean' }).default(false).notNull(),
-  verificationToken: text('verification_token'),
-  verificationExpires: text('verification_expires'),
-  passwordResetToken: text('password_reset_token'),
-  passwordResetExpires: text('password_reset_expires'),
+  address: text({ mode: 'json' }).$type<Stripe.Address>().notNull(),
+  phone: text().notNull(),
+  country: text().notNull(),
+  avatar: text().notNull(),
+  verified: int({ mode: 'boolean' }).$type<boolean>().notNull(),
+  verificationToken: text('verification_token').notNull(),
+  verificationExpires: text('verification_expires').notNull(),
+  passwordResetToken: text('password_reset_token').notNull(),
+  passwordResetExpires: text('password_reset_expires').notNull(),
   ...timestamps,
 })

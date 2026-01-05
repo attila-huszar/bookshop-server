@@ -10,15 +10,8 @@ const { AuthorModel } = model as MongoModel
 
 export async function getAllAuthors(): Promise<Author[]> {
   const authors = await AuthorModel.find().lean()
-
   return authors.map((author) => ({
-    id: author.id,
-    name: author.name,
-    fullName: author.fullName ?? null,
-    birthYear: author.birthYear ?? null,
-    deathYear: author.deathYear ?? null,
-    homeland: author.homeland ?? null,
-    biography: author.biography ?? null,
+    ...author,
     createdAt: author.createdAt.toISOString(),
     updatedAt: author.updatedAt.toISOString(),
   }))
@@ -33,7 +26,7 @@ export async function getAuthorById(
   ).lean()
 
   if (!author) {
-    throw new Error('Author does not exist')
+    throw new Error(`Author with id ${authorId} not found`)
   }
 
   return {
@@ -57,19 +50,13 @@ export async function getAuthorsBySearch(
 }
 
 export async function insertAuthor(author: AuthorInsert): Promise<Author> {
-  const created = await AuthorModel.create(author)
-  const savedAuthor = created.toObject()
-
+  const { id, createdAt, updatedAt, ...authorData } = author
+  const created = await AuthorModel.create(authorData)
+  const authorObj = created.toObject()
   return {
-    id: savedAuthor.id,
-    name: savedAuthor.name,
-    fullName: savedAuthor.fullName ?? null,
-    birthYear: savedAuthor.birthYear ?? null,
-    deathYear: savedAuthor.deathYear ?? null,
-    homeland: savedAuthor.homeland ?? null,
-    biography: savedAuthor.biography ?? null,
-    createdAt: savedAuthor.createdAt.toISOString(),
-    updatedAt: savedAuthor.updatedAt.toISOString(),
+    ...authorObj,
+    createdAt: authorObj.createdAt.toISOString(),
+    updatedAt: authorObj.updatedAt.toISOString(),
   }
 }
 
@@ -81,15 +68,8 @@ export async function updateAuthor(
     new: true,
   }).lean()
   if (!updated) return null
-
   return {
-    id: updated.id,
-    name: updated.name,
-    fullName: updated.fullName ?? null,
-    birthYear: updated.birthYear ?? null,
-    deathYear: updated.deathYear ?? null,
-    homeland: updated.homeland ?? null,
-    biography: updated.biography ?? null,
+    ...updated,
     createdAt: updated.createdAt.toISOString(),
     updatedAt: updated.updatedAt.toISOString(),
   }
@@ -99,6 +79,5 @@ export async function deleteAuthors(
   authorIds: number[],
 ): Promise<Author['id'][]> {
   await AuthorModel.deleteMany({ id: { $in: authorIds } })
-
   return authorIds
 }

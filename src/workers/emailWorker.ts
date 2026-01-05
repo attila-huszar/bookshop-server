@@ -1,16 +1,22 @@
-import IORedis from 'ioredis'
 import { Worker } from 'bullmq'
 import { env } from '@/config'
 import { log, sendEmail } from '@/libs'
 import { concurrency, QUEUE } from '@/constants'
 import type { SendEmailProps } from '@/types'
 
-const connection = new IORedis(env.redisUrl!, { maxRetriesPerRequest: null })
+const parsedUrl = new URL(env.redisUrl)
 
 export const emailWorker = new Worker(
   QUEUE.EMAIL.NAME,
   async (job: { data: SendEmailProps }) => sendEmail(job.data),
-  { connection, concurrency },
+  {
+    connection: {
+      host: parsedUrl.hostname,
+      port: Number(parsedUrl.port),
+      maxRetriesPerRequest: null,
+    },
+    concurrency,
+  },
 )
 
 emailWorker.on('completed', (job) => {

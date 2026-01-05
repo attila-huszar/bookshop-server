@@ -29,3 +29,4 @@ export type PaymentIntentCreate = Pick<
 >
 export type PaymentIntentStatus = Stripe.PaymentIntent.Status
 export type PaymentIntentShipping = Stripe.PaymentIntent.Shipping
+export type StripeAddress = Stripe.Address

@@ -4,8 +4,8 @@ import { env } from '@/config'
 const createLogger = () => {
   const seq = new Logger({
     serverUrl: env.seqUrl,
-    apiKey: env.seqApiKey,
     onError: (error) => console.error('❌ Seq error:', error.message),
+    ...(env.seqApiKey && { apiKey: env.seqApiKey }),
   })
 
   return {

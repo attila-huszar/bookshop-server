@@ -1,7 +1,12 @@
 import { eq, inArray } from 'drizzle-orm'
 import { db } from '@/db'
 import model from '@/models'
-import { type Order, type OrderInsert, OrderStatus } from '@/types'
+import {
+  type Order,
+  type OrderInsert,
+  type OrderUpdate,
+  OrderStatus,
+} from '@/types'
 
 const { ordersTable } = model as SQLiteModel
 
@@ -43,7 +48,7 @@ export async function getOrderByPaymentId(
 
 export async function updateOrder(
   paymentId: string,
-  fields: Partial<Order>,
+  fields: OrderUpdate,
 ): Promise<Order | null> {
   const [updatedOrder] = await db
     .update(ordersTable)

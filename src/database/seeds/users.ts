@@ -1,12 +1,11 @@
 import { env } from '@/config'
-import { DB_REPO } from '@/constants'
+import { DB_REPO, defaultCountry } from '@/constants'
 import { UserRole, type UserInsert } from '@/types'
 import type { getHighestId } from '@/models/mongo'
 
 type ModelWithId = Parameters<typeof getHighestId>[0]
 
 const admin: UserInsert = {
-  id: 1,
   uuid: crypto.randomUUID(),
   firstName: 'Admin',
   lastName: 'Admin',
@@ -14,6 +13,21 @@ const admin: UserInsert = {
   password: Bun.password.hashSync(env.adminPassword!),
   role: UserRole.Admin,
   verified: true,
+  country: defaultCountry,
+  address: {
+    line1: '',
+    line2: '',
+    city: '',
+    state: '',
+    postal_code: '',
+    country: '',
+  },
+  phone: '',
+  avatar: '',
+  verificationToken: '',
+  verificationExpires: '',
+  passwordResetToken: '',
+  passwordResetExpires: '',
 }
 
 export async function seedUsers() {
@@ -33,7 +47,8 @@ export async function seedUsers() {
     const { UserModel, getHighestId, setSequence } =
       await import('@/models/mongo')
 
-    const createdUser = await UserModel.create(admin)
+    const { id, createdAt, updatedAt, ...adminData } = admin
+    const createdUser = await UserModel.create(adminData)
     const highestId = await getHighestId(UserModel as ModelWithId)
     await setSequence(UserModel as ModelWithId, highestId)
 

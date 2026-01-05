@@ -8,11 +8,11 @@ const authorSchema = new mongo.Schema<AuthorDoc>(
   {
     id: { type: Number, unique: true, index: true },
     name: { type: String, required: true },
-    fullName: { type: String, default: null },
-    birthYear: { type: String, default: null },
-    deathYear: { type: String, default: null },
-    homeland: { type: String, default: null },
-    biography: { type: String, default: null },
+    fullName: { type: String, required: true },
+    birthYear: { type: String, required: true },
+    deathYear: { type: String, required: true },
+    homeland: { type: String, required: true },
+    biography: { type: String, required: true },
   },
   { timestamps: true },
 )

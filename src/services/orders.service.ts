@@ -14,7 +14,6 @@ import { emailQueue } from '@/queues'
 import { jobOpts, QUEUE, defaultCurrency } from '@/constants'
 import { BadRequest, Internal, NotFound } from '@/errors'
 import type {
-  Order,
   OrderUpdate,
   CheckoutCart,
   OrderItem,
@@ -196,6 +195,20 @@ export async function processStripeWebhook(
       break
     }
 
+    case 'payment_intent.processing': {
+      const paymentIntent = event.data.object
+      await ordersDB.updateOrder(paymentIntent.id, {
+        paymentIntentStatus: 'processing',
+        orderStatus: OrderStatus.Pending,
+        updatedAt: new Date().toISOString(),
+      })
+
+      void log.info('Payment processing via webhook', {
+        paymentId: paymentIntent.id,
+      })
+      break
+    }
+
     default:
       void log.info(`Unhandled webhook event type: ${event.type}`)
   }
@@ -203,25 +216,7 @@ export async function processStripeWebhook(
   return { received: true }
 }
 
-export async function createOrder(orderRequest: Order) {
-  orderRequest.firstName ??= null
-  orderRequest.lastName ??= null
-  orderRequest.email ??= null
-  orderRequest.shipping ??= null
-  orderRequest.currency ??= defaultCurrency
-
-  const validatedOrder = validate(orderInsertSchema, orderRequest)
-
-  const createdOrder = await ordersDB.createOrder(validatedOrder)
-
-  if (!createdOrder) {
-    throw new Internal('Failed to create order')
-  }
-
-  return { paymentId: createdOrder.paymentId }
-}
-
-export async function createOrderWithPayment(
+export async function createOrder(
   orderRequest: CheckoutCart,
 ): Promise<{ clientSecret: string; amount: number }> {
   const validatedRequest = validate(checkoutCartSchema, orderRequest)
@@ -268,14 +263,7 @@ export async function createOrderWithPayment(
       )
     }
 
-    const clientSecret = paymentIntent.client_secret
-    const paymentIdMatch = /^pi_[^_]+/.exec(clientSecret)
-
-    if (!paymentIdMatch) {
-      throw new Internal('Invalid client secret format from Stripe')
-    }
-
-    stripePaymentId = paymentIdMatch[0]
+    stripePaymentId = paymentIntent.id
 
     const orderData = {
       paymentId: stripePaymentId,
@@ -284,20 +272,21 @@ export async function createOrderWithPayment(
       total,
       currency: defaultCurrency,
       items: orderItems,
-      firstName: null,
-      lastName: null,
-      email: null,
-      shipping: null,
+      firstName: '',
+      lastName: '',
+      email: '',
+      shipping: {},
     }
 
-    const createdOrder = await ordersDB.createOrder(orderData)
+    const validatedOrderData = validate(orderInsertSchema, orderData)
+    const createdOrder = await ordersDB.createOrder(validatedOrderData)
 
     if (!createdOrder) {
       throw new Internal('Failed to create order in database')
     }
 
     return {
-      clientSecret,
+      clientSecret: paymentIntent.client_secret,
       amount: amountInCents,
     }
   } catch (error) {

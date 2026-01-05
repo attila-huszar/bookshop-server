@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import {
   retrievePaymentIntent,
   cancelPaymentIntent,
-  createOrderWithPayment,
+  createOrder,
   updateOrder,
   getOrderByPaymentId,
 } from '@/services'
@@ -47,7 +47,7 @@ orders.get('/:paymentId', async (c) => {
 orders.post('/', async (c) => {
   try {
     const orderRequest = await c.req.json<CheckoutCart>()
-    const { clientSecret, amount } = await createOrderWithPayment(orderRequest)
+    const { clientSecret, amount } = await createOrder(orderRequest)
 
     return c.json({ clientSecret, amount })
   } catch (error) {

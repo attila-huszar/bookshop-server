@@ -24,6 +24,7 @@ import {
   type UserUpdate,
   type SendEmailProps,
   UserRole,
+  type UserInsert,
 } from '@/types'
 
 export async function loginUser(loginRequest: LoginRequest) {
@@ -77,23 +78,34 @@ export async function registerUser(formData: FormData) {
   const verificationExpires = new Date(Date.now() + 86400000).toISOString()
   const tokenLink = `${env.clientBaseUrl}/verification?token=${verificationToken}`
 
-  const avatarUrl =
+  const avatar =
     form.avatar instanceof File
       ? await uploadFile(form.avatar, Folder.Avatars)
-      : null
+      : ''
 
-  const newUser = {
+  const newUser: UserInsert = {
     uuid: crypto.randomUUID(),
     firstName,
     lastName,
     email,
     password: await Bun.password.hash(password),
-    avatar: avatarUrl,
+    avatar,
     country,
     role: UserRole.User,
     verified: false,
     verificationToken,
     verificationExpires,
+    address: {
+      line1: '',
+      line2: '',
+      city: '',
+      state: '',
+      postal_code: '',
+      country: '',
+    },
+    phone: '',
+    passwordResetToken: '',
+    passwordResetExpires: '',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   }
@@ -134,10 +146,15 @@ export async function verifyUser(verificationRequest: VerificationRequest) {
     throw new BadRequest(authMessage.invalidToken)
   }
 
+  const now = new Date().toISOString()
+  if (user.verificationExpires && user.verificationExpires < now) {
+    throw new BadRequest(authMessage.invalidToken)
+  }
+
   const userUpdated = await usersDB.updateUser(user.email, {
     verified: true,
-    verificationToken: null,
-    verificationExpires: null,
+    verificationToken: '',
+    verificationExpires: '',
     updatedAt: new Date().toISOString(),
   })
 
@@ -220,8 +237,8 @@ export async function passwordResetSubmit(
 
   const userUpdated = await usersDB.updateUser(user.email, {
     password: await Bun.password.hash(password),
-    passwordResetToken: null,
-    passwordResetExpires: null,
+    passwordResetToken: '',
+    passwordResetExpires: '',
     updatedAt: new Date().toISOString(),
   })
 
