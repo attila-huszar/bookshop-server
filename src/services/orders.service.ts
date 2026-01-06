@@ -217,7 +217,7 @@ export async function processStripeWebhook(
 
 export async function createOrder(
   orderRequest: CheckoutCart,
-): Promise<{ clientSecret: string; amount: number }> {
+): Promise<{ paymentSession: string; amount: number }> {
   const validatedRequest = validate(checkoutCartSchema, orderRequest)
 
   const orderItems: OrderItem[] = []
@@ -285,7 +285,7 @@ export async function createOrder(
     }
 
     return {
-      clientSecret: paymentIntent.client_secret,
+      paymentSession: paymentIntent.client_secret,
       amount: amountInCents,
     }
   } catch (error) {

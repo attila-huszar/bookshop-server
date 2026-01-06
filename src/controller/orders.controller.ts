@@ -46,9 +46,9 @@ orders.get('/:paymentId', async (c) => {
 orders.post('/', async (c) => {
   try {
     const orderRequest = await c.req.json<CheckoutCart>()
-    const { clientSecret, amount } = await createOrder(orderRequest)
+    const { paymentSession, amount } = await createOrder(orderRequest)
 
-    return c.json({ clientSecret, amount })
+    return c.json({ paymentSession, amount })
   } catch (error) {
     return errorHandler(c, error)
   }
