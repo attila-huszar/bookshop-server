@@ -1,28 +1,16 @@
 import { Hono } from 'hono'
 import {
-  createPaymentIntent,
   retrievePaymentIntent,
   cancelPaymentIntent,
   createOrder,
-  updateOrder,
+  getOrderByPaymentId,
 } from '@/services'
 import { errorHandler } from '@/errors'
-import type { Order, OrderUpdate, PaymentIntentCreate } from '@/types'
+import type { CheckoutCart } from '@/types'
 
 export const orders = new Hono()
 
-orders.post('/payment-intent', async (c) => {
-  try {
-    const createRequest = await c.req.json<PaymentIntentCreate>()
-    const paymentIntent = await createPaymentIntent(createRequest)
-
-    return c.json({ clientSecret: paymentIntent.client_secret })
-  } catch (error) {
-    return errorHandler(c, error)
-  }
-})
-
-orders.get('/payment-intent/:paymentId', async (c) => {
+orders.get('/payment-intents/:paymentId', async (c) => {
   try {
     const paymentId = c.req.param('paymentId')
     const paymentIntent = await retrievePaymentIntent(paymentId)
@@ -33,7 +21,7 @@ orders.get('/payment-intent/:paymentId', async (c) => {
   }
 })
 
-orders.delete('/payment-intent/:paymentId', async (c) => {
+orders.delete('/payment-intents/:paymentId', async (c) => {
   try {
     const paymentId = c.req.param('paymentId')
     const paymentIntent = await cancelPaymentIntent(paymentId)
@@ -44,23 +32,23 @@ orders.delete('/payment-intent/:paymentId', async (c) => {
   }
 })
 
-orders.post('/create', async (c) => {
+orders.get('/:paymentId', async (c) => {
   try {
-    const orderRequest = await c.req.json<Order>()
-    const { paymentId } = await createOrder(orderRequest)
+    const paymentId = c.req.param('paymentId')
+    const order = await getOrderByPaymentId(paymentId)
 
-    return c.json({ paymentId })
+    return c.json(order)
   } catch (error) {
     return errorHandler(c, error)
   }
 })
 
-orders.patch('/update', async (c) => {
+orders.post('/', async (c) => {
   try {
-    const orderUpdateRequest = await c.req.json<OrderUpdate>()
-    const updatedOrder = await updateOrder(orderUpdateRequest)
+    const orderRequest = await c.req.json<CheckoutCart>()
+    const { clientSecret, amount } = await createOrder(orderRequest)
 
-    return c.json(updatedOrder)
+    return c.json({ clientSecret, amount })
   } catch (error) {
     return errorHandler(c, error)
   }

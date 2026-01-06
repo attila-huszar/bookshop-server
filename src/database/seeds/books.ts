@@ -1,7 +1,7 @@
 import { env } from '@/config'
 import { DB_REPO } from '@/constants'
 import booksData from './books.json'
-import type { BookInsertSQL } from '@/types'
+import type { BookInsert } from '@/types'
 
 function calculateDiscountPrice(
   price: number,
@@ -16,7 +16,7 @@ export async function seedBooks() {
     const { booksTable } = await import('@/models/sqlite')
     const { db } = await import('@/db')
 
-    const seedValues: BookInsertSQL[] = booksData.map((book) => ({
+    const seedValues: BookInsert[] = booksData.map((book) => ({
       id: book.id,
       title: book.title,
       authorId: book.author,
@@ -40,9 +40,8 @@ export async function seedBooks() {
   }
 
   if (env.dbRepo === DB_REPO.MONGO) {
-    const { AuthorModel, BookModel, getHighestId, setSequence } = await import(
-      '@/models/mongo'
-    )
+    const { AuthorModel, BookModel, getHighestId, setSequence } =
+      await import('@/models/mongo')
 
     const authorIdMap: Record<number, string> = {}
     const authors = await AuthorModel.find()

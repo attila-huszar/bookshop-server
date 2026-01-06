@@ -5,6 +5,6 @@ export const newsTable = sqliteTable('news', {
   id: int().primaryKey({ autoIncrement: true }),
   title: text().notNull(),
   content: text().notNull(),
-  img: text(),
+  img: text().notNull(),
   ...timestamps,
 })

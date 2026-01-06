@@ -3,7 +3,7 @@ import { mock } from 'bun:test'
 export const mockUsersDB = {
   getUserBy: mock(),
   createUser: mock(),
-  updateUser: mock(),
+  updateUserBy: mock(),
 }
 
 export const mockOrdersDB = {
@@ -58,6 +58,7 @@ await mock.module('@/validation', () => ({
   tokenSchema: {},
   passwordResetSchema: {},
   imageSchema: {},
+  userUpdateSchema: {},
 }))
 
 await mock.module('@/utils', () => ({

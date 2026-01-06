@@ -1,60 +1,43 @@
-import { eq, lt } from 'drizzle-orm'
+import { eq, inArray, lt } from 'drizzle-orm'
 import { db } from '@/db'
 import model from '@/models'
-import type { UserUpdateRequest, User, UserInsert } from '@/types'
+import type { UserUpdate, User, UserInsert } from '@/types'
 
 const { usersTable } = model as SQLiteModel
 
+type UserRetrieveBy = Extract<
+  keyof User,
+  'id' | 'uuid' | 'email' | 'verificationToken' | 'passwordResetToken'
+>
+
 export async function getUserBy(
-  field: 'uuid' | 'email' | 'verificationToken' | 'passwordResetToken',
-  token: string,
+  field: UserRetrieveBy,
+  value: string | number,
 ): Promise<User | null> {
-  const userRecords = await db
+  const [user] = await db
     .select()
     .from(usersTable)
-    .where(eq(usersTable[field], token))
+    .where(eq(usersTable[field], value))
     .limit(1)
-
-  if (!userRecords.length) {
-    return null
-  }
-
-  return userRecords[0]
+  return user ?? null
 }
 
 export async function createUser(values: UserInsert): Promise<User | null> {
-  await db.insert(usersTable).values(values)
-
-  const userRecords = await db
-    .select()
-    .from(usersTable)
-    .where(eq(usersTable.email, values.email))
-    .limit(1)
-
-  if (!userRecords.length) {
-    return null
-  }
-
-  return userRecords[0]
+  const [createdUser] = await db.insert(usersTable).values(values).returning()
+  return createdUser ?? null
 }
 
-export async function updateUser(
-  email: string,
-  fields: UserUpdateRequest,
+export async function updateUserBy(
+  field: UserRetrieveBy,
+  value: string | number,
+  fields: UserUpdate,
 ): Promise<User | null> {
-  await db.update(usersTable).set(fields).where(eq(usersTable.email, email))
-
-  const userRecords = await db
-    .select()
-    .from(usersTable)
-    .where(eq(usersTable.email, email))
-    .limit(1)
-
-  if (!userRecords.length) {
-    return null
-  }
-
-  return userRecords[0]
+  const [updatedUser] = await db
+    .update(usersTable)
+    .set(fields)
+    .where(eq(usersTable[field], value))
+    .returning()
+  return updatedUser ?? null
 }
 
 export async function getAllUsers(): Promise<User[]> {
@@ -65,14 +48,20 @@ export async function getAllUsers(): Promise<User[]> {
 export async function deleteUserByEmail(
   email: string,
 ): Promise<User['email'] | null> {
-  const deleteResult = await db
+  const [deletedUser] = await db
     .delete(usersTable)
     .where(eq(usersTable.email, email))
     .limit(1)
     .returning()
+  return deletedUser?.email ?? null
+}
 
-  if (deleteResult.length === 0) return null
-  return email
+export async function deleteUsersByIds(
+  userIds: number[],
+): Promise<User['id'][]> {
+  await db.delete(usersTable).where(inArray(usersTable.id, userIds))
+
+  return userIds
 }
 
 export async function cleanupExpiredTokens() {
@@ -93,8 +82,8 @@ export async function cleanupExpiredTokens() {
   await db
     .update(usersTable)
     .set({
-      passwordResetToken: null,
-      passwordResetExpires: null,
+      passwordResetToken: '',
+      passwordResetExpires: '',
     })
     .where(lt(usersTable.passwordResetExpires, now))
 

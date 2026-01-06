@@ -18,7 +18,7 @@ books.get('/', async (c) => {
     }
 
     if (query?.genre) {
-      query.genre = c.req.queries('genre')
+      query.genre = c.req.queries('genre') ?? []
     }
 
     const { booksRecords, booksCount } = await getBooks(query)

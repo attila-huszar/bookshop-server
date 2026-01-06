@@ -46,11 +46,11 @@ export function getEmailHtml(props: SendEmailProps): string {
         total: order.total.toFixed(2),
         currency: order.currency,
         address: [
-          order.address?.line1,
-          order.address?.line2,
-          order.address?.city,
-          order.address?.state,
-          order.address?.country,
+          order.shipping?.address?.line1,
+          order.shipping?.address?.line2,
+          order.shipping?.address?.city,
+          order.shipping?.address?.state,
+          order.shipping?.address?.country,
         ]
           .filter(Boolean)
           .join(', '),

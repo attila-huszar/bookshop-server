@@ -1,13 +1,17 @@
 import { int, real, sqliteTable, text } from 'drizzle-orm/sqlite-core'
-import { Stripe } from 'stripe'
 import { timestamps } from './column.helpers'
-import { type OrderItem, OrderStatus } from '@/types'
+import {
+  type OrderItem,
+  OrderStatus,
+  type StripeShipping,
+  type StripeStatus,
+} from '@/types'
 
 export const ordersTable = sqliteTable('orders', {
   id: int().primaryKey({ autoIncrement: true }),
   paymentId: text('payment_id').unique().notNull(),
   paymentIntentStatus: text('payment_intent_status')
-    .$type<Stripe.PaymentIntent.Status>()
+    .$type<StripeStatus>()
     .default('processing')
     .notNull(),
   orderStatus: text('order_status')
@@ -17,10 +21,9 @@ export const ordersTable = sqliteTable('orders', {
   total: real().notNull(),
   currency: text().notNull(),
   items: text({ mode: 'json' }).$type<OrderItem[]>().notNull(),
-  firstName: text('first_name'),
-  lastName: text('last_name'),
-  email: text(),
-  phone: text(),
-  address: text({ mode: 'json' }).$type<Stripe.Address>(),
+  firstName: text('first_name').notNull(),
+  lastName: text('last_name').notNull(),
+  email: text().notNull(),
+  shipping: text({ mode: 'json' }).$type<StripeShipping>().notNull(),
   ...timestamps,
 })

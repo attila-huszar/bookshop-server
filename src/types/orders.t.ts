@@ -1,22 +1,25 @@
 import { z } from 'zod'
 import { Stripe } from 'stripe'
-import { ordersTable } from '@/models/sqlite'
 import type {
+  orderSelectSchema,
+  orderInsertSchema,
   orderItemSchema,
-  orderCreateSchema,
+  cartItemSchema,
+  checkoutCartSchema,
   orderUpdateSchema,
 } from '@/validation'
 
-export type Order = typeof ordersTable.$inferSelect
-
-export type OrderCreate = z.infer<typeof orderCreateSchema>
+export type Order = z.infer<typeof orderSelectSchema>
+export type OrderInsert = z.infer<typeof orderInsertSchema>
 export type OrderUpdate = z.infer<typeof orderUpdateSchema>
-
 export type OrderItem = z.infer<typeof orderItemSchema>
+export type CartItem = z.infer<typeof cartItemSchema>
+export type CheckoutCart = z.infer<typeof checkoutCartSchema>
 
 export enum OrderStatus {
   Pending = 'PENDING',
   Paid = 'PAID',
+  Captured = 'CAPTURED',
   Canceled = 'CANCELED',
 }
 
@@ -24,15 +27,6 @@ export type PaymentIntentCreate = Pick<
   Stripe.PaymentIntentCreateParams,
   'amount' | 'currency' | 'description'
 >
-
-export type PaymentIntentStatus = Stripe.PaymentIntent.Status
-
-export const paymentIntentStatusValues = [
-  'requires_payment_method',
-  'requires_confirmation',
-  'requires_action',
-  'processing',
-  'succeeded',
-  'canceled',
-  'requires_capture',
-] as const
+export type StripeStatus = Stripe.PaymentIntent.Status
+export type StripeShipping = Stripe.PaymentIntent.Shipping
+export type StripeAddress = Stripe.Address

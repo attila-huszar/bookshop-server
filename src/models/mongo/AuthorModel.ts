@@ -1,19 +1,22 @@
 import { mongo } from '@/db'
 import { autoIncrementPlugin } from './'
+import type { Author } from '@/types'
 
-const authorSchema = new mongo.Schema(
+type AuthorDoc = WithDateTimestamps<Author>
+
+const authorSchema = new mongo.Schema<AuthorDoc>(
   {
     id: { type: Number, unique: true, index: true },
     name: { type: String, required: true },
-    fullName: { type: String, default: null },
-    birthYear: { type: String, default: null },
-    deathYear: { type: String, default: null },
-    homeland: { type: String, default: null },
-    biography: { type: String, default: null },
+    fullName: { type: String, required: true },
+    birthYear: { type: String, required: true },
+    deathYear: { type: String, required: true },
+    homeland: { type: String, required: true },
+    biography: { type: String, required: true },
   },
   { timestamps: true },
 )
 
 authorSchema.plugin(autoIncrementPlugin)
 
-export const AuthorModel = mongo.model('Author', authorSchema)
+export const AuthorModel = mongo.model<AuthorDoc>('Author', authorSchema)

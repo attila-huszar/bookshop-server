@@ -2,6 +2,12 @@ import { mongo } from '@/db'
 import { log } from '@/libs'
 import type { Schema, Model } from 'mongoose'
 
+type AutoIncrementDoc = {
+  isNew: boolean
+  id?: number
+  $model<T>(): Model<T>
+}
+
 const counterSchema = new mongo.Schema({
   _id: { type: String, required: true },
   seq: { type: Number, default: 0 },
@@ -9,7 +15,7 @@ const counterSchema = new mongo.Schema({
 
 const CounterModel = mongo.model('Counter', counterSchema)
 
-async function getNextSequence(model: Model<unknown>): Promise<number> {
+async function getNextSequence<T>(model: Model<T>): Promise<number> {
   try {
     const counter = await CounterModel.findByIdAndUpdate(
       model.modelName,
@@ -34,26 +40,20 @@ export async function setSequence<T>(
   )
 }
 
-export async function getHighestId<T extends { id?: number | null }>(
-  model: Model<T>,
-): Promise<number> {
-  const result = await model.findOne().sort({ id: -1 }).select('id').lean()
+export async function getHighestId<T>(model: Model<T>): Promise<number> {
+  const result = await model
+    .findOne()
+    .sort({ id: -1 })
+    .select('id')
+    .lean<{ id?: number | null }>()
 
-  if (!result) return 0
-
-  return typeof result.id === 'number' ? (result.id as number) : 0
+  return result?.id ?? 0
 }
 
 export function autoIncrementPlugin(schema: Schema): void {
-  schema.pre('save', async function (this, next) {
+  schema.pre('save', async function (this: AutoIncrementDoc) {
     if (this.isNew && this.id == null) {
-      try {
-        this.id = await getNextSequence(this.$model())
-      } catch (error) {
-        log.error('Auto-increment error', { error })
-        return next(error as Error)
-      }
+      this.id = await getNextSequence(this.$model())
     }
-    next()
   })
 }

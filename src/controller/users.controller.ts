@@ -20,7 +20,7 @@ import type {
   PasswordResetRequest,
   PasswordResetToken,
   PasswordResetSubmit,
-  UserUpdateRequest,
+  UserUpdate,
 } from '@/types'
 
 type Variables = {
@@ -120,7 +120,7 @@ users.get('/profile', async (c) => {
 users.patch('/profile', async (c) => {
   try {
     const jwtPayload = c.get('jwtPayload')
-    const updateFields = await c.req.json<UserUpdateRequest>()
+    const updateFields = await c.req.json<UserUpdate>()
     const user = await updateUserProfile(jwtPayload.uuid, updateFields)
 
     return c.json(user)

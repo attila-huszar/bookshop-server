@@ -7,6 +7,8 @@ export const authors = new Hono()
 authors.get('/', async (c) => {
   try {
     const query = c.req.query()
+    if (!query.name) return c.json([], 200)
+
     const authorRecords = await getAuthorsByName(query.name)
 
     return c.json(authorRecords)

@@ -1,6 +1,12 @@
 import './config/validateEnv'
 import { env } from './config/env'
-import { Hono } from 'hono'
+import {
+  Hono,
+  type Context,
+  type Next,
+  type MiddlewareHandler,
+  type Env,
+} from 'hono'
 import { logger } from 'hono/logger'
 import { cors } from 'hono/cors'
 import { csrf } from 'hono/csrf'
@@ -14,7 +20,16 @@ import {
   authAdminMiddleware,
 } from './middleware'
 import { formatUptime, ngrokForward } from './utils'
-import * as controller from './controller'
+import {
+  books,
+  authors,
+  news,
+  bookSearchOptions,
+  users,
+  orders,
+  webhooks,
+  cms,
+} from './controller'
 
 const app = new Hono()
 
@@ -44,7 +59,17 @@ app.use('*', timeout(10000))
 app.use('/favicon.ico', serveStatic({ path: './static/favicon.ico' }))
 
 if (Bun.env.NODE_ENV === 'prod') {
-  app.use(csrf({ origin: [env.clientBaseUrl!] }))
+  const csrfMiddleware: MiddlewareHandler = csrf({
+    origin: [env.clientBaseUrl!],
+  })
+
+  app.use('*', async (c: Context<Env, string, object>, next: Next) => {
+    if (c.req.path === '/webhooks/stripe') {
+      return next()
+    }
+
+    return csrfMiddleware(c, next)
+  })
 }
 
 app.get('/', (c) => {
@@ -63,13 +88,14 @@ app.use('/users/avatar', authMiddleware)
 
 app.use('/cms/*', authAdminMiddleware)
 
-app.route('/books', controller.books)
-app.route('/authors', controller.authors)
-app.route('/news', controller.news)
-app.route('/search_opts', controller.bookSearchOptions)
-app.route('/users', controller.users)
-app.route('/orders', controller.orders)
-app.route('/cms', controller.cms)
+app.route('/books', books)
+app.route('/authors', authors)
+app.route('/news', news)
+app.route('/search_opts', bookSearchOptions)
+app.route('/users', users)
+app.route('/orders', orders)
+app.route('/webhooks', webhooks)
+app.route('/cms', cms)
 
 if (env.ngrokAuthToken) void ngrokForward()
 

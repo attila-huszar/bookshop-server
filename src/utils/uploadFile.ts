@@ -6,7 +6,10 @@ export const enum Folder {
   ProductImages = 'product-images',
 }
 
-export const uploadFile = async (file: File, folder: Folder) => {
+export const uploadFile = async (
+  file: File,
+  folder: Folder,
+): Promise<string> => {
   try {
     const key = `${folder}/${Date.now()}-${file.name}`
     const metadata = s3.file(key)
@@ -14,6 +17,10 @@ export const uploadFile = async (file: File, folder: Folder) => {
     await write(metadata, file)
     const presignedUrl = metadata.presign()
     const permanentUrl = presignedUrl.split('?')[0]
+
+    if (!permanentUrl) {
+      throw new Error('Failed to get permanent URL after upload')
+    }
 
     return permanentUrl
   } catch (error) {

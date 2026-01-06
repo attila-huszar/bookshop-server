@@ -7,6 +7,7 @@ import {
   tokenSchema,
   passwordResetSchema,
   imageSchema,
+  userUpdateSchema,
 } from '@/validation'
 import { env } from '@/config'
 import { log } from '@/libs'
@@ -20,9 +21,10 @@ import {
   type PasswordResetRequest,
   type PasswordResetToken,
   type PasswordResetSubmit,
-  type UserUpdateRequest,
+  type UserUpdate,
   type SendEmailProps,
   UserRole,
+  type UserInsert,
 } from '@/types'
 
 export async function loginUser(loginRequest: LoginRequest) {
@@ -76,23 +78,34 @@ export async function registerUser(formData: FormData) {
   const verificationExpires = new Date(Date.now() + 86400000).toISOString()
   const tokenLink = `${env.clientBaseUrl}/verification?token=${verificationToken}`
 
-  const avatarUrl =
+  const avatar =
     form.avatar instanceof File
       ? await uploadFile(form.avatar, Folder.Avatars)
-      : null
+      : ''
 
-  const newUser = {
+  const newUser: UserInsert = {
     uuid: crypto.randomUUID(),
     firstName,
     lastName,
     email,
     password: await Bun.password.hash(password),
-    avatar: avatarUrl,
+    avatar,
     country,
     role: UserRole.User,
     verified: false,
     verificationToken,
     verificationExpires,
+    address: {
+      line1: '',
+      line2: '',
+      city: '',
+      state: '',
+      postal_code: '',
+      country: '',
+    },
+    phone: '',
+    passwordResetToken: '',
+    passwordResetExpires: '',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   }
@@ -133,10 +146,15 @@ export async function verifyUser(verificationRequest: VerificationRequest) {
     throw new BadRequest(authMessage.invalidToken)
   }
 
-  const userUpdated = await usersDB.updateUser(user.email, {
+  const now = new Date().toISOString()
+  if (user.verificationExpires && user.verificationExpires < now) {
+    throw new BadRequest(authMessage.invalidToken)
+  }
+
+  const userUpdated = await usersDB.updateUserBy('email', user.email, {
     verified: true,
-    verificationToken: null,
-    verificationExpires: null,
+    verificationToken: '',
+    verificationExpires: '',
     updatedAt: new Date().toISOString(),
   })
 
@@ -162,7 +180,7 @@ export async function passwordResetRequest(
   const passwordResetExpires = new Date(Date.now() + 86400000).toISOString()
   const tokenLink = `${env.clientBaseUrl}/password-reset?token=${passwordResetToken}`
 
-  const userUpdated = await usersDB.updateUser(user.email, {
+  const userUpdated = await usersDB.updateUserBy('email', user.email, {
     passwordResetToken,
     passwordResetExpires,
     updatedAt: new Date().toISOString(),
@@ -217,10 +235,10 @@ export async function passwordResetSubmit(
     throw new NotFound(userMessage.getError)
   }
 
-  const userUpdated = await usersDB.updateUser(user.email, {
+  const userUpdated = await usersDB.updateUserBy('email', user.email, {
     password: await Bun.password.hash(password),
-    passwordResetToken: null,
-    passwordResetExpires: null,
+    passwordResetToken: '',
+    passwordResetExpires: '',
     updatedAt: new Date().toISOString(),
   })
 
@@ -257,20 +275,22 @@ export async function getUserProfile(uuid: string) {
 
 export async function updateUserProfile(
   uuid: string,
-  updateFields: UserUpdateRequest,
+  updateFields: UserUpdate,
 ) {
+  const validatedFields = validate(userUpdateSchema, updateFields)
+
   const user = await usersDB.getUserBy('uuid', uuid)
 
   if (!user) {
     throw new NotFound(userMessage.getError)
   }
 
-  if (updateFields.password) {
-    updateFields.password = await Bun.password.hash(updateFields.password)
+  if (validatedFields.password) {
+    validatedFields.password = await Bun.password.hash(validatedFields.password)
   }
 
-  const userUpdated = await usersDB.updateUser(user.email, {
-    ...updateFields,
+  const userUpdated = await usersDB.updateUserBy('email', user.email, {
+    ...validatedFields,
     updatedAt: new Date().toISOString(),
   })
 
@@ -313,7 +333,7 @@ export async function uploadUserAvatar(
 
   const url = await uploadFile(avatar, Folder.Avatars)
 
-  const userUpdated = await usersDB.updateUser(user.email, {
+  const userUpdated = await usersDB.updateUserBy('email', user.email, {
     avatar: url,
     updatedAt: new Date().toISOString(),
   })

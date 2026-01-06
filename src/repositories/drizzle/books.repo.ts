@@ -6,7 +6,7 @@ import { PAGINATION } from '@/constants'
 import type {
   Book,
   BookQuery,
-  BookCreate,
+  BookInsert,
   BookUpdate,
   BookWithAuthor,
 } from '@/types'
@@ -51,6 +51,10 @@ export async function getBooks(query?: BookQuery): Promise<{
     .from(booksTable)
     .where(conditions)
 
+  if (!total) {
+    throw new Error('Failed to get book count')
+  }
+
   const booksCount = total.count.toString()
 
   const booksRecords = await db
@@ -80,8 +84,10 @@ export async function getBooks(query?: BookQuery): Promise<{
   return { booksRecords, booksCount }
 }
 
-export async function getBookById(bookId: number): Promise<BookWithAuthor> {
-  const bookRecords = await db
+export async function getBookById(
+  bookId: number,
+): Promise<BookWithAuthor | null> {
+  const [book] = await db
     .select({
       id,
       title,
@@ -104,7 +110,7 @@ export async function getBookById(bookId: number): Promise<BookWithAuthor> {
     .where(eq(booksTable.id, bookId))
     .limit(1)
 
-  return bookRecords[0]
+  return book ?? null
 }
 
 export async function getBookSearchOptions(): Promise<{
@@ -127,11 +133,16 @@ export async function getBookSearchOptions(): Promise<{
     .map((row) => row.genre)
     .filter((genre) => genre !== null)
 
+  const minMaxField = minMaxFields[0]
+  if (!minMaxField) {
+    throw new Error('Failed to get min/max values')
+  }
+
   return {
-    price: [minMaxFields[0].minPrice ?? 0, minMaxFields[0].maxPrice ?? 500],
+    price: [minMaxField.minPrice ?? 0, minMaxField.maxPrice ?? 500],
     publishYear: [
-      minMaxFields[0].minYear ?? 1000,
-      minMaxFields[0].maxYear ?? new Date().getFullYear(),
+      minMaxField.minYear ?? 1000,
+      minMaxField.maxYear ?? new Date().getFullYear(),
     ],
     genre: genres,
   }
@@ -142,8 +153,11 @@ export async function getAllBooks(): Promise<Book[]> {
   return bookRecords
 }
 
-export async function insertBook(book: BookCreate): Promise<Book> {
+export async function insertBook(book: BookInsert): Promise<Book> {
   const [newBook] = await db.insert(booksTable).values(book).returning()
+  if (!newBook) {
+    throw new Error('Failed to create book')
+  }
   return newBook
 }
 
@@ -156,11 +170,13 @@ export async function updateBook(
     .set(book)
     .where(eq(booksTable.id, bookId))
     .returning()
+  if (!updatedBook) {
+    throw new Error('Book not found')
+  }
   return updatedBook
 }
 
 export async function deleteBooks(bookIds: number[]): Promise<Book['id'][]> {
   await db.delete(booksTable).where(inArray(booksTable.id, bookIds))
-
   return bookIds
 }

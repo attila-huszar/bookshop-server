@@ -7,7 +7,7 @@ import {
   mockUsersDB,
   mockValidate,
 } from './test-setup'
-import { UserRole } from '@/types'
+import { UserRole, type UserInsert } from '@/types'
 
 beforeEach(() => {
   mockEmailQueue.add.mockClear()
@@ -144,7 +144,7 @@ describe('Users Service', () => {
 
       mockValidate.mockReturnValueOnce(verificationRequest)
       mockUsersDB.getUserBy.mockResolvedValueOnce(mockUser)
-      mockUsersDB.updateUser.mockResolvedValueOnce(updatedUser)
+      mockUsersDB.updateUserBy.mockResolvedValueOnce(updatedUser)
 
       const result = await usersService.verifyUser(verificationRequest)
 
@@ -152,12 +152,13 @@ describe('Users Service', () => {
         'verificationToken',
         'verification-token',
       )
-      expect(mockUsersDB.updateUser).toHaveBeenCalledWith(
+      expect(mockUsersDB.updateUserBy).toHaveBeenCalledWith(
+        'email',
         'test@example.com',
         expect.objectContaining({
           verified: true,
-          verificationToken: null,
-          verificationExpires: null,
+          verificationToken: '',
+          verificationExpires: '',
         }),
       )
       expect(result).toEqual({ email: 'test@example.com' })
@@ -175,12 +176,12 @@ describe('Users Service', () => {
 
       mockValidate.mockReturnValueOnce(request)
       mockUsersDB.getUserBy.mockResolvedValueOnce(mockUser)
-      mockUsersDB.updateUser.mockResolvedValueOnce(updatedUser)
+      mockUsersDB.updateUserBy.mockResolvedValueOnce(updatedUser)
       mockEmailQueue.add.mockResolvedValueOnce(undefined)
 
       const result = await usersService.passwordResetRequest(request)
 
-      expect(mockUsersDB.updateUser).toHaveBeenCalled()
+      expect(mockUsersDB.updateUserBy).toHaveBeenCalled()
       expect(mockEmailQueue.add).toHaveBeenCalledWith(
         'passwordReset',
         expect.objectContaining({
@@ -208,7 +209,7 @@ describe('Users Service', () => {
 
   describe('getUserProfile', () => {
     it('should return user profile without sensitive data', async () => {
-      const mockUser = {
+      const mockUser: UserInsert = {
         id: 1,
         uuid: 'user-uuid',
         firstName: 'John',
@@ -217,14 +218,21 @@ describe('Users Service', () => {
         password: Bun.password.hashSync('password123'),
         country: 'hu',
         verified: true,
-        verificationToken: null,
-        verificationExpires: null,
-        passwordResetToken: null,
-        passwordResetExpires: null,
+        verificationToken: '',
+        verificationExpires: '',
+        passwordResetToken: '',
+        passwordResetExpires: '',
         role: UserRole.User,
-        avatar: null,
-        address: null,
-        phone: null,
+        avatar: '',
+        address: {
+          line1: '',
+          line2: '',
+          city: '',
+          state: '',
+          postal_code: '',
+          country: '',
+        },
+        phone: '',
         createdAt: '2023-01-01',
         updatedAt: '2023-01-01',
       }
@@ -240,9 +248,16 @@ describe('Users Service', () => {
         email: 'test@example.com',
         country: 'hu',
         role: UserRole.User,
-        avatar: null,
-        address: null,
-        phone: null,
+        avatar: '',
+        address: {
+          line1: '',
+          line2: '',
+          city: '',
+          state: '',
+          postal_code: '',
+          country: '',
+        },
+        phone: '',
       })
       expect(result).not.toHaveProperty('password')
       expect(result).not.toHaveProperty('verificationToken')
