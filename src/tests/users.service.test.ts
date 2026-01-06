@@ -144,7 +144,7 @@ describe('Users Service', () => {
 
       mockValidate.mockReturnValueOnce(verificationRequest)
       mockUsersDB.getUserBy.mockResolvedValueOnce(mockUser)
-      mockUsersDB.updateUser.mockResolvedValueOnce(updatedUser)
+      mockUsersDB.updateUserBy.mockResolvedValueOnce(updatedUser)
 
       const result = await usersService.verifyUser(verificationRequest)
 
@@ -152,7 +152,8 @@ describe('Users Service', () => {
         'verificationToken',
         'verification-token',
       )
-      expect(mockUsersDB.updateUser).toHaveBeenCalledWith(
+      expect(mockUsersDB.updateUserBy).toHaveBeenCalledWith(
+        'email',
         'test@example.com',
         expect.objectContaining({
           verified: true,
@@ -175,12 +176,12 @@ describe('Users Service', () => {
 
       mockValidate.mockReturnValueOnce(request)
       mockUsersDB.getUserBy.mockResolvedValueOnce(mockUser)
-      mockUsersDB.updateUser.mockResolvedValueOnce(updatedUser)
+      mockUsersDB.updateUserBy.mockResolvedValueOnce(updatedUser)
       mockEmailQueue.add.mockResolvedValueOnce(undefined)
 
       const result = await usersService.passwordResetRequest(request)
 
-      expect(mockUsersDB.updateUser).toHaveBeenCalled()
+      expect(mockUsersDB.updateUserBy).toHaveBeenCalled()
       expect(mockEmailQueue.add).toHaveBeenCalledWith(
         'passwordReset',
         expect.objectContaining({

@@ -151,7 +151,7 @@ export async function verifyUser(verificationRequest: VerificationRequest) {
     throw new BadRequest(authMessage.invalidToken)
   }
 
-  const userUpdated = await usersDB.updateUser(user.email, {
+  const userUpdated = await usersDB.updateUserBy('email', user.email, {
     verified: true,
     verificationToken: '',
     verificationExpires: '',
@@ -180,7 +180,7 @@ export async function passwordResetRequest(
   const passwordResetExpires = new Date(Date.now() + 86400000).toISOString()
   const tokenLink = `${env.clientBaseUrl}/password-reset?token=${passwordResetToken}`
 
-  const userUpdated = await usersDB.updateUser(user.email, {
+  const userUpdated = await usersDB.updateUserBy('email', user.email, {
     passwordResetToken,
     passwordResetExpires,
     updatedAt: new Date().toISOString(),
@@ -235,7 +235,7 @@ export async function passwordResetSubmit(
     throw new NotFound(userMessage.getError)
   }
 
-  const userUpdated = await usersDB.updateUser(user.email, {
+  const userUpdated = await usersDB.updateUserBy('email', user.email, {
     password: await Bun.password.hash(password),
     passwordResetToken: '',
     passwordResetExpires: '',
@@ -289,7 +289,7 @@ export async function updateUserProfile(
     validatedFields.password = await Bun.password.hash(validatedFields.password)
   }
 
-  const userUpdated = await usersDB.updateUser(user.email, {
+  const userUpdated = await usersDB.updateUserBy('email', user.email, {
     ...validatedFields,
     updatedAt: new Date().toISOString(),
   })
@@ -333,7 +333,7 @@ export async function uploadUserAvatar(
 
   const url = await uploadFile(avatar, Folder.Avatars)
 
-  const userUpdated = await usersDB.updateUser(user.email, {
+  const userUpdated = await usersDB.updateUserBy('email', user.email, {
     avatar: url,
     updatedAt: new Date().toISOString(),
   })

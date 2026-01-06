@@ -5,17 +5,16 @@ import {
   validate,
   orderInsertSchema,
   checkoutCartSchema,
-  orderUpdateSchema,
   paymentIdSchema,
 } from '@/validation'
 import { log } from '@/libs'
 import { extractCustomerFields } from '@/utils'
 import { emailQueue } from '@/queues'
-import { jobOpts, QUEUE, defaultCurrency } from '@/constants'
+import { jobOpts, QUEUE, defaultCurrency, stripeShipping } from '@/constants'
 import { BadRequest, Internal, NotFound } from '@/errors'
 import type {
-  OrderUpdate,
   CheckoutCart,
+  OrderInsert,
   OrderItem,
   PaymentIntentCreate,
   SendEmailProps,
@@ -265,7 +264,7 @@ export async function createOrder(
 
     stripePaymentId = paymentIntent.id
 
-    const orderData = {
+    const order: OrderInsert = {
       paymentId: stripePaymentId,
       paymentIntentStatus: paymentIntent.status,
       orderStatus: OrderStatus.Pending,
@@ -275,10 +274,10 @@ export async function createOrder(
       firstName: '',
       lastName: '',
       email: '',
-      shipping: {},
+      shipping: stripeShipping,
     }
 
-    const validatedOrderData = validate(orderInsertSchema, orderData)
+    const validatedOrderData = validate(orderInsertSchema, order)
     const createdOrder = await ordersDB.createOrder(validatedOrderData)
 
     if (!createdOrder) {
@@ -309,20 +308,4 @@ export async function createOrder(
 
     throw error
   }
-}
-
-export async function updateOrder(paymentId: string, fields: OrderUpdate) {
-  const validatedId = validate(paymentIdSchema, paymentId)
-  const validatedFields = validate(orderUpdateSchema, fields)
-
-  const updatedOrder = await ordersDB.updateOrder(validatedId, {
-    ...validatedFields,
-    updatedAt: new Date().toISOString(),
-  })
-
-  if (!updatedOrder) {
-    throw new Internal('Failed to update order')
-  }
-
-  return updatedOrder
 }

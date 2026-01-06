@@ -5,44 +5,39 @@ import type { UserUpdate, User, UserInsert } from '@/types'
 
 const { usersTable } = model as SQLiteModel
 
-export async function getUserBy<T extends keyof User>(
-  field: T,
-  value: string,
+type UserRetrieveBy = Extract<
+  keyof User,
+  'id' | 'uuid' | 'email' | 'verificationToken' | 'passwordResetToken'
+>
+
+export async function getUserBy(
+  field: UserRetrieveBy,
+  value: string | number,
 ): Promise<User | null> {
   const [user] = await db
     .select()
     .from(usersTable)
     .where(eq(usersTable[field], value))
     .limit(1)
-
   return user ?? null
 }
 
 export async function createUser(values: UserInsert): Promise<User | null> {
-  await db.insert(usersTable).values(values)
-
-  const [user] = await db
-    .select()
-    .from(usersTable)
-    .where(eq(usersTable.email, values.email))
-    .limit(1)
-
-  return user ?? null
+  const [createdUser] = await db.insert(usersTable).values(values).returning()
+  return createdUser ?? null
 }
 
-export async function updateUser(
-  email: string,
+export async function updateUserBy(
+  field: UserRetrieveBy,
+  value: string | number,
   fields: UserUpdate,
 ): Promise<User | null> {
-  await db.update(usersTable).set(fields).where(eq(usersTable.email, email))
-
-  const [user] = await db
-    .select()
-    .from(usersTable)
-    .where(eq(usersTable.email, email))
-    .limit(1)
-
-  return user ?? null
+  const [updatedUser] = await db
+    .update(usersTable)
+    .set(fields)
+    .where(eq(usersTable[field], value))
+    .returning()
+  return updatedUser ?? null
 }
 
 export async function getAllUsers(): Promise<User[]> {
@@ -53,14 +48,12 @@ export async function getAllUsers(): Promise<User[]> {
 export async function deleteUserByEmail(
   email: string,
 ): Promise<User['email'] | null> {
-  const deleteResult = await db
+  const [deletedUser] = await db
     .delete(usersTable)
     .where(eq(usersTable.email, email))
     .limit(1)
     .returning()
-
-  if (deleteResult.length === 0) return null
-  return email
+  return deletedUser?.email ?? null
 }
 
 export async function deleteUsersByIds(

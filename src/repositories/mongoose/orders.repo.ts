@@ -52,6 +52,17 @@ export async function getAllOrders(): Promise<Order[]> {
   }))
 }
 
+export async function insertOrder(order: OrderInsert): Promise<Order> {
+  const { id, createdAt, updatedAt, ...orderData } = order
+  const created = await OrderModel.create(orderData)
+  const orderObj = created.toObject()
+  return {
+    ...orderObj,
+    createdAt: orderObj.createdAt.toISOString(),
+    updatedAt: orderObj.updatedAt.toISOString(),
+  }
+}
+
 export async function deleteOrdersByIds(
   orderIds: number[],
 ): Promise<Order['id'][]> {

@@ -64,6 +64,12 @@ export async function getAllOrders(): Promise<Order[]> {
   return orderRecords
 }
 
+export async function insertOrder(order: OrderInsert): Promise<Order | null> {
+  const [createdOrder] = await db.insert(ordersTable).values(order).returning()
+
+  return createdOrder ?? null
+}
+
 export async function deleteOrdersByIds(
   orderIds: number[],
 ): Promise<Order['id'][]> {

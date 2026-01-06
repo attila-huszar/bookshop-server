@@ -3,15 +3,15 @@ import { timestamps } from './column.helpers'
 import {
   type OrderItem,
   OrderStatus,
-  type PaymentIntentShipping,
-  type PaymentIntentStatus,
+  type StripeShipping,
+  type StripeStatus,
 } from '@/types'
 
 export const ordersTable = sqliteTable('orders', {
   id: int().primaryKey({ autoIncrement: true }),
   paymentId: text('payment_id').unique().notNull(),
   paymentIntentStatus: text('payment_intent_status')
-    .$type<PaymentIntentStatus>()
+    .$type<StripeStatus>()
     .default('processing')
     .notNull(),
   orderStatus: text('order_status')
@@ -24,6 +24,6 @@ export const ordersTable = sqliteTable('orders', {
   firstName: text('first_name').notNull(),
   lastName: text('last_name').notNull(),
   email: text().notNull(),
-  shipping: text({ mode: 'json' }).$type<PaymentIntentShipping>().notNull(),
+  shipping: text({ mode: 'json' }).$type<StripeShipping>().notNull(),
   ...timestamps,
 })

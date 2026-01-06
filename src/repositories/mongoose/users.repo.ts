@@ -3,12 +3,18 @@ import type { User, UserInsert, UserUpdate, UserRole } from '@/types'
 
 const { UserModel } = model as MongoModel
 
+type UserRetrieveBy = Extract<
+  keyof User,
+  'id' | 'uuid' | 'email' | 'verificationToken' | 'passwordResetToken'
+>
+
 export async function getUserBy(
-  field: 'uuid' | 'email' | 'verificationToken' | 'passwordResetToken',
-  token: string,
+  field: UserRetrieveBy,
+  value: string | number,
 ): Promise<User | null> {
-  const user = await UserModel.findOne({ [field]: token }).lean()
+  const user = await UserModel.findOne({ [field]: value }).lean()
   if (!user) return null
+
   return {
     ...user,
     id: user.id!,
@@ -31,14 +37,16 @@ export async function createUser(user: UserInsert): Promise<User | null> {
   }
 }
 
-export async function updateUser(
-  email: string,
+export async function updateUserBy(
+  field: UserRetrieveBy,
+  value: string | number,
   fields: UserUpdate,
 ): Promise<User | null> {
-  const updated = await UserModel.findOneAndUpdate({ email }, fields, {
+  const updated = await UserModel.findOneAndUpdate({ [field]: value }, fields, {
     new: true,
   }).lean()
   if (!updated) return null
+
   return {
     ...updated,
     id: updated.id!,

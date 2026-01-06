@@ -5,18 +5,18 @@ import {
   createUpdateSchema,
 } from 'drizzle-zod'
 import { ordersTable } from '@/models/sqlite'
-import { OrderStatus, type PaymentIntentStatus } from '@/types'
+import { OrderStatus, type StripeStatus } from '@/types'
 
 export const orderSelectSchema = createSelectSchema(ordersTable, {
-  paymentIntentStatus: () => z.custom<PaymentIntentStatus>(),
+  paymentIntentStatus: () => z.custom<StripeStatus>(),
   orderStatus: () => z.enum(OrderStatus),
 })
 export const orderInsertSchema = createInsertSchema(ordersTable, {
-  paymentIntentStatus: () => z.custom<PaymentIntentStatus>(),
+  paymentIntentStatus: () => z.custom<StripeStatus>(),
   orderStatus: () => z.enum(OrderStatus),
 })
 export const orderUpdateSchema = createUpdateSchema(ordersTable, {
-  paymentIntentStatus: () => z.custom<PaymentIntentStatus>().optional(),
+  paymentIntentStatus: () => z.custom<StripeStatus>().optional(),
   orderStatus: () => z.enum(OrderStatus).optional(),
 })
 

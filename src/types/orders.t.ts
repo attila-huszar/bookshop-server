@@ -27,6 +27,6 @@ export type PaymentIntentCreate = Pick<
   Stripe.PaymentIntentCreateParams,
   'amount' | 'currency' | 'description'
 >
-export type PaymentIntentStatus = Stripe.PaymentIntent.Status
-export type PaymentIntentShipping = Stripe.PaymentIntent.Shipping
+export type StripeStatus = Stripe.PaymentIntent.Status
+export type StripeShipping = Stripe.PaymentIntent.Shipping
 export type StripeAddress = Stripe.Address
