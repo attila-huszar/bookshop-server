@@ -1,5 +1,5 @@
 import { booksDB } from '@/repositories'
-import { validate, idSchema } from '@/validation'
+import { idSchema, validate } from '@/validation'
 import type { BookQuery } from '@/types'
 
 export async function getBooks(query?: BookQuery) {

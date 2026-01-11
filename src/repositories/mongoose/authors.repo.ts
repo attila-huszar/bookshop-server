@@ -2,8 +2,8 @@ import model from '@/models'
 import type {
   Author,
   AuthorInsert,
-  AuthorUpdate,
   AuthorReference,
+  AuthorUpdate,
 } from '@/types'
 
 const { AuthorModel } = model as MongoModel

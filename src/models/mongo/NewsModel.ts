@@ -1,6 +1,6 @@
 import { mongo } from '@/db'
-import { autoIncrementPlugin } from './'
 import type { News } from '@/types'
+import { autoIncrementPlugin } from './'
 
 type NewsDoc = WithDateTimestamps<News>
 

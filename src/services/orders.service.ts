@@ -2,30 +2,25 @@ import { Stripe } from 'stripe'
 import { env } from '@/config'
 import { booksDB, ordersDB } from '@/repositories'
 import {
-  validate,
-  orderInsertSchema,
   checkoutCartSchema,
+  orderInsertSchema,
   paymentIdSchema,
+  validate,
 } from '@/validation'
-import { log } from '@/libs'
 import { extractCustomerFields } from '@/utils'
+import { log } from '@/libs'
 import { emailQueue } from '@/queues'
-import { jobOpts, QUEUE, defaultCurrency, stripeShipping } from '@/constants'
+import { defaultCurrency, jobOpts, QUEUE, stripeShipping } from '@/constants'
 import { BadRequest, Internal, NotFound } from '@/errors'
 import type {
   CheckoutCart,
   OrderInsert,
   OrderItem,
-  PaymentIntentCreate,
   SendEmailProps,
 } from '@/types'
 import { OrderStatus } from '@/types'
 
 const stripe = new Stripe(env.stripeSecret!)
-
-export async function createPaymentIntent(createRequest: PaymentIntentCreate) {
-  return stripe.paymentIntents.create(createRequest)
-}
 
 export async function retrievePaymentIntent(paymentId: string) {
   const validatedId = validate(paymentIdSchema, paymentId)
@@ -253,7 +248,6 @@ export async function createOrder(
     const paymentIntent = await stripe.paymentIntents.create({
       amount: amountInCents,
       currency: defaultCurrency.toLowerCase(),
-      description: `Order with ${orderItems.length} item(s)`,
     })
 
     if (!paymentIntent?.client_secret) {
@@ -294,9 +288,7 @@ export async function createOrder(
         await stripe.paymentIntents.cancel(stripePaymentId)
         void log.warn(
           'Rolled back Stripe payment intent after order creation failed',
-          {
-            paymentId: stripePaymentId,
-          },
+          { paymentId: stripePaymentId },
         )
       } catch (rollbackError) {
         void log.error('Failed to rollback Stripe payment intent', {
@@ -305,7 +297,6 @@ export async function createOrder(
         })
       }
     }
-
     throw error
   }
 }

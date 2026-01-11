@@ -1,6 +1,6 @@
+import type { Model, Schema } from 'mongoose'
 import { mongo } from '@/db'
 import { log } from '@/libs'
-import type { Schema, Model } from 'mongoose'
 
 type AutoIncrementDoc = {
   isNew: boolean

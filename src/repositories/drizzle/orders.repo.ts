@@ -4,8 +4,8 @@ import model from '@/models'
 import {
   type Order,
   type OrderInsert,
-  type OrderUpdate,
   OrderStatus,
+  type OrderUpdate,
 } from '@/types'
 
 const { ordersTable } = model as SQLiteModel

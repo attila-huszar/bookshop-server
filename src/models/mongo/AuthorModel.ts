@@ -1,6 +1,6 @@
 import { mongo } from '@/db'
-import { autoIncrementPlugin } from './'
 import type { Author } from '@/types'
+import { autoIncrementPlugin } from './'
 
 type AuthorDoc = WithDateTimestamps<Author>
 

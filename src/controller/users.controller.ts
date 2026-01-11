@@ -1,26 +1,26 @@
 import { Hono } from 'hono'
-import { setSignedCookie, deleteCookie, getSignedCookie } from 'hono/cookie'
-import { env, REFRESH_TOKEN, cookieOptions } from '@/config'
+import { deleteCookie, getSignedCookie, setSignedCookie } from 'hono/cookie'
+import { cookieOptions, env, REFRESH_TOKEN } from '@/config'
 import {
-  loginUser,
-  registerUser,
   getUserProfile,
-  verifyUser,
+  loginUser,
   passwordResetRequest,
-  passwordResetToken,
   passwordResetSubmit,
+  passwordResetToken,
+  registerUser,
   updateUserProfile,
   uploadUserAvatar,
+  verifyUser,
 } from '@/services'
 import { signAccessToken, signRefreshToken, verifyJWTRefresh } from '@/utils'
 import { errorHandler } from '@/errors'
 import type {
   LoginRequest,
-  VerificationRequest,
   PasswordResetRequest,
-  PasswordResetToken,
   PasswordResetSubmit,
+  PasswordResetToken,
   UserUpdate,
+  VerificationRequest,
 } from '@/types'
 
 type Variables = {
@@ -204,7 +204,7 @@ users.get('/country', (c) => {
 
 users.get('/country-codes', async (c) => {
   try {
-    const file = Bun.file('./src/assets/country-codes.json')
+    const file = Bun.file('./src/resources/country-codes.json')
     const content: unknown = await file.json()
     return c.json(content)
   } catch (error) {

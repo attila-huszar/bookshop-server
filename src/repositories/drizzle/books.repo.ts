@@ -5,8 +5,8 @@ import { queryBuilder } from '@/utils'
 import { PAGINATION } from '@/constants'
 import type {
   Book,
-  BookQuery,
   BookInsert,
+  BookQuery,
   BookUpdate,
   BookWithAuthor,
 } from '@/types'

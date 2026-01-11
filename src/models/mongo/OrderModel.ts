@@ -1,7 +1,7 @@
 import { mongo } from '@/db'
-import { autoIncrementPlugin } from './'
 import type { Order, StripeStatus } from '@/types'
 import { OrderStatus } from '@/types'
+import { autoIncrementPlugin } from './'
 
 type OrderDoc = WithDateTimestamps<Order>
 

@@ -1,7 +1,7 @@
 import { eq, inArray, lt } from 'drizzle-orm'
 import { db } from '@/db'
 import model from '@/models'
-import type { UserUpdate, User, UserInsert } from '@/types'
+import type { User, UserInsert, UserUpdate } from '@/types'
 
 const { usersTable } = model as SQLiteModel
 

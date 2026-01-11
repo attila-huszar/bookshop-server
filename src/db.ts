@@ -1,7 +1,7 @@
-import { env } from './config'
-import { DB_REPO } from './constants'
 import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite'
 import type { Mongoose } from 'mongoose'
+import { env } from './config'
+import { DB_REPO } from './constants'
 
 let sqlite: BunSQLiteDatabase
 let mongo: Mongoose
