@@ -1,9 +1,9 @@
-import { z } from 'zod'
 import {
-  createSelectSchema,
   createInsertSchema,
+  createSelectSchema,
   createUpdateSchema,
 } from 'drizzle-zod'
+import { z } from 'zod'
 import { usersTable } from '@/models/sqlite'
 import { UserRole } from '@/types'
 

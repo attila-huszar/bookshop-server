@@ -1,5 +1,5 @@
-import { BaseError } from './BaseError'
 import status from 'http-status'
+import { BaseError } from './BaseError'
 
 export class Internal extends BaseError {
   constructor(

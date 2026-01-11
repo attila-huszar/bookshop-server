@@ -1,4 +1,4 @@
-import { sqliteTable, int, text } from 'drizzle-orm/sqlite-core'
+import { int, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { timestamps } from './column.helpers'
 
 export const authorsTable = sqliteTable('authors', {

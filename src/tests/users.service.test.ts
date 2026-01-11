@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach } from 'bun:test'
+import { beforeEach, describe, expect, it } from 'bun:test'
+import { type UserInsert, UserRole } from '@/types'
 import * as usersService from '../services/users.service'
 import {
   mockEmailQueue,
@@ -7,7 +8,6 @@ import {
   mockUsersDB,
   mockValidate,
 } from './test-setup'
-import { UserRole, type UserInsert } from '@/types'
 
 beforeEach(() => {
   mockEmailQueue.add.mockClear()

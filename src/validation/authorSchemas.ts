@@ -1,6 +1,6 @@
 import {
-  createSelectSchema,
   createInsertSchema,
+  createSelectSchema,
   createUpdateSchema,
 } from 'drizzle-zod'
 import { authorsTable } from '@/models/sqlite'

@@ -1,30 +1,30 @@
+import { env } from '@/config'
 import { usersDB } from '@/repositories'
 import {
-  validate,
-  loginSchema,
-  registerSchema,
   emailSchema,
-  tokenSchema,
-  passwordResetSchema,
   imageSchema,
+  loginSchema,
+  passwordResetSchema,
+  registerSchema,
+  tokenSchema,
   userUpdateSchema,
+  validate,
 } from '@/validation'
-import { env } from '@/config'
-import { log } from '@/libs'
 import { Folder, signAccessToken, signRefreshToken, uploadFile } from '@/utils'
+import { log } from '@/libs'
 import { emailQueue } from '@/queues'
 import { authMessage, jobOpts, QUEUE, userMessage } from '@/constants'
 import { BadRequest, Forbidden, NotFound, Unauthorized } from '@/errors'
 import {
   type LoginRequest,
-  type VerificationRequest,
   type PasswordResetRequest,
-  type PasswordResetToken,
   type PasswordResetSubmit,
-  type UserUpdate,
+  type PasswordResetToken,
   type SendEmailProps,
-  UserRole,
   type UserInsert,
+  UserRole,
+  type UserUpdate,
+  type VerificationRequest,
 } from '@/types'
 
 export async function loginUser(loginRequest: LoginRequest) {

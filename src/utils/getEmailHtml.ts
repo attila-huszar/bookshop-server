@@ -1,9 +1,11 @@
 import mjml2html from 'mjml'
-import verification from '@/assets/emailTemplates/verification.mjml' with { type: 'text' }
-import passwordReset from '@/assets/emailTemplates/passwordReset.mjml' with { type: 'text' }
-import orderConfirmation from '@/assets/emailTemplates/orderConfirmation.mjml' with { type: 'text' }
 import { env } from '@/config'
 import { cid } from '@/constants'
+import {
+  orderConfirmation,
+  passwordReset,
+  verification,
+} from '@/resources/emailTemplates'
 import type { SendEmailProps } from '@/types'
 
 const baseLink = env.clientBaseUrl!

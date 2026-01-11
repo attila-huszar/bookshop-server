@@ -1,13 +1,13 @@
 import { z } from 'zod'
 import type {
-  userSelectSchema,
-  userInsertSchema,
-  userUpdateSchema,
-  loginSchema,
-  registerSchema,
   emailSchema,
-  tokenSchema,
+  loginSchema,
   passwordResetSchema,
+  registerSchema,
+  tokenSchema,
+  userInsertSchema,
+  userSelectSchema,
+  userUpdateSchema,
 } from '@/validation'
 
 export type User = z.infer<typeof userSelectSchema>

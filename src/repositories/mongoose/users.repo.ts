@@ -1,5 +1,5 @@
 import model from '@/models'
-import type { User, UserInsert, UserUpdate, UserRole } from '@/types'
+import type { User, UserInsert, UserRole, UserUpdate } from '@/types'
 
 const { UserModel } = model as MongoModel
 

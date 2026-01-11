@@ -1,5 +1,5 @@
-import { DB_REPO } from '@/constants'
 import { env } from '@/config'
+import { DB_REPO } from '@/constants'
 
 let dbModel: DBModel
 

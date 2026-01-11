@@ -1,7 +1,7 @@
-import { mongo } from '@/db'
-import { autoIncrementPlugin } from './'
 import type { Types } from 'mongoose'
+import { mongo } from '@/db'
 import type { Book } from '@/types'
+import { autoIncrementPlugin } from './'
 
 export type BookDoc = WithDateTimestamps<Omit<Book, 'authorId'>> & {
   authorId: Types.ObjectId | null

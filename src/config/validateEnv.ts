@@ -1,5 +1,5 @@
-import { env } from './env'
 import { DB_REPO } from '@/constants'
+import { env } from './env'
 
 const requiredKeys = [
   'adminEmail',

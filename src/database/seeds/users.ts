@@ -1,7 +1,7 @@
 import { env } from '@/config'
-import { DB_REPO, defaultCountry } from '@/constants'
-import { UserRole, type UserInsert } from '@/types'
 import type { getHighestId } from '@/models/mongo'
+import { DB_REPO, defaultCountry } from '@/constants'
+import { type UserInsert, UserRole } from '@/types'
 
 type ModelWithId = Parameters<typeof getHighestId>[0]
 

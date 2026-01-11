@@ -1,6 +1,6 @@
 import { mongo } from '@/db'
-import { autoIncrementPlugin } from './'
 import { UserRole } from '@/types'
+import { autoIncrementPlugin } from './'
 
 const userSchema = new mongo.Schema(
   {

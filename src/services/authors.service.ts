@@ -1,5 +1,5 @@
 import { authorsDB } from '@/repositories'
-import { validate, idSchema } from '@/validation'
+import { idSchema, validate } from '@/validation'
 
 export async function getAuthorsByName(name: string) {
   return authorsDB.getAuthorsBySearch(name)

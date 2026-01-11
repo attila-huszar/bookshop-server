@@ -1,11 +1,11 @@
-import { z } from 'zod'
 import { Stripe } from 'stripe'
+import { z } from 'zod'
 import type {
-  orderSelectSchema,
-  orderInsertSchema,
-  orderItemSchema,
   cartItemSchema,
   checkoutCartSchema,
+  orderInsertSchema,
+  orderItemSchema,
+  orderSelectSchema,
   orderUpdateSchema,
 } from '@/validation'
 
@@ -23,10 +23,6 @@ export enum OrderStatus {
   Canceled = 'CANCELED',
 }
 
-export type PaymentIntentCreate = Pick<
-  Stripe.PaymentIntentCreateParams,
-  'amount' | 'currency' | 'description'
->
 export type StripeStatus = Stripe.PaymentIntent.Status
 export type StripeShipping = Stripe.PaymentIntent.Shipping
 export type StripeAddress = Stripe.Address

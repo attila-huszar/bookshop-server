@@ -11,7 +11,7 @@ export const cid = 'bookshop-logo-cid'
 export const attachments = [
   {
     filename: 'bookshop-logo.png',
-    path: process.cwd() + '/src/assets/images/bookshop-logo.png',
+    path: process.cwd() + '/src/resources/images/bookshop-logo.png',
     contentType: 'image/png',
     cid,
   },

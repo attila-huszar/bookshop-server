@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach } from 'bun:test'
-import { mockLogger, mockSendEmail, mockWorker } from './test-setup'
+import { beforeEach, describe, expect, it } from 'bun:test'
 import type { SendEmailProps } from '@/types'
+import { mockLogger, mockSendEmail, mockWorker } from './test-setup'
 
 describe('Email Worker', () => {
   beforeEach(() => {

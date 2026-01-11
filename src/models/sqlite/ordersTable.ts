@@ -1,11 +1,11 @@
 import { int, real, sqliteTable, text } from 'drizzle-orm/sqlite-core'
-import { timestamps } from './column.helpers'
 import {
   type OrderItem,
   OrderStatus,
   type StripeShipping,
   type StripeStatus,
 } from '@/types'
+import { timestamps } from './column.helpers'
 
 export const ordersTable = sqliteTable('orders', {
   id: int().primaryKey({ autoIncrement: true }),

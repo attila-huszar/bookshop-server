@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import type {
-  bookSelectSchema,
   bookInsertSchema,
+  bookSelectSchema,
   bookUpdateSchema,
 } from '@/validation'
 
