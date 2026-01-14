@@ -87,32 +87,24 @@ export async function deleteUsersByIds(
 export async function cleanupExpiredTokens() {
   const now = new Date().toISOString()
 
-  const usersToDelete = await UserModel.find({
-    verificationExpires: { $lt: now },
+  const deletedUsers = await UserModel.find({
+    verificationExpires: { $ne: '', $lt: now },
   }).lean()
 
   await UserModel.deleteMany({
-    verificationExpires: { $lt: now },
+    verificationExpires: { $ne: '', $lt: now },
   })
 
-  const usersToUpdate = await UserModel.find({
-    passwordResetExpires: { $lt: now },
+  const updatedUsers = await UserModel.find({
+    passwordResetExpires: { $ne: '', $lt: now },
   }).lean()
 
   await UserModel.updateMany(
+    { passwordResetExpires: { $ne: '', $lt: now } },
     {
-      passwordResetExpires: { $lt: now },
-    },
-    {
-      $unset: {
-        passwordResetToken: '',
-        passwordResetExpires: '',
-      },
+      $unset: { passwordResetToken: 1, passwordResetExpires: 1 },
     },
   )
 
-  return {
-    deletedUsers: usersToDelete,
-    updatedUsers: usersToUpdate,
-  }
+  return { deletedUsers, updatedUsers }
 }

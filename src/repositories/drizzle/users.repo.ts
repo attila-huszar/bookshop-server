@@ -1,4 +1,4 @@
-import { eq, inArray, lt } from 'drizzle-orm'
+import { and, eq, inArray, lt, not } from 'drizzle-orm'
 import { db } from '@/db'
 import model from '@/models'
 import type { User, UserInsert, UserUpdate } from '@/types'
@@ -67,28 +67,29 @@ export async function deleteUsersByIds(
 export async function cleanupExpiredTokens() {
   const now = new Date().toISOString()
 
-  const usersToDelete = await db
-    .select()
-    .from(usersTable)
-    .where(lt(usersTable.verificationExpires, now))
+  const deletedUsers = await db
+    .delete(usersTable)
+    .where(
+      and(
+        not(eq(usersTable.verificationExpires, '')),
+        lt(usersTable.verificationExpires, now),
+      ),
+    )
+    .returning()
 
-  await db.delete(usersTable).where(lt(usersTable.verificationExpires, now))
-
-  const usersToUpdate = await db
-    .select()
-    .from(usersTable)
-    .where(lt(usersTable.passwordResetExpires, now))
-
-  await db
+  const updatedUsers = await db
     .update(usersTable)
     .set({
       passwordResetToken: '',
       passwordResetExpires: '',
     })
-    .where(lt(usersTable.passwordResetExpires, now))
+    .where(
+      and(
+        not(eq(usersTable.passwordResetExpires, '')),
+        lt(usersTable.passwordResetExpires, now),
+      ),
+    )
+    .returning()
 
-  return {
-    deletedUsers: usersToDelete,
-    updatedUsers: usersToUpdate,
-  }
+  return { deletedUsers, updatedUsers }
 }
