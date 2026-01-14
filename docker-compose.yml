@@ -5,7 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: bookshop-server
+    container_name: server
     profiles: ['sqlite']
     ports:
       - '${PORT}:${PORT}'
@@ -35,7 +35,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: bookshop-server
+    container_name: server-with-mongo
     profiles: ['mongo']
     ports:
       - '${PORT}:${PORT}'
@@ -61,7 +61,7 @@ services:
 
   mongodb:
     image: mongo
-    container_name: bookshop-mongodb
+    container_name: mongodb
     profiles: ['mongo']
     ports:
       - '27017:27017'
@@ -71,7 +71,7 @@ services:
 
   redis:
     image: redis:alpine
-    container_name: bookshop-redis
+    container_name: redis
     restart: unless-stopped
     ports:
       - '6379:6379'
@@ -83,7 +83,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: bookshop-worker
+    container_name: worker
     profiles: ['sqlite']
     depends_on:
       redis:
@@ -111,7 +111,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: bookshop-worker
+    container_name: worker-with-mongo
     profiles: ['mongo']
     depends_on:
       redis:
@@ -138,7 +138,7 @@ services:
     ports:
       - '4005:4005'
     volumes:
-      - ./logbull-data:/logbull-data
+      - logbull_data:/logbull-data
     restart: unless-stopped
     healthcheck:
       test: ['CMD', 'curl', '-f', 'http://localhost:4005/api/v1/system/health']
@@ -148,7 +148,7 @@ services:
 
   nginx:
     image: nginx:alpine
-    container_name: bookshop-nginx
+    container_name: nginx
     restart: unless-stopped
     depends_on:
       - server
@@ -161,4 +161,4 @@ services:
 volumes:
   sqlite_data:
   mongodb_data:
-  seq_data:
+  logbull_data:
