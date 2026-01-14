@@ -15,17 +15,17 @@ export function errorHandler(c: Context, error: unknown) {
   }
 
   if (error instanceof HTTPException) {
-    void log.warn(error.constructor.name, { error, request })
+    void log.warning(error.constructor.name, { error, request })
     return c.json({ error: error.message }, error.status)
   }
 
   if (error instanceof BaseError) {
-    void log.warn(error.constructor.name, { error, request })
+    void log.warning(error.constructor.name, { error, request })
     return c.json({ error: error.message }, error.status)
   }
 
   if (error instanceof z.ZodError) {
-    void log.warn(error.constructor.name, { error, request })
+    void log.warning(error.constructor.name, { error, request })
     return c.json({ validation: z.flattenError(error) }, 400)
   }
 

@@ -1,6 +1,10 @@
 import { DB_REPO } from '@/constants'
 
 export const env = {
+  mailerService: Bun.env.MAILER_SERVICE ?? 'gmail',
+  mailerHost: Bun.env.MAILER_HOST ?? 'smtp.gmail.com',
+  mailerPort: Bun.env.MAILER_PORT ?? '465',
+  mailerSecure: Bun.env.MAILER_SECURE ?? 'true',
   serverBaseUrl: Bun.env.SERVER_BASE_URL ?? 'http://localhost',
   port: Bun.env.PORT ?? '5000',
   cookieSecret: Bun.env.COOKIE_SECRET,
@@ -26,6 +30,7 @@ export const env = {
   awsRegion: Bun.env.AWS_REGION,
   awsBucket: Bun.env.AWS_BUCKET,
   redisUrl: Bun.env.REDIS_URL ?? 'redis://localhost:6379',
-  seqUrl: Bun.env.SEQ_URL ?? 'http://seq:5341',
-  seqApiKey: Bun.env.SEQ_API_KEY,
+  logbullHost: Bun.env.LOGBULL_HOST ?? 'http://logbull:4005',
+  logbullProjectId: Bun.env.LOGBULL_PROJECT_ID ?? '',
+  logbullApiKey: Bun.env.LOGBULL_API_KEY ?? '',
 }

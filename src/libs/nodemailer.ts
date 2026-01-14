@@ -5,10 +5,10 @@ import { attachments, subjectMap, userMessage } from '@/constants'
 import type { SendEmailProps } from '@/types'
 
 const transportOptions = {
-  service: 'gmail',
-  host: 'smtp.gmail.com',
-  port: 465,
-  secure: true,
+  service: env.mailerService,
+  host: env.mailerHost,
+  port: Number(env.mailerPort),
+  secure: env.mailerSecure === 'true' ? true : false,
   auth: {
     user: env.mailerUser,
     pass: env.mailerPass,

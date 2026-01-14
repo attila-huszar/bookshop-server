@@ -4,4 +4,5 @@ import { env } from '@/config'
 
 export const authMiddleware: MiddlewareHandler = jwt({
   secret: env.jwtAccessSecret!,
+  alg: 'HS256',
 })
