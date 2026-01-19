@@ -1,5 +1,5 @@
 import { eq, inArray, like, sql } from 'drizzle-orm'
-import { db } from '@/db'
+import { sqlite } from '@/db'
 import model from '@/models'
 import type {
   Author,
@@ -14,7 +14,7 @@ const { id, name } = authorsTable
 export async function getAuthorById(
   authorId: number,
 ): Promise<AuthorReference> {
-  const authorRecords = await db
+  const authorRecords = await sqlite
     .select({
       id,
       name,
@@ -34,7 +34,7 @@ export async function getAuthorById(
 export async function getAuthorsBySearch(
   searchString: string,
 ): Promise<AuthorReference[]> {
-  const authorRecords = await db
+  const authorRecords = await sqlite
     .select({
       id,
       name,
@@ -46,12 +46,15 @@ export async function getAuthorsBySearch(
 }
 
 export async function getAllAuthors(): Promise<Author[]> {
-  const authorRecords = await db.select().from(authorsTable)
+  const authorRecords = await sqlite.select().from(authorsTable)
   return authorRecords
 }
 
 export async function insertAuthor(author: AuthorInsert): Promise<Author> {
-  const [newAuthor] = await db.insert(authorsTable).values(author).returning()
+  const [newAuthor] = await sqlite
+    .insert(authorsTable)
+    .values(author)
+    .returning()
   if (!newAuthor) {
     throw new Error('Failed to create author')
   }
@@ -62,7 +65,7 @@ export async function updateAuthor(
   authorId: number,
   updates: AuthorUpdate,
 ): Promise<Author> {
-  const [updatedAuthor] = await db
+  const [updatedAuthor] = await sqlite
     .update(authorsTable)
     .set({
       ...updates,
@@ -81,7 +84,7 @@ export async function updateAuthor(
 export async function deleteAuthors(
   authorIds: number[],
 ): Promise<Author['id'][]> {
-  await db.delete(authorsTable).where(inArray(authorsTable.id, authorIds))
+  await sqlite.delete(authorsTable).where(inArray(authorsTable.id, authorIds))
 
   return authorIds
 }

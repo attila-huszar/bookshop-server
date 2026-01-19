@@ -14,7 +14,7 @@ export async function seedBooks() {
   if (env.dbRepo === DB_REPO.SQLITE) {
     const { getTableName } = await import('drizzle-orm')
     const { booksTable } = await import('@/models/sqlite')
-    const { db } = await import('@/db')
+    const { sqlite } = await import('@/db')
 
     const seedValues: BookInsert[] = booksData.map((book) => ({
       id: book.id,
@@ -32,7 +32,7 @@ export async function seedBooks() {
       newRelease: book.newRelease ?? false,
     }))
 
-    await db.insert(booksTable).values(seedValues)
+    await sqlite.insert(booksTable).values(seedValues)
 
     return {
       [getTableName(booksTable)]: seedValues.length,

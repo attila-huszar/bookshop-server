@@ -157,8 +157,8 @@ describe('Users Service', () => {
         'test@example.com',
         expect.objectContaining({
           verified: true,
-          verificationToken: '',
-          verificationExpires: '',
+          verificationToken: null,
+          verificationExpires: null,
         }),
       )
       expect(result).toEqual({ email: 'test@example.com' })
@@ -218,23 +218,14 @@ describe('Users Service', () => {
         password: Bun.password.hashSync('password123'),
         country: 'hu',
         verified: true,
-        verificationToken: '',
-        verificationExpires: '',
-        passwordResetToken: '',
-        passwordResetExpires: '',
+        verificationToken: null,
+        verificationExpires: null,
+        passwordResetToken: null,
+        passwordResetExpires: null,
         role: UserRole.User,
-        avatar: '',
-        address: {
-          line1: '',
-          line2: '',
-          city: '',
-          state: '',
-          postal_code: '',
-          country: '',
-        },
-        phone: '',
-        createdAt: '2023-01-01',
-        updatedAt: '2023-01-01',
+        avatar: null,
+        address: null,
+        phone: null,
       }
 
       mockUsersDB.getUserBy.mockResolvedValueOnce(mockUser)
@@ -248,16 +239,9 @@ describe('Users Service', () => {
         email: 'test@example.com',
         country: 'hu',
         role: UserRole.User,
-        avatar: '',
-        address: {
-          line1: '',
-          line2: '',
-          city: '',
-          state: '',
-          postal_code: '',
-          country: '',
-        },
-        phone: '',
+        avatar: null,
+        address: null,
+        phone: null,
       })
       expect(result).not.toHaveProperty('password')
       expect(result).not.toHaveProperty('verificationToken')

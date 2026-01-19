@@ -2,9 +2,7 @@ import { mongo } from '@/db'
 import type { News } from '@/types'
 import { autoIncrementPlugin } from './'
 
-type NewsDoc = WithDateTimestamps<News>
-
-const newsSchema = new mongo.Schema<NewsDoc>(
+const newsSchema = new mongo.Schema<News>(
   {
     id: { type: Number, unique: true, index: true },
     title: { type: String, required: true },
@@ -16,4 +14,4 @@ const newsSchema = new mongo.Schema<NewsDoc>(
 
 newsSchema.plugin(autoIncrementPlugin)
 
-export const NewsModel = mongo.model<NewsDoc>('News', newsSchema)
+export const NewsModel = mongo.model<News>('News', newsSchema)

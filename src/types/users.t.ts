@@ -25,3 +25,8 @@ export enum UserRole {
   Admin = 'admin',
   User = 'user',
 }
+
+export type GetUserBy = Extract<
+  keyof User,
+  'id' | 'uuid' | 'email' | 'verificationToken' | 'passwordResetToken'
+>

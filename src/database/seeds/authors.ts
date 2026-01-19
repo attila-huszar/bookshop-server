@@ -6,9 +6,9 @@ export async function seedAuthors() {
   if (env.dbRepo === DB_REPO.SQLITE) {
     const { getTableName } = await import('drizzle-orm')
     const { authorsTable } = await import('@/models/sqlite')
-    const { db } = await import('@/db')
+    const { sqlite } = await import('@/db')
 
-    await db.insert(authorsTable).values(authorsData)
+    await sqlite.insert(authorsTable).values(authorsData)
 
     return {
       [getTableName(authorsTable)]: authorsData.length,

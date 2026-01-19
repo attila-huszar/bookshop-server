@@ -6,9 +6,9 @@ export async function seedNews() {
   if (env.dbRepo === DB_REPO.SQLITE) {
     const { getTableName } = await import('drizzle-orm')
     const { newsTable } = await import('@/models/sqlite')
-    const { db } = await import('@/db')
+    const { sqlite } = await import('@/db')
 
-    await db.insert(newsTable).values(newsData)
+    await sqlite.insert(newsTable).values(newsData)
 
     return {
       [getTableName(newsTable)]: newsData.length,

@@ -9,63 +9,47 @@ export async function createOrder(
   const { id, createdAt, updatedAt, ...orderData } = order
   const created = await OrderModel.create(orderData)
   const orderObj = created.toObject()
-  return {
-    ...orderObj,
-    createdAt: orderObj.createdAt.toISOString(),
-    updatedAt: orderObj.updatedAt.toISOString(),
-  }
+  return orderObj
 }
 
 export async function updateOrder(
   paymentId: string,
   fields: OrderUpdate,
 ): Promise<Order | null> {
-  const updated = await OrderModel.findOneAndUpdate({ paymentId }, fields, {
-    new: true,
-  }).lean()
-  if (!updated) return null
-  return {
-    ...updated,
-    createdAt: updated.createdAt.toISOString(),
-    updatedAt: updated.updatedAt.toISOString(),
-  }
+  const updatedOrder = await OrderModel.findOneAndUpdate(
+    { paymentId },
+    fields,
+    { new: true },
+  )
+    .lean()
+    .exec()
+  if (!updatedOrder) return null
+  return updatedOrder
 }
 
 export async function getOrderByPaymentId(
   paymentId: string,
 ): Promise<Order | null> {
-  const order = await OrderModel.findOne({ paymentId }).lean()
+  const order = await OrderModel.findOne({ paymentId }).lean().exec()
   if (!order) return null
-  return {
-    ...order,
-    createdAt: order.createdAt.toISOString(),
-    updatedAt: order.updatedAt.toISOString(),
-  }
+  return order
 }
 
 export async function getAllOrders(): Promise<Order[]> {
-  const orders = await OrderModel.find().lean()
-  return orders.map((order) => ({
-    ...order,
-    createdAt: order.createdAt.toISOString(),
-    updatedAt: order.updatedAt.toISOString(),
-  }))
+  const orders = await OrderModel.find().lean().exec()
+  return orders
 }
 
 export async function insertOrder(order: OrderInsert): Promise<Order> {
   const { id, createdAt, updatedAt, ...orderData } = order
   const created = await OrderModel.create(orderData)
   const orderObj = created.toObject()
-  return {
-    ...orderObj,
-    createdAt: orderObj.createdAt.toISOString(),
-    updatedAt: orderObj.updatedAt.toISOString(),
-  }
+  return orderObj
 }
 
 export async function deleteOrdersByIds(
   orderIds: number[],
 ): Promise<Order['id'][]> {
-  await OrderModel.deleteMany({ id: { $in: orderIds } })
+  await OrderModel.deleteMany({ id: { $in: orderIds } }).exec()
   return orderIds
 }

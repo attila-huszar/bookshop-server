@@ -3,9 +3,7 @@ import type { Order, StripeStatus } from '@/types'
 import { OrderStatus } from '@/types'
 import { autoIncrementPlugin } from './'
 
-type OrderDoc = WithDateTimestamps<Order>
-
-const orderSchema = new mongo.Schema<OrderDoc>(
+const orderSchema = new mongo.Schema<Order>(
   {
     id: { type: Number, unique: true, index: true },
     paymentId: { type: String, unique: true, required: true },
@@ -33,4 +31,4 @@ const orderSchema = new mongo.Schema<OrderDoc>(
 
 orderSchema.plugin(autoIncrementPlugin)
 
-export const OrderModel = mongo.model<OrderDoc>('Order', orderSchema)
+export const OrderModel = mongo.model<Order>('Order', orderSchema)

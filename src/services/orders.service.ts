@@ -34,7 +34,6 @@ export async function cancelPaymentIntent(paymentId: string) {
   await ordersDB.updateOrder(validatedId, {
     paymentIntentStatus: 'canceled',
     orderStatus: OrderStatus.Canceled,
-    updatedAt: new Date().toISOString(),
   })
 
   return cancelledIntent
@@ -92,7 +91,6 @@ export async function processStripeWebhook(
         ...extractCustomerFields(paymentIntent),
         paymentIntentStatus: paymentIntent.status,
         orderStatus: OrderStatus.Paid,
-        updatedAt: new Date().toISOString(),
       })
 
       if (!wasAlreadyPaid && updatedOrder?.email && updatedOrder.firstName) {
@@ -138,7 +136,6 @@ export async function processStripeWebhook(
         ...extractCustomerFields(paymentIntent),
         paymentIntentStatus: paymentIntent.status,
         orderStatus: OrderStatus.Captured,
-        updatedAt: new Date().toISOString(),
       })
 
       void log.info('Payment capturable via webhook', {
@@ -152,7 +149,6 @@ export async function processStripeWebhook(
       const paymentIntent = event.data.object
       await ordersDB.updateOrder(paymentIntent.id, {
         paymentIntentStatus: paymentIntent.status,
-        updatedAt: new Date().toISOString(),
       })
 
       void log.warning('Payment failed via webhook', {
@@ -167,7 +163,6 @@ export async function processStripeWebhook(
       await ordersDB.updateOrder(paymentIntent.id, {
         paymentIntentStatus: 'canceled',
         orderStatus: OrderStatus.Canceled,
-        updatedAt: new Date().toISOString(),
       })
 
       void log.info('Payment canceled via webhook', {
@@ -180,7 +175,6 @@ export async function processStripeWebhook(
       const paymentIntent = event.data.object
       await ordersDB.updateOrder(paymentIntent.id, {
         paymentIntentStatus: 'requires_action',
-        updatedAt: new Date().toISOString(),
       })
 
       void log.info('Payment requires action via webhook', {
@@ -194,7 +188,6 @@ export async function processStripeWebhook(
       await ordersDB.updateOrder(paymentIntent.id, {
         paymentIntentStatus: 'processing',
         orderStatus: OrderStatus.Pending,
-        updatedAt: new Date().toISOString(),
       })
 
       void log.info('Payment processing via webhook', {

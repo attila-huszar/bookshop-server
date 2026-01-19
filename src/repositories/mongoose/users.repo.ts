@@ -1,77 +1,57 @@
 import model from '@/models'
-import type { User, UserInsert, UserRole, UserUpdate } from '@/types'
+import type { GetUserBy, User, UserInsert, UserUpdate } from '@/types'
 
 const { UserModel } = model as MongoModel
 
-type UserRetrieveBy = Extract<
-  keyof User,
-  'id' | 'uuid' | 'email' | 'verificationToken' | 'passwordResetToken'
->
-
 export async function getUserBy(
-  field: UserRetrieveBy,
+  field: GetUserBy,
   value: string | number,
 ): Promise<User | null> {
-  const user = await UserModel.findOne({ [field]: value }).lean()
+  const user = await UserModel.findOne({ [field]: value })
+    .lean()
+    .exec()
   if (!user) return null
-
-  return {
-    ...user,
-    id: user.id!,
-    role: user.role as UserRole,
-    createdAt: user.createdAt.toISOString(),
-    updatedAt: user.updatedAt.toISOString(),
-  }
+  return user
 }
 
 export async function createUser(user: UserInsert): Promise<User | null> {
   const { id, createdAt, updatedAt, ...userData } = user
   const created = await UserModel.create(userData)
   const userObj = created.toObject()
-  return {
-    ...userObj,
-    id: userObj.id!,
-    role: userObj.role as UserRole,
-    createdAt: userObj.createdAt.toISOString(),
-    updatedAt: userObj.updatedAt.toISOString(),
-  }
+  return userObj
 }
 
 export async function updateUserBy(
-  field: UserRetrieveBy,
+  field: GetUserBy,
   value: string | number,
   fields: UserUpdate,
 ): Promise<User | null> {
-  const updated = await UserModel.findOneAndUpdate({ [field]: value }, fields, {
-    new: true,
-  }).lean()
-  if (!updated) return null
-
-  return {
-    ...updated,
-    id: updated.id!,
-    role: updated.role as UserRole,
-    createdAt: updated.createdAt.toISOString(),
-    updatedAt: updated.updatedAt.toISOString(),
-  }
+  const updatedUsers = await UserModel.findOneAndUpdate(
+    { [field]: value },
+    fields,
+    { new: true },
+  )
+    .lean()
+    .exec()
+  if (!updatedUsers) return null
+  return updatedUsers
 }
 
 export async function getAllUsers(): Promise<User[]> {
-  const users = await UserModel.find().lean()
-  return users.map((user) => ({
-    ...user,
-    id: user.id!,
-    role: user.role as UserRole,
-    createdAt: user.createdAt.toISOString(),
-    updatedAt: user.updatedAt.toISOString(),
-  }))
+  const users = await UserModel.find().lean().exec()
+  return users
 }
 
-export async function deleteUserByEmail(
-  email: string,
+export async function deleteUserBy(
+  field: GetUserBy,
+  value: string | number,
 ): Promise<User['email'] | null> {
-  const deleteResult = await UserModel.deleteOne({ email }).lean()
-
+  const user = await UserModel.findOne({ [field]: value })
+    .lean()
+    .exec()
+  if (!user) return null
+  const { email } = user
+  const deleteResult = await UserModel.deleteOne({ [field]: value }).exec()
   if (deleteResult.deletedCount === 0) return null
   return email
 }
@@ -79,32 +59,41 @@ export async function deleteUserByEmail(
 export async function deleteUsersByIds(
   userIds: number[],
 ): Promise<User['id'][]> {
-  await UserModel.deleteMany({ id: { $in: userIds } })
-
+  await UserModel.deleteMany({ id: { $in: userIds } }).exec()
   return userIds
 }
 
-export async function cleanupExpiredTokens() {
-  const now = new Date().toISOString()
-
-  const deletedUsers = await UserModel.find({
-    verificationExpires: { $ne: '', $lt: now },
-  }).lean()
-
-  await UserModel.deleteMany({
-    verificationExpires: { $ne: '', $lt: now },
-  })
+export async function cleanupExpiredPasswordResetTokens(): Promise<User[]> {
+  const now = new Date()
 
   const updatedUsers = await UserModel.find({
-    passwordResetExpires: { $ne: '', $lt: now },
-  }).lean()
+    passwordResetExpires: { $lt: now },
+  })
+    .lean()
+    .exec()
 
   await UserModel.updateMany(
-    { passwordResetExpires: { $ne: '', $lt: now } },
-    {
-      $unset: { passwordResetToken: 1, passwordResetExpires: 1 },
-    },
-  )
+    { passwordResetExpires: { $lt: now } },
+    { $unset: { passwordResetToken: 1, passwordResetExpires: 1 } },
+  ).exec()
 
-  return { deletedUsers, updatedUsers }
+  return updatedUsers
+}
+
+export async function cleanupUnverifiedUsers(): Promise<User[]> {
+  const now = new Date()
+
+  const deletedUsers = await UserModel.find({
+    verified: false,
+    verificationExpires: { $lt: now },
+  })
+    .lean()
+    .exec()
+
+  await UserModel.deleteMany({
+    verified: false,
+    verificationExpires: { $lt: now },
+  }).exec()
+
+  return deletedUsers
 }

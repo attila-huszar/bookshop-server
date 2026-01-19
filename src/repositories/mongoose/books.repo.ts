@@ -43,6 +43,7 @@ export async function getBooks(query?: BookQuery): Promise<{
     const author = await AuthorModel.findOne({ id: query.authorId })
       .select({ _id: true })
       .lean()
+      .exec()
 
     if (!author) {
       return { booksRecords: [], booksCount: '0' }
@@ -57,12 +58,11 @@ export async function getBooks(query?: BookQuery): Promise<{
     .skip(offset)
     .limit(limit)
     .lean<BookDocPopulatedWithAuthorName[]>()
+    .exec()
 
   const booksWithAuthor: BookWithAuthor[] = booksRecords.map((book) => ({
     ...book,
     author: book.authorId?.name ?? null,
-    createdAt: book.createdAt.toISOString(),
-    updatedAt: book.updatedAt.toISOString(),
   }))
 
   return { booksRecords: booksWithAuthor, booksCount: booksCount.toString() }
@@ -74,6 +74,7 @@ export async function getBookById(
   const book = await BookModel.findOne({ id: bookId })
     .populate('authorId', 'name')
     .lean<BookDocPopulatedWithAuthorName>()
+    .exec()
 
   if (!book) return null
   const author = book?.authorId?.name ?? null
@@ -81,8 +82,6 @@ export async function getBookById(
   return {
     ...book,
     author,
-    createdAt: book.createdAt.toISOString(),
-    updatedAt: book.updatedAt.toISOString(),
   }
 }
 
@@ -118,6 +117,7 @@ export async function getAllBooks(): Promise<Book[]> {
   const books = await BookModel.find()
     .populate('authorId', 'id')
     .lean<BookDocPopulatedWithAuthorId[]>()
+    .exec()
 
   return books.map((book) => {
     const authorId = book.authorId?.id
@@ -127,8 +127,6 @@ export async function getAllBooks(): Promise<Book[]> {
     return {
       ...book,
       authorId,
-      createdAt: book.createdAt.toISOString(),
-      updatedAt: book.updatedAt.toISOString(),
     }
   })
 }
@@ -139,6 +137,7 @@ export async function insertBook(book: BookInsert): Promise<Book> {
     const author = await AuthorModel.findOne({ id: book.authorId })
       .select('_id')
       .lean()
+      .exec()
     if (!author) {
       throw new Error(`Author with id ${book.authorId} not found`)
     }
@@ -157,8 +156,6 @@ export async function insertBook(book: BookInsert): Promise<Book> {
   return {
     ...bookObj,
     authorId: book.authorId,
-    createdAt: bookObj.createdAt.toISOString(),
-    updatedAt: bookObj.updatedAt.toISOString(),
   }
 }
 
@@ -186,6 +183,7 @@ export async function updateBook(
   })
     .populate('authorId', 'id')
     .lean<BookDocPopulatedWithAuthorId>()
+    .exec()
 
   if (!updated) return null
 
@@ -197,12 +195,10 @@ export async function updateBook(
   return {
     ...updated,
     authorId,
-    createdAt: updated.createdAt.toISOString(),
-    updatedAt: updated.updatedAt.toISOString(),
   }
 }
 
 export async function deleteBooks(bookIds: number[]): Promise<Book['id'][]> {
-  await BookModel.deleteMany({ id: { $in: bookIds } })
+  await BookModel.deleteMany({ id: { $in: bookIds } }).exec()
   return bookIds
 }

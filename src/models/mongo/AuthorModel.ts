@@ -2,9 +2,7 @@ import { mongo } from '@/db'
 import type { Author } from '@/types'
 import { autoIncrementPlugin } from './'
 
-type AuthorDoc = WithDateTimestamps<Author>
-
-const authorSchema = new mongo.Schema<AuthorDoc>(
+const authorSchema = new mongo.Schema<Author>(
   {
     id: { type: Number, unique: true, index: true },
     name: { type: String, required: true },
@@ -19,4 +17,4 @@ const authorSchema = new mongo.Schema<AuthorDoc>(
 
 authorSchema.plugin(autoIncrementPlugin)
 
-export const AuthorModel = mongo.model<AuthorDoc>('Author', authorSchema)
+export const AuthorModel = mongo.model<Author>('Author', authorSchema)

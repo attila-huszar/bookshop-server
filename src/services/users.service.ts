@@ -75,13 +75,13 @@ export async function registerUser(formData: FormData) {
   }
 
   const verificationToken = crypto.randomUUID()
-  const verificationExpires = new Date(Date.now() + 86400000).toISOString()
+  const verificationExpires = new Date(Date.now() + 86400000)
   const tokenLink = `${env.clientBaseUrl}/verification?token=${verificationToken}`
 
   const avatar =
     form.avatar instanceof File
       ? await uploadFile(form.avatar, Folder.Avatars)
-      : ''
+      : null
 
   const newUser: UserInsert = {
     uuid: crypto.randomUUID(),
@@ -95,19 +95,10 @@ export async function registerUser(formData: FormData) {
     verified: false,
     verificationToken,
     verificationExpires,
-    address: {
-      line1: '',
-      line2: '',
-      city: '',
-      state: '',
-      postal_code: '',
-      country: '',
-    },
-    phone: '',
-    passwordResetToken: '',
-    passwordResetExpires: '',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    address: null,
+    phone: null,
+    passwordResetToken: null,
+    passwordResetExpires: null,
   }
 
   const userCreated = await usersDB.createUser(newUser)
@@ -146,16 +137,16 @@ export async function verifyUser(verificationRequest: VerificationRequest) {
     throw new BadRequest(authMessage.invalidToken)
   }
 
-  const now = new Date().toISOString()
-  if (user.verificationExpires && user.verificationExpires < now) {
+  const expiry = user.verificationExpires
+
+  if (expiry && new Date(expiry) < new Date()) {
     throw new BadRequest(authMessage.invalidToken)
   }
 
   const userUpdated = await usersDB.updateUserBy('email', user.email, {
     verified: true,
-    verificationToken: '',
-    verificationExpires: '',
-    updatedAt: new Date().toISOString(),
+    verificationToken: null,
+    verificationExpires: null,
   })
 
   if (!userUpdated) {
@@ -177,13 +168,12 @@ export async function passwordResetRequest(
   }
 
   const passwordResetToken = crypto.randomUUID()
-  const passwordResetExpires = new Date(Date.now() + 86400000).toISOString()
+  const passwordResetExpires = new Date(Date.now() + 86400000)
   const tokenLink = `${env.clientBaseUrl}/password-reset?token=${passwordResetToken}`
 
   const userUpdated = await usersDB.updateUserBy('email', user.email, {
     passwordResetToken,
     passwordResetExpires,
-    updatedAt: new Date().toISOString(),
   })
 
   if (!userUpdated) {
@@ -237,9 +227,8 @@ export async function passwordResetSubmit(
 
   const userUpdated = await usersDB.updateUserBy('email', user.email, {
     password: await Bun.password.hash(password),
-    passwordResetToken: '',
-    passwordResetExpires: '',
-    updatedAt: new Date().toISOString(),
+    passwordResetToken: null,
+    passwordResetExpires: null,
   })
 
   if (!userUpdated) {
@@ -289,10 +278,11 @@ export async function updateUserProfile(
     validatedFields.password = await Bun.password.hash(validatedFields.password)
   }
 
-  const userUpdated = await usersDB.updateUserBy('email', user.email, {
-    ...validatedFields,
-    updatedAt: new Date().toISOString(),
-  })
+  const userUpdated = await usersDB.updateUserBy(
+    'email',
+    user.email,
+    validatedFields,
+  )
 
   if (!userUpdated) {
     throw new Error(userMessage.updateError)
@@ -335,7 +325,6 @@ export async function uploadUserAvatar(
 
   const userUpdated = await usersDB.updateUserBy('email', user.email, {
     avatar: url,
-    updatedAt: new Date().toISOString(),
   })
 
   if (!userUpdated) {
