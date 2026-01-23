@@ -19,6 +19,7 @@ import {
   books,
   bookSearchOptions,
   cms,
+  logs,
   news,
   orders,
   users,
@@ -32,6 +33,7 @@ import {
 import { formatUptime, ngrokForward } from './utils'
 
 const app = new Hono()
+const api = new Hono()
 
 const limiter = rateLimiter({
   windowMs: 15 * 60 * 1000,
@@ -82,20 +84,21 @@ app.get('/', (c) => {
 
 app.get('/health', (c) => c.text('OK', 200))
 
-app.use('/users/profile', authMiddleware)
-app.use('/users/logout', authMiddleware)
-app.use('/users/avatar', authMiddleware)
-
-app.use('/cms/*', authAdminMiddleware)
-
-app.route('/books', books)
-app.route('/authors', authors)
-app.route('/news', news)
-app.route('/search_opts', bookSearchOptions)
-app.route('/users', users)
-app.route('/orders', orders)
+app.route('/api', api)
 app.route('/webhooks', webhooks)
-app.route('/cms', cms)
+
+api.route('/books', books)
+api.route('/authors', authors)
+api.route('/news', news)
+api.route('/search_opts', bookSearchOptions)
+api.route('/users', users)
+api.route('/orders', orders)
+api.route('/cms', cms)
+api.route('/logs', logs)
+api.use('/users/profile', authMiddleware)
+api.use('/users/logout', authMiddleware)
+api.use('/users/avatar', authMiddleware)
+api.use('/cms/*', authAdminMiddleware)
 
 if (env.ngrokAuthToken) void ngrokForward()
 

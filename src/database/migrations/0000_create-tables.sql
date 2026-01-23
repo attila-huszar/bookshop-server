@@ -6,8 +6,8 @@ CREATE TABLE `authors` (
 	`death_year` text NOT NULL,
 	`homeland` text NOT NULL,
 	`biography` text NOT NULL,
-	`created_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
-	`updated_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL
+	`created_at` integer DEFAULT (unixepoch()) NOT NULL,
+	`updated_at` integer DEFAULT (unixepoch()) NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE `books` (
@@ -24,8 +24,8 @@ CREATE TABLE `books` (
 	`discount_price` real NOT NULL,
 	`top_sellers` integer NOT NULL,
 	`new_release` integer NOT NULL,
-	`created_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
-	`updated_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	`created_at` integer DEFAULT (unixepoch()) NOT NULL,
+	`updated_at` integer DEFAULT (unixepoch()) NOT NULL,
 	FOREIGN KEY (`author_id`) REFERENCES `authors`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
@@ -34,8 +34,8 @@ CREATE TABLE `news` (
 	`title` text NOT NULL,
 	`content` text NOT NULL,
 	`img` text NOT NULL,
-	`created_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
-	`updated_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL
+	`created_at` integer DEFAULT (unixepoch()) NOT NULL,
+	`updated_at` integer DEFAULT (unixepoch()) NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE `orders` (
@@ -50,8 +50,8 @@ CREATE TABLE `orders` (
 	`last_name` text NOT NULL,
 	`email` text NOT NULL,
 	`shipping` text NOT NULL,
-	`created_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
-	`updated_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL
+	`created_at` integer DEFAULT (unixepoch()) NOT NULL,
+	`updated_at` integer DEFAULT (unixepoch()) NOT NULL
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `orders_payment_id_unique` ON `orders` (`payment_id`);--> statement-breakpoint
@@ -63,17 +63,17 @@ CREATE TABLE `users` (
 	`role` text DEFAULT 'user' NOT NULL,
 	`email` text NOT NULL,
 	`password` text NOT NULL,
-	`address` text NOT NULL,
-	`phone` text NOT NULL,
+	`address` text,
+	`phone` text,
 	`country` text NOT NULL,
-	`avatar` text NOT NULL,
+	`avatar` text,
 	`verified` integer NOT NULL,
-	`verification_token` text NOT NULL,
-	`verification_expires` text NOT NULL,
-	`password_reset_token` text NOT NULL,
-	`password_reset_expires` text NOT NULL,
-	`created_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
-	`updated_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL
+	`verification_token` text,
+	`verification_expires` integer,
+	`password_reset_token` text,
+	`password_reset_expires` integer,
+	`created_at` integer DEFAULT (unixepoch()) NOT NULL,
+	`updated_at` integer DEFAULT (unixepoch()) NOT NULL
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `users_uuid_unique` ON `users` (`uuid`);--> statement-breakpoint
