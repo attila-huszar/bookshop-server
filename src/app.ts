@@ -10,7 +10,6 @@ import { rateLimiter } from 'hono-rate-limiter'
 import { serveStatic } from 'hono/bun'
 import { cors } from 'hono/cors'
 import { csrf } from 'hono/csrf'
-import { logger } from 'hono/logger'
 import { timeout } from 'hono/timeout'
 import { trimTrailingSlash } from 'hono/trailing-slash'
 import { env } from './config/env'
@@ -25,6 +24,7 @@ import {
   users,
   webhooks,
 } from './controller'
+import { log } from './libs'
 import {
   authAdminMiddleware,
   authMiddleware,
@@ -52,7 +52,15 @@ const corsMiddleware = cors({
   credentials: true,
 })
 
-app.use(logger())
+app.use('*', async (c, next) => {
+  try {
+    await next()
+  } catch (error) {
+    log.error(`${c.req.method} ${c.req.url}`, { error })
+    throw error
+  }
+})
+
 app.use(limiter)
 app.use(trimTrailingSlash())
 app.use('*', corsMiddleware)
