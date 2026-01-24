@@ -38,7 +38,6 @@ async function main(): Promise<void> {
     }
   }
 
-  await log.shutdown()
   process.exit(exitCode)
 }
 

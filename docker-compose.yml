@@ -1,7 +1,5 @@
 services:
   server:
-    dns:
-      - 8.8.8.8
     build:
       context: .
       dockerfile: Dockerfile
@@ -10,7 +8,8 @@ services:
     ports:
       - '${PORT}:${PORT}'
     depends_on:
-      - logbull
+      loki:
+        condition: service_started
     restart: unless-stopped
     env_file: .env
     command: >
@@ -25,13 +24,22 @@ services:
          bun dev --watch
        fi
        "
+    logging:
+      driver: loki
+      options:
+        loki-url: 'http://127.0.0.1:3100/loki/api/v1/push'
+        loki-external-labels: 'job=server'
+        loki-pipeline-stages: |
+          - json:
+              expressions:
+                level: level
+          - labels:
+              level:
     volumes:
       - ./src:/bookshop-server/src
       - sqlite_data:/bookshop-server/data
 
   server-with-mongo:
-    dns:
-      - 8.8.8.8
     build:
       context: .
       dockerfile: Dockerfile
@@ -40,8 +48,10 @@ services:
     ports:
       - '${PORT}:${PORT}'
     depends_on:
-      - mongodb
-      - logbull
+      mongodb:
+        condition: service_started
+      loki:
+        condition: service_started
     restart: unless-stopped
     env_file: .env
     command: >
@@ -56,6 +66,17 @@ services:
          bun dev --watch
        fi
        "
+    logging:
+      driver: loki
+      options:
+        loki-url: 'http://127.0.0.1:3100/loki/api/v1/push'
+        loki-external-labels: 'job=server-with-mongo'
+        loki-pipeline-stages: |
+          - json:
+              expressions:
+                level: level
+          - labels:
+              level:
     volumes:
       - ./src:/bookshop-server/src
 
@@ -65,6 +86,11 @@ services:
     profiles: ['mongo']
     ports:
       - '27017:27017'
+    logging:
+      driver: 'loki'
+      options:
+        loki-url: 'http://127.0.0.1:3100/loki/api/v1/push'
+        loki-external-labels: 'job=mongodb'
     volumes:
       - mongodb_data:/data/db
     restart: unless-stopped
@@ -78,8 +104,6 @@ services:
     command: redis-server --maxmemory 128mb --maxmemory-policy noeviction
 
   worker:
-    dns:
-      - 8.8.8.8
     build:
       context: .
       dockerfile: Dockerfile
@@ -90,8 +114,8 @@ services:
         condition: service_started
       server:
         condition: service_started
-      logbull:
-        condition: service_healthy
+      loki:
+        condition: service_started
     restart: unless-stopped
     env_file: .env
     command: >
@@ -101,13 +125,22 @@ services:
        crond &
        bun worker:email
        "
+    logging:
+      driver: loki
+      options:
+        loki-url: 'http://127.0.0.1:3100/loki/api/v1/push'
+        loki-external-labels: 'job=worker'
+        loki-pipeline-stages: |
+          - json:
+              expressions:
+                level: level
+          - labels:
+              level:
     volumes:
       - ./src:/bookshop-server/src
       - sqlite_data:/bookshop-server/data
 
   worker-with-mongo:
-    dns:
-      - 8.8.8.8
     build:
       context: .
       dockerfile: Dockerfile
@@ -118,8 +151,8 @@ services:
         condition: service_started
       server-with-mongo:
         condition: service_started
-      logbull:
-        condition: service_healthy
+      loki:
+        condition: service_started
     restart: unless-stopped
     env_file: .env
     command: >
@@ -129,30 +162,53 @@ services:
        crond &
        bun worker:email
        "
+    logging:
+      driver: loki
+      options:
+        loki-url: 'http://127.0.0.1:3100/loki/api/v1/push'
+        loki-external-labels: 'job=worker-with-mongo'
+        loki-pipeline-stages: |
+          - json:
+              expressions:
+                level: level
+          - labels:
+              level:
     volumes:
       - ./src:/bookshop-server/src
 
-  logbull:
-    image: logbull/logbull:latest
-    container_name: logbull
+  loki:
+    image: grafana/loki
+    container_name: loki
     ports:
-      - '4005:4005'
+      - '3100:3100'
     volumes:
-      - logbull_data:/logbull-data
+      - loki-data:/loki
+      - ./loki-config.yaml:/etc/loki/loki-config.yaml
+    command: -config.file=/etc/loki/loki-config.yaml
     restart: unless-stopped
-    healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:4005/api/v1/system/health']
-      interval: 5s
-      timeout: 5s
-      retries: 30
+
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    ports:
+      - '5555:3000'
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana-data:/var/lib/grafana
+    restart: unless-stopped
+    depends_on:
+      loki:
+        condition: service_started
 
   nginx:
     image: nginx:alpine
     container_name: nginx
     restart: unless-stopped
     depends_on:
-      - server
-      - logbull
+      loki:
+        condition: service_started
     ports:
       - '80:80'
     volumes:
@@ -161,4 +217,5 @@ services:
 volumes:
   sqlite_data:
   mongodb_data:
-  logbull_data:
+  loki-data:
+  grafana-data:

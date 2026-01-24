@@ -66,10 +66,7 @@ if (Bun.env.NODE_ENV === 'prod') {
   })
 
   app.use('*', async (c: Context<Env, string, object>, next: Next) => {
-    if (c.req.path === '/webhooks/stripe') {
-      return next()
-    }
-
+    if (c.req.path.startsWith('/webhooks')) return next()
     return csrfMiddleware(c, next)
   })
 }
@@ -84,8 +81,10 @@ app.get('/', (c) => {
 
 app.get('/health', (c) => c.text('OK', 200))
 
-app.route('/api', api)
-app.route('/webhooks', webhooks)
+api.use('/users/profile', authMiddleware)
+api.use('/users/logout', authMiddleware)
+api.use('/users/avatar', authMiddleware)
+api.use('/cms/*', authAdminMiddleware)
 
 api.route('/books', books)
 api.route('/authors', authors)
@@ -95,10 +94,9 @@ api.route('/users', users)
 api.route('/orders', orders)
 api.route('/cms', cms)
 api.route('/logs', logs)
-api.use('/users/profile', authMiddleware)
-api.use('/users/logout', authMiddleware)
-api.use('/users/avatar', authMiddleware)
-api.use('/cms/*', authAdminMiddleware)
+
+app.route('/api', api)
+app.route('/webhooks', webhooks)
 
 if (env.ngrokAuthToken) void ngrokForward()
 

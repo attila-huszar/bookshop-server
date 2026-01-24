@@ -1,13 +1,13 @@
 import { Hono } from 'hono'
 import { logSchema, validate } from '@/validation'
 import { log } from '@/libs'
-import type { Log } from '@/types'
+import type { LogEntry } from '@/types'
 
 export const logs = new Hono()
 
 logs.post('/', async (c) => {
   try {
-    const body = await c.req.json<Log>()
+    const body = await c.req.json<LogEntry>()
     const validatedBody = validate(logSchema, body)
     const { level, message, meta } = validatedBody
 
@@ -16,7 +16,7 @@ logs.post('/', async (c) => {
         log.debug(`[FRONTEND] ${message}`, meta)
         break
       case 'warn':
-        log.warning(`[FRONTEND] ${message}`, meta)
+        log.warn(`[FRONTEND] ${message}`, meta)
         break
       case 'error':
         log.error(`[FRONTEND] ${message}`, meta)
@@ -25,8 +25,8 @@ logs.post('/', async (c) => {
         log.info(`[FRONTEND] ${message}`, meta)
     }
 
-    return c.status(201)
+    return c.text('Created', 201)
   } catch {
-    return c.status(201)
+    return c.text('Created', 201)
   }
 })

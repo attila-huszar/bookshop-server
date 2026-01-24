@@ -78,7 +78,7 @@ export async function processStripeWebhook(
       const existingOrder = await ordersDB.getOrderByPaymentId(paymentIntent.id)
 
       if (!existingOrder) {
-        void log.warning('Webhook received for missing order', {
+        void log.warn('Webhook received for missing order', {
           paymentId: paymentIntent.id,
           eventType: event.type,
         })
@@ -125,7 +125,7 @@ export async function processStripeWebhook(
       const existingOrder = await ordersDB.getOrderByPaymentId(paymentIntent.id)
 
       if (!existingOrder) {
-        void log.warning('Webhook received for missing order', {
+        void log.warn('Webhook received for missing order', {
           paymentId: paymentIntent.id,
           eventType: event.type,
         })
@@ -151,7 +151,7 @@ export async function processStripeWebhook(
         paymentIntentStatus: paymentIntent.status,
       })
 
-      void log.warning('Payment failed via webhook', {
+      void log.warn('Payment failed via webhook', {
         paymentId: paymentIntent.id,
         error: paymentIntent.last_payment_error?.message,
       })
@@ -279,7 +279,7 @@ export async function createOrder(
     if (stripePaymentId) {
       try {
         await stripe.paymentIntents.cancel(stripePaymentId)
-        void log.warning(
+        void log.warn(
           'Rolled back Stripe payment intent after order creation failed',
           { paymentId: stripePaymentId },
         )

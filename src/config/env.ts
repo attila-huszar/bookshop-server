@@ -30,7 +30,4 @@ export const env = {
   awsRegion: Bun.env.AWS_REGION,
   awsBucket: Bun.env.AWS_BUCKET,
   redisUrl: Bun.env.REDIS_URL ?? 'redis://localhost:6379',
-  logbullHost: Bun.env.LOGBULL_HOST ?? 'http://logbull:4005',
-  logbullProjectId: Bun.env.LOGBULL_PROJECT_ID ?? '',
-  logbullApiKey: Bun.env.LOGBULL_API_KEY ?? '',
 }
