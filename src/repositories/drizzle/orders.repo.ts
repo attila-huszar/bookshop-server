@@ -1,5 +1,5 @@
 import { eq, inArray } from 'drizzle-orm'
-import { db } from '@/db'
+import { sqlite } from '@/db'
 import model from '@/models'
 import {
   type Order,
@@ -22,27 +22,23 @@ export async function createOrder(order: OrderInsert): Promise<Order | null> {
     total: order.total,
     currency: order.currency,
     items: order.items,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
   }
 
-  const [createdOrder] = await db
+  const [createdOrder] = await sqlite
     .insert(ordersTable)
     .values(orderInsert)
     .returning()
-
   return createdOrder ?? null
 }
 
 export async function getOrderByPaymentId(
   paymentId: string,
 ): Promise<Order | null> {
-  const orderRecords = await db
+  const orderRecords = await sqlite
     .select()
     .from(ordersTable)
     .where(eq(ordersTable.paymentId, paymentId))
     .limit(1)
-
   return orderRecords[0] ?? null
 }
 
@@ -50,30 +46,30 @@ export async function updateOrder(
   paymentId: string,
   fields: OrderUpdate,
 ): Promise<Order | null> {
-  const [updatedOrder] = await db
+  const [updatedOrder] = await sqlite
     .update(ordersTable)
     .set(fields)
     .where(eq(ordersTable.paymentId, paymentId))
     .returning()
-
   return updatedOrder ?? null
 }
 
 export async function getAllOrders(): Promise<Order[]> {
-  const orderRecords = await db.select().from(ordersTable)
+  const orderRecords = await sqlite.select().from(ordersTable)
   return orderRecords
 }
 
 export async function insertOrder(order: OrderInsert): Promise<Order | null> {
-  const [createdOrder] = await db.insert(ordersTable).values(order).returning()
-
+  const [createdOrder] = await sqlite
+    .insert(ordersTable)
+    .values(order)
+    .returning()
   return createdOrder ?? null
 }
 
 export async function deleteOrdersByIds(
   orderIds: number[],
 ): Promise<Order['id'][]> {
-  await db.delete(ordersTable).where(inArray(ordersTable.id, orderIds))
-
+  await sqlite.delete(ordersTable).where(inArray(ordersTable.id, orderIds))
   return orderIds
 }

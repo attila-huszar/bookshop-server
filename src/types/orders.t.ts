@@ -1,5 +1,5 @@
-import { Stripe } from 'stripe'
-import { z } from 'zod'
+import type { Stripe } from 'stripe'
+import type { z } from 'zod'
 import type {
   cartItemSchema,
   checkoutCartSchema,

@@ -3,12 +3,13 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: bookshop-server
+    container_name: server
     profiles: ['sqlite']
     ports:
       - '${PORT}:${PORT}'
     depends_on:
-      - seq
+      loki:
+        condition: service_started
     restart: unless-stopped
     env_file: .env
     command: >
@@ -23,6 +24,17 @@ services:
          bun dev --watch
        fi
        "
+    logging:
+      driver: loki
+      options:
+        loki-url: 'http://127.0.0.1:3100/loki/api/v1/push'
+        loki-external-labels: 'job=server'
+        loki-pipeline-stages: |
+          - json:
+              expressions:
+                level: level
+          - labels:
+              level:
     volumes:
       - ./src:/bookshop-server/src
       - sqlite_data:/bookshop-server/data
@@ -31,13 +43,15 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: bookshop-server
+    container_name: server-with-mongo
     profiles: ['mongo']
     ports:
       - '${PORT}:${PORT}'
     depends_on:
-      - mongodb
-      - seq
+      mongodb:
+        condition: service_started
+      loki:
+        condition: service_started
     restart: unless-stopped
     env_file: .env
     command: >
@@ -52,22 +66,38 @@ services:
          bun dev --watch
        fi
        "
+    logging:
+      driver: loki
+      options:
+        loki-url: 'http://127.0.0.1:3100/loki/api/v1/push'
+        loki-external-labels: 'job=server-with-mongo'
+        loki-pipeline-stages: |
+          - json:
+              expressions:
+                level: level
+          - labels:
+              level:
     volumes:
       - ./src:/bookshop-server/src
 
   mongodb:
     image: mongo
-    container_name: bookshop-mongodb
+    container_name: mongodb
     profiles: ['mongo']
     ports:
       - '27017:27017'
+    logging:
+      driver: 'loki'
+      options:
+        loki-url: 'http://127.0.0.1:3100/loki/api/v1/push'
+        loki-external-labels: 'job=mongodb'
     volumes:
       - mongodb_data:/data/db
     restart: unless-stopped
 
   redis:
     image: redis:alpine
-    container_name: bookshop-redis
+    container_name: redis
     restart: unless-stopped
     ports:
       - '6379:6379'
@@ -77,11 +107,15 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: bookshop-worker
+    container_name: worker
     profiles: ['sqlite']
     depends_on:
-      - redis
-      - server
+      redis:
+        condition: service_started
+      server:
+        condition: service_started
+      loki:
+        condition: service_started
     restart: unless-stopped
     env_file: .env
     command: >
@@ -91,6 +125,17 @@ services:
        crond &
        bun worker:email
        "
+    logging:
+      driver: loki
+      options:
+        loki-url: 'http://127.0.0.1:3100/loki/api/v1/push'
+        loki-external-labels: 'job=worker'
+        loki-pipeline-stages: |
+          - json:
+              expressions:
+                level: level
+          - labels:
+              level:
     volumes:
       - ./src:/bookshop-server/src
       - sqlite_data:/bookshop-server/data
@@ -99,11 +144,15 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: bookshop-worker
+    container_name: worker-with-mongo
     profiles: ['mongo']
     depends_on:
-      - redis
-      - server-with-mongo
+      redis:
+        condition: service_started
+      server-with-mongo:
+        condition: service_started
+      loki:
+        condition: service_started
     restart: unless-stopped
     env_file: .env
     command: >
@@ -113,34 +162,60 @@ services:
        crond &
        bun worker:email
        "
+    logging:
+      driver: loki
+      options:
+        loki-url: 'http://127.0.0.1:3100/loki/api/v1/push'
+        loki-external-labels: 'job=worker-with-mongo'
+        loki-pipeline-stages: |
+          - json:
+              expressions:
+                level: level
+          - labels:
+              level:
     volumes:
       - ./src:/bookshop-server/src
 
-  seq:
-    image: datalust/seq:latest
-    container_name: bookshop-logger
+  loki:
+    image: grafana/loki
+    container_name: loki
     ports:
-      - '5341:80'
-    environment:
-      - ACCEPT_EULA=Y
-      - SEQ_FIRSTRUN_ADMINPASSWORD=${ADMIN_PASSWORD}
-    restart: unless-stopped
+      - '3100:3100'
     volumes:
-      - seq_data:/data
+      - loki-data:/loki
+      - ./loki-config.yaml:/etc/loki/loki-config.yaml
+    command: -config.file=/etc/loki/loki-config.yaml
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    ports:
+      - '5555:3000'
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana-data:/var/lib/grafana
+    restart: unless-stopped
+    depends_on:
+      loki:
+        condition: service_started
 
   nginx:
     image: nginx:alpine
-    container_name: bookshop-nginx
+    container_name: nginx
     restart: unless-stopped
     depends_on:
-      - server
-      - seq
+      loki:
+        condition: service_started
     ports:
-      - "80:80"
+      - '80:80'
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
 
 volumes:
   sqlite_data:
   mongodb_data:
-  seq_data:
+  loki-data:
+  grafana-data:

@@ -1,5 +1,5 @@
 import { count, eq, inArray, max, min } from 'drizzle-orm'
-import { db } from '@/db'
+import { sqlite } from '@/db'
 import model from '@/models'
 import { queryBuilder } from '@/utils'
 import { PAGINATION } from '@/constants'
@@ -46,7 +46,7 @@ export async function getBooks(query?: BookQuery): Promise<{
   const offset = (page - 1) * limit
   const conditions = queryBuilder(query)
 
-  const [total] = await db
+  const [total] = await sqlite
     .select({ count: count() })
     .from(booksTable)
     .where(conditions)
@@ -57,7 +57,7 @@ export async function getBooks(query?: BookQuery): Promise<{
 
   const booksCount = total.count.toString()
 
-  const booksRecords = await db
+  const booksRecords = await sqlite
     .select({
       id,
       title,
@@ -87,7 +87,7 @@ export async function getBooks(query?: BookQuery): Promise<{
 export async function getBookById(
   bookId: number,
 ): Promise<BookWithAuthor | null> {
-  const [book] = await db
+  const [book] = await sqlite
     .select({
       id,
       title,
@@ -118,7 +118,7 @@ export async function getBookSearchOptions(): Promise<{
   price: [number, number]
   publishYear: [number, number]
 }> {
-  const minMaxFields = await db
+  const minMaxFields = await sqlite
     .select({
       minPrice: min(discountPrice),
       maxPrice: max(discountPrice),
@@ -127,7 +127,7 @@ export async function getBookSearchOptions(): Promise<{
     })
     .from(booksTable)
 
-  const genresResult = await db.selectDistinct({ genre }).from(booksTable)
+  const genresResult = await sqlite.selectDistinct({ genre }).from(booksTable)
 
   const genres = genresResult
     .map((row) => row.genre)
@@ -149,12 +149,12 @@ export async function getBookSearchOptions(): Promise<{
 }
 
 export async function getAllBooks(): Promise<Book[]> {
-  const bookRecords = await db.select().from(booksTable)
+  const bookRecords = await sqlite.select().from(booksTable)
   return bookRecords
 }
 
 export async function insertBook(book: BookInsert): Promise<Book> {
-  const [newBook] = await db.insert(booksTable).values(book).returning()
+  const [newBook] = await sqlite.insert(booksTable).values(book).returning()
   if (!newBook) {
     throw new Error('Failed to create book')
   }
@@ -165,7 +165,7 @@ export async function updateBook(
   bookId: number,
   book: BookUpdate,
 ): Promise<Book> {
-  const [updatedBook] = await db
+  const [updatedBook] = await sqlite
     .update(booksTable)
     .set(book)
     .where(eq(booksTable.id, bookId))
@@ -177,6 +177,6 @@ export async function updateBook(
 }
 
 export async function deleteBooks(bookIds: number[]): Promise<Book['id'][]> {
-  await db.delete(booksTable).where(inArray(booksTable.id, bookIds))
+  await sqlite.delete(booksTable).where(inArray(booksTable.id, bookIds))
   return bookIds
 }

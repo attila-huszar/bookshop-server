@@ -1,20 +1,15 @@
-import { and, eq, inArray, lt, not } from 'drizzle-orm'
-import { db } from '@/db'
+import { and, eq, inArray, lt } from 'drizzle-orm'
+import { sqlite } from '@/db'
 import model from '@/models'
-import type { User, UserInsert, UserUpdate } from '@/types'
+import type { GetUserBy, User, UserInsert, UserUpdate } from '@/types'
 
 const { usersTable } = model as SQLiteModel
 
-type UserRetrieveBy = Extract<
-  keyof User,
-  'id' | 'uuid' | 'email' | 'verificationToken' | 'passwordResetToken'
->
-
 export async function getUserBy(
-  field: UserRetrieveBy,
+  field: GetUserBy,
   value: string | number,
 ): Promise<User | null> {
-  const [user] = await db
+  const [user] = await sqlite
     .select()
     .from(usersTable)
     .where(eq(usersTable[field], value))
@@ -23,34 +18,38 @@ export async function getUserBy(
 }
 
 export async function createUser(values: UserInsert): Promise<User | null> {
-  const [createdUser] = await db.insert(usersTable).values(values).returning()
+  const [createdUser] = await sqlite
+    .insert(usersTable)
+    .values(values)
+    .returning()
   return createdUser ?? null
 }
 
 export async function updateUserBy(
-  field: UserRetrieveBy,
+  field: GetUserBy,
   value: string | number,
   fields: UserUpdate,
 ): Promise<User | null> {
-  const [updatedUser] = await db
+  const [updatedUser] = await sqlite
     .update(usersTable)
-    .set(fields)
+    .set({ ...fields, updatedAt: new Date() })
     .where(eq(usersTable[field], value))
     .returning()
   return updatedUser ?? null
 }
 
 export async function getAllUsers(): Promise<User[]> {
-  const userRecords = await db.select().from(usersTable)
-  return userRecords
+  const users = await sqlite.select().from(usersTable)
+  return users
 }
 
-export async function deleteUserByEmail(
-  email: string,
+export async function deleteUserBy(
+  field: GetUserBy,
+  value: string | number,
 ): Promise<User['email'] | null> {
-  const [deletedUser] = await db
+  const [deletedUser] = await sqlite
     .delete(usersTable)
-    .where(eq(usersTable.email, email))
+    .where(eq(usersTable[field], value))
     .limit(1)
     .returning()
   return deletedUser?.email ?? null
@@ -59,37 +58,31 @@ export async function deleteUserByEmail(
 export async function deleteUsersByIds(
   userIds: number[],
 ): Promise<User['id'][]> {
-  await db.delete(usersTable).where(inArray(usersTable.id, userIds))
-
+  await sqlite.delete(usersTable).where(inArray(usersTable.id, userIds))
   return userIds
 }
 
-export async function cleanupExpiredTokens() {
-  const now = new Date().toISOString()
+export async function cleanupExpiredPasswordResetTokens(): Promise<User[]> {
+  const updatedUsers = await sqlite
+    .update(usersTable)
+    .set({
+      passwordResetToken: null,
+      passwordResetExpires: null,
+    })
+    .where(lt(usersTable.passwordResetExpires, new Date()))
+    .returning()
+  return updatedUsers
+}
 
-  const deletedUsers = await db
+export async function cleanupUnverifiedUsers(): Promise<User[]> {
+  const deletedUsers = await sqlite
     .delete(usersTable)
     .where(
       and(
-        not(eq(usersTable.verificationExpires, '')),
-        lt(usersTable.verificationExpires, now),
+        eq(usersTable.verified, false),
+        lt(usersTable.verificationExpires, new Date()),
       ),
     )
     .returning()
-
-  const updatedUsers = await db
-    .update(usersTable)
-    .set({
-      passwordResetToken: '',
-      passwordResetExpires: '',
-    })
-    .where(
-      and(
-        not(eq(usersTable.passwordResetExpires, '')),
-        lt(usersTable.passwordResetExpires, now),
-      ),
-    )
-    .returning()
-
-  return { deletedUsers, updatedUsers }
+  return deletedUsers
 }

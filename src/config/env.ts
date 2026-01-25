@@ -1,6 +1,10 @@
 import { DB_REPO } from '@/constants'
 
 export const env = {
+  mailerService: Bun.env.MAILER_SERVICE ?? 'gmail',
+  mailerHost: Bun.env.MAILER_HOST ?? 'smtp.gmail.com',
+  mailerPort: Bun.env.MAILER_PORT ?? '465',
+  mailerSecure: Bun.env.MAILER_SECURE ?? 'true',
   serverBaseUrl: Bun.env.SERVER_BASE_URL ?? 'http://localhost',
   port: Bun.env.PORT ?? '5000',
   cookieSecret: Bun.env.COOKIE_SECRET,
@@ -11,6 +15,7 @@ export const env = {
   dbMongoUrl: Bun.env.DB_MONGO_URL ?? 'mongodb://mongodb:27017/bookshop',
   adminEmail: Bun.env.ADMIN_EMAIL,
   adminPassword: Bun.env.ADMIN_PASSWORD,
+  mailerName: Bun.env.MAILER_NAME ?? 'Bookshop',
   mailerUser: Bun.env.MAILER_USER,
   mailerPass: Bun.env.MAILER_PASS,
   jwtAccessSecret: Bun.env.ACCESS_TOKEN_SECRET,
@@ -26,6 +31,4 @@ export const env = {
   awsRegion: Bun.env.AWS_REGION,
   awsBucket: Bun.env.AWS_BUCKET,
   redisUrl: Bun.env.REDIS_URL ?? 'redis://localhost:6379',
-  seqUrl: Bun.env.SEQ_URL ?? 'http://seq:5341',
-  seqApiKey: Bun.env.SEQ_API_KEY,
 }

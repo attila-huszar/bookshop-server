@@ -15,7 +15,7 @@ export const authAdminMiddleware: MiddlewareHandler<{
   Variables: Variables
 }> = async (c, next) => {
   try {
-    await jwt({ secret: env.jwtAccessSecret! })(c, async () => {
+    await jwt({ secret: env.jwtAccessSecret!, alg: 'HS256' })(c, async () => {
       const jwtPayload = c.get('jwtPayload')
       const user = await getUserProfile(jwtPayload.uuid)
 

@@ -4,56 +4,40 @@ import type { News, NewsInsert } from '@/types'
 const { NewsModel } = model as MongoModel
 
 export async function getNews(): Promise<News[]> {
-  const newsArray = await NewsModel.find().lean()
-  return newsArray.map((item) => ({
-    ...item,
-    createdAt: item.createdAt.toISOString(),
-    updatedAt: item.updatedAt.toISOString(),
-  }))
+  const news = await NewsModel.find().lean().exec()
+  return news
 }
 
 export async function getNewsById(newsId: string): Promise<News | null> {
-  const news = await NewsModel.findById(newsId).lean()
+  const news = await NewsModel.findById(newsId).lean().exec()
   if (!news) return null
-  return {
-    ...news,
-    createdAt: news.createdAt.toISOString(),
-    updatedAt: news.updatedAt.toISOString(),
-  }
+  return news
 }
 
 export async function insertNews(news: NewsInsert): Promise<News> {
   const { id, createdAt, updatedAt, ...newsData } = news
   const created = await NewsModel.create(newsData)
   const newsObj = created.toObject()
-  return {
-    ...newsObj,
-    createdAt: newsObj.createdAt.toISOString(),
-    updatedAt: newsObj.updatedAt.toISOString(),
-  }
+  return newsObj
 }
 
 export async function updateNews(
   newsId: string,
   news: Partial<NewsInsert>,
 ): Promise<News | null> {
-  const updated = await NewsModel.findByIdAndUpdate(newsId, news, {
+  const updatedNews = await NewsModel.findByIdAndUpdate(newsId, news, {
     new: true,
-  }).lean()
-  if (!updated) return null
-  return {
-    ...updated,
-    createdAt: updated.createdAt.toISOString(),
-    updatedAt: updated.updatedAt.toISOString(),
-  }
+  })
+    .lean()
+    .exec()
+  if (!updatedNews) return null
+  return updatedNews
 }
 
 export async function deleteNews(newsIds: string[]): Promise<News[]> {
-  const deleted = await NewsModel.find({ _id: { $in: newsIds } }).lean()
-  await NewsModel.deleteMany({ _id: { $in: newsIds } })
-  return deleted.map((item) => ({
-    ...item,
-    createdAt: item.createdAt.toISOString(),
-    updatedAt: item.updatedAt.toISOString(),
-  }))
+  const deletedNews = await NewsModel.find({ _id: { $in: newsIds } })
+    .lean()
+    .exec()
+  await NewsModel.deleteMany({ _id: { $in: newsIds } }).exec()
+  return deletedNews
 }

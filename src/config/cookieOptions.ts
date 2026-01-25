@@ -7,7 +7,7 @@ export const cookieOptions: CookieOptions = {
   httpOnly: true,
   secure: Bun.env.NODE_ENV === 'prod',
   sameSite: Bun.env.NODE_ENV === 'prod' ? 'none' : 'lax',
-  path: Bun.env.NODE_ENV === 'prod' ? '/users/refresh' : '/api/users/refresh',
+  path: '/api/users/refresh',
 }
 
 type CookieOptions = {

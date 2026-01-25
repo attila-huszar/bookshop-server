@@ -10,7 +10,6 @@ import { rateLimiter } from 'hono-rate-limiter'
 import { serveStatic } from 'hono/bun'
 import { cors } from 'hono/cors'
 import { csrf } from 'hono/csrf'
-import { logger } from 'hono/logger'
 import { timeout } from 'hono/timeout'
 import { trimTrailingSlash } from 'hono/trailing-slash'
 import { env } from './config/env'
@@ -19,11 +18,13 @@ import {
   books,
   bookSearchOptions,
   cms,
+  logs,
   news,
   orders,
   users,
   webhooks,
 } from './controller'
+import { log } from './libs'
 import {
   authAdminMiddleware,
   authMiddleware,
@@ -32,6 +33,7 @@ import {
 import { formatUptime, ngrokForward } from './utils'
 
 const app = new Hono()
+const api = new Hono()
 
 const limiter = rateLimiter({
   windowMs: 15 * 60 * 1000,
@@ -50,7 +52,15 @@ const corsMiddleware = cors({
   credentials: true,
 })
 
-app.use(logger())
+app.use('*', async (c, next) => {
+  try {
+    await next()
+  } catch (error) {
+    log.error(`${c.req.method} ${c.req.url}`, { error })
+    throw error
+  }
+})
+
 app.use(limiter)
 app.use(trimTrailingSlash())
 app.use('*', corsMiddleware)
@@ -64,10 +74,7 @@ if (Bun.env.NODE_ENV === 'prod') {
   })
 
   app.use('*', async (c: Context<Env, string, object>, next: Next) => {
-    if (c.req.path === '/webhooks/stripe') {
-      return next()
-    }
-
+    if (c.req.path.startsWith('/webhooks')) return next()
     return csrfMiddleware(c, next)
   })
 }
@@ -82,20 +89,22 @@ app.get('/', (c) => {
 
 app.get('/health', (c) => c.text('OK', 200))
 
-app.use('/users/profile', authMiddleware)
-app.use('/users/logout', authMiddleware)
-app.use('/users/avatar', authMiddleware)
+api.use('/users/profile', authMiddleware)
+api.use('/users/logout', authMiddleware)
+api.use('/users/avatar', authMiddleware)
+api.use('/cms/*', authAdminMiddleware)
 
-app.use('/cms/*', authAdminMiddleware)
+api.route('/books', books)
+api.route('/authors', authors)
+api.route('/news', news)
+api.route('/search_opts', bookSearchOptions)
+api.route('/users', users)
+api.route('/orders', orders)
+api.route('/cms', cms)
+api.route('/logs', logs)
 
-app.route('/books', books)
-app.route('/authors', authors)
-app.route('/news', news)
-app.route('/search_opts', bookSearchOptions)
-app.route('/users', users)
-app.route('/orders', orders)
+app.route('/api', api)
 app.route('/webhooks', webhooks)
-app.route('/cms', cms)
 
 if (env.ngrokAuthToken) void ngrokForward()
 

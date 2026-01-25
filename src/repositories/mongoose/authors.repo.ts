@@ -9,12 +9,8 @@ import type {
 const { AuthorModel } = model as MongoModel
 
 export async function getAllAuthors(): Promise<Author[]> {
-  const authors = await AuthorModel.find().lean()
-  return authors.map((author) => ({
-    ...author,
-    createdAt: author.createdAt.toISOString(),
-    updatedAt: author.updatedAt.toISOString(),
-  }))
+  const authors = await AuthorModel.find().lean().exec()
+  return authors
 }
 
 export async function getAuthorById(
@@ -23,7 +19,9 @@ export async function getAuthorById(
   const author = await AuthorModel.findOne(
     { id: authorId },
     { id: true, name: true },
-  ).lean()
+  )
+    .lean()
+    .exec()
 
   if (!author) {
     throw new Error(`Author with id ${authorId} not found`)
@@ -41,7 +39,9 @@ export async function getAuthorsBySearch(
   const authors = await AuthorModel.find(
     { name: { $regex: searchString, $options: 'i' } },
     { id: true, name: true },
-  ).lean()
+  )
+    .lean()
+    .exec()
 
   return authors.map((author) => ({
     id: author.id,
@@ -53,31 +53,27 @@ export async function insertAuthor(author: AuthorInsert): Promise<Author> {
   const { id, createdAt, updatedAt, ...authorData } = author
   const created = await AuthorModel.create(authorData)
   const authorObj = created.toObject()
-  return {
-    ...authorObj,
-    createdAt: authorObj.createdAt.toISOString(),
-    updatedAt: authorObj.updatedAt.toISOString(),
-  }
+  return authorObj
 }
 
 export async function updateAuthor(
   authorId: number,
   author: AuthorUpdate,
 ): Promise<Author | null> {
-  const updated = await AuthorModel.findOneAndUpdate({ id: authorId }, author, {
-    new: true,
-  }).lean()
-  if (!updated) return null
-  return {
-    ...updated,
-    createdAt: updated.createdAt.toISOString(),
-    updatedAt: updated.updatedAt.toISOString(),
-  }
+  const updatedAuthor = await AuthorModel.findOneAndUpdate(
+    { id: authorId },
+    author,
+    { new: true },
+  )
+    .lean()
+    .exec()
+  if (!updatedAuthor) return null
+  return updatedAuthor
 }
 
 export async function deleteAuthors(
   authorIds: number[],
 ): Promise<Author['id'][]> {
-  await AuthorModel.deleteMany({ id: { $in: authorIds } })
+  await AuthorModel.deleteMany({ id: { $in: authorIds } }).exec()
   return authorIds
 }

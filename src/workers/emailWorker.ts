@@ -1,4 +1,4 @@
-import { Worker } from 'bullmq'
+import { type Job, Worker } from 'bullmq'
 import { env } from '@/config'
 import { log, sendEmail } from '@/libs'
 import { concurrency, QUEUE } from '@/constants'
@@ -8,7 +8,7 @@ const parsedUrl = new URL(env.redisUrl)
 
 export const emailWorker = new Worker(
   QUEUE.EMAIL.NAME,
-  async (job: { data: SendEmailProps }) => sendEmail(job.data),
+  async (job: Job<SendEmailProps>) => sendEmail(job.data),
   {
     connection: {
       host: parsedUrl.hostname,
@@ -20,22 +20,20 @@ export const emailWorker = new Worker(
 )
 
 emailWorker.on('completed', (job) => {
-  void log.info('[WORKER] Email sent successfully', {
-    id: job.id,
-    name: job.name,
+  void log.info('Email sent successfully', {
+    type: job.name,
     email: job.data.toAddress,
   })
 })
 
 emailWorker.on('failed', (job, error) => {
-  void log.error('[WORKER] Email sending failed', {
-    id: job?.id,
-    name: job?.name,
+  void log.error('Email sending failed', {
+    type: job?.name,
     email: job?.data.toAddress,
     error,
   })
 })
 
 emailWorker.on('error', (error) => {
-  void log.error('[WORKER] Email worker error', { error })
+  void log.error('Email worker error', { error })
 })

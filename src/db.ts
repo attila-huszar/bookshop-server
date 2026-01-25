@@ -1,8 +1,10 @@
+import type { Database } from 'bun:sqlite'
 import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite'
 import type { Mongoose } from 'mongoose'
 import { env } from './config'
 import { DB_REPO } from './constants'
 
+let sqliteClient: Database | undefined
 let sqlite: BunSQLiteDatabase
 let mongo: Mongoose
 
@@ -11,8 +13,10 @@ if (env.dbRepo === DB_REPO.SQLITE) {
     const { drizzle } = await import('drizzle-orm/bun-sqlite')
     const { Database } = await import('bun:sqlite')
 
+    sqliteClient = new Database(env.dbSqliteFile)
+
     sqlite = drizzle({
-      client: new Database(env.dbSqliteFile),
+      client: sqliteClient,
       casing: 'snake_case',
     })
   } catch (error) {
@@ -31,4 +35,4 @@ if (env.dbRepo === DB_REPO.MONGO) {
   }
 }
 
-export { sqlite as db, mongo }
+export { sqliteClient, sqlite, mongo }
