@@ -15,6 +15,7 @@ export const env = {
   dbMongoUrl: Bun.env.DB_MONGO_URL ?? 'mongodb://mongodb:27017/bookshop',
   adminEmail: Bun.env.ADMIN_EMAIL,
   adminPassword: Bun.env.ADMIN_PASSWORD,
+  mailerName: Bun.env.MAILER_NAME ?? 'Bookshop',
   mailerUser: Bun.env.MAILER_USER,
   mailerPass: Bun.env.MAILER_PASS,
   jwtAccessSecret: Bun.env.ACCESS_TOKEN_SECRET,

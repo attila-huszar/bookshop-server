@@ -1,11 +1,10 @@
 import mjml2html from 'mjml'
 import { env } from '@/config'
+import { log } from '@/libs'
 import { cid } from '@/constants'
-import {
-  orderConfirmation,
-  passwordReset,
-  verification,
-} from '@/resources/emailTemplates'
+import orderConfirmation from '@/resources/emailTemplates/orderConfirmation.mjml' with { type: 'text' }
+import passwordReset from '@/resources/emailTemplates/passwordReset.mjml' with { type: 'text' }
+import verification from '@/resources/emailTemplates/verification.mjml' with { type: 'text' }
 import type { SendEmailProps } from '@/types'
 
 const baseLink = env.clientBaseUrl!
@@ -40,46 +39,61 @@ const renderOrderItems = (
 export function getEmailHtml(props: SendEmailProps): string {
   switch (props.type) {
     case 'orderConfirmation': {
-      const { toName, order } = props
-      const mjmlString = interpolate(orderConfirmation, {
-        toName,
-        orderNumber: order.paymentId.slice(-6).toUpperCase(),
-        eachItems: renderOrderItems(order.items),
-        total: order.total.toFixed(2),
-        currency: order.currency,
-        address: [
-          order.shipping?.address?.line1,
-          order.shipping?.address?.line2,
-          order.shipping?.address?.city,
-          order.shipping?.address?.state,
-          order.shipping?.address?.country,
-        ]
-          .filter(Boolean)
-          .join(', '),
-        baseLink,
-        cid,
-      })
-      return mjml2html(mjmlString).html
+      try {
+        const { toName, order } = props
+        const mjmlString = interpolate(orderConfirmation, {
+          toName,
+          orderNumber: order.paymentId.slice(-6).toUpperCase(),
+          eachItems: renderOrderItems(order.items),
+          total: order.total.toFixed(2),
+          currency: order.currency,
+          address: [
+            order.shipping?.address?.line1,
+            order.shipping?.address?.line2,
+            order.shipping?.address?.city,
+            order.shipping?.address?.state,
+            order.shipping?.address?.country,
+          ]
+            .filter(Boolean)
+            .join(', '),
+          baseLink,
+          cid,
+        })
+        return mjml2html(mjmlString).html
+      } catch (error) {
+        log.error('Error generating order confirmation email HTML', { error })
+        throw error
+      }
     }
     case 'verification': {
-      const { toName, tokenLink } = props
-      const mjmlString = interpolate(verification, {
-        toName,
-        tokenLink,
-        baseLink,
-        cid,
-      })
-      return mjml2html(mjmlString).html
+      try {
+        const { toName, tokenLink } = props
+        const mjmlString = interpolate(verification, {
+          toName,
+          tokenLink,
+          baseLink,
+          cid,
+        })
+        return mjml2html(mjmlString).html
+      } catch (error) {
+        log.error('Error generating verification email HTML', { error })
+        throw error
+      }
     }
     case 'passwordReset': {
-      const { toName, tokenLink } = props
-      const mjmlString = interpolate(passwordReset, {
-        toName,
-        tokenLink,
-        baseLink,
-        cid,
-      })
-      return mjml2html(mjmlString).html
+      try {
+        const { toName, tokenLink } = props
+        const mjmlString = interpolate(passwordReset, {
+          toName,
+          tokenLink,
+          baseLink,
+          cid,
+        })
+        return mjml2html(mjmlString).html
+      } catch (error) {
+        log.error('Error generating password reset email HTML', { error })
+        throw error
+      }
     }
     default:
       throw new Error('Unknown email type')
