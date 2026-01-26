@@ -190,11 +190,10 @@ services:
   grafana:
     image: grafana/grafana
     container_name: grafana
-    ports:
-      - '5555:3000'
     environment:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SERVER_ROOT_URL: '%(protocol)s://%(domain)s/grafana'
     volumes:
       - grafana-data:/var/lib/grafana
     restart: unless-stopped
