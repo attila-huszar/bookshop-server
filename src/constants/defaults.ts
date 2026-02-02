@@ -1,9 +1,9 @@
-import type { StripeShipping } from '@/types'
+import type { PaymentIntentShipping } from '@/types'
 
 export const defaultCountry = 'hu'
 export const defaultCurrency = 'USD'
 
-export const stripeShipping: StripeShipping = {
+export const stripeShipping: PaymentIntentShipping = {
   name: '',
   phone: '',
   address: {

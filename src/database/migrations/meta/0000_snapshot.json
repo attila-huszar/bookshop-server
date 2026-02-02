@@ -281,8 +281,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "payment_intent_status": {
-          "name": "payment_intent_status",
+        "payment_status": {
+          "name": "payment_status",
           "type": "text",
           "primaryKey": false,
           "notNull": true,

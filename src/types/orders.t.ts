@@ -16,13 +16,8 @@ export type OrderItem = z.infer<typeof orderItemSchema>
 export type CartItem = z.infer<typeof cartItemSchema>
 export type CheckoutCart = z.infer<typeof checkoutCartSchema>
 
-export enum OrderStatus {
-  Pending = 'PENDING',
-  Paid = 'PAID',
-  Captured = 'CAPTURED',
-  Canceled = 'CANCELED',
-}
-
-export type StripeStatus = Stripe.PaymentIntent.Status
-export type StripeShipping = Stripe.PaymentIntent.Shipping
-export type StripeAddress = Stripe.Address
+export type PaymentIntentStatus = Stripe.PaymentIntent.Status
+export type PaymentIntentShipping = Stripe.PaymentIntent.Shipping
+export type ChargeStatus = Stripe.Charge.Status
+export type ChargeShipping = Stripe.Charge.Shipping
+export type Address = Stripe.Address

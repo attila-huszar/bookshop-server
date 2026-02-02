@@ -41,8 +41,7 @@ CREATE TABLE `news` (
 CREATE TABLE `orders` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
 	`payment_id` text NOT NULL,
-	`payment_intent_status` text DEFAULT 'processing' NOT NULL,
-	`order_status` text DEFAULT 'PENDING' NOT NULL,
+	`payment_status` text DEFAULT 'processing' NOT NULL,
 	`total` real NOT NULL,
 	`currency` text NOT NULL,
 	`items` text NOT NULL,
