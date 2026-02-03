@@ -10,7 +10,7 @@ import {
 import { log } from '@/libs'
 import { defaultCurrency, stripeShipping } from '@/constants'
 import { Internal, NotFound } from '@/errors'
-import type { CheckoutCart, OrderInsert, OrderItem } from '@/types'
+import type { CheckoutCart, OrderInsert, OrderItem, OrderUpdate } from '@/types'
 
 const stripe = new Stripe(env.stripeSecret!)
 
@@ -30,9 +30,9 @@ export async function cancelPaymentIntent(paymentId: string) {
   return cancelledIntent
 }
 
-export async function getOrderByPaymentId(paymentId: string) {
+export async function getOrder(paymentId: string) {
   const validatedId = validate(paymentIdSchema, paymentId)
-  const order = await ordersDB.getOrderByPaymentId(validatedId)
+  const order = await ordersDB.getOrder(validatedId)
 
   if (!order) {
     throw new NotFound('Order not found')
@@ -129,4 +129,30 @@ export async function createOrder(
     }
     throw error
   }
+}
+
+export async function updateOrderFromWebhook(
+  paymentIntentId: string,
+  data: OrderUpdate,
+  eventType: string,
+) {
+  const existingOrder = await ordersDB.getOrder(paymentIntentId)
+
+  if (!existingOrder) {
+    void log.warn('Failed to find order for payment intent', {
+      paymentId: paymentIntentId,
+      eventType,
+    })
+    return null
+  }
+
+  const updateData: OrderUpdate = { ...data }
+  const justPaid = data.paymentStatus === 'succeeded' && !existingOrder.paidAt
+
+  if (justPaid) {
+    updateData.paidAt = new Date()
+  }
+
+  const updatedOrder = await ordersDB.updateOrder(paymentIntentId, updateData)
+  return updatedOrder ? { ...updatedOrder, justPaid } : null
 }

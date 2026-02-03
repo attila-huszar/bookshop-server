@@ -25,9 +25,7 @@ export async function createOrder(order: OrderInsert): Promise<Order | null> {
   return createdOrder ?? null
 }
 
-export async function getOrderByPaymentId(
-  paymentId: string,
-): Promise<Order | null> {
+export async function getOrder(paymentId: string): Promise<Order | null> {
   const orderRecords = await sqlite
     .select()
     .from(ordersTable)

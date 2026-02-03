@@ -27,9 +27,7 @@ export async function updateOrder(
   return updatedOrder
 }
 
-export async function getOrderByPaymentId(
-  paymentId: string,
-): Promise<Order | null> {
+export async function getOrder(paymentId: string): Promise<Order | null> {
   const order = await OrderModel.findOne({ paymentId }).lean().exec()
   if (!order) return null
   return order

@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import {
   cancelPaymentIntent,
   createOrder,
-  getOrderByPaymentId,
+  getOrder,
   retrievePaymentIntent,
 } from '@/services'
 import { errorHandler } from '@/errors'
@@ -35,7 +35,7 @@ orders.delete('/payment-intents/:paymentId', async (c) => {
 orders.get('/:paymentId', async (c) => {
   try {
     const paymentId = c.req.param('paymentId')
-    const order = await getOrderByPaymentId(paymentId)
+    const order = await getOrder(paymentId)
 
     return c.json(order)
   } catch (error) {

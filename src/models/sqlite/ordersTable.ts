@@ -13,6 +13,7 @@ export const ordersTable = sqliteTable('orders', {
     .$type<PaymentIntentStatus>()
     .default('processing')
     .notNull(),
+  paidAt: int('paid_at', { mode: 'timestamp' }).$type<Date>(),
   total: real().notNull(),
   currency: text().notNull(),
   items: text({ mode: 'json' }).$type<OrderItem[]>().notNull(),

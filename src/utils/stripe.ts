@@ -1,19 +1,25 @@
-import type { Stripe } from 'stripe'
-import type { Order } from '@/types'
+import type {
+  BillingDetails,
+  Order,
+  StripeCharge,
+  StripeDispute,
+  StripePaymentIntent,
+  StripeRefund,
+} from '@/types'
 import { splitFullName } from './textTransforms'
 
-export const getPaymentIntentIdFromCharge = (charge: Stripe.Charge) =>
-  typeof charge.payment_intent === 'string'
-    ? charge.payment_intent
-    : charge.payment_intent?.id
+type PaymentIntentRef = Pick<
+  StripeCharge | StripeRefund | StripeDispute,
+  'payment_intent'
+>
 
-export const getPaymentIntentIdFromRefund = (refund: Stripe.Refund) =>
-  typeof refund.payment_intent === 'string'
-    ? refund.payment_intent
-    : refund.payment_intent?.id
+export const getPaymentIntentId = <T extends PaymentIntentRef>(source: T) =>
+  typeof source.payment_intent === 'string'
+    ? source.payment_intent
+    : source.payment_intent?.id
 
 export function extractPaymentIntentFields(
-  paymentIntent: Stripe.PaymentIntent,
+  paymentIntent: StripePaymentIntent,
 ): Partial<Order> {
   const fields: Partial<Order> = {}
 
@@ -34,9 +40,9 @@ export function extractPaymentIntentFields(
   return fields
 }
 
-export function extractChargeFields(charge: Stripe.Charge): Partial<Order> {
+export function extractChargeFields(charge: StripeCharge): Partial<Order> {
   const fields: Partial<Order> = {}
-  const billingDetails = charge.billing_details
+  const billingDetails: BillingDetails = charge.billing_details
 
   const billingEmail = billingDetails?.email?.trim()
   if (billingEmail) fields.email = billingEmail

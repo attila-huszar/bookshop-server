@@ -1,12 +1,6 @@
 import { Stripe } from 'stripe'
 import { env } from '@/config'
-import { ordersDB } from '@/repositories'
-import {
-  extractChargeFields,
-  extractPaymentIntentFields,
-  getPaymentIntentIdFromCharge,
-  getPaymentIntentIdFromRefund,
-} from '@/utils'
+import { extractPaymentIntentFields, getPaymentIntentId } from '@/utils'
 import { log } from '@/libs'
 import { emailQueue } from '@/queues'
 import { jobOpts, QUEUE } from '@/constants'
@@ -16,29 +10,12 @@ import {
   isDisputeEvent,
   isPaymentIntentEvent,
   isRefundEvent,
-  type OrderUpdate,
-  type SendEmailProps,
+  type OrderConfirmationEmailProps,
+  type StripeEvent,
 } from '@/types'
+import { updateOrderFromWebhook } from './'
 
 const stripe = new Stripe(env.stripeSecret!)
-
-async function updateOrderIfExists(
-  paymentIntentId: string,
-  data: OrderUpdate,
-  eventType: string,
-) {
-  const existingOrder = await ordersDB.getOrderByPaymentId(paymentIntentId)
-
-  if (!existingOrder) {
-    void log.warn('Webhook received for missing order', {
-      paymentId: paymentIntentId,
-      eventType,
-    })
-    return null
-  }
-
-  return ordersDB.updateOrder(paymentIntentId, data)
-}
 
 export async function processStripeWebhook(
   payload: string,
@@ -48,7 +25,7 @@ export async function processStripeWebhook(
     throw new Internal('Stripe webhook secret not configured')
   }
 
-  let event: Stripe.Event
+  let event: StripeEvent
 
   try {
     event = await stripe.webhooks.constructEventAsync(
@@ -68,7 +45,7 @@ export async function processStripeWebhook(
 
     switch (type) {
       case 'payment_intent.created': {
-        await updateOrderIfExists(
+        await updateOrderFromWebhook(
           paymentIntent.id,
           {
             paymentStatus: paymentIntent.status,
@@ -78,56 +55,7 @@ export async function processStripeWebhook(
         break
       }
       case 'payment_intent.succeeded': {
-        const existingOrder = await ordersDB.getOrderByPaymentId(
-          paymentIntent.id,
-        )
-
-        if (!existingOrder) {
-          void log.warn('Webhook received for missing order', {
-            paymentId: paymentIntent.id,
-            eventType: type,
-          })
-          break
-        }
-
-        const wasAlreadyPaid = existingOrder.paymentStatus === 'succeeded'
-
-        const updatedOrder = await ordersDB.updateOrder(paymentIntent.id, {
-          ...extractPaymentIntentFields(paymentIntent),
-          paymentStatus: paymentIntent.status,
-        })
-
-        if (!wasAlreadyPaid && updatedOrder?.email && updatedOrder.firstName) {
-          void emailQueue
-            .add(
-              QUEUE.EMAIL.JOB.ORDER_CONFIRMATION,
-              {
-                type: QUEUE.EMAIL.JOB.ORDER_CONFIRMATION,
-                toAddress: updatedOrder.email,
-                toName: updatedOrder.firstName,
-                order: updatedOrder,
-              } satisfies SendEmailProps,
-              jobOpts,
-            )
-            .catch((error: Error) => {
-              void log.error(
-                '[QUEUE] Order confirmation email queueing failed',
-                {
-                  error,
-                  paymentId: paymentIntent.id,
-                },
-              )
-            })
-        }
-
-        void log.info('Payment succeeded via webhook', {
-          paymentId: paymentIntent.id,
-          wasAlreadyPaid,
-        })
-        break
-      }
-      case 'payment_intent.amount_capturable_updated': {
-        await updateOrderIfExists(
+        const result = await updateOrderFromWebhook(
           paymentIntent.id,
           {
             ...extractPaymentIntentFields(paymentIntent),
@@ -136,13 +64,54 @@ export async function processStripeWebhook(
           type,
         )
 
-        void log.info('Payment capturable via webhook', {
+        if (!result) {
+          throw new Internal(
+            `Order not found for successful payment: ${paymentIntent.id}`,
+          )
+        }
+
+        const { justPaid, ...updatedOrder } = result
+
+        if (justPaid) {
+          const jobData: OrderConfirmationEmailProps = {
+            type: QUEUE.EMAIL.JOB.ORDER_CONFIRMATION,
+            toAddress: updatedOrder.email,
+            toName: updatedOrder.firstName,
+            order: updatedOrder,
+          }
+
+          void emailQueue
+            .add(QUEUE.EMAIL.JOB.ORDER_CONFIRMATION, jobData, jobOpts)
+            .catch((error: Error) => {
+              void log.error(
+                '[QUEUE] Order confirmation email queueing failed',
+                { error, paymentId: paymentIntent.id },
+              )
+            })
+        }
+
+        void log.info('[STRIPE] Payment succeeded via webhook', {
+          paymentId: paymentIntent.id,
+        })
+        break
+      }
+      case 'payment_intent.amount_capturable_updated': {
+        await updateOrderFromWebhook(
+          paymentIntent.id,
+          {
+            ...extractPaymentIntentFields(paymentIntent),
+            paymentStatus: paymentIntent.status,
+          },
+          type,
+        )
+
+        void log.info('[STRIPE] Payment capturable via webhook', {
           paymentId: paymentIntent.id,
         })
         break
       }
       case 'payment_intent.partially_funded': {
-        await updateOrderIfExists(
+        await updateOrderFromWebhook(
           paymentIntent.id,
           {
             paymentStatus: paymentIntent.status,
@@ -152,7 +121,7 @@ export async function processStripeWebhook(
         break
       }
       case 'payment_intent.payment_failed': {
-        await updateOrderIfExists(
+        await updateOrderFromWebhook(
           paymentIntent.id,
           {
             paymentStatus: paymentIntent.status,
@@ -160,14 +129,14 @@ export async function processStripeWebhook(
           type,
         )
 
-        void log.warn('Payment failed via webhook', {
+        void log.warn('[STRIPE] Payment failed via webhook', {
           paymentId: paymentIntent.id,
           error: paymentIntent.last_payment_error?.message,
         })
         break
       }
       case 'payment_intent.requires_action': {
-        await updateOrderIfExists(
+        await updateOrderFromWebhook(
           paymentIntent.id,
           {
             paymentStatus: paymentIntent.status,
@@ -177,7 +146,7 @@ export async function processStripeWebhook(
         break
       }
       case 'payment_intent.processing': {
-        await updateOrderIfExists(
+        await updateOrderFromWebhook(
           paymentIntent.id,
           {
             paymentStatus: paymentIntent.status,
@@ -187,7 +156,7 @@ export async function processStripeWebhook(
         break
       }
       case 'payment_intent.canceled': {
-        await updateOrderIfExists(
+        const result = await updateOrderFromWebhook(
           paymentIntent.id,
           {
             ...extractPaymentIntentFields(paymentIntent),
@@ -196,7 +165,13 @@ export async function processStripeWebhook(
           type,
         )
 
-        void log.info('Payment canceled via webhook', {
+        if (!result) {
+          throw new Internal(
+            `Order not found for canceled payment: ${paymentIntent.id}`,
+          )
+        }
+
+        void log.info('[STRIPE] Payment canceled via webhook', {
           paymentId: paymentIntent.id,
         })
         break
@@ -206,91 +181,88 @@ export async function processStripeWebhook(
     const { data, type } = event
     const charge = data.object
 
-    const paymentIntentId = getPaymentIntentIdFromCharge(charge)
+    const paymentIntentId = getPaymentIntentId(charge)
 
     if (!paymentIntentId) {
-      void log.warn('Charge event without payment intent reference', {
+      void log.info('[STRIPE] Charge event without payment intent reference', {
         chargeId: charge.id,
         eventType: event.type,
       })
       return { received: true }
     }
 
-    if (type === 'charge.succeeded') {
-      await updateOrderIfExists(
-        paymentIntentId,
-        {
-          ...extractChargeFields(charge),
-        },
-        type,
-      )
-
-      void log.info('Charge succeeded via webhook', {
-        paymentId: paymentIntentId,
-      })
-    } else if (type === 'charge.updated') {
-      await updateOrderIfExists(
-        paymentIntentId,
-        {
-          ...extractChargeFields(charge),
-        },
-        type,
-      )
-    } else if (type === 'charge.refunded') {
-      void log.info('Charge refund via webhook', {
-        paymentId: paymentIntentId,
-        refundedAmount: charge.amount_refunded,
-      })
+    switch (type) {
+      case 'charge.succeeded':
+        void log.info('[STRIPE] Charge succeeded via webhook', {
+          paymentId: paymentIntentId,
+          chargeId: charge.id,
+        })
+        break
+      case 'charge.updated':
+        void log.info('[STRIPE] Charge updated via webhook', {
+          paymentId: paymentIntentId,
+          chargeId: charge.id,
+        })
+        break
+      case 'charge.refunded':
+        void log.info('[STRIPE] Charge refunded via webhook', {
+          paymentId: paymentIntentId,
+          chargeId: charge.id,
+          refundedAmount: charge.amount_refunded,
+        })
+        break
     }
   } else if (isRefundEvent(event)) {
-    const refund = event.data.object
+    const { data } = event
+    const refund = data.object
 
-    const paymentIntentId = getPaymentIntentIdFromRefund(refund)
+    const paymentIntentId = getPaymentIntentId(refund)
 
     if (!paymentIntentId) {
-      void log.warn('Charge refund without payment intent reference', {
+      void log.info('[STRIPE] Refund without payment intent reference', {
         refundId: refund.id,
         eventType: event.type,
       })
       return { received: true }
     }
 
-    void log.info('Charge refund via webhook', {
+    void log.info('[STRIPE] Refund updated via webhook', {
       paymentId: paymentIntentId,
+      refundId: refund.id,
       refundedAmount: refund.amount,
     })
   } else if (isDisputeEvent(event)) {
     const { data, type } = event
     const dispute = data.object
 
-    const paymentIntentId =
-      typeof dispute.payment_intent === 'string'
-        ? dispute.payment_intent
-        : dispute.payment_intent?.id
+    const paymentIntentId = getPaymentIntentId(dispute)
 
     if (!paymentIntentId) {
-      void log.warn('Dispute without payment intent reference', {
+      void log.info('[STRIPE] Dispute without payment intent reference', {
         disputeId: dispute.id,
         eventType: event.type,
       })
       return { received: true }
     }
 
-    if (type === 'charge.dispute.created') {
-      void log.info('Dispute created via webhook', {
-        paymentId: paymentIntentId,
-        disputeId: dispute.id,
-        status: dispute.status,
-      })
-    } else if (type === 'charge.dispute.closed') {
-      void log.info('Dispute closed via webhook', {
-        paymentId: paymentIntentId,
-        disputeId: dispute.id,
-        status: dispute.status,
-      })
+    switch (type) {
+      case 'charge.dispute.created':
+        void log.info('[STRIPE] Dispute created via webhook', {
+          paymentId: paymentIntentId,
+          disputeId: dispute.id,
+          status: dispute.status,
+        })
+        break
+      case 'charge.dispute.closed':
+        void log.info('[STRIPE] Dispute closed via webhook', {
+          paymentId: paymentIntentId,
+          disputeId: dispute.id,
+          status: dispute.status,
+        })
+        break
     }
   } else {
-    void log.info(`Unhandled webhook event type: ${event.type}`)
+    void log.info(`[STRIPE] Unhandled webhook event type: ${event.type}`)
   }
 
   return { received: true }
