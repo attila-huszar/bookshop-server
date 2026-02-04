@@ -2,15 +2,15 @@ import { Stripe } from 'stripe'
 import { env } from '@/config'
 import { booksDB, ordersDB } from '@/repositories'
 import {
-  checkoutCartSchema,
   orderInsertSchema,
   paymentIdSchema,
+  paymentIntentRequestSchema,
   validate,
 } from '@/validation'
 import { log } from '@/libs'
 import { defaultCurrency, stripeShipping } from '@/constants'
 import { Internal, NotFound } from '@/errors'
-import type { CheckoutCart, OrderInsert, OrderItem, OrderUpdate } from '@/types'
+import type { OrderInsert, OrderItem, PaymentIntentRequest } from '@/types'
 
 const stripe = new Stripe(env.stripeSecret!)
 
@@ -42,11 +42,14 @@ export async function getOrder(paymentId: string) {
 }
 
 export async function createOrder(
-  orderRequest: CheckoutCart,
+  paymentIntentRequest: PaymentIntentRequest,
 ): Promise<{ paymentSession: string; amount: number }> {
-  const validatedRequest = validate(checkoutCartSchema, orderRequest)
+  const validatedRequest = validate(
+    paymentIntentRequestSchema,
+    paymentIntentRequest,
+  )
 
-  const orderItems: OrderItem[] = []
+  const items: OrderItem[] = []
   let total = 0
 
   for (const item of validatedRequest.items) {
@@ -60,7 +63,7 @@ export async function createOrder(
       item.quantity * book.price * (1 - (book.discount ?? 0) / 100)
     total += itemTotal
 
-    orderItems.push({
+    items.push({
       id: book.id,
       title: book.title,
       price: book.price,
@@ -89,19 +92,16 @@ export async function createOrder(
 
     stripePaymentId = paymentIntent.id
 
-    const order: OrderInsert = {
+    const orderData: OrderInsert = {
       paymentId: stripePaymentId,
       paymentStatus: paymentIntent.status,
+      items,
       total,
       currency: defaultCurrency,
-      items: orderItems,
-      firstName: '',
-      lastName: '',
-      email: '',
       shipping: stripeShipping,
     }
 
-    const validatedOrderData = validate(orderInsertSchema, order)
+    const validatedOrderData = validate(orderInsertSchema, orderData)
     const createdOrder = await ordersDB.createOrder(validatedOrderData)
 
     if (!createdOrder) {
@@ -129,30 +129,4 @@ export async function createOrder(
     }
     throw error
   }
-}
-
-export async function updateOrderFromWebhook(
-  paymentIntentId: string,
-  data: OrderUpdate,
-  eventType: string,
-) {
-  const existingOrder = await ordersDB.getOrder(paymentIntentId)
-
-  if (!existingOrder) {
-    void log.warn('Failed to find order for payment intent', {
-      paymentId: paymentIntentId,
-      eventType,
-    })
-    return null
-  }
-
-  const updateData: OrderUpdate = { ...data }
-  const justPaid = data.paymentStatus === 'succeeded' && !existingOrder.paidAt
-
-  if (justPaid) {
-    updateData.paidAt = new Date()
-  }
-
-  const updatedOrder = await ordersDB.updateOrder(paymentIntentId, updateData)
-  return updatedOrder ? { ...updatedOrder, justPaid } : null
 }

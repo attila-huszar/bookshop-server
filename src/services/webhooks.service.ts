@@ -1,5 +1,6 @@
 import { Stripe } from 'stripe'
 import { env } from '@/config'
+import { ordersDB } from '@/repositories'
 import { extractPaymentIntentFields, getPaymentIntentId } from '@/utils'
 import { log } from '@/libs'
 import { emailQueue } from '@/queues'
@@ -11,9 +12,9 @@ import {
   isPaymentIntentEvent,
   isRefundEvent,
   type OrderConfirmationEmailProps,
+  type OrderUpdate,
   type StripeEvent,
 } from '@/types'
-import { updateOrderFromWebhook } from './'
 
 const stripe = new Stripe(env.stripeSecret!)
 
@@ -71,6 +72,16 @@ export async function processStripeWebhook(
         }
 
         const { justPaid, ...updatedOrder } = result
+
+        if (!updatedOrder.email || !updatedOrder.firstName) {
+          void log.error(
+            'Order missing email or first name for confirmation email',
+            { paymentId: paymentIntent.id },
+          )
+          throw new Internal(
+            `Order missing email or first name for confirmation email: ${paymentIntent.id}`,
+          )
+        }
 
         if (justPaid) {
           const jobData: OrderConfirmationEmailProps = {
@@ -266,4 +277,30 @@ export async function processStripeWebhook(
   }
 
   return { received: true }
+}
+
+export async function updateOrderFromWebhook(
+  paymentIntentId: string,
+  data: OrderUpdate,
+  eventType: string,
+) {
+  const existingOrder = await ordersDB.getOrder(paymentIntentId)
+
+  if (!existingOrder) {
+    void log.warn('Failed to find order for payment intent', {
+      paymentId: paymentIntentId,
+      eventType,
+    })
+    return null
+  }
+
+  const updateData: OrderUpdate = { ...data }
+  const justPaid = data.paymentStatus === 'succeeded' && !existingOrder.paidAt
+
+  if (justPaid) {
+    updateData.paidAt = new Date()
+  }
+
+  const updatedOrder = await ordersDB.updateOrder(paymentIntentId, updateData)
+  return updatedOrder ? { ...updatedOrder, justPaid } : null
 }

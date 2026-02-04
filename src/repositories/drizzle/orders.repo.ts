@@ -6,21 +6,9 @@ import type { Order, OrderInsert, OrderUpdate } from '@/types'
 const { ordersTable } = model as SQLiteModel
 
 export async function createOrder(order: OrderInsert): Promise<Order | null> {
-  const orderInsert = {
-    paymentId: order.paymentId,
-    paymentStatus: 'processing' as const,
-    firstName: order.firstName,
-    lastName: order.lastName,
-    email: order.email,
-    shipping: order.shipping,
-    total: order.total,
-    currency: order.currency,
-    items: order.items,
-  }
-
   const [createdOrder] = await sqlite
     .insert(ordersTable)
-    .values(orderInsert)
+    .values(order)
     .returning()
   return createdOrder ?? null
 }

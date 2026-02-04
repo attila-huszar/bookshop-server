@@ -17,9 +17,9 @@ export const ordersTable = sqliteTable('orders', {
   total: real().notNull(),
   currency: text().notNull(),
   items: text({ mode: 'json' }).$type<OrderItem[]>().notNull(),
-  firstName: text('first_name').notNull(),
-  lastName: text('last_name').notNull(),
-  email: text().notNull(),
+  firstName: text('first_name'),
+  lastName: text('last_name'),
+  email: text(),
   shipping: text({ mode: 'json' }).$type<PaymentIntentShipping>().notNull(),
   ...timestamps,
 })

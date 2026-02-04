@@ -6,7 +6,7 @@ import {
   retrievePaymentIntent,
 } from '@/services'
 import { errorHandler } from '@/errors'
-import type { CheckoutCart } from '@/types'
+import type { PaymentIntentRequest } from '@/types'
 
 export const orders = new Hono()
 
@@ -45,8 +45,8 @@ orders.get('/:paymentId', async (c) => {
 
 orders.post('/', async (c) => {
   try {
-    const orderRequest = await c.req.json<CheckoutCart>()
-    const { paymentSession, amount } = await createOrder(orderRequest)
+    const paymentIntentRequest = await c.req.json<PaymentIntentRequest>()
+    const { paymentSession, amount } = await createOrder(paymentIntentRequest)
 
     return c.json({ paymentSession, amount })
   } catch (error) {
