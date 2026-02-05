@@ -8,7 +8,7 @@ import {
   validate,
 } from '@/validation'
 import { log } from '@/libs'
-import { defaultCurrency, stripeShipping } from '@/constants'
+import { defaultCurrency } from '@/constants'
 import { Internal, NotFound } from '@/errors'
 import type { OrderInsert, OrderItem, PaymentIntentRequest } from '@/types'
 
@@ -95,10 +95,9 @@ export async function createOrder(
     const orderData: OrderInsert = {
       paymentId: stripePaymentId,
       paymentStatus: paymentIntent.status,
+      currency: defaultCurrency,
       items,
       total,
-      currency: defaultCurrency,
-      shipping: stripeShipping,
     }
 
     const validatedOrderData = validate(orderInsertSchema, orderData)

@@ -21,7 +21,7 @@ export const orderUpdateSchema = createUpdateSchema(ordersTable, {
 
 export const orderItemSchema = z.object({
   id: z.int().positive(),
-  title: z.string().trim().nonempty(),
+  title: z.string().trim().min(1),
   price: z.number().positive(),
   discount: z.number().min(0).max(100),
   quantity: z.int().positive(),

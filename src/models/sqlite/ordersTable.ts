@@ -20,6 +20,6 @@ export const ordersTable = sqliteTable('orders', {
   firstName: text('first_name'),
   lastName: text('last_name'),
   email: text(),
-  shipping: text({ mode: 'json' }).$type<PaymentIntentShipping>().notNull(),
+  shipping: text({ mode: 'json' }).$type<PaymentIntentShipping>(),
   ...timestamps,
 })

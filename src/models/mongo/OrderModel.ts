@@ -14,7 +14,7 @@ const orderSchema = new mongo.Schema<Order>(
     firstName: { type: String },
     lastName: { type: String },
     email: { type: String },
-    shipping: { type: Object, required: true },
+    shipping: { type: Object },
   },
   { timestamps: true },
 )

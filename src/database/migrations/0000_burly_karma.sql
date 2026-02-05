@@ -42,13 +42,14 @@ CREATE TABLE `orders` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
 	`payment_id` text NOT NULL,
 	`payment_status` text DEFAULT 'processing' NOT NULL,
+	`paid_at` integer,
 	`total` real NOT NULL,
 	`currency` text NOT NULL,
 	`items` text NOT NULL,
-	`first_name` text NOT NULL,
-	`last_name` text NOT NULL,
-	`email` text NOT NULL,
-	`shipping` text NOT NULL,
+	`first_name` text,
+	`last_name` text,
+	`email` text,
+	`shipping` text,
 	`created_at` integer DEFAULT (unixepoch()) NOT NULL,
 	`updated_at` integer DEFAULT (unixepoch()) NOT NULL
 );

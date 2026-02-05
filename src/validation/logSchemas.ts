@@ -4,6 +4,6 @@ export const LogLevel = z.enum(['debug', 'info', 'warn', 'error'])
 
 export const logSchema = z.object({
   level: LogLevel,
-  message: z.string().nonempty('Message cannot be empty'),
+  message: z.string().min(1, 'Message cannot be empty'),
   meta: z.unknown().optional(),
 })

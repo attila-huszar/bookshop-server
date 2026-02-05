@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "177c3982-ec3e-4545-8e8d-25b24f47e383",
+  "id": "c722a058-12c2-42aa-86b0-78adeaf19765",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "authors": {
@@ -289,13 +289,12 @@
           "autoincrement": false,
           "default": "'processing'"
         },
-        "order_status": {
-          "name": "order_status",
-          "type": "text",
+        "paid_at": {
+          "name": "paid_at",
+          "type": "integer",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'PENDING'"
+          "notNull": false,
+          "autoincrement": false
         },
         "total": {
           "name": "total",
@@ -322,28 +321,28 @@
           "name": "first_name",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "last_name": {
           "name": "last_name",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "email": {
           "name": "email",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "shipping": {
           "name": "shipping",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "created_at": {
