@@ -20,7 +20,7 @@ import {
   cms,
   logs,
   news,
-  orders,
+  payments,
   users,
   webhooks,
 } from './controller'
@@ -99,7 +99,7 @@ api.route('/authors', authors)
 api.route('/news', news)
 api.route('/search_opts', bookSearchOptions)
 api.route('/users', users)
-api.route('/orders', orders)
+api.route('/payments', payments)
 api.route('/cms', cms)
 api.route('/logs', logs)
 

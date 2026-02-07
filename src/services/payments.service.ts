@@ -10,7 +10,12 @@ import {
 import { log } from '@/libs'
 import { defaultCurrency } from '@/constants'
 import { Internal, NotFound } from '@/errors'
-import type { OrderInsert, OrderItem, PaymentIntentRequest } from '@/types'
+import type {
+  OrderInsert,
+  OrderItem,
+  PaymentIntentRequest,
+  PaymentSession,
+} from '@/types'
 
 const stripe = new Stripe(env.stripeSecret!)
 
@@ -19,31 +24,9 @@ export async function retrievePaymentIntent(paymentId: string) {
   return stripe.paymentIntents.retrieve(validatedId)
 }
 
-export async function cancelPaymentIntent(paymentId: string) {
-  const validatedId = validate(paymentIdSchema, paymentId)
-  const cancelledIntent = await stripe.paymentIntents.cancel(validatedId)
-
-  await ordersDB.updateOrder(validatedId, {
-    paymentStatus: 'canceled',
-  })
-
-  return cancelledIntent
-}
-
-export async function getOrder(paymentId: string) {
-  const validatedId = validate(paymentIdSchema, paymentId)
-  const order = await ordersDB.getOrder(validatedId)
-
-  if (!order) {
-    throw new NotFound('Order not found')
-  }
-
-  return order
-}
-
-export async function createOrder(
+export async function createPaymentIntent(
   paymentIntentRequest: PaymentIntentRequest,
-): Promise<{ paymentSession: string; amount: number }> {
+): Promise<PaymentSession> {
   const validatedRequest = validate(
     paymentIntentRequestSchema,
     paymentIntentRequest,
@@ -108,7 +91,7 @@ export async function createOrder(
     }
 
     return {
-      paymentSession: paymentIntent.client_secret,
+      session: paymentIntent.client_secret,
       amount: amountInCents,
     }
   } catch (error) {
@@ -128,4 +111,15 @@ export async function createOrder(
     }
     throw error
   }
+}
+
+export async function cancelPaymentIntent(paymentId: string) {
+  const validatedId = validate(paymentIdSchema, paymentId)
+  const cancelledIntent = await stripe.paymentIntents.cancel(validatedId)
+
+  await ordersDB.updateOrder(validatedId, {
+    paymentStatus: 'canceled',
+  })
+
+  return cancelledIntent
 }

@@ -10,9 +10,9 @@ export const cid = 'bookshop-logo-cid'
 
 export const attachments = [
   {
-    filename: 'bookshop-logo.webp',
-    path: process.cwd() + '/src/resources/images/bookshop-logo.webp',
-    contentType: 'image/webp',
+    filename: 'bookshop-logo.png',
+    path: process.cwd() + '/src/resources/images/bookshop-logo.png',
+    contentType: 'image/png',
     cid,
   },
 ]
