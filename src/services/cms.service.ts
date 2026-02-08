@@ -66,7 +66,22 @@ export async function addAuthor(author: AuthorInsert): Promise<Author> {
 
 export async function addOrder(order: OrderInsert): Promise<Order> {
   const validatedOrder = validate(orderInsertSchema, order)
-  const newOrder = await ordersDB.insertOrder(validatedOrder)
+  const itemsWithAuthors = await Promise.all(
+    validatedOrder.items.map(async (item) => {
+      if (item.author) return item
+      const book = await booksDB.getBookById(item.id)
+
+      return {
+        ...item,
+        author: book?.author ?? null,
+      }
+    }),
+  )
+
+  const newOrder = await ordersDB.insertOrder({
+    ...validatedOrder,
+    items: itemsWithAuthors,
+  })
 
   if (!newOrder) {
     throw new Error('Failed to create order')

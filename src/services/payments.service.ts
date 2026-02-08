@@ -49,6 +49,7 @@ export async function createPaymentIntent(
     items.push({
       id: book.id,
       title: book.title,
+      author: book.author,
       price: book.price,
       discount: book.discount ?? 0,
       quantity: item.quantity,

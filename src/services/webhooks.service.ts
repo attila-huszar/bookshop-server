@@ -78,12 +78,7 @@ export async function processStripeWebhook(
             'Order missing email or first name for confirmation email',
             { paymentId: paymentIntent.id },
           )
-          throw new Internal(
-            `Order missing email or first name for confirmation email: ${paymentIntent.id}`,
-          )
-        }
-
-        if (justPaid) {
+        } else if (justPaid) {
           const jobData: OrderConfirmationEmailProps = {
             type: QUEUE.EMAIL.JOB.ORDER_CONFIRMATION,
             toAddress: updatedOrder.email,

@@ -234,6 +234,7 @@ describe('Users Service', () => {
 
       expect(mockUsersDB.getUserBy).toHaveBeenCalledWith('uuid', 'user-uuid')
       expect(result).toEqual({
+        uuid: 'user-uuid',
         firstName: 'John',
         lastName: 'Doe',
         email: 'test@example.com',

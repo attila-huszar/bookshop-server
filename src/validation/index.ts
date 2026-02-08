@@ -1,6 +1,7 @@
 export * from './validate'
 export * from './userSchemas'
 export * from './orderSchemas'
+export * from './paymentSchemas'
 export * from './bookSchemas'
 export * from './authorSchemas'
 export * from './commonSchemas'
