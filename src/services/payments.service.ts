@@ -35,11 +35,18 @@ export async function createPaymentIntent(
   const items: OrderItem[] = []
   let total = 0
 
-  for (const item of validatedRequest.items) {
-    const book = await booksDB.getBookById(item.id)
+  const books = await Promise.all(
+    validatedRequest.items.map((item) => booksDB.getBookById(item.id)),
+  )
+
+  for (let index = 0; index < validatedRequest.items.length; index++) {
+    const item = validatedRequest.items[index]!
+    const book = books[index]
 
     if (!book) {
-      throw new NotFound(`Book with ID ${item.id} not found`)
+      throw new NotFound(
+        `Book not found during payment intent creation: ID ${item.id}`,
+      )
     }
 
     const itemTotal =
