@@ -15,6 +15,7 @@ import type {
   OrderItem,
   PaymentIntentRequest,
   PaymentSession,
+  PublicUser,
 } from '@/types'
 
 const stripe = new Stripe(env.stripeSecret!)
@@ -26,6 +27,7 @@ export async function retrievePaymentIntent(paymentId: string) {
 
 export async function createPaymentIntent(
   paymentIntentRequest: PaymentIntentRequest,
+  user: PublicUser | null,
 ): Promise<PaymentSession> {
   const validatedRequest = validate(
     paymentIntentRequestSchema,
@@ -85,10 +87,11 @@ export async function createPaymentIntent(
 
     const orderData: OrderInsert = {
       paymentId: stripePaymentId,
-      paymentStatus: paymentIntent.status,
+      paymentStatus: 'processing',
       currency: defaultCurrency,
       items,
       total,
+      ...(user ?? {}),
     }
 
     const validatedOrderData = validate(orderInsertSchema, orderData)

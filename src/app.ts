@@ -28,6 +28,7 @@ import { log } from './libs'
 import {
   authAdminMiddleware,
   authMiddleware,
+  optionalAuthMiddleware,
   payloadLimiter,
 } from './middleware'
 import { formatUptime, ngrokForward } from './utils'
@@ -92,6 +93,7 @@ app.get('/health', (c) => c.text('OK', 200))
 api.use('/users/profile', authMiddleware)
 api.use('/users/logout', authMiddleware)
 api.use('/users/avatar', authMiddleware)
+api.use('/payments', optionalAuthMiddleware)
 api.use('/cms/*', authAdminMiddleware)
 
 api.route('/books', books)

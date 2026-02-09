@@ -4,10 +4,18 @@ import {
   createPaymentIntent,
   retrievePaymentIntent,
 } from '@/services'
+import { usersDB } from '@/repositories'
+import { stripSensitiveUserFields } from '@/utils'
 import { errorHandler } from '@/errors'
-import type { PaymentIntentRequest } from '@/types'
+import type { PaymentIntentRequest, PublicUser } from '@/types'
 
-export const payments = new Hono()
+type Variables = {
+  jwtPayload?: {
+    uuid: string
+  }
+}
+
+export const payments = new Hono<{ Variables: Variables }>()
 
 payments.get('/:paymentId', async (c) => {
   try {
@@ -23,7 +31,19 @@ payments.get('/:paymentId', async (c) => {
 payments.post('/', async (c) => {
   try {
     const paymentIntentRequest = await c.req.json<PaymentIntentRequest>()
-    const { session, amount } = await createPaymentIntent(paymentIntentRequest)
+
+    const jwtPayload = c.get('jwtPayload')
+    let publicUser: PublicUser | null = null
+
+    if (jwtPayload) {
+      const user = await usersDB.getUserBy('uuid', jwtPayload.uuid)
+      publicUser = user && stripSensitiveUserFields(user)
+    }
+
+    const { session, amount } = await createPaymentIntent(
+      paymentIntentRequest,
+      publicUser,
+    )
 
     return c.json({ session, amount })
   } catch (error) {
