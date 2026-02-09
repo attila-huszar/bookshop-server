@@ -15,6 +15,7 @@ import {
   validate,
 } from '@/validation'
 import { Folder, uploadFile } from '@/utils'
+import { BadRequest } from '@/errors'
 import type {
   Author,
   AuthorInsert,
@@ -29,6 +30,7 @@ import type {
   UserInsert,
   UserUpdate,
 } from '@/types'
+import { UserRole } from '@/types'
 
 // --- READ --- //
 export async function getAllBooks(): Promise<Book[]> {
@@ -154,6 +156,27 @@ export async function updateUser(
 ): Promise<Omit<User, 'password'>> {
   const validatedId = validate(idSchema, userId)
   const validatedUser = validate(userUpdateSchema, user)
+
+  if (validatedUser.role !== undefined) {
+    const allUsers = await usersDB.getAllUsers()
+    const userToUpdate = allUsers.find((u) => u.id === validatedId)
+
+    if (
+      userToUpdate?.role === UserRole.Admin &&
+      validatedUser.role !== UserRole.Admin
+    ) {
+      const totalAdmins = allUsers.filter(
+        (u) => u.role === UserRole.Admin,
+      ).length
+
+      if (totalAdmins === 1) {
+        throw new BadRequest(
+          'Cannot change the role of the last admin. At least one admin must remain in the system.',
+        )
+      }
+    }
+  }
+
   const updatedUser = await usersDB.updateUserBy(
     'id',
     validatedId,
@@ -188,6 +211,28 @@ export async function deleteOrders(orderIds: number[]): Promise<number[]> {
 
 export async function deleteUsers(userIds: number[]): Promise<number[]> {
   const validatedIds = validate(idsSchema, userIds)
+
+  const allUsers = await usersDB.getAllUsers()
+
+  const usersToDelete = allUsers.filter((user) =>
+    validatedIds.includes(user.id),
+  )
+  const deletingAdmins = usersToDelete.filter(
+    (user) => user.role === UserRole.Admin,
+  )
+
+  if (deletingAdmins.length > 0) {
+    const totalAdmins = allUsers.filter(
+      (user) => user.role === UserRole.Admin,
+    ).length
+
+    if (totalAdmins - deletingAdmins.length === 0) {
+      throw new BadRequest(
+        'Cannot delete the last admin. At least one admin must remain in the system.',
+      )
+    }
+  }
+
   const deletedIds = await usersDB.deleteUsersByIds(validatedIds)
   return deletedIds
 }
