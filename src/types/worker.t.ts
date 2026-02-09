@@ -27,7 +27,24 @@ export type OrderConfirmationEmailProps = {
   order: Order
 }
 
+export type AdminPaymentNotificationEmailProps = {
+  type: 'adminPaymentNotification'
+  toAddress: string
+  paymentId: string
+  customerName: string
+  customerEmail: string
+  items: {
+    title: string
+    quantity: number
+    price: number
+    discount?: number
+  }[]
+  total: number
+  currency: string
+}
+
 export type SendEmailProps =
   | VerificationEmailProps
   | PasswordResetEmailProps
   | OrderConfirmationEmailProps
+  | AdminPaymentNotificationEmailProps

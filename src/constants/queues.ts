@@ -5,6 +5,7 @@ export const QUEUE = {
       VERIFICATION: 'verification',
       PASSWORD_RESET: 'passwordReset',
       ORDER_CONFIRMATION: 'orderConfirmation',
+      ADMIN_PAYMENT_NOTIFICATION: 'adminPaymentNotification',
     },
   },
 } as const

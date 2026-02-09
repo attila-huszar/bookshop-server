@@ -8,9 +8,11 @@ import {
   validate,
 } from '@/validation'
 import { log } from '@/libs'
-import { defaultCurrency } from '@/constants'
+import { emailQueue } from '@/queues'
+import { defaultCurrency, jobOpts, QUEUE } from '@/constants'
 import { Internal, NotFound } from '@/errors'
 import type {
+  AdminPaymentNotificationEmailProps,
   OrderInsert,
   OrderItem,
   PaymentIntentRequest,
@@ -99,6 +101,39 @@ export async function createPaymentIntent(
 
     if (!createdOrder) {
       throw new Internal('Failed to create order in database')
+    }
+
+    // Send admin notification email
+    if (env.adminEmail) {
+      const adminEmailData: AdminPaymentNotificationEmailProps = {
+        type: QUEUE.EMAIL.JOB.ADMIN_PAYMENT_NOTIFICATION,
+        toAddress: env.adminEmail,
+        paymentId: stripePaymentId,
+        customerName: user
+          ? `${user.firstName} ${user.lastName}`
+          : 'Guest User',
+        customerEmail: user?.email ?? 'N/A',
+        items,
+        total,
+        currency: defaultCurrency,
+      }
+
+      void emailQueue
+        .add(
+          QUEUE.EMAIL.JOB.ADMIN_PAYMENT_NOTIFICATION,
+          adminEmailData,
+          jobOpts,
+        )
+        .catch((error: Error) => {
+          void log.error('Failed to queue admin payment notification email', {
+            paymentId: stripePaymentId,
+            error,
+          })
+        })
+    } else {
+      void log.warn('Admin email not configured, skipping notification', {
+        paymentId: stripePaymentId,
+      })
     }
 
     return {

@@ -1,0 +1,38 @@
+<mjml>
+  <mj-head>
+    <mj-style> @media only screen and (max-width:480px) { .order-table th, .order-table td { font-size: 10px; padding: 2px; } .order-item { max-width: 50px;} } </mj-style>
+  </mj-head>
+  <mj-body background-color="#f4f4f4">
+    <mj-section>
+      <mj-column>
+        <mj-image src="cid:{{cid}}" alt="Bookshop Logo" href="{{baseLink}}" width="97px" align="left" />
+        <mj-text font-size="20px" font-weight="bold" color="#ff6b35">New Payment Initiated</mj-text>
+        <mj-text font-size="16px" line-height="1.5">
+          A new payment has been initiated in the system.<br />
+          <strong>Payment ID:</strong> #{{paymentId}}<br />
+          <strong>Customer:</strong> {{customerName}} ({{customerEmail}})
+        </mj-text>
+        <mj-divider border-color="#5469d4" />
+        <mj-table css-class="order-table">
+          <tr style="background-color: #e8e8e8">
+            <th align="left" css-class="order-item">Item</th>
+            <th align="center">Price</th>
+            <th align="center">Discount</th>
+            <th align="center">Qty</th>
+            <th align="right">Total</th>
+          </tr>
+          {{eachItems}}
+        </mj-table>
+        <mj-divider border-color="#5469d4" />
+        <mj-text font-size="16px"> <strong>Total Amount:</strong> {{total}} {{currency}} </mj-text>
+        <mj-text font-size="14px" color="#888" line-height="1.5">
+          Payment Status: <strong>Processing</strong>
+        </mj-text>
+        <mj-text font-size="14px" line-height="1.5">
+          This is an automated notification.<br />
+          <strong>Bookshop Admin System</strong>
+        </mj-text>
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>

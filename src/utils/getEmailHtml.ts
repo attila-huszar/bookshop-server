@@ -2,6 +2,7 @@ import mjml2html from 'mjml'
 import { env } from '@/config'
 import { log } from '@/libs'
 import { cid } from '@/constants'
+import adminPaymentNotification from '@/resources/emailTemplates/adminPaymentNotification.mjml' with { type: 'text' }
 import orderConfirmation from '@/resources/emailTemplates/orderConfirmation.mjml' with { type: 'text' }
 import passwordReset from '@/resources/emailTemplates/passwordReset.mjml' with { type: 'text' }
 import verification from '@/resources/emailTemplates/verification.mjml' with { type: 'text' }
@@ -92,6 +93,34 @@ export function getEmailHtml(props: SendEmailProps): string {
         return mjml2html(mjmlString).html
       } catch (error) {
         log.error('Error generating password reset email HTML', { error })
+        throw error
+      }
+    }
+    case 'adminPaymentNotification': {
+      try {
+        const {
+          paymentId,
+          customerName,
+          customerEmail,
+          items,
+          total,
+          currency,
+        } = props
+        const mjmlString = interpolate(adminPaymentNotification, {
+          paymentId: paymentId.slice(-6).toUpperCase(),
+          customerName,
+          customerEmail,
+          eachItems: renderOrderItems(items),
+          total: total.toFixed(2),
+          currency,
+          baseLink,
+          cid,
+        })
+        return mjml2html(mjmlString).html
+      } catch (error) {
+        log.error('Error generating admin payment notification email HTML', {
+          error,
+        })
         throw error
       }
     }

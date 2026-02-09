@@ -4,6 +4,7 @@ export const subjectMap: Record<EmailJobType, string> = {
   verification: 'Bookshop - Verify your email address',
   passwordReset: 'Bookshop - Forgotten Password',
   orderConfirmation: 'Bookshop - Order Confirmation',
+  adminPaymentNotification: 'Bookshop - New Order Notification',
 }
 
 export const cid = 'bookshop-logo-cid'
