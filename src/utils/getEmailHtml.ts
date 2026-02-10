@@ -119,7 +119,7 @@ export function getEmailHtml(props: SendEmailProps): string {
           total: total.toFixed(2),
           currency,
           paymentStatus,
-          shippingAddress: Bun.escapeHTML(shippingAddress),
+          shippingAddress,
           baseLink,
           cid,
         })

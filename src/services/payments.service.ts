@@ -86,13 +86,27 @@ export async function createPaymentIntent(
 
     stripePaymentId = paymentIntent.id
 
+    const userWithShipping = user
+      ? {
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          phone: user.phone,
+          shipping: {
+            name: `${user.firstName} ${user.lastName}`,
+            address: user.address ?? undefined,
+            phone: user.phone ?? undefined,
+          },
+        }
+      : {}
+
     const orderData: OrderInsert = {
       paymentId: stripePaymentId,
       paymentStatus: paymentIntent.status,
       currency: defaultCurrency,
       items,
       total,
-      ...(user ?? {}),
+      ...userWithShipping,
     }
 
     const validatedOrderData = validate(orderInsertSchema, orderData)

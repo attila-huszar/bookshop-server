@@ -47,9 +47,8 @@ export function sendAdminNotificationEmail({
     confirmed: '✅ Order Confirmed',
   }[type]
 
-  const shippingAddress = order.shipping
+  const shippingAddressParts = order.shipping
     ? [
-        order.shipping.name,
         order.shipping.address?.line1,
         order.shipping.address?.line2,
         [
@@ -61,8 +60,12 @@ export function sendAdminNotificationEmail({
           .join(', '),
         order.shipping.address?.country,
       ]
-        .filter(Boolean)
-        .join('<br />')
+        .filter((part): part is string => Boolean(part))
+        .map((part) => Bun.escapeHTML(part))
+    : []
+
+  const shippingAddress = shippingAddressParts.length
+    ? shippingAddressParts.join('<br />')
     : 'No shipping address provided'
 
   const adminEmailData: AdminPaymentNotificationEmailProps = {
