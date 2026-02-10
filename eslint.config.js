@@ -1,14 +1,16 @@
 import eslint from '@eslint/js'
-import tseslint from 'typescript-eslint'
-import globals from 'globals'
 import importPlugin from 'eslint-plugin-import'
 import prettier from 'eslint-plugin-prettier'
+import { defineConfig } from 'eslint/config'
+import globals from 'globals'
+import tseslint from 'typescript-eslint'
 
-export default tseslint.config(
+export default defineConfig(
+  {
+    ignores: ['node_modules', 'eslint.config.js'],
+  },
   eslint.configs.recommended,
   importPlugin.flatConfigs.recommended,
-  ...tseslint.configs.recommendedTypeChecked,
-  ...tseslint.configs.stylisticTypeChecked,
   {
     files: ['**/*.ts'],
     languageOptions: {
@@ -17,25 +19,12 @@ export default tseslint.config(
       globals: globals.node,
       parser: tseslint.parser,
       parserOptions: {
-        projectService: {
-          tsconfigPath: './tsconfig.json',
-        },
+        projectService: true,
       },
     },
     plugins: {
       '@typescript-eslint': tseslint.plugin,
       prettier,
-    },
-    rules: {
-      '@typescript-eslint/no-unused-vars': [
-        'error',
-        {
-          ignoreRestSiblings: true,
-          varsIgnorePattern: '^_',
-        },
-      ],
-      '@typescript-eslint/consistent-type-definitions': 'off',
-      'prettier/prettier': 'warn',
     },
     settings: {
       'import/resolver': {
@@ -49,10 +38,26 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ['node_modules', 'eslint.config.js'],
+    files: ['**/*.ts'],
+    extends: [
+      ...tseslint.configs.recommendedTypeChecked,
+      ...tseslint.configs.stylisticTypeChecked,
+    ],
+    rules: {
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          ignoreRestSiblings: true,
+          varsIgnorePattern: '^_',
+        },
+      ],
+      '@typescript-eslint/consistent-type-definitions': 'off',
+      '@typescript-eslint/consistent-generic-constructors': 'off',
+      'prettier/prettier': 'warn',
+    },
   },
   {
     files: ['**/*.js'],
-    ...tseslint.configs.disableTypeChecked,
+    extends: [tseslint.configs.disableTypeChecked],
   },
 )
