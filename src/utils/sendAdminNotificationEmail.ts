@@ -43,8 +43,8 @@ export function sendAdminNotificationEmail({
   }
 
   const emailTitle = {
-    created: 'New Order Created',
-    confirmed: 'New Order Confirmed',
+    created: '🛍️ Order Created',
+    confirmed: '✅ Order Confirmed',
   }[type]
 
   const shippingAddress = order.shipping

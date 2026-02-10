@@ -5,7 +5,7 @@ import {
 } from 'drizzle-zod'
 import { z } from 'zod'
 import { ordersTable } from '@/models/sqlite'
-import { maxOrderItems } from '@/constants'
+import { maxItemQuantity } from '@/constants'
 import type { PaymentIntentStatus } from '@/types'
 
 export const orderSelectSchema = createSelectSchema(ordersTable, {
@@ -26,5 +26,5 @@ export const orderItemSchema = z.object({
   author: z.string().nullable(),
   price: z.number().positive(),
   discount: z.number().min(0).max(100),
-  quantity: z.int().min(1).max(maxOrderItems),
+  quantity: z.int().min(1).max(maxItemQuantity),
 })

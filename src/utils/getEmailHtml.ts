@@ -28,7 +28,7 @@ const renderOrderItems = (
       const discountString = discountValue ? `-${discountValue.toFixed(2)}` : ''
       const totalString = ((price - discountValue) * quantity).toFixed(2)
       return `<tr>
-        <td>${title}</td>
+        <td>${Bun.escapeHTML(title)}</td>
         <td align="center">${priceString}</td>
         <td align="center">${discountString}</td>
         <td align="center">${quantity}</td>
@@ -43,7 +43,7 @@ export function getEmailHtml(props: SendEmailProps): string {
       try {
         const { toName, order } = props
         const mjmlString = interpolate(orderConfirmation, {
-          toName,
+          toName: Bun.escapeHTML(toName),
           orderNumber: order.paymentId.slice(-6).toUpperCase(),
           eachItems: renderOrderItems(order.items),
           total: order.total.toFixed(2),
@@ -55,7 +55,8 @@ export function getEmailHtml(props: SendEmailProps): string {
             order.shipping?.address?.state,
             order.shipping?.address?.country,
           ]
-            .filter(Boolean)
+            .filter((part): part is string => Boolean(part))
+            .map((part) => Bun.escapeHTML(part))
             .join(', '),
           baseLink,
           cid,
@@ -70,7 +71,7 @@ export function getEmailHtml(props: SendEmailProps): string {
       try {
         const { toName, tokenLink } = props
         const mjmlString = interpolate(verification, {
-          toName,
+          toName: Bun.escapeHTML(toName),
           tokenLink,
           baseLink,
           cid,
@@ -85,7 +86,7 @@ export function getEmailHtml(props: SendEmailProps): string {
       try {
         const { toName, tokenLink } = props
         const mjmlString = interpolate(passwordReset, {
-          toName,
+          toName: Bun.escapeHTML(toName),
           tokenLink,
           baseLink,
           cid,
@@ -110,15 +111,15 @@ export function getEmailHtml(props: SendEmailProps): string {
           shippingAddress,
         } = props
         const mjmlString = interpolate(adminPaymentNotification, {
-          emailTitle,
+          emailTitle: Bun.escapeHTML(emailTitle),
           paymentId: paymentId.slice(-6).toUpperCase(),
-          customerName,
-          customerEmail,
+          customerName: Bun.escapeHTML(customerName),
+          customerEmail: Bun.escapeHTML(customerEmail),
           eachItems: renderOrderItems(items),
           total: total.toFixed(2),
           currency,
           paymentStatus,
-          shippingAddress,
+          shippingAddress: Bun.escapeHTML(shippingAddress),
           baseLink,
           cid,
         })

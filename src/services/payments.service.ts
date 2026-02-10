@@ -88,7 +88,7 @@ export async function createPaymentIntent(
 
     const orderData: OrderInsert = {
       paymentId: stripePaymentId,
-      paymentStatus: 'processing',
+      paymentStatus: paymentIntent.status,
       currency: defaultCurrency,
       items,
       total,
