@@ -6,9 +6,8 @@
     <mj-section>
       <mj-column>
         <mj-image src="cid:{{cid}}" alt="Bookshop Logo" href="{{baseLink}}" width="97px" align="left" />
-        <mj-text font-size="20px" font-weight="bold" color="#ff6b35">New Payment Initiated</mj-text>
+        <mj-text font-size="20px" font-weight="bold" color="#ff6b35">{{emailTitle}}</mj-text>
         <mj-text font-size="16px" line-height="1.5">
-          A new payment has been initiated in the system.<br />
           <strong>Payment ID:</strong> #{{paymentId}}<br />
           <strong>Customer:</strong> {{customerName}} ({{customerEmail}})
         </mj-text>
@@ -26,7 +25,11 @@
         <mj-divider border-color="#5469d4" />
         <mj-text font-size="16px"> <strong>Total Amount:</strong> {{total}} {{currency}} </mj-text>
         <mj-text font-size="14px" color="#888" line-height="1.5">
-          Payment Status: <strong>Processing</strong>
+          Payment Status: <strong>{{paymentStatus}}</strong>
+        </mj-text>
+        <mj-text font-size="14px" line-height="1.5">
+          <strong>Shipping Address:</strong><br />
+          {{shippingAddress}}
         </mj-text>
         <mj-text font-size="14px" line-height="1.5">
           This is an automated notification.<br />

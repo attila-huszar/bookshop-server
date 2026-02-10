@@ -1,7 +1,12 @@
 import { Stripe } from 'stripe'
 import { env } from '@/config'
 import { ordersDB } from '@/repositories'
-import { extractPaymentIntentFields, getPaymentIntentId } from '@/utils'
+import {
+  AdminNotificationType,
+  extractPaymentIntentFields,
+  getPaymentIntentId,
+  sendAdminNotificationEmail,
+} from '@/utils'
 import { log } from '@/libs'
 import { emailQueue } from '@/queues'
 import { jobOpts, QUEUE } from '@/constants'
@@ -94,6 +99,11 @@ export async function processStripeWebhook(
                 { error, paymentId: paymentIntent.id },
               )
             })
+
+          sendAdminNotificationEmail({
+            order: updatedOrder,
+            type: AdminNotificationType.Confirmed,
+          })
         }
 
         void log.info('[STRIPE] Payment succeeded via webhook', {

@@ -99,20 +99,26 @@ export function getEmailHtml(props: SendEmailProps): string {
     case 'adminPaymentNotification': {
       try {
         const {
+          emailTitle,
           paymentId,
           customerName,
           customerEmail,
           items,
           total,
           currency,
+          paymentStatus,
+          shippingAddress,
         } = props
         const mjmlString = interpolate(adminPaymentNotification, {
+          emailTitle,
           paymentId: paymentId.slice(-6).toUpperCase(),
           customerName,
           customerEmail,
           eachItems: renderOrderItems(items),
           total: total.toFixed(2),
           currency,
+          paymentStatus,
+          shippingAddress,
           baseLink,
           cid,
         })

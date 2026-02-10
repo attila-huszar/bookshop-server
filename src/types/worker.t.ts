@@ -30,6 +30,7 @@ export type OrderConfirmationEmailProps = {
 export type AdminPaymentNotificationEmailProps = {
   type: 'adminPaymentNotification'
   toAddress: string
+  emailTitle: string
   paymentId: string
   customerName: string
   customerEmail: string
@@ -41,6 +42,8 @@ export type AdminPaymentNotificationEmailProps = {
   }[]
   total: number
   currency: string
+  paymentStatus: string
+  shippingAddress: string
 }
 
 export type SendEmailProps =
