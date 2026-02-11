@@ -76,6 +76,12 @@ export async function createPaymentIntent(
     const paymentIntent = await stripe.paymentIntents.create({
       amount: amountInCents,
       currency: defaultCurrency.toLowerCase(),
+      ...(user && {
+        metadata: {
+          userEmail: user.email,
+          userName: `${user.firstName} ${user.lastName}`.trim(),
+        },
+      }),
     })
 
     if (!paymentIntent?.client_secret) {
@@ -127,6 +133,17 @@ export async function createPaymentIntent(
     }
   } catch (error) {
     if (stripePaymentId) {
+      sendAdminNotificationEmail({
+        type: AdminNotificationType.Error,
+        order: {
+          paymentId: stripePaymentId,
+          items,
+          total,
+          currency: defaultCurrency,
+          paymentStatus: 'requires_action',
+        },
+      })
+
       try {
         await stripe.paymentIntents.cancel(stripePaymentId)
         void log.warn(

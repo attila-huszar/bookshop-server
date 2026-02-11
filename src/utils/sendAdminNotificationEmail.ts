@@ -24,16 +24,17 @@ type OrderForAdminEmail = {
 export const enum AdminNotificationType {
   Created = 'created',
   Confirmed = 'confirmed',
+  Error = 'error',
 }
 
 type SendAdminNotificationEmailParams = {
-  order: OrderForAdminEmail
   type: AdminNotificationType
+  order: OrderForAdminEmail
 }
 
 export function sendAdminNotificationEmail({
-  order,
   type,
+  order,
 }: SendAdminNotificationEmailParams): void {
   if (!env.adminEmail) {
     void log.warn('Admin email not configured, skipping notification', {
@@ -45,6 +46,13 @@ export function sendAdminNotificationEmail({
   const emailTitle = {
     created: '🛍️ Order Created',
     confirmed: '✅ Order Confirmed',
+    error: '⚠️ Order Error',
+  }[type]
+
+  const shippingMessage = {
+    created: '⏳ Shipping address will be available after confirmation',
+    confirmed: '🚫 Shipping address unavailable',
+    error: '❌ Error during order processing',
   }[type]
 
   const shippingAddressParts = order.shipping
@@ -66,7 +74,7 @@ export function sendAdminNotificationEmail({
 
   const shippingAddress = shippingAddressParts.length
     ? shippingAddressParts.join('<br />')
-    : 'No shipping address provided'
+    : shippingMessage
 
   const adminEmailData: AdminPaymentNotificationEmailProps = {
     type: QUEUE.EMAIL.JOB.ADMIN_PAYMENT_NOTIFICATION,

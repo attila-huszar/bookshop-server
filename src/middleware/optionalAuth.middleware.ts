@@ -16,8 +16,12 @@ export const optionalAuthMiddleware: MiddlewareHandler = async (c, next) => {
       if (payload.uuid) {
         c.set('jwtPayload', { uuid: payload.uuid })
       }
+
+      log.info('Checkout initiated by registered user', { uuid: payload.uuid })
     } catch {
-      log.warn('Invalid JWT token provided in optionalAuthMiddleware')
+      log.info(
+        'Checkout initiated by guest user (no or invalid token provided)',
+      )
     }
   }
 

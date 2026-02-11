@@ -1,14 +1,34 @@
 <mjml>
   <mj-head>
-    <mj-style> @media only screen and (max-width:480px) { .order-table th, .order-table td { font-size: 10px; padding: 2px; } .order-item { max-width: 50px;} } </mj-style>
+    <mj-style>
+      @media only screen and (max-width: 480px) {
+        .order-table th,
+        .order-table td {
+          font-size: 10px;
+          padding: 2px;
+        }
+        .order-item {
+          max-width: 50px;
+        }
+      }
+    </mj-style>
   </mj-head>
   <mj-body background-color="#f4f4f4">
     <mj-section>
       <mj-column>
-        <mj-image src="cid:{{cid}}" alt="Bookshop Logo" href="{{baseLink}}" width="97px" align="left" />
-        <mj-text font-size="20px" font-weight="bold">Thank you for your order, {{toName}}!</mj-text>
+        <mj-image
+          src="cid:{{cid}}"
+          alt="Bookshop Logo"
+          href="{{baseLink}}"
+          width="97px"
+          align="left"
+        />
+        <mj-text font-size="20px" font-weight="bold"
+          >Thank you for your order, {{ toName }}!</mj-text
+        >
         <mj-text font-size="16px" line-height="1.5">
-          Your order <strong>#{{orderNumber}}</strong> has been received and paid.<br />
+          Your order <strong>#{{ orderNumber }}</strong> has been received and
+          paid.<br />
           Here are your order details:
         </mj-text>
         <mj-divider border-color="#5469d4" />
@@ -20,13 +40,15 @@
             <th align="center">Qty</th>
             <th align="right">Total</th>
           </tr>
-          {{eachItems}}
+          {{ eachItems }}
         </mj-table>
         <mj-divider border-color="#5469d4" />
-        <mj-text font-size="16px"> <strong>Total:</strong> {{total}} {{currency}} </mj-text>
+        <mj-text font-size="16px">
+          <strong>Total:</strong> {{ total }} {{ currency }}
+        </mj-text>
         <mj-text font-size="14px" color="#888" line-height="1.5">
           Shipping to:<br />
-          {{address}}
+          {{ address }}
         </mj-text>
         <mj-text font-size="14px" line-height="1.5">
           If you have any questions, reply to this email.<br />

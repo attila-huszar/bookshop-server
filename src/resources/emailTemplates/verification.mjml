@@ -2,18 +2,38 @@
   <mj-body background-color="#f9f9f9">
     <mj-section>
       <mj-column>
-        <mj-text font-size="18px" font-weight="bold">Hello <span style="font-weight: 700">{{toName}}</span>,</mj-text>
+        <mj-text font-size="18px" font-weight="bold"
+          >Hello <span style="font-weight: 700">{{ toName }}</span
+          >,</mj-text
+        >
         <mj-text font-size="16px" padding-bottom="20px">
           Please verify your email address by clicking this
-          <a href="{{tokenLink}}" target="_blank" rel="noopener" style="color: #1976d2; font-weight: bold">link</a>.
+          <a
+            href="{{tokenLink}}"
+            target="_blank"
+            rel="noopener"
+            style="color: #1976d2; font-weight: bold"
+            >link</a
+          >.
         </mj-text>
-        <mj-text font-size="14px"> If the above link doesn't work, copy and paste this to your browser's address bar: </mj-text>
-        <mj-text font-size="14px" color="#555">{{tokenLink}}</mj-text>
+        <mj-text font-size="14px">
+          If the above link doesn't work, copy and paste this to your browser's
+          address bar:
+        </mj-text>
+        <mj-text font-size="14px" color="#555">{{ tokenLink }}</mj-text>
         <mj-text font-size="13px" color="#888" padding-bottom="20px">
           <em>These links are valid for 24 hours</em>
         </mj-text>
-        <mj-text font-size="16px" font-weight="bold" padding-bottom="10px">Book Shop Team</mj-text>
-        <mj-image src="cid:{{cid}}" alt="Bookshop Logo" href="{{baseLink}}" width="97px" align="left" />
+        <mj-text font-size="16px" font-weight="bold" padding-bottom="10px"
+          >Book Shop Team</mj-text
+        >
+        <mj-image
+          src="cid:{{cid}}"
+          alt="Bookshop Logo"
+          href="{{baseLink}}"
+          width="97px"
+          align="left"
+        />
       </mj-column>
     </mj-section>
   </mj-body>
