@@ -12,6 +12,7 @@ import {
   paymentIdSchema,
   userInsertSchema,
   userUpdateSchema,
+  uuidSchema,
   validate,
 } from '@/validation'
 import { Folder, uploadFile } from '@/utils'
@@ -151,40 +152,20 @@ export async function updateOrder(
 }
 
 export async function updateUser(
-  userId: number,
+  userUuid: string,
   user: UserUpdate,
 ): Promise<Omit<User, 'password'>> {
-  const validatedId = validate(idSchema, userId)
+  const validatedUuid = validate(uuidSchema, userUuid)
   const validatedUser = validate(userUpdateSchema, user)
 
-  if (validatedUser.role !== undefined) {
-    const allUsers = await usersDB.getAllUsers()
-    const userToUpdate = allUsers.find((u) => u.id === validatedId)
-
-    if (
-      userToUpdate?.role === UserRole.Admin &&
-      validatedUser.role !== UserRole.Admin
-    ) {
-      const totalAdmins = allUsers.filter(
-        (u) => u.role === UserRole.Admin,
-      ).length
-
-      if (totalAdmins === 1) {
-        throw new BadRequest(
-          'Cannot change the role of the last admin. At least one admin must remain in the system.',
-        )
-      }
-    }
-  }
-
   const updatedUser = await usersDB.updateUserBy(
-    'id',
-    validatedId,
+    'uuid',
+    validatedUuid,
     validatedUser,
   )
 
   if (!updatedUser) {
-    throw new Error(`User with id ${userId} not found`)
+    throw new Error(`User with uuid ${userUuid} not found`)
   }
   const { password, ...userWithoutPassword } = updatedUser
   return userWithoutPassword
