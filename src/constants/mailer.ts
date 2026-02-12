@@ -4,15 +4,16 @@ export const subjectMap: Record<EmailJobType, string> = {
   verification: 'Bookshop - Verify your email address',
   passwordReset: 'Bookshop - Forgotten Password',
   orderConfirmation: 'Bookshop - Order Confirmation',
+  adminPaymentNotification: 'Bookshop - New Order Notification',
 }
 
 export const cid = 'bookshop-logo-cid'
 
 export const attachments = [
   {
-    filename: 'bookshop-logo.webp',
-    path: process.cwd() + '/src/resources/images/bookshop-logo.webp',
-    contentType: 'image/webp',
+    filename: 'bookshop-logo.png',
+    path: process.cwd() + '/src/resources/images/bookshop-logo.png',
+    contentType: 'image/png',
     cid,
   },
 ]

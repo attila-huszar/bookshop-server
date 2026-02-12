@@ -12,9 +12,11 @@ import {
   paymentIdSchema,
   userInsertSchema,
   userUpdateSchema,
+  uuidSchema,
   validate,
 } from '@/validation'
 import { Folder, uploadFile } from '@/utils'
+import { BadRequest } from '@/errors'
 import type {
   Author,
   AuthorInsert,
@@ -29,6 +31,7 @@ import type {
   UserInsert,
   UserUpdate,
 } from '@/types'
+import { UserRole } from '@/types'
 
 // --- READ --- //
 export async function getAllBooks(): Promise<Book[]> {
@@ -66,7 +69,22 @@ export async function addAuthor(author: AuthorInsert): Promise<Author> {
 
 export async function addOrder(order: OrderInsert): Promise<Order> {
   const validatedOrder = validate(orderInsertSchema, order)
-  const newOrder = await ordersDB.insertOrder(validatedOrder)
+  const itemsWithAuthors = await Promise.all(
+    validatedOrder.items.map(async (item) => {
+      if (item.author) return item
+      const book = await booksDB.getBookById(item.id)
+
+      return {
+        ...item,
+        author: book?.author ?? null,
+      }
+    }),
+  )
+
+  const newOrder = await ordersDB.insertOrder({
+    ...validatedOrder,
+    items: itemsWithAuthors,
+  })
 
   if (!newOrder) {
     throw new Error('Failed to create order')
@@ -134,19 +152,20 @@ export async function updateOrder(
 }
 
 export async function updateUser(
-  userId: number,
+  userUuid: string,
   user: UserUpdate,
 ): Promise<Omit<User, 'password'>> {
-  const validatedId = validate(idSchema, userId)
+  const validatedUuid = validate(uuidSchema, userUuid)
   const validatedUser = validate(userUpdateSchema, user)
+
   const updatedUser = await usersDB.updateUserBy(
-    'id',
-    validatedId,
+    'uuid',
+    validatedUuid,
     validatedUser,
   )
 
   if (!updatedUser) {
-    throw new Error(`User with id ${userId} not found`)
+    throw new Error(`User with uuid ${userUuid} not found`)
   }
   const { password, ...userWithoutPassword } = updatedUser
   return userWithoutPassword
@@ -173,6 +192,28 @@ export async function deleteOrders(orderIds: number[]): Promise<number[]> {
 
 export async function deleteUsers(userIds: number[]): Promise<number[]> {
   const validatedIds = validate(idsSchema, userIds)
+
+  const allUsers = await usersDB.getAllUsers()
+
+  const usersToDelete = allUsers.filter((user) =>
+    validatedIds.includes(user.id),
+  )
+  const deletingAdmins = usersToDelete.filter(
+    (user) => user.role === UserRole.Admin,
+  )
+
+  if (deletingAdmins.length > 0) {
+    const totalAdmins = allUsers.filter(
+      (user) => user.role === UserRole.Admin,
+    ).length
+
+    if (totalAdmins - deletingAdmins.length === 0) {
+      throw new BadRequest(
+        'Cannot delete the last admin. At least one admin must remain in the system.',
+      )
+    }
+  }
+
   const deletedIds = await usersDB.deleteUsersByIds(validatedIds)
   return deletedIds
 }

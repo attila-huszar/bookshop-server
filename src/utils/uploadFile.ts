@@ -28,6 +28,6 @@ export const uploadFile = async (
       error,
       file: file.name,
     })
-    throw new Error('Failed to upload file')
+    throw new Error('Failed to upload file', { cause: error })
   }
 }

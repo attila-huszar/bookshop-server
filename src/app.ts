@@ -20,7 +20,7 @@ import {
   cms,
   logs,
   news,
-  orders,
+  payments,
   users,
   webhooks,
 } from './controller'
@@ -28,6 +28,7 @@ import { log } from './libs'
 import {
   authAdminMiddleware,
   authMiddleware,
+  optionalAuthMiddleware,
   payloadLimiter,
 } from './middleware'
 import { formatUptime, ngrokForward } from './utils'
@@ -92,6 +93,7 @@ app.get('/health', (c) => c.text('OK', 200))
 api.use('/users/profile', authMiddleware)
 api.use('/users/logout', authMiddleware)
 api.use('/users/avatar', authMiddleware)
+api.use('/payments', optionalAuthMiddleware)
 api.use('/cms/*', authAdminMiddleware)
 
 api.route('/books', books)
@@ -99,7 +101,7 @@ api.route('/authors', authors)
 api.route('/news', news)
 api.route('/search_opts', bookSearchOptions)
 api.route('/users', users)
-api.route('/orders', orders)
+api.route('/payments', payments)
 api.route('/cms', cms)
 api.route('/logs', logs)
 

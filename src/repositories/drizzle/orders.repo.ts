@@ -1,39 +1,19 @@
 import { eq, inArray } from 'drizzle-orm'
 import { sqlite } from '@/db'
 import model from '@/models'
-import {
-  type Order,
-  type OrderInsert,
-  OrderStatus,
-  type OrderUpdate,
-} from '@/types'
+import type { Order, OrderInsert, OrderUpdate } from '@/types'
 
 const { ordersTable } = model as SQLiteModel
 
 export async function createOrder(order: OrderInsert): Promise<Order | null> {
-  const orderInsert = {
-    paymentId: order.paymentId,
-    paymentIntentStatus: 'processing' as const,
-    orderStatus: OrderStatus.Pending,
-    firstName: order.firstName,
-    lastName: order.lastName,
-    email: order.email,
-    shipping: order.shipping,
-    total: order.total,
-    currency: order.currency,
-    items: order.items,
-  }
-
   const [createdOrder] = await sqlite
     .insert(ordersTable)
-    .values(orderInsert)
+    .values(order)
     .returning()
   return createdOrder ?? null
 }
 
-export async function getOrderByPaymentId(
-  paymentId: string,
-): Promise<Order | null> {
+export async function getOrder(paymentId: string): Promise<Order | null> {
   const orderRecords = await sqlite
     .select()
     .from(ordersTable)

@@ -1,4 +1,5 @@
 import { mock } from 'bun:test'
+import { stripSensitiveUserFields, stripTimestamps } from '@/utils'
 
 export const mockUsersDB = {
   getUserBy: mock(),
@@ -65,6 +66,8 @@ await mock.module('@/utils', () => ({
   signAccessToken: mockSignAccessToken,
   signRefreshToken: mockSignRefreshToken,
   uploadFile: mockUploadFile,
+  stripSensitiveUserFields,
+  stripTimestamps,
   Folder: {
     Avatars: 'avatars',
     ProductImages: 'product-images',

@@ -19,6 +19,7 @@ import type {
   PasswordResetRequest,
   PasswordResetSubmit,
   PasswordResetToken,
+  PublicUser,
   UserUpdate,
   VerificationRequest,
 } from '@/types'
@@ -109,7 +110,7 @@ users.post('/password-reset-submit', async (c) => {
 users.get('/profile', async (c) => {
   try {
     const jwtPayload = c.get('jwtPayload')
-    const user = await getUserProfile(jwtPayload.uuid)
+    const user: PublicUser = await getUserProfile(jwtPayload.uuid)
 
     return c.json(user)
   } catch (error) {
@@ -121,7 +122,10 @@ users.patch('/profile', async (c) => {
   try {
     const jwtPayload = c.get('jwtPayload')
     const updateFields = await c.req.json<UserUpdate>()
-    const user = await updateUserProfile(jwtPayload.uuid, updateFields)
+    const user: PublicUser = await updateUserProfile(
+      jwtPayload.uuid,
+      updateFields,
+    )
 
     return c.json(user)
   } catch (error) {
@@ -185,7 +189,7 @@ users.post('/avatar', async (c) => {
     const formData = await c.req.formData()
     const avatar = formData.get('avatar')
 
-    const user = await uploadUserAvatar(jwtPayload.uuid, avatar)
+    const user: PublicUser = await uploadUserAvatar(jwtPayload.uuid, avatar)
 
     return c.json(user)
   } catch (error) {

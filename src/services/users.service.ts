@@ -10,7 +10,13 @@ import {
   userUpdateSchema,
   validate,
 } from '@/validation'
-import { Folder, signAccessToken, signRefreshToken, uploadFile } from '@/utils'
+import {
+  Folder,
+  signAccessToken,
+  signRefreshToken,
+  stripSensitiveUserFields,
+  uploadFile,
+} from '@/utils'
 import { log } from '@/libs'
 import { emailQueue } from '@/queues'
 import { authMessage, jobOpts, QUEUE, userMessage } from '@/constants'
@@ -20,6 +26,7 @@ import {
   type PasswordResetRequest,
   type PasswordResetSubmit,
   type PasswordResetToken,
+  type PublicUser,
   type SendEmailProps,
   type UserInsert,
   UserRole,
@@ -238,34 +245,20 @@ export async function passwordResetSubmit(
   return { message: userMessage.passwordResetSuccess }
 }
 
-export async function getUserProfile(uuid: string) {
+export async function getUserProfile(uuid: string): Promise<PublicUser> {
   const user = await usersDB.getUserBy('uuid', uuid)
 
   if (!user) {
     throw new NotFound(userMessage.getError)
   }
 
-  const {
-    id,
-    uuid: _uuid,
-    password,
-    verified,
-    verificationToken,
-    verificationExpires,
-    passwordResetToken,
-    passwordResetExpires,
-    createdAt,
-    updatedAt,
-    ...userWithoutCreds
-  } = user
-
-  return userWithoutCreds
+  return stripSensitiveUserFields(user)
 }
 
 export async function updateUserProfile(
   uuid: string,
   updateFields: UserUpdate,
-) {
+): Promise<PublicUser> {
   const validatedFields = validate(userUpdateSchema, updateFields)
 
   const user = await usersDB.getUserBy('uuid', uuid)
@@ -288,27 +281,13 @@ export async function updateUserProfile(
     throw new Error(userMessage.updateError)
   }
 
-  const {
-    id,
-    uuid: _uuid,
-    password,
-    verified,
-    verificationToken,
-    verificationExpires,
-    passwordResetToken,
-    passwordResetExpires,
-    createdAt,
-    updatedAt,
-    ...userWithoutCreds
-  } = userUpdated
-
-  return userWithoutCreds
+  return stripSensitiveUserFields(userUpdated)
 }
 
 export async function uploadUserAvatar(
   userUuid: string,
   avatar: Bun.FormDataEntryValue | null,
-) {
+): Promise<PublicUser> {
   const user = await usersDB.getUserBy('uuid', userUuid)
 
   if (!user) {
@@ -331,19 +310,5 @@ export async function uploadUserAvatar(
     throw new Error(userMessage.updateError)
   }
 
-  const {
-    id,
-    uuid,
-    password,
-    verified,
-    verificationToken,
-    verificationExpires,
-    passwordResetToken,
-    passwordResetExpires,
-    createdAt,
-    updatedAt,
-    ...userWithoutCreds
-  } = userUpdated
-
-  return userWithoutCreds
+  return stripSensitiveUserFields(userUpdated)
 }

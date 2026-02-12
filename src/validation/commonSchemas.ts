@@ -1,10 +1,7 @@
 import { z } from 'zod'
 import { MAX_IMAGE_SIZE } from '@/constants'
 
-export const idSchema = z.coerce
-  .number({ message: 'ID must be a number' })
-  .int('ID must be an integer')
-  .positive('ID must be positive')
+export const idSchema = z.coerce.number().int()
 
 export const entityWithIdSchema = z.object({
   id: idSchema,
@@ -27,3 +24,5 @@ export const imageSchema = z
   .refine((data) => data.size > 0, {
     message: 'Image size must be greater than 0',
   })
+
+export const uuidSchema = z.uuid()

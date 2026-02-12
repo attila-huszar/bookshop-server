@@ -145,8 +145,10 @@ cms.patch('/orders', async (c) => {
 
 cms.patch('/users', async (c) => {
   try {
-    const { id, ...fields } = await c.req.json<UserUpdate & { id: number }>()
-    const updatedUser = await updateUser(id, fields)
+    const { uuid, ...fields } = await c.req.json<
+      UserUpdate & { uuid: string }
+    >()
+    const updatedUser = await updateUser(uuid, fields)
     return c.json(updatedUser)
   } catch (error) {
     return errorHandler(c, error)

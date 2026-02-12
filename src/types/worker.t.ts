@@ -1,5 +1,6 @@
 import type { QUEUE } from '@/constants'
 import type { Order } from './orders.t'
+import type { PaymentIntentStatus } from './stripe.t'
 
 export type QueueName = typeof QUEUE.EMAIL.NAME
 
@@ -27,7 +28,27 @@ export type OrderConfirmationEmailProps = {
   order: Order
 }
 
+export type AdminPaymentNotificationEmailProps = {
+  type: 'adminPaymentNotification'
+  toAddress: string
+  emailTitle: string
+  paymentId: string
+  customerName: string
+  customerEmail: string
+  items: {
+    title: string
+    quantity: number
+    price: number
+    discount?: number
+  }[]
+  total: number
+  currency: string
+  paymentStatus: PaymentIntentStatus
+  shippingAddress: string
+}
+
 export type SendEmailProps =
   | VerificationEmailProps
   | PasswordResetEmailProps
   | OrderConfirmationEmailProps
+  | AdminPaymentNotificationEmailProps
