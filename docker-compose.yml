@@ -12,6 +12,8 @@ services:
         condition: service_started
     restart: unless-stopped
     env_file: .env
+    environment:
+      DB_REPO: SQLITE
     command: >
       sh -c "
        set -e
@@ -54,6 +56,8 @@ services:
         condition: service_started
     restart: unless-stopped
     env_file: .env
+    environment:
+      DB_REPO: MONGO
     command: >
       sh -c "
        set -e
@@ -118,6 +122,8 @@ services:
         condition: service_started
     restart: unless-stopped
     env_file: .env
+    environment:
+      DB_REPO: SQLITE
     command: >
       sh -c "
        set -e
@@ -155,6 +161,8 @@ services:
         condition: service_started
     restart: unless-stopped
     env_file: .env
+    environment:
+      DB_REPO: MONGO
     command: >
       sh -c "
        set -e
