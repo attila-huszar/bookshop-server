@@ -1,5 +1,6 @@
 import type { z } from 'zod'
 import type {
+  authJWTPayloadSchema,
   emailSchema,
   loginSchema,
   passwordResetSchema,
@@ -43,3 +44,5 @@ export type GetUserBy = Extract<
   keyof User,
   'id' | 'uuid' | 'email' | 'verificationToken' | 'passwordResetToken'
 >
+
+export type AuthJWTPayload = z.infer<typeof authJWTPayloadSchema>

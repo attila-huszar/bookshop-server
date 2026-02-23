@@ -15,6 +15,7 @@ import {
 import { signAccessToken, signRefreshToken, verifyJWTRefresh } from '@/utils'
 import { errorHandler } from '@/errors'
 import type {
+  AuthJWTPayload,
   LoginRequest,
   PasswordResetRequest,
   PasswordResetSubmit,
@@ -155,17 +156,20 @@ users.post('/refresh', async (c) => {
       return c.json({ accessToken: null }, 200)
     }
 
-    const payload = (await verifyJWTRefresh(refreshTokenCookie)) as {
-      uuid: string
-      exp: number
-      iat: number
+    let jwtPayload: AuthJWTPayload
+
+    try {
+      jwtPayload = await verifyJWTRefresh(refreshTokenCookie)
+    } catch {
+      deleteCookie(c, REFRESH_TOKEN, cookieOptions)
+      return c.json({ accessToken: null }, 200)
     }
 
-    const expTimestamp = payload.exp ?? 0
+    const expTimestamp = jwtPayload.exp ?? 0
     const timestamp = Math.floor(Date.now() / 1000)
 
     if (expTimestamp - 259200 < timestamp) {
-      const refreshToken = await signRefreshToken(payload.uuid, timestamp)
+      const refreshToken = await signRefreshToken(jwtPayload.uuid, timestamp)
       await setSignedCookie(
         c,
         REFRESH_TOKEN,
@@ -175,7 +179,7 @@ users.post('/refresh', async (c) => {
       )
     }
 
-    const accessToken = await signAccessToken(payload.uuid, timestamp)
+    const accessToken = await signAccessToken(jwtPayload.uuid, timestamp)
 
     return c.json({ accessToken })
   } catch (error) {

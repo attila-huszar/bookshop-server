@@ -10,7 +10,7 @@ import {
 import { AdminNotificationType, sendAdminNotificationEmail } from '@/utils'
 import { log } from '@/libs'
 import { defaultCurrency } from '@/constants'
-import { Internal, NotFound } from '@/errors'
+import { Internal, NotFound, Unauthorized } from '@/errors'
 import type {
   OrderInsert,
   OrderItem,
@@ -21,9 +21,38 @@ import type {
 
 const stripe = new Stripe(env.stripeSecret!)
 
-export async function retrievePaymentIntent(paymentId: string) {
+type PaymentAccess = {
+  userEmail?: string
+  paymentSessionId?: string
+}
+
+async function authorizePaymentAccess(
+  paymentId: string,
+  access?: PaymentAccess,
+): Promise<void> {
+  const userEmail = access?.userEmail
+  const paymentSessionId = access?.paymentSessionId
+
+  if (paymentSessionId === paymentId) return
+
+  if (!userEmail) {
+    throw new Unauthorized('Unauthorized payment access')
+  }
+
+  const order = await ordersDB.getOrder(paymentId)
+  if (order?.email && order.email === userEmail) return
+
+  throw new Unauthorized('Unauthorized payment access')
+}
+
+export async function retrievePaymentIntent(
+  paymentId: string,
+  access?: PaymentAccess,
+) {
   const validatedId = validate(paymentIdSchema, paymentId)
-  return stripe.paymentIntents.retrieve(validatedId)
+  const paymentIntent = await stripe.paymentIntents.retrieve(validatedId)
+  await authorizePaymentAccess(validatedId, access)
+  return paymentIntent
 }
 
 export async function createPaymentIntent(
@@ -162,8 +191,13 @@ export async function createPaymentIntent(
   }
 }
 
-export async function cancelPaymentIntent(paymentId: string) {
+export async function cancelPaymentIntent(
+  paymentId: string,
+  access?: PaymentAccess,
+) {
   const validatedId = validate(paymentIdSchema, paymentId)
+  await stripe.paymentIntents.retrieve(validatedId)
+  await authorizePaymentAccess(validatedId, access)
   const cancelledIntent = await stripe.paymentIntents.cancel(validatedId)
 
   await ordersDB.updateOrder(validatedId, {

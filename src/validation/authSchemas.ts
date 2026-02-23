@@ -19,12 +19,10 @@ export const tokenSchema = z.object({
   token: z.uuid('Invalid verification token'),
 })
 
-export const loginSchema = z
-  .object({
-    ...emailSchema.shape,
-    ...passwordSchema.shape,
-  })
-  .strict()
+export const loginSchema = z.strictObject({
+  ...emailSchema.shape,
+  ...passwordSchema.shape,
+})
 
 export const registerSchema = z.object({
   firstName: z
@@ -42,9 +40,13 @@ export const registerSchema = z.object({
   avatar: imageSchema.nullable(),
 })
 
-export const passwordResetSchema = z
-  .object({
-    ...tokenSchema.shape,
-    ...passwordSchema.shape,
-  })
-  .strict()
+export const passwordResetSchema = z.strictObject({
+  ...tokenSchema.shape,
+  ...passwordSchema.shape,
+})
+
+export const authJWTPayloadSchema = z.looseObject({
+  uuid: z.uuid('Invalid auth token uuid'),
+  exp: z.number().optional(),
+  iat: z.number().optional(),
+})
