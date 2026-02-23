@@ -128,7 +128,8 @@ export async function createPaymentIntent(
     })
 
     return {
-      session: paymentIntent.client_secret,
+      paymentId: stripePaymentId,
+      paymentToken: paymentIntent.client_secret,
       amount: amountInCents,
     }
   } catch (error) {

@@ -40,12 +40,12 @@ payments.post('/', async (c) => {
       publicUser = user && stripSensitiveUserFields(user)
     }
 
-    const { session, amount } = await createPaymentIntent(
+    const { paymentId, paymentToken, amount } = await createPaymentIntent(
       paymentIntentRequest,
       publicUser,
     )
 
-    return c.json({ session, amount })
+    return c.json({ paymentId, paymentToken, amount })
   } catch (error) {
     return errorHandler(c, error)
   }
