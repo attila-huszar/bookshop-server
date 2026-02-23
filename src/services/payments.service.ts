@@ -15,6 +15,7 @@ import type {
   OrderInsert,
   OrderItem,
   PaymentIntentRequest,
+  PaymentOrderSyncStatus,
   PaymentSession,
   PublicUser,
 } from '@/types'
@@ -53,6 +54,41 @@ export async function retrievePaymentIntent(
   const paymentIntent = await stripe.paymentIntents.retrieve(validatedId)
   await authorizePaymentAccess(validatedId, access)
   return paymentIntent
+}
+
+const toIsoString = (
+  value: Date | string | null | undefined,
+): string | null => {
+  if (!value) return null
+  if (value instanceof Date) return value.toISOString()
+
+  const parsedDate = new Date(value)
+  if (Number.isNaN(parsedDate.getTime())) return null
+  return parsedDate.toISOString()
+}
+
+export async function retrieveOrderSyncStatus(
+  paymentId: string,
+  access?: PaymentAccess,
+): Promise<PaymentOrderSyncStatus> {
+  const validatedId = validate(paymentIdSchema, paymentId)
+  await authorizePaymentAccess(validatedId, access)
+
+  const order = await ordersDB.getOrder(validatedId)
+  if (!order) {
+    throw new NotFound(`Order not found for payment ID: ${validatedId}`)
+  }
+
+  return {
+    paymentId: order.paymentId,
+    paymentStatus: order.paymentStatus,
+    amount: Math.round(order.total * 100),
+    currency: order.currency,
+    receiptEmail: order.email ?? null,
+    shipping: order.shipping ?? null,
+    finalizedAt: toIsoString(order.paidAt),
+    webhookUpdatedAt: toIsoString(order.updatedAt),
+  }
 }
 
 export async function createPaymentIntent(

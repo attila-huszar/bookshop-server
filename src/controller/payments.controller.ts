@@ -4,6 +4,7 @@ import { env, PAYMENT_SESSION, paymentCookieOptions } from '@/config'
 import {
   cancelPaymentIntent,
   createPaymentIntent,
+  retrieveOrderSyncStatus,
   retrievePaymentIntent,
 } from '@/services'
 import { usersDB } from '@/repositories'
@@ -18,6 +19,44 @@ type Variables = {
 }
 
 export const payments = new Hono<{ Variables: Variables }>()
+
+payments.get('/:paymentId/order-sync', async (c) => {
+  try {
+    const paymentId = c.req.param('paymentId')
+    const paymentSessionCookie = await getSignedCookie(
+      c,
+      env.cookieSecret!,
+      PAYMENT_SESSION,
+    )
+
+    if (paymentSessionCookie === false) {
+      deleteCookie(c, PAYMENT_SESSION, paymentCookieOptions)
+    }
+
+    const paymentSessionId =
+      typeof paymentSessionCookie === 'string'
+        ? paymentSessionCookie
+        : undefined
+
+    const jwtPayload = c.get('jwtPayload')
+
+    let userEmail: string | undefined
+
+    if (jwtPayload?.uuid) {
+      const user = await usersDB.getUserBy('uuid', jwtPayload.uuid)
+      userEmail = user?.email
+    }
+
+    const orderSyncStatus = await retrieveOrderSyncStatus(paymentId, {
+      userEmail,
+      paymentSessionId,
+    })
+
+    return c.json(orderSyncStatus)
+  } catch (error) {
+    return errorHandler(c, error)
+  }
+})
 
 payments.get('/:paymentId', async (c) => {
   try {
