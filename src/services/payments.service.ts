@@ -12,6 +12,7 @@ import { log } from '@/libs'
 import { defaultCurrency } from '@/constants'
 import { Internal, NotFound, Unauthorized } from '@/errors'
 import type {
+  Order,
   OrderInsert,
   OrderItem,
   PaymentIntentRequest,
@@ -23,25 +24,29 @@ import type {
 const stripe = new Stripe(env.stripeSecret!)
 
 type PaymentAccess = {
-  userEmail?: string
   paymentSessionId?: string
+  userEmail?: string
 }
 
 async function authorizePaymentAccess(
   paymentId: string,
   access?: PaymentAccess,
-): Promise<void> {
-  const userEmail = access?.userEmail
-  const paymentSessionId = access?.paymentSessionId
+): Promise<Order> {
+  const order = await ordersDB.getOrder(paymentId)
 
-  if (paymentSessionId === paymentId) return
-
-  if (!userEmail) {
+  if (!order) {
     throw new Unauthorized('Unauthorized payment access')
   }
 
-  const order = await ordersDB.getOrder(paymentId)
-  if (order?.email && order.email === userEmail) return
+  const paymentSessionId = access?.paymentSessionId
+  const userEmail = access?.userEmail
+  const orderEmail = order.email
+
+  if (paymentSessionId === paymentId) return order
+
+  if (userEmail && orderEmail && orderEmail === userEmail) {
+    return order
+  }
 
   throw new Unauthorized('Unauthorized payment access')
 }
@@ -51,9 +56,8 @@ export async function retrievePaymentIntent(
   access?: PaymentAccess,
 ) {
   const validatedId = validate(paymentIdSchema, paymentId)
-  const paymentIntent = await stripe.paymentIntents.retrieve(validatedId)
   await authorizePaymentAccess(validatedId, access)
-  return paymentIntent
+  return await stripe.paymentIntents.retrieve(validatedId)
 }
 
 const toIsoString = (
@@ -72,12 +76,7 @@ export async function retrieveOrderSyncStatus(
   access?: PaymentAccess,
 ): Promise<PaymentOrderSyncStatus> {
   const validatedId = validate(paymentIdSchema, paymentId)
-  await authorizePaymentAccess(validatedId, access)
-
-  const order = await ordersDB.getOrder(validatedId)
-  if (!order) {
-    throw new NotFound(`Order not found for payment ID: ${validatedId}`)
-  }
+  const order = await authorizePaymentAccess(validatedId, access)
 
   return {
     paymentId: order.paymentId,
@@ -232,8 +231,8 @@ export async function cancelPaymentIntent(
   access?: PaymentAccess,
 ) {
   const validatedId = validate(paymentIdSchema, paymentId)
-  await stripe.paymentIntents.retrieve(validatedId)
   await authorizePaymentAccess(validatedId, access)
+  await stripe.paymentIntents.retrieve(validatedId)
   const cancelledIntent = await stripe.paymentIntents.cancel(validatedId)
 
   await ordersDB.updateOrder(validatedId, {

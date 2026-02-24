@@ -7,7 +7,12 @@ export const mockUsersDB = {
   updateUserBy: mock(),
 }
 
+export const mockBooksDB = {
+  getBookById: mock(),
+}
+
 export const mockOrdersDB = {
+  getOrder: mock(),
   createOrder: mock(),
   updateOrder: mock(),
 }
@@ -25,6 +30,7 @@ export const mockSignAccessToken = mock()
 export const mockSignRefreshToken = mock()
 export const mockUploadFile = mock()
 export const mockSendEmail = mock()
+export const mockSendAdminNotificationEmail = mock()
 
 export const mockLogger = {
   info: mock(),
@@ -43,16 +49,24 @@ export const mockWorker = {
 export const mockIORedis = mock(() => mockWorker)
 
 await mock.module('@/repositories', () => ({
+  booksDB: mockBooksDB,
   usersDB: mockUsersDB,
   ordersDB: mockOrdersDB,
 }))
 
-await mock.module('stripe', () => ({
-  Stripe: mock(() => mockStripe),
-}))
+await mock.module('stripe', () => {
+  const mockStripeCtor = mock(() => mockStripe)
+  return {
+    Stripe: mockStripeCtor,
+    default: mockStripeCtor,
+  }
+})
 
 await mock.module('@/validation', () => ({
   validate: mockValidate,
+  orderInsertSchema: {},
+  paymentIdSchema: {},
+  paymentIntentRequestSchema: {},
   loginSchema: {},
   registerSchema: {},
   emailSchema: {},
@@ -63,6 +77,12 @@ await mock.module('@/validation', () => ({
 }))
 
 await mock.module('@/utils', () => ({
+  sendAdminNotificationEmail: mockSendAdminNotificationEmail,
+  AdminNotificationType: {
+    Created: 'created',
+    Confirmed: 'confirmed',
+    Error: 'error',
+  },
   signAccessToken: mockSignAccessToken,
   signRefreshToken: mockSignRefreshToken,
   uploadFile: mockUploadFile,
