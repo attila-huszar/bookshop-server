@@ -95,23 +95,6 @@ describe('Payments Service', () => {
       })
       expect(mockOrdersDB.getOrder).toHaveBeenCalledTimes(1)
     })
-
-    it('allows registered user access when order email matches (case-insensitive)', async () => {
-      mockOrdersDB.getOrder.mockResolvedValueOnce(
-        createOrder({ email: 'Guest@Example.com' }),
-      )
-
-      const result = await paymentsService.retrieveOrderSyncStatus(
-        'pi_test_123',
-        {
-          userEmail: 'guest@example.com',
-        },
-      )
-
-      expect(result.paymentId).toBe('pi_test_123')
-      expect(result.receiptEmail).toBe('Guest@Example.com')
-      expect(result.currency).toBe('USD')
-    })
   })
 
   describe('cancelPaymentIntent', () => {

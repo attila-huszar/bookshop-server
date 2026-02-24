@@ -44,7 +44,7 @@ async function authorizePaymentAccess(
 
   if (paymentSessionId === paymentId) return order
 
-  if (userEmail && orderEmail && orderEmail === userEmail) {
+  if (userEmail && orderEmail?.toLowerCase() === userEmail.toLowerCase()) {
     return order
   }
 
@@ -232,7 +232,6 @@ export async function cancelPaymentIntent(
 ) {
   const validatedId = validate(paymentIdSchema, paymentId)
   await authorizePaymentAccess(validatedId, access)
-  await stripe.paymentIntents.retrieve(validatedId)
   const cancelledIntent = await stripe.paymentIntents.cancel(validatedId)
 
   await ordersDB.updateOrder(validatedId, {
