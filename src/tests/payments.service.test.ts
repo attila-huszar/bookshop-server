@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it } from 'bun:test'
-import * as paymentsService from '@/services/payments.service'
+import {
+  cancelPaymentIntent,
+  retrieveOrderSyncStatus,
+  retrievePaymentIntent,
+} from '@/services/payments.service'
+import { isOrderSyncPendingStatus } from '@/utils'
 import { Unauthorized } from '@/errors'
 import type { Order } from '@/types'
 import { mockOrdersDB, mockStripe, mockValidate } from './test-setup'
@@ -39,7 +44,7 @@ describe('Payments Service', () => {
       let resultError: unknown = null
 
       try {
-        await paymentsService.retrievePaymentIntent('pi_test_123', {
+        await retrievePaymentIntent('pi_test_123', {
           userEmail: 'other@example.com',
         })
       } catch (error) {
@@ -56,7 +61,7 @@ describe('Payments Service', () => {
       let resultError: unknown = null
 
       try {
-        await paymentsService.retrievePaymentIntent('pi_test_123', {
+        await retrievePaymentIntent('pi_test_123', {
           paymentSessionId: 'pi_test_123',
         })
       } catch (error) {
@@ -76,12 +81,9 @@ describe('Payments Service', () => {
       })
       mockOrdersDB.getOrder.mockResolvedValueOnce(order)
 
-      const result = await paymentsService.retrieveOrderSyncStatus(
-        'pi_test_123',
-        {
-          paymentSessionId: 'pi_test_123',
-        },
-      )
+      const result = await retrieveOrderSyncStatus('pi_test_123', {
+        paymentSessionId: 'pi_test_123',
+      })
 
       expect(result).toEqual({
         paymentId: 'pi_test_123',
@@ -99,24 +101,16 @@ describe('Payments Service', () => {
 
   describe('isOrderSyncPendingStatus', () => {
     it('returns true for pending webhook states', () => {
-      expect(paymentsService.isOrderSyncPendingStatus('processing')).toBe(true)
-      expect(paymentsService.isOrderSyncPendingStatus('requires_action')).toBe(
-        true,
-      )
-      expect(
-        paymentsService.isOrderSyncPendingStatus('requires_confirmation'),
-      ).toBe(true)
-      expect(
-        paymentsService.isOrderSyncPendingStatus('requires_payment_method'),
-      ).toBe(true)
+      expect(isOrderSyncPendingStatus('processing')).toBe(true)
+      expect(isOrderSyncPendingStatus('requires_action')).toBe(true)
+      expect(isOrderSyncPendingStatus('requires_confirmation')).toBe(true)
+      expect(isOrderSyncPendingStatus('requires_payment_method')).toBe(true)
     })
 
     it('returns false for finalized states', () => {
-      expect(paymentsService.isOrderSyncPendingStatus('succeeded')).toBe(false)
-      expect(paymentsService.isOrderSyncPendingStatus('requires_capture')).toBe(
-        false,
-      )
-      expect(paymentsService.isOrderSyncPendingStatus('canceled')).toBe(false)
+      expect(isOrderSyncPendingStatus('succeeded')).toBe(false)
+      expect(isOrderSyncPendingStatus('requires_capture')).toBe(false)
+      expect(isOrderSyncPendingStatus('canceled')).toBe(false)
     })
   })
 
@@ -127,7 +121,7 @@ describe('Payments Service', () => {
       let resultError: unknown = null
 
       try {
-        await paymentsService.cancelPaymentIntent('pi_test_123', {
+        await cancelPaymentIntent('pi_test_123', {
           userEmail: 'other@example.com',
         })
       } catch (error) {
