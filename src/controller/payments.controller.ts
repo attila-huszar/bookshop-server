@@ -1,14 +1,14 @@
 import { Hono } from 'hono'
-import { deleteCookie, getSignedCookie, setSignedCookie } from 'hono/cookie'
+import { deleteCookie, setSignedCookie } from 'hono/cookie'
 import { env, PAYMENT_SESSION, paymentCookieOptions } from '@/config'
 import {
   cancelPaymentIntent,
   createPaymentIntent,
+  getUserProfile,
   retrieveOrderSyncStatus,
   retrievePaymentIntent,
 } from '@/services'
-import { usersDB } from '@/repositories'
-import { isOrderSyncPendingStatus, stripSensitiveUserFields } from '@/utils'
+import { isOrderSyncPendingStatus } from '@/utils'
 import { errorHandler } from '@/errors'
 import {
   orderSyncPendingCode,
@@ -20,6 +20,10 @@ type Variables = {
   jwtPayload?: {
     uuid: string
   }
+  paymentAccess?: {
+    paymentSessionId?: string
+    userEmail?: string
+  }
 }
 
 export const payments = new Hono<{ Variables: Variables }>()
@@ -27,29 +31,7 @@ export const payments = new Hono<{ Variables: Variables }>()
 payments.get('/:paymentId/order-sync', async (c) => {
   try {
     const paymentId = c.req.param('paymentId')
-    const paymentSessionCookie = await getSignedCookie(
-      c,
-      env.cookieSecret!,
-      PAYMENT_SESSION,
-    )
-
-    if (paymentSessionCookie === false) {
-      deleteCookie(c, PAYMENT_SESSION, paymentCookieOptions)
-    }
-
-    const paymentSessionId =
-      typeof paymentSessionCookie === 'string'
-        ? paymentSessionCookie
-        : undefined
-
-    const jwtPayload = c.get('jwtPayload')
-
-    let userEmail: string | undefined
-
-    if (jwtPayload?.uuid) {
-      const user = await usersDB.getUserBy('uuid', jwtPayload.uuid)
-      userEmail = user?.email
-    }
+    const { paymentSessionId, userEmail } = c.get('paymentAccess') ?? {}
 
     const orderSyncStatus = await retrieveOrderSyncStatus(paymentId, {
       userEmail,
@@ -75,29 +57,7 @@ payments.get('/:paymentId/order-sync', async (c) => {
 payments.get('/:paymentId', async (c) => {
   try {
     const paymentId = c.req.param('paymentId')
-    const paymentSessionCookie = await getSignedCookie(
-      c,
-      env.cookieSecret!,
-      PAYMENT_SESSION,
-    )
-
-    if (paymentSessionCookie === false) {
-      deleteCookie(c, PAYMENT_SESSION, paymentCookieOptions)
-    }
-
-    const paymentSessionId =
-      typeof paymentSessionCookie === 'string'
-        ? paymentSessionCookie
-        : undefined
-
-    const jwtPayload = c.get('jwtPayload')
-
-    let userEmail: string | undefined
-
-    if (jwtPayload?.uuid) {
-      const user = await usersDB.getUserBy('uuid', jwtPayload.uuid)
-      userEmail = user?.email
-    }
+    const { paymentSessionId, userEmail } = c.get('paymentAccess') ?? {}
 
     const paymentIntent = await retrievePaymentIntent(paymentId, {
       userEmail,
@@ -117,9 +77,8 @@ payments.post('/', async (c) => {
     const jwtPayload = c.get('jwtPayload')
     let publicUser: PublicUser | null = null
 
-    if (jwtPayload) {
-      const user = await usersDB.getUserBy('uuid', jwtPayload.uuid)
-      publicUser = user && stripSensitiveUserFields(user)
+    if (jwtPayload?.uuid) {
+      publicUser = await getUserProfile(jwtPayload.uuid, { optional: true })
     }
 
     const { paymentId, paymentToken, amount } = await createPaymentIntent(
@@ -144,29 +103,7 @@ payments.post('/', async (c) => {
 payments.delete('/:paymentId', async (c) => {
   try {
     const paymentId = c.req.param('paymentId')
-    const paymentSessionCookie = await getSignedCookie(
-      c,
-      env.cookieSecret!,
-      PAYMENT_SESSION,
-    )
-
-    if (paymentSessionCookie === false) {
-      deleteCookie(c, PAYMENT_SESSION, paymentCookieOptions)
-    }
-
-    const paymentSessionId =
-      typeof paymentSessionCookie === 'string'
-        ? paymentSessionCookie
-        : undefined
-
-    const jwtPayload = c.get('jwtPayload')
-
-    let userEmail: string | undefined
-
-    if (jwtPayload?.uuid) {
-      const user = await usersDB.getUserBy('uuid', jwtPayload.uuid)
-      userEmail = user?.email
-    }
+    const { paymentSessionId, userEmail } = c.get('paymentAccess') ?? {}
 
     const paymentIntent = await cancelPaymentIntent(paymentId, {
       userEmail,

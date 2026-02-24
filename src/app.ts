@@ -30,6 +30,7 @@ import {
   authMiddleware,
   optionalAuthMiddleware,
   payloadLimiter,
+  paymentAccessMiddleware,
 } from './middleware'
 import { formatUptime, ngrokForward } from './utils'
 
@@ -94,6 +95,8 @@ api.use('/users/profile', authMiddleware)
 api.use('/users/logout', authMiddleware)
 api.use('/users/avatar', authMiddleware)
 api.use('/payments', optionalAuthMiddleware)
+api.use('/payments/:paymentId', paymentAccessMiddleware)
+api.use('/payments/:paymentId/*', paymentAccessMiddleware)
 api.use('/cms/*', authAdminMiddleware)
 
 api.route('/books', books)

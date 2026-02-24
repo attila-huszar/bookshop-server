@@ -245,10 +245,21 @@ export async function passwordResetSubmit(
   return { message: userMessage.passwordResetSuccess }
 }
 
-export async function getUserProfile(uuid: string): Promise<PublicUser> {
+export async function getUserProfile(uuid: string): Promise<PublicUser>
+export async function getUserProfile(
+  uuid: string,
+  options: { optional: true },
+): Promise<PublicUser | null>
+export async function getUserProfile(
+  uuid: string,
+  options?: { optional?: boolean },
+): Promise<PublicUser | null> {
   const user = await usersDB.getUserBy('uuid', uuid)
 
   if (!user) {
+    if (options?.optional) {
+      return null
+    }
     throw new NotFound(userMessage.getError)
   }
 
