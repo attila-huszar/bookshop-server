@@ -97,6 +97,29 @@ describe('Payments Service', () => {
     })
   })
 
+  describe('isOrderSyncPendingStatus', () => {
+    it('returns true for pending webhook states', () => {
+      expect(paymentsService.isOrderSyncPendingStatus('processing')).toBe(true)
+      expect(paymentsService.isOrderSyncPendingStatus('requires_action')).toBe(
+        true,
+      )
+      expect(
+        paymentsService.isOrderSyncPendingStatus('requires_confirmation'),
+      ).toBe(true)
+      expect(
+        paymentsService.isOrderSyncPendingStatus('requires_payment_method'),
+      ).toBe(true)
+    })
+
+    it('returns false for finalized states', () => {
+      expect(paymentsService.isOrderSyncPendingStatus('succeeded')).toBe(false)
+      expect(paymentsService.isOrderSyncPendingStatus('requires_capture')).toBe(
+        false,
+      )
+      expect(paymentsService.isOrderSyncPendingStatus('canceled')).toBe(false)
+    })
+  })
+
   describe('cancelPaymentIntent', () => {
     it('rejects unauthorized cancel before hitting Stripe', async () => {
       mockOrdersDB.getOrder.mockResolvedValueOnce(createOrder())

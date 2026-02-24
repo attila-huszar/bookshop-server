@@ -20,3 +20,14 @@ export type PaymentOrderSyncStatus = {
   finalizedAt: string | null
   webhookUpdatedAt: string | null
 }
+
+export const orderSyncPendingCode = 'ORDER_SYNC_PENDING' as const
+export type OrderSyncPendingCode = typeof orderSyncPendingCode
+
+export type PaymentOrderSyncPendingStatus = PaymentOrderSyncStatus & {
+  code: OrderSyncPendingCode
+}
+
+export type PaymentOrderSyncResponse =
+  | PaymentOrderSyncStatus
+  | PaymentOrderSyncPendingStatus

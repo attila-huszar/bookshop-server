@@ -8,9 +8,13 @@ import {
   retrievePaymentIntent,
 } from '@/services'
 import { usersDB } from '@/repositories'
-import { stripSensitiveUserFields } from '@/utils'
+import { isOrderSyncPendingStatus, stripSensitiveUserFields } from '@/utils'
 import { errorHandler } from '@/errors'
-import type { PaymentIntentRequest, PublicUser } from '@/types'
+import {
+  orderSyncPendingCode,
+  type PaymentIntentRequest,
+  type PublicUser,
+} from '@/types'
 
 type Variables = {
   jwtPayload?: {
@@ -51,6 +55,16 @@ payments.get('/:paymentId/order-sync', async (c) => {
       userEmail,
       paymentSessionId,
     })
+
+    if (isOrderSyncPendingStatus(orderSyncStatus.paymentStatus)) {
+      return c.json(
+        {
+          ...orderSyncStatus,
+          code: orderSyncPendingCode,
+        },
+        202,
+      )
+    }
 
     return c.json(orderSyncStatus)
   } catch (error) {
