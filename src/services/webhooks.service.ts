@@ -2,7 +2,7 @@ import { Stripe } from 'stripe'
 import { env } from '@/config'
 import { ordersDB } from '@/repositories'
 import {
-  AdminNotificationType,
+  AdminNotificationEnum,
   extractPaymentIntentFields,
   getPaymentIntentId,
   sendAdminNotificationEmail,
@@ -102,7 +102,7 @@ export async function processStripeWebhook(
 
           sendAdminNotificationEmail({
             order: updatedOrder,
-            type: AdminNotificationType.Confirmed,
+            type: AdminNotificationEnum.Confirmed,
           })
         }
 

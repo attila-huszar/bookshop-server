@@ -4,7 +4,6 @@ import {
   retrieveOrderSyncStatus,
   retrievePaymentIntent,
 } from '@/services/payments.service'
-import { isOrderSyncPendingStatus } from '@/utils'
 import { Unauthorized } from '@/errors'
 import type { Order } from '@/types'
 import { mockOrdersDB, mockStripe, mockValidate } from './test-setup'
@@ -96,21 +95,6 @@ describe('Payments Service', () => {
         webhookUpdatedAt: '2026-02-24T10:05:00.000Z',
       })
       expect(mockOrdersDB.getOrder).toHaveBeenCalledTimes(1)
-    })
-  })
-
-  describe('isOrderSyncPendingStatus', () => {
-    it('returns true for pending webhook states', () => {
-      expect(isOrderSyncPendingStatus('processing')).toBe(true)
-      expect(isOrderSyncPendingStatus('requires_action')).toBe(true)
-      expect(isOrderSyncPendingStatus('requires_confirmation')).toBe(true)
-      expect(isOrderSyncPendingStatus('requires_payment_method')).toBe(true)
-    })
-
-    it('returns false for finalized states', () => {
-      expect(isOrderSyncPendingStatus('succeeded')).toBe(false)
-      expect(isOrderSyncPendingStatus('requires_capture')).toBe(false)
-      expect(isOrderSyncPendingStatus('canceled')).toBe(false)
     })
   })
 

@@ -1,4 +1,15 @@
-export function formatUptime(nanoseconds: number): string {
+export const toIsoString = (
+  value: Date | string | null | undefined,
+): string | null => {
+  if (!value) return null
+  if (value instanceof Date) return value.toISOString()
+
+  const parsedDate = new Date(value)
+  if (Number.isNaN(parsedDate.getTime())) return null
+  return parsedDate.toISOString()
+}
+
+export const formatUptime = (nanoseconds: number): string => {
   const seconds = Math.floor(nanoseconds / 1e9)
   const days = Math.floor(seconds / (24 * 3600))
   const hours = Math.floor((seconds % (24 * 3600)) / 3600)

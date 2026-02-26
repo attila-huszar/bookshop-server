@@ -1,12 +1,14 @@
 import type {
   BillingDetails,
   Order,
+  PublicUser,
   StripeCharge,
   StripeDispute,
   StripePaymentIntent,
   StripeRefund,
+  User,
 } from '@/types'
-import { splitFullName } from './textTransforms'
+import { splitFullName } from './string.utils'
 
 type PaymentIntentRef = Pick<
   StripeCharge | StripeRefund | StripeDispute,
@@ -55,4 +57,28 @@ export function extractChargeFields(charge: StripeCharge): Partial<Order> {
   }
 
   return fields
+}
+
+export const stripSensitiveUserFields = (user: User): PublicUser => {
+  const {
+    id,
+    password,
+    verified,
+    verificationToken,
+    verificationExpires,
+    passwordResetToken,
+    passwordResetExpires,
+    createdAt,
+    updatedAt,
+    ...publicUser
+  } = user
+
+  return publicUser
+}
+
+export const stripTimestamps = <T extends { createdAt: Date; updatedAt: Date }>(
+  entity: T,
+): WithoutTS<T> => {
+  const { createdAt, updatedAt, ...rest } = entity
+  return rest
 }

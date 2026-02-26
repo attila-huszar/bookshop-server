@@ -1,6 +1,5 @@
 import type { QUEUE } from '@/constants'
-import type { Order } from './orders.t'
-import type { PaymentIntentStatus } from './stripe.t'
+import type { Order } from './orders.types'
 
 export type QueueName = typeof QUEUE.EMAIL.NAME
 
@@ -28,24 +27,20 @@ export type OrderConfirmationEmailProps = {
   order: Order
 }
 
+export type AdminPaymentNotificationEmailItem = Pick<
+  Order['items'][number],
+  'title' | 'quantity' | 'price' | 'discount'
+>
+
 export type AdminPaymentNotificationEmailProps = {
   type: 'adminPaymentNotification'
   toAddress: string
   emailTitle: string
-  paymentId: string
   customerName: string
   customerEmail: string
-  items: {
-    title: string
-    quantity: number
-    price: number
-    discount?: number
-  }[]
-  total: number
-  currency: string
-  paymentStatus: PaymentIntentStatus
+  items: AdminPaymentNotificationEmailItem[]
   shippingAddress: string
-}
+} & Pick<Order, 'paymentId' | 'total' | 'currency' | 'paymentStatus'>
 
 export type SendEmailProps =
   | VerificationEmailProps

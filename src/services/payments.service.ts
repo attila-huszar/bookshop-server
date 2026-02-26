@@ -7,7 +7,11 @@ import {
   paymentIntentRequestSchema,
   validate,
 } from '@/validation'
-import { AdminNotificationType, sendAdminNotificationEmail } from '@/utils'
+import {
+  AdminNotificationEnum,
+  sendAdminNotificationEmail,
+  toIsoString,
+} from '@/utils'
 import { log } from '@/libs'
 import { defaultCurrency } from '@/constants'
 import { Internal, NotFound, Unauthorized } from '@/errors'
@@ -16,8 +20,8 @@ import type {
   OrderInsert,
   OrderItem,
   PaymentIntentRequest,
-  PaymentOrderSyncStatus,
   PaymentSession,
+  PaymentSyncStatus,
   PublicUser,
 } from '@/types'
 
@@ -60,21 +64,10 @@ export async function retrievePaymentIntent(
   return await stripe.paymentIntents.retrieve(validatedId)
 }
 
-const toIsoString = (
-  value: Date | string | null | undefined,
-): string | null => {
-  if (!value) return null
-  if (value instanceof Date) return value.toISOString()
-
-  const parsedDate = new Date(value)
-  if (Number.isNaN(parsedDate.getTime())) return null
-  return parsedDate.toISOString()
-}
-
 export async function retrieveOrderSyncStatus(
   paymentId: string,
   access?: PaymentAccess,
-): Promise<PaymentOrderSyncStatus> {
+): Promise<PaymentSyncStatus> {
   const validatedId = validate(paymentIdSchema, paymentId)
   const order = await authorizePaymentAccess(validatedId, access)
 
@@ -188,7 +181,7 @@ export async function createPaymentIntent(
 
     sendAdminNotificationEmail({
       order: createdOrder,
-      type: AdminNotificationType.Created,
+      type: AdminNotificationEnum.Created,
     })
 
     return {
@@ -199,7 +192,7 @@ export async function createPaymentIntent(
   } catch (error) {
     if (stripePaymentId) {
       sendAdminNotificationEmail({
-        type: AdminNotificationType.Error,
+        type: AdminNotificationEnum.Error,
         order: {
           paymentId: stripePaymentId,
           items,

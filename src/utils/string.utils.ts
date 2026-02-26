@@ -1,7 +1,9 @@
-export function splitFullName(fullName: string): {
+type SplitFullNameResult = {
   firstName: string | null
   lastName: string | null
-} {
+}
+
+export const splitFullName = (fullName: string): SplitFullNameResult => {
   const parts = fullName
     .trim()
     .split(/\s+/)

@@ -1,6 +1,6 @@
 import type { z } from 'zod'
 import type { paymentIntentRequestSchema } from '@/validation'
-import type { PaymentIntentShipping, PaymentIntentStatus } from './stripe.t'
+import type { PaymentIntentShipping, PaymentIntentStatus } from './stripe.types'
 
 export type PaymentIntentRequest = z.infer<typeof paymentIntentRequestSchema>
 
@@ -10,7 +10,7 @@ export type PaymentSession = {
   amount: number
 }
 
-export type PaymentOrderSyncStatus = {
+export type PaymentSyncStatus = {
   paymentId: string
   paymentStatus: PaymentIntentStatus
   amount: number
@@ -20,14 +20,3 @@ export type PaymentOrderSyncStatus = {
   finalizedAt: string | null
   webhookUpdatedAt: string | null
 }
-
-export const orderSyncPendingCode = 'ORDER_SYNC_PENDING' as const
-export type OrderSyncPendingCode = typeof orderSyncPendingCode
-
-export type PaymentOrderSyncPendingStatus = PaymentOrderSyncStatus & {
-  code: OrderSyncPendingCode
-}
-
-export type PaymentOrderSyncResponse =
-  | PaymentOrderSyncStatus
-  | PaymentOrderSyncPendingStatus

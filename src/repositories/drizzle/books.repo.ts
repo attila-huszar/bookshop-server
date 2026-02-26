@@ -1,7 +1,6 @@
 import { count, eq, inArray, max, min } from 'drizzle-orm'
 import { sqlite } from '@/db'
 import model from '@/models'
-import { queryBuilder } from '@/utils'
 import { PAGINATION } from '@/constants'
 import type {
   Book,
@@ -10,6 +9,7 @@ import type {
   BookUpdate,
   BookWithAuthor,
 } from '@/types'
+import { bookQueryBuilder } from './books.query'
 
 const { booksTable, authorsTable } = model as SQLiteModel
 
@@ -44,7 +44,7 @@ export async function getBooks(query?: BookQuery): Promise<{
     PAGINATION.MAX_LIMIT,
   )
   const offset = (page - 1) * limit
-  const conditions = queryBuilder(query)
+  const conditions = bookQueryBuilder(query)
 
   const [total] = await sqlite
     .select({ count: count() })

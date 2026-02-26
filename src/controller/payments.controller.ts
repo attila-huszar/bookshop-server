@@ -8,13 +8,9 @@ import {
   retrieveOrderSyncStatus,
   retrievePaymentIntent,
 } from '@/services'
-import { isOrderSyncPendingStatus } from '@/utils'
+import { retryableStatuses } from '@/constants'
 import { errorHandler } from '@/errors'
-import {
-  orderSyncPendingCode,
-  type PaymentIntentRequest,
-  type PublicUser,
-} from '@/types'
+import type { PaymentIntentRequest, PublicUser } from '@/types'
 
 type Variables = {
   jwtPayload?: {
@@ -38,14 +34,8 @@ payments.get('/:paymentId/order-sync', async (c) => {
       paymentSessionId,
     })
 
-    if (isOrderSyncPendingStatus(orderSyncStatus.paymentStatus)) {
-      return c.json(
-        {
-          ...orderSyncStatus,
-          code: orderSyncPendingCode,
-        },
-        202,
-      )
+    if (retryableStatuses.includes(orderSyncStatus.paymentStatus)) {
+      return c.json(orderSyncStatus, 202)
     }
 
     return c.json(orderSyncStatus)
