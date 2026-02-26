@@ -15,6 +15,9 @@ import {
   mockStripe,
 } from './test-setup'
 
+const TEST_WEBHOOK_SECRET = env.stripeWebhookSecret ?? 'whsec_test'
+env.stripeWebhookSecret ??= TEST_WEBHOOK_SECRET
+
 const createOrder = (overrides: Partial<Order> = {}): Order => ({
   id: 1,
   paymentId: 'pi_test_123',
@@ -75,14 +78,10 @@ function createSignedWebhookRequest(event: unknown): {
   payload: string
   signature: string
 } {
-  if (!env.stripeWebhookSecret) {
-    throw new Error('Missing STRIPE_WEBHOOK_SECRET for webhook test signing')
-  }
-
   const payload = JSON.stringify(event)
   const timestamp = Math.floor(Date.now() / 1000)
   const signedPayload = `${timestamp}.${payload}`
-  const signature = createHmac('sha256', env.stripeWebhookSecret)
+  const signature = createHmac('sha256', TEST_WEBHOOK_SECRET)
     .update(signedPayload, 'utf8')
     .digest('hex')
 
