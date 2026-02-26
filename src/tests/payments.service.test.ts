@@ -4,7 +4,7 @@ import {
   retrieveOrderSyncStatus,
   retrievePaymentIntent,
 } from '@/services/payments.service'
-import { Unauthorized } from '@/errors'
+import { BadRequest, Unauthorized } from '@/errors'
 import type { Order } from '@/types'
 import { mockOrdersDB, mockStripe, mockValidate } from './test-setup'
 
@@ -114,6 +114,50 @@ describe('Payments Service', () => {
 
       expect(resultError).toBeInstanceOf(Unauthorized)
       expect(mockStripe.paymentIntents.retrieve).not.toHaveBeenCalled()
+      expect(mockStripe.paymentIntents.cancel).not.toHaveBeenCalled()
+      expect(mockOrdersDB.updateOrder).not.toHaveBeenCalled()
+    })
+
+    it('rejects cancel for already canceled payment before hitting Stripe', async () => {
+      mockOrdersDB.getOrder.mockResolvedValueOnce(
+        createOrder({ paymentStatus: 'canceled' }),
+      )
+
+      let resultError: unknown = null
+
+      try {
+        await cancelPaymentIntent('pi_test_123', {
+          paymentSessionId: 'pi_test_123',
+        })
+      } catch (error) {
+        resultError = error
+      }
+
+      expect(resultError).toBeInstanceOf(BadRequest)
+      expect((resultError as Error).message).toBe('Payment already canceled')
+      expect(mockStripe.paymentIntents.cancel).not.toHaveBeenCalled()
+      expect(mockOrdersDB.updateOrder).not.toHaveBeenCalled()
+    })
+
+    it('rejects cancel for succeeded payment before hitting Stripe', async () => {
+      mockOrdersDB.getOrder.mockResolvedValueOnce(
+        createOrder({ paymentStatus: 'succeeded' }),
+      )
+
+      let resultError: unknown = null
+
+      try {
+        await cancelPaymentIntent('pi_test_123', {
+          paymentSessionId: 'pi_test_123',
+        })
+      } catch (error) {
+        resultError = error
+      }
+
+      expect(resultError).toBeInstanceOf(BadRequest)
+      expect((resultError as Error).message).toBe(
+        'Cannot cancel succeeded payment',
+      )
       expect(mockStripe.paymentIntents.cancel).not.toHaveBeenCalled()
       expect(mockOrdersDB.updateOrder).not.toHaveBeenCalled()
     })

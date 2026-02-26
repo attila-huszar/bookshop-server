@@ -14,7 +14,7 @@ import {
 } from '@/utils'
 import { log } from '@/libs'
 import { defaultCurrency } from '@/constants'
-import { Internal, NotFound, Unauthorized } from '@/errors'
+import { BadRequest, Internal, NotFound, Unauthorized } from '@/errors'
 import type {
   Order,
   OrderInsert,
@@ -224,7 +224,16 @@ export async function cancelPaymentIntent(
   access?: PaymentAccess,
 ) {
   const validatedId = validate(paymentIdSchema, paymentId)
-  await authorizePaymentAccess(validatedId, access)
+  const order = await authorizePaymentAccess(validatedId, access)
+
+  if (order.paymentStatus === 'canceled') {
+    throw new BadRequest('Payment already canceled')
+  }
+
+  if (order.paymentStatus === 'succeeded') {
+    throw new BadRequest('Cannot cancel succeeded payment')
+  }
+
   const cancelledIntent = await stripe.paymentIntents.cancel(validatedId)
 
   await ordersDB.updateOrder(validatedId, {

@@ -78,7 +78,7 @@ await mock.module('@/validation', () => ({
 
 await mock.module('@/utils', () => ({
   sendAdminNotificationEmail: mockSendAdminNotificationEmail,
-  AdminNotificationType: {
+  AdminNotificationEnum: {
     Created: 'created',
     Confirmed: 'confirmed',
     Error: 'error',
