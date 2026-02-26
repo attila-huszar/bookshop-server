@@ -6,3 +6,7 @@ export const retryableStatuses: PaymentIntentStatus[] = [
   'requires_confirmation',
   'requires_action',
 ]
+
+export const terminalStatuses: PaymentIntentStatus[] = ['succeeded', 'canceled']
+
+export const orderSyncStripeFallbackThresholdMs = 30_000

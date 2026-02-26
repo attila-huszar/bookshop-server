@@ -9,16 +9,22 @@ import {
 } from '@/validation'
 import {
   AdminNotificationEnum,
+  extractPaymentIntentFields,
   sendAdminNotificationEmail,
   toIsoString,
 } from '@/utils'
 import { log } from '@/libs'
-import { defaultCurrency } from '@/constants'
+import {
+  defaultCurrency,
+  orderSyncStripeFallbackThresholdMs,
+  retryableStatuses,
+} from '@/constants'
 import { BadRequest, Internal, NotFound, Unauthorized } from '@/errors'
 import type {
   Order,
   OrderInsert,
   OrderItem,
+  OrderUpdate,
   PaymentIntentRequest,
   PaymentSession,
   PaymentSyncStatus,
@@ -69,7 +75,50 @@ export async function retrieveOrderSyncStatus(
   access?: PaymentAccess,
 ): Promise<PaymentSyncStatus> {
   const validatedId = validate(paymentIdSchema, paymentId)
-  const order = await authorizePaymentAccess(validatedId, access)
+  let order = await authorizePaymentAccess(validatedId, access)
+  const orderAgeMs = Date.now() - order.updatedAt.getTime()
+  const shouldFallbackToStripe =
+    retryableStatuses.includes(order.paymentStatus) &&
+    orderAgeMs >= orderSyncStripeFallbackThresholdMs
+
+  if (shouldFallbackToStripe) {
+    try {
+      const paymentIntent = await stripe.paymentIntents.retrieve(validatedId)
+      const statusChanged = paymentIntent.status !== order.paymentStatus
+
+      if (statusChanged) {
+        const updateData: OrderUpdate = {
+          ...extractPaymentIntentFields(paymentIntent),
+          paymentStatus: paymentIntent.status,
+        }
+
+        if (paymentIntent.status === 'succeeded' && !order.paidAt) {
+          updateData.paidAt = new Date()
+        }
+
+        const syncedOrder = await ordersDB.updateOrder(validatedId, updateData)
+
+        if (syncedOrder) {
+          order = syncedOrder
+        } else {
+          void log.error(
+            '[CRITICAL] Stripe fallback detected status drift but DB update failed',
+            {
+              paymentId: validatedId,
+              dbStatus: order.paymentStatus,
+              stripeStatus: paymentIntent.status,
+            },
+          )
+        }
+      }
+    } catch (error) {
+      void log.warn('Stripe fallback sync failed for order status', {
+        paymentId: validatedId,
+        dbStatus: order.paymentStatus,
+        error,
+      })
+    }
+  }
 
   return {
     paymentId: order.paymentId,
@@ -236,9 +285,21 @@ export async function cancelPaymentIntent(
 
   const cancelledIntent = await stripe.paymentIntents.cancel(validatedId)
 
-  await ordersDB.updateOrder(validatedId, {
-    paymentStatus: 'canceled',
-  })
+  try {
+    await ordersDB.updateOrder(validatedId, {
+      paymentStatus: 'canceled',
+    })
+  } catch (error) {
+    void log.error(
+      '[CRITICAL] Stripe payment canceled but order status update failed',
+      {
+        paymentId: validatedId,
+        paymentStatus: order.paymentStatus,
+        error,
+      },
+    )
+    throw new Internal('Failed to persist canceled payment status')
+  }
 
   return cancelledIntent
 }

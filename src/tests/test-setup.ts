@@ -34,6 +34,7 @@ export const mockSendAdminNotificationEmail = mock()
 
 export const mockLogger = {
   info: mock(),
+  warn: mock(),
   error: mock(),
 }
 
@@ -99,8 +100,8 @@ await mock.module('@/queues', () => ({
 }))
 
 await mock.module('@/libs', () => ({
-  log: { info: mock(), error: mock() },
-  logWorker: { info: mock(), error: mock() },
+  log: { info: mock(), warn: mock(), error: mock() },
+  logWorker: { info: mock(), warn: mock(), error: mock() },
   sendEmail: mock(),
 }))
 

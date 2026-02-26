@@ -9,7 +9,7 @@ import {
 } from '@/utils'
 import { log } from '@/libs'
 import { emailQueue } from '@/queues'
-import { jobOpts, QUEUE } from '@/constants'
+import { jobOpts, QUEUE, terminalStatuses } from '@/constants'
 import { BadRequest, Internal } from '@/errors'
 import {
   isChargeEvent,
@@ -297,6 +297,25 @@ export async function updateOrderFromWebhook(
       eventType,
     })
     return null
+  }
+
+  const nextStatus = data.paymentStatus
+  const hasTerminalStatus = terminalStatuses.includes(
+    existingOrder.paymentStatus,
+  )
+
+  if (
+    nextStatus &&
+    hasTerminalStatus &&
+    existingOrder.paymentStatus !== nextStatus
+  ) {
+    void log.warn('[STRIPE] Ignoring out-of-order terminal status transition', {
+      paymentId: paymentIntentId,
+      eventType,
+      fromStatus: existingOrder.paymentStatus,
+      toStatus: nextStatus,
+    })
+    return { ...existingOrder, justPaid: false }
   }
 
   const updateData: OrderUpdate = { ...data }
