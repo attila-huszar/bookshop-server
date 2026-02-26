@@ -2,7 +2,6 @@ import { Stripe } from 'stripe'
 import { env } from '@/config'
 import { ordersDB } from '@/repositories'
 import {
-  AdminNotificationEnum,
   extractPaymentIntentFields,
   getPaymentIntentId,
   sendAdminNotificationEmail,
@@ -12,16 +11,79 @@ import { emailQueue } from '@/queues'
 import { jobOpts, QUEUE, terminalStatuses } from '@/constants'
 import { BadRequest, Internal } from '@/errors'
 import {
+  AdminNotification,
   isChargeEvent,
   isDisputeEvent,
   isPaymentIntentEvent,
   isRefundEvent,
   type OrderConfirmationEmailProps,
   type OrderUpdate,
+  type PaymentIntentStatus,
   type StripeEvent,
+  type StripePaymentIntent,
 } from '@/types'
 
 const stripe = new Stripe(env.stripeSecret!)
+
+type WebhookEventMeta = {
+  eventType: string
+  eventId: string
+  eventCreated: number
+}
+
+const paymentStatusRank: Partial<Record<PaymentIntentStatus, number>> = {
+  requires_payment_method: 10,
+  requires_confirmation: 20,
+  requires_action: 30,
+  processing: 40,
+  requires_capture: 50,
+  succeeded: 100,
+  canceled: 100,
+}
+
+const getPaymentStatusRank = (status?: PaymentIntentStatus): number =>
+  status ? (paymentStatusRank[status] ?? 0) : 0
+
+const isCriticalMissingOrderEventType = (eventType: string): boolean =>
+  eventType === 'payment_intent.succeeded' ||
+  eventType === 'payment_intent.canceled'
+
+function reportMissingOrderForPaymentIntentWebhook({
+  paymentIntent,
+  paymentStatus,
+  eventMeta,
+}: {
+  paymentIntent: StripePaymentIntent
+  paymentStatus: PaymentIntentStatus
+  eventMeta: WebhookEventMeta
+}) {
+  const { eventType, eventId, eventCreated } = eventMeta
+  const extractedFields = extractPaymentIntentFields(paymentIntent)
+
+  void log.error('[CRITICAL] Missing order for Stripe payment_intent webhook', {
+    issueCode: 'WEBHOOK_MISSING_ORDER',
+    paymentId: paymentIntent.id,
+    eventType,
+    eventId,
+    eventCreated,
+    stripeStatus: paymentStatus,
+    amount: paymentIntent.amount,
+    currency: paymentIntent.currency,
+    receiptEmail: paymentIntent.receipt_email ?? null,
+  })
+
+  sendAdminNotificationEmail({
+    notificationType: AdminNotification.Error,
+    order: {
+      paymentId: paymentIntent.id,
+      items: [],
+      total: paymentIntent.amount / 100,
+      currency: paymentIntent.currency.toUpperCase(),
+      paymentStatus,
+      ...extractedFields,
+    },
+  })
+}
 
 export async function processStripeWebhook(
   payload: string,
@@ -45,9 +107,17 @@ export async function processStripeWebhook(
     )
   }
 
+  const eventId = event.id
+  const eventCreated = event.created
+
   if (isPaymentIntentEvent(event)) {
     const { data, type } = event
     const paymentIntent = data.object
+    const eventMeta: WebhookEventMeta = {
+      eventType: type,
+      eventId,
+      eventCreated,
+    }
 
     switch (type) {
       case 'payment_intent.created': {
@@ -56,7 +126,7 @@ export async function processStripeWebhook(
           {
             paymentStatus: paymentIntent.status,
           },
-          type,
+          eventMeta,
         )
         break
       }
@@ -67,10 +137,15 @@ export async function processStripeWebhook(
             ...extractPaymentIntentFields(paymentIntent),
             paymentStatus: paymentIntent.status,
           },
-          type,
+          eventMeta,
         )
 
         if (!result) {
+          reportMissingOrderForPaymentIntentWebhook({
+            paymentIntent,
+            paymentStatus: paymentIntent.status,
+            eventMeta,
+          })
           throw new Internal(
             `Order not found for successful payment: ${paymentIntent.id}`,
           )
@@ -102,7 +177,7 @@ export async function processStripeWebhook(
 
           sendAdminNotificationEmail({
             order: updatedOrder,
-            type: AdminNotificationEnum.Confirmed,
+            notificationType: AdminNotification.Confirmed,
           })
         }
 
@@ -118,7 +193,7 @@ export async function processStripeWebhook(
             ...extractPaymentIntentFields(paymentIntent),
             paymentStatus: paymentIntent.status,
           },
-          type,
+          eventMeta,
         )
 
         void log.info('[STRIPE] Payment capturable via webhook', {
@@ -132,7 +207,7 @@ export async function processStripeWebhook(
           {
             paymentStatus: paymentIntent.status,
           },
-          type,
+          eventMeta,
         )
         break
       }
@@ -142,7 +217,7 @@ export async function processStripeWebhook(
           {
             paymentStatus: paymentIntent.status,
           },
-          type,
+          eventMeta,
         )
 
         void log.warn('[STRIPE] Payment failed via webhook', {
@@ -157,7 +232,7 @@ export async function processStripeWebhook(
           {
             paymentStatus: paymentIntent.status,
           },
-          type,
+          eventMeta,
         )
         break
       }
@@ -167,7 +242,7 @@ export async function processStripeWebhook(
           {
             paymentStatus: paymentIntent.status,
           },
-          type,
+          eventMeta,
         )
         break
       }
@@ -178,10 +253,15 @@ export async function processStripeWebhook(
             ...extractPaymentIntentFields(paymentIntent),
             paymentStatus: 'canceled',
           },
-          type,
+          eventMeta,
         )
 
         if (!result) {
+          reportMissingOrderForPaymentIntentWebhook({
+            paymentIntent,
+            paymentStatus: 'canceled',
+            eventMeta,
+          })
           throw new Internal(
             `Order not found for canceled payment: ${paymentIntent.id}`,
           )
@@ -287,16 +367,55 @@ export async function processStripeWebhook(
 export async function updateOrderFromWebhook(
   paymentIntentId: string,
   data: OrderUpdate,
-  eventType: string,
+  eventMeta: WebhookEventMeta,
 ) {
+  const { eventType, eventId, eventCreated } = eventMeta
   const existingOrder = await ordersDB.getOrder(paymentIntentId)
 
   if (!existingOrder) {
-    void log.warn('Failed to find order for payment intent', {
+    if (!isCriticalMissingOrderEventType(eventType)) {
+      void log.warn('Failed to find order for payment intent', {
+        paymentId: paymentIntentId,
+        eventType,
+        eventId,
+        eventCreated,
+      })
+    }
+    return null
+  }
+
+  const lastEventCreated = existingOrder.lastStripeEventCreated ?? null
+  const lastEventId = existingOrder.lastStripeEventId ?? null
+
+  if (lastEventCreated !== null && eventCreated < lastEventCreated) {
+    void log.warn(
+      '[STRIPE] Ignoring stale webhook event by created timestamp',
+      {
+        paymentId: paymentIntentId,
+        eventType,
+        eventId,
+        eventCreated,
+        lastStripeEventCreated: lastEventCreated,
+        lastStripeEventId: lastEventId,
+      },
+    )
+    return { ...existingOrder, justPaid: false }
+  }
+
+  if (
+    lastEventCreated !== null &&
+    eventCreated === lastEventCreated &&
+    lastEventId === eventId
+  ) {
+    void log.warn('[STRIPE] Ignoring duplicate webhook event', {
       paymentId: paymentIntentId,
       eventType,
+      eventId,
+      eventCreated,
+      lastStripeEventCreated: lastEventCreated,
+      lastStripeEventId: lastEventId,
     })
-    return null
+    return { ...existingOrder, justPaid: false }
   }
 
   const nextStatus = data.paymentStatus
@@ -312,13 +431,45 @@ export async function updateOrderFromWebhook(
     void log.warn('[STRIPE] Ignoring out-of-order terminal status transition', {
       paymentId: paymentIntentId,
       eventType,
+      eventId,
+      eventCreated,
       fromStatus: existingOrder.paymentStatus,
       toStatus: nextStatus,
+      lastStripeEventCreated: lastEventCreated,
+      lastStripeEventId: lastEventId,
     })
     return { ...existingOrder, justPaid: false }
   }
 
-  const updateData: OrderUpdate = { ...data }
+  if (
+    nextStatus &&
+    lastEventCreated !== null &&
+    eventCreated === lastEventCreated &&
+    lastEventId !== eventId &&
+    getPaymentStatusRank(nextStatus) <
+      getPaymentStatusRank(existingOrder.paymentStatus)
+  ) {
+    void log.warn(
+      '[STRIPE] Ignoring same-second regressive status transition',
+      {
+        paymentId: paymentIntentId,
+        eventType,
+        eventId,
+        eventCreated,
+        fromStatus: existingOrder.paymentStatus,
+        toStatus: nextStatus,
+        lastStripeEventCreated: lastEventCreated,
+        lastStripeEventId: lastEventId,
+      },
+    )
+    return { ...existingOrder, justPaid: false }
+  }
+
+  const updateData: OrderUpdate = {
+    ...data,
+    lastStripeEventCreated: eventCreated,
+    lastStripeEventId: eventId,
+  }
   const justPaid = data.paymentStatus === 'succeeded' && !existingOrder.paidAt
 
   if (justPaid) {

@@ -32,8 +32,15 @@ export type AdminPaymentNotificationEmailItem = Pick<
   'title' | 'quantity' | 'price' | 'discount'
 >
 
+export enum AdminNotification {
+  Created = 'created',
+  Confirmed = 'confirmed',
+  Error = 'error',
+}
+
 export type AdminPaymentNotificationEmailProps = {
   type: 'adminPaymentNotification'
+  notificationType: AdminNotification
   toAddress: string
   emailTitle: string
   customerName: string

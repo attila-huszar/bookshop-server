@@ -1,7 +1,7 @@
 import nodemailer, { type SendMailOptions } from 'nodemailer'
 import { env } from '@/config'
 import { getEmailHtml } from '@/utils'
-import { attachments, subjectMap, userMessage } from '@/constants'
+import { attachments, getEmailSubject, userMessage } from '@/constants'
 import type { SendEmailProps } from '@/types'
 import { log } from './logger'
 
@@ -32,7 +32,7 @@ export async function sendEmail(props: SendEmailProps) {
     const mailOptions: SendMailOptions = {
       from: `${env.mailerName} <${env.mailerUser!}>`,
       to: props.toAddress,
-      subject: subjectMap[props.type],
+      subject: getEmailSubject(props),
       html: getEmailHtml(props),
       attachments,
     }

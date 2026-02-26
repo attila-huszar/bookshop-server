@@ -13,6 +13,8 @@ export const ordersTable = sqliteTable('orders', {
     .$type<PaymentIntentStatus>()
     .default('processing')
     .notNull(),
+  lastStripeEventCreated: int('last_stripe_event_created').$type<number>(),
+  lastStripeEventId: text('last_stripe_event_id'),
   paidAt: int('paid_at', { mode: 'timestamp' }).$type<Date>(),
   total: real().notNull(),
   currency: text().notNull(),

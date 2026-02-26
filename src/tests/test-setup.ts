@@ -18,6 +18,9 @@ export const mockOrdersDB = {
 }
 
 export const mockStripe = {
+  webhooks: {
+    constructEventAsync: mock(),
+  },
   paymentIntents: {
     create: mock(),
     retrieve: mock(),
@@ -31,6 +34,14 @@ export const mockSignRefreshToken = mock()
 export const mockUploadFile = mock()
 export const mockSendEmail = mock()
 export const mockSendAdminNotificationEmail = mock()
+export const mockExtractPaymentIntentFields = mock(() => ({}))
+export const mockGetPaymentIntentId = mock(
+  (source: { payment_intent?: unknown }) =>
+    typeof source.payment_intent === 'string'
+      ? source.payment_intent
+      : ((source.payment_intent as { id?: string } | undefined)?.id ??
+        undefined),
+)
 
 export const mockLogger = {
   info: mock(),
@@ -79,11 +90,8 @@ await mock.module('@/validation', () => ({
 
 await mock.module('@/utils', () => ({
   sendAdminNotificationEmail: mockSendAdminNotificationEmail,
-  AdminNotificationEnum: {
-    Created: 'created',
-    Confirmed: 'confirmed',
-    Error: 'error',
-  },
+  extractPaymentIntentFields: mockExtractPaymentIntentFields,
+  getPaymentIntentId: mockGetPaymentIntentId,
   signAccessToken: mockSignAccessToken,
   signRefreshToken: mockSignRefreshToken,
   uploadFile: mockUploadFile,
@@ -100,8 +108,8 @@ await mock.module('@/queues', () => ({
 }))
 
 await mock.module('@/libs', () => ({
-  log: { info: mock(), warn: mock(), error: mock() },
-  logWorker: { info: mock(), warn: mock(), error: mock() },
+  log: mockLogger,
+  logWorker: mockLogger,
   sendEmail: mock(),
 }))
 

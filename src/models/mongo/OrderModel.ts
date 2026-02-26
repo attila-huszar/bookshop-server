@@ -7,6 +7,8 @@ const orderSchema = new mongo.Schema<Order>(
     id: { type: Number, unique: true, index: true },
     paymentId: { type: String, unique: true, required: true },
     paymentStatus: { type: String, default: 'processing', required: true },
+    lastStripeEventCreated: { type: Number, default: null },
+    lastStripeEventId: { type: String, default: null },
     paidAt: { type: Date },
     total: { type: Number, required: true },
     currency: { type: String, required: true },

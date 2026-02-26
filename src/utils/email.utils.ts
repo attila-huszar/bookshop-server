@@ -7,12 +7,14 @@ import adminPaymentNotification from '@/resources/emailTemplates/adminPaymentNot
 import orderConfirmation from '@/resources/emailTemplates/orderConfirmation.mjml' with { type: 'text' }
 import passwordReset from '@/resources/emailTemplates/passwordReset.mjml' with { type: 'text' }
 import verification from '@/resources/emailTemplates/verification.mjml' with { type: 'text' }
+import { AdminNotification } from '@/types'
 import type {
   AdminPaymentNotificationEmailItem,
   AdminPaymentNotificationEmailProps,
   Order,
   SendEmailProps,
 } from '@/types'
+import { getOrderRef } from './string.utils'
 
 const baseLink = env.clientBaseUrl!
 
@@ -43,7 +45,7 @@ export function getEmailHtml(props: SendEmailProps): string {
         const { toName, order } = props
         const mjmlString = interpolate(orderConfirmation, {
           toName: Bun.escapeHTML(toName),
-          orderNumber: order.paymentId.slice(-6).toUpperCase(),
+          orderNumber: getOrderRef(order.paymentId),
           eachItems: renderOrderItems(order.items),
           total: order.total.toFixed(2),
           currency: order.currency,
@@ -111,7 +113,7 @@ export function getEmailHtml(props: SendEmailProps): string {
         } = props
         const mjmlString = interpolate(adminPaymentNotification, {
           emailTitle: Bun.escapeHTML(emailTitle),
-          paymentId: paymentId.slice(-6).toUpperCase(),
+          paymentId: getOrderRef(paymentId),
           customerName: Bun.escapeHTML(customerName),
           customerEmail: Bun.escapeHTML(customerEmail),
           eachItems: renderOrderItems(items),
@@ -135,12 +137,6 @@ export function getEmailHtml(props: SendEmailProps): string {
   }
 }
 
-export const enum AdminNotificationEnum {
-  Created = 'created',
-  Confirmed = 'confirmed',
-  Error = 'error',
-}
-
 type OrderForAdminEmail = Pick<
   Order,
   'paymentId' | 'items' | 'total' | 'currency' | 'paymentStatus'
@@ -148,12 +144,12 @@ type OrderForAdminEmail = Pick<
   Partial<Pick<Order, 'firstName' | 'lastName' | 'email' | 'shipping'>>
 
 type SendAdminNotificationEmailParams = {
-  type: AdminNotificationEnum
+  notificationType: AdminNotification
   order: OrderForAdminEmail
 }
 
 export function sendAdminNotificationEmail({
-  type,
+  notificationType,
   order,
 }: SendAdminNotificationEmailParams): void {
   if (!env.adminEmail) {
@@ -163,17 +159,19 @@ export function sendAdminNotificationEmail({
     return
   }
 
-  const emailTitle = {
-    created: '🛍️ Order Created',
-    confirmed: '✅ Order Confirmed',
-    error: '⚠️ Order Error',
-  }[type]
-
-  const shippingMessage = {
-    created: '⏳ Shipping address will be available after confirmation',
-    confirmed: '🚫 Shipping address unavailable',
-    error: '❌ Error during order processing',
-  }[type]
+  const emailTitleMap: Record<AdminNotification, string> = {
+    [AdminNotification.Created]: '🛍️ Order Created',
+    [AdminNotification.Confirmed]: '✅ Order Confirmed',
+    [AdminNotification.Error]: '⚠️ Order Error',
+  }
+  const shippingMessageMap: Record<AdminNotification, string> = {
+    [AdminNotification.Created]:
+      '⏳ Shipping address will be available after confirmation',
+    [AdminNotification.Confirmed]: '🚫 Shipping address unavailable',
+    [AdminNotification.Error]: '❌ Error during order processing',
+  }
+  const emailTitle = emailTitleMap[notificationType]
+  const shippingMessage = shippingMessageMap[notificationType]
 
   const shippingAddressParts = order.shipping
     ? [
@@ -198,6 +196,7 @@ export function sendAdminNotificationEmail({
 
   const adminEmailData: AdminPaymentNotificationEmailProps = {
     type: QUEUE.EMAIL.JOB.ADMIN_PAYMENT_NOTIFICATION,
+    notificationType,
     toAddress: env.adminEmail,
     emailTitle,
     paymentId: order.paymentId,

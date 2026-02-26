@@ -8,7 +8,6 @@ import {
   validate,
 } from '@/validation'
 import {
-  AdminNotificationEnum,
   extractPaymentIntentFields,
   sendAdminNotificationEmail,
   toIsoString,
@@ -20,6 +19,7 @@ import {
   retryableStatuses,
 } from '@/constants'
 import { BadRequest, Internal, NotFound, Unauthorized } from '@/errors'
+import { AdminNotification } from '@/types'
 import type {
   Order,
   OrderInsert,
@@ -230,7 +230,7 @@ export async function createPaymentIntent(
 
     sendAdminNotificationEmail({
       order: createdOrder,
-      type: AdminNotificationEnum.Created,
+      notificationType: AdminNotification.Created,
     })
 
     return {
@@ -241,7 +241,7 @@ export async function createPaymentIntent(
   } catch (error) {
     if (stripePaymentId) {
       sendAdminNotificationEmail({
-        type: AdminNotificationEnum.Error,
+        notificationType: AdminNotification.Error,
         order: {
           paymentId: stripePaymentId,
           items,

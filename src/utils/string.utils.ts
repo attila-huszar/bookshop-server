@@ -19,3 +19,6 @@ export const splitFullName = (fullName: string): SplitFullNameResult => {
 
   return { firstName, lastName }
 }
+
+export const getOrderRef = (paymentId: string): string =>
+  paymentId.slice(-6).toUpperCase()
