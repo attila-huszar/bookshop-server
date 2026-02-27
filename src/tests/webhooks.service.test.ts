@@ -5,7 +5,6 @@ import {
   processStripeWebhook,
   updateOrderFromWebhook,
 } from '@/services/webhooks.service'
-import { Internal } from '@/errors'
 import type { Order, PaymentIntentStatus } from '@/types'
 import {
   mockExtractPaymentIntentFields,
@@ -305,18 +304,9 @@ describe('Webhooks Service', () => {
     })
     const { payload, signature } = createSignedWebhookRequest(event)
 
-    let resultError: unknown = null
+    const result = await processStripeWebhook(payload, signature)
 
-    try {
-      await processStripeWebhook(payload, signature)
-    } catch (error) {
-      resultError = error
-    }
-
-    expect(resultError).toBeInstanceOf(Internal)
-    expect((resultError as Error).message).toContain(
-      'Order not found for successful payment',
-    )
+    expect(result).toEqual({ received: true })
     expect(mockSendAdminNotificationEmail).toHaveBeenCalledWith(
       expect.objectContaining({
         notificationType: 'error',
@@ -371,18 +361,9 @@ describe('Webhooks Service', () => {
     })
     const { payload, signature } = createSignedWebhookRequest(event)
 
-    let resultError: unknown = null
+    const result = await processStripeWebhook(payload, signature)
 
-    try {
-      await processStripeWebhook(payload, signature)
-    } catch (error) {
-      resultError = error
-    }
-
-    expect(resultError).toBeInstanceOf(Internal)
-    expect((resultError as Error).message).toContain(
-      'Order not found for canceled payment',
-    )
+    expect(result).toEqual({ received: true })
     expect(mockSendAdminNotificationEmail).toHaveBeenCalledWith(
       expect.objectContaining({
         notificationType: 'error',

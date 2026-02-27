@@ -146,9 +146,7 @@ export async function processStripeWebhook(
             paymentStatus: paymentIntent.status,
             eventMeta,
           })
-          throw new Internal(
-            `Order not found for successful payment: ${paymentIntent.id}`,
-          )
+          return { received: true }
         }
 
         const { justPaid, ...updatedOrder } = result
@@ -262,9 +260,7 @@ export async function processStripeWebhook(
             paymentStatus: 'canceled',
             eventMeta,
           })
-          throw new Internal(
-            `Order not found for canceled payment: ${paymentIntent.id}`,
-          )
+          return { received: true }
         }
 
         void log.info('[STRIPE] Payment canceled via webhook', {
