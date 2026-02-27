@@ -1,6 +1,5 @@
 import { env } from '@/config'
-import { DB_REPO } from '@/constants'
-import type { BookInsert } from '@/types'
+import { type BookInsert, DB_REPO } from '@/types'
 import booksData from './books.json'
 
 function calculateDiscountPrice(

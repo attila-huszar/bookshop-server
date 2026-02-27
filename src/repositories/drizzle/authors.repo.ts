@@ -1,4 +1,4 @@
-import { eq, inArray, like, sql } from 'drizzle-orm'
+import { eq, inArray, like } from 'drizzle-orm'
 import { sqlite } from '@/db'
 import model from '@/models'
 import type {
@@ -67,10 +67,7 @@ export async function updateAuthor(
 ): Promise<Author> {
   const [updatedAuthor] = await sqlite
     .update(authorsTable)
-    .set({
-      ...updates,
-      updatedAt: sql`CURRENT_TIMESTAMP`,
-    })
+    .set(updates)
     .where(eq(authorsTable.id, authorId))
     .returning()
 

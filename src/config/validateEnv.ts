@@ -1,4 +1,4 @@
-import { DB_REPO } from '@/constants'
+import { DB_REPO } from '@/types/enums'
 import { env } from './env'
 
 const requiredKeys = [

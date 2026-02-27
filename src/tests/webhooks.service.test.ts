@@ -5,7 +5,8 @@ import {
   processStripeWebhook,
   updateOrderFromWebhook,
 } from '@/services/webhooks.service'
-import type { Order, PaymentIntentStatus } from '@/types'
+import { Internal } from '@/errors'
+import { IssueCode, type Order, type PaymentIntentStatus } from '@/types'
 import {
   mockExtractPaymentIntentFields,
   mockLogger,
@@ -23,6 +24,7 @@ const createOrder = (overrides: Partial<Order> = {}): Order => ({
   paymentStatus: 'processing',
   lastStripeEventCreated: null,
   lastStripeEventId: null,
+  lastStripeSyncCheckedAt: null,
   paidAt: null,
   total: 25.99,
   currency: 'USD',
@@ -281,6 +283,71 @@ describe('Webhooks Service', () => {
     expect(result?.justPaid).toBe(false)
   })
 
+  it('throws 500 and alerts admin when webhook order update persistence throws', async () => {
+    mockOrdersDB.getOrder.mockResolvedValueOnce(
+      createOrder({
+        paymentStatus: 'processing',
+      }),
+    )
+    mockOrdersDB.updateOrder.mockRejectedValueOnce(
+      new Error('webhook update failed'),
+    )
+    mockExtractPaymentIntentFields.mockReturnValue({
+      email: 'buyer@example.com',
+    })
+    mockStripe.webhooks.constructEventAsync.mockResolvedValueOnce(
+      createPaymentIntentEvent({
+        eventId: 'evt_persist_failed',
+        eventCreated: 401,
+        type: 'payment_intent.succeeded',
+        status: 'succeeded',
+      }),
+    )
+
+    const event = createPaymentIntentEvent({
+      eventId: 'evt_persist_failed',
+      eventCreated: 401,
+      type: 'payment_intent.succeeded',
+      status: 'succeeded',
+    })
+    const { payload, signature } = createSignedWebhookRequest(event)
+
+    let resultError: unknown = null
+
+    try {
+      await processStripeWebhook(payload, signature)
+    } catch (error) {
+      resultError = error
+    }
+
+    expect(resultError).toBeInstanceOf(Internal)
+    expect((resultError as Internal).status).toBe(500)
+    expect(mockSendAdminNotificationEmail).toHaveBeenCalledTimes(1)
+    expect(mockSendAdminNotificationEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        notificationType: 'error',
+        order: expect.objectContaining({
+          paymentId: 'pi_test_123',
+          paymentStatus: 'succeeded',
+        }) as Order,
+      }),
+    )
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      '[CRITICAL] Webhook order update persistence failed',
+      expect.objectContaining({
+        issueCode: IssueCode.WEBHOOK_ORDER_PERSIST_FAILED,
+        persistFailureReason: 'threw',
+        entity: 'order',
+        operation: 'update',
+        paymentId: 'pi_test_123',
+        stripeStatus: 'succeeded',
+        eventType: 'payment_intent.succeeded',
+        eventId: 'evt_persist_failed',
+        eventCreated: 401,
+      }),
+    )
+  })
+
   it('logs and alerts on missing order for payment_intent.succeeded', async () => {
     mockOrdersDB.getOrder.mockResolvedValueOnce(null)
     mockExtractPaymentIntentFields.mockReturnValue({
@@ -328,7 +395,7 @@ describe('Webhooks Service', () => {
 
     expect(missingOrderErrorLog).toBeDefined()
     expect(missingOrderErrorLog?.[1]).toMatchObject({
-      issueCode: 'WEBHOOK_MISSING_ORDER',
+      issueCode: IssueCode.WEBHOOK_MISSING_ORDER,
       paymentId: 'pi_test_123',
       eventType: 'payment_intent.succeeded',
       eventId: 'evt_missing_success',
@@ -385,7 +452,7 @@ describe('Webhooks Service', () => {
 
     expect(missingOrderErrorLog).toBeDefined()
     expect(missingOrderErrorLog?.[1]).toMatchObject({
-      issueCode: 'WEBHOOK_MISSING_ORDER',
+      issueCode: IssueCode.WEBHOOK_MISSING_ORDER,
       paymentId: 'pi_test_123',
       eventType: 'payment_intent.canceled',
       eventId: 'evt_missing_canceled',

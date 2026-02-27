@@ -2,7 +2,7 @@ import type { Database } from 'bun:sqlite'
 import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite'
 import type { Mongoose } from 'mongoose'
 import { env } from './config'
-import { DB_REPO } from './constants'
+import { DB_REPO } from './types/enums'
 
 let sqliteClient: Database | undefined
 let sqlite: BunSQLiteDatabase

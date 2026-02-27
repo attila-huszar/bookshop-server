@@ -1,6 +1,6 @@
 import { env } from '@/config'
-import { DB_REPO, defaultCountry } from '@/constants'
-import { type UserInsert, UserRole } from '@/types'
+import { defaultCountry } from '@/constants'
+import { DB_REPO, type UserInsert, UserRole } from '@/types'
 
 const admin: UserInsert = {
   uuid: crypto.randomUUID(),

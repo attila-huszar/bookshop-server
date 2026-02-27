@@ -9,6 +9,7 @@ const orderSchema = new mongo.Schema<Order>(
     paymentStatus: { type: String, default: 'processing', required: true },
     lastStripeEventCreated: { type: Number, default: null },
     lastStripeEventId: { type: String, default: null },
+    lastStripeSyncCheckedAt: { type: Date, default: null },
     paidAt: { type: Date },
     total: { type: Number, required: true },
     currency: { type: String, required: true },

@@ -9,7 +9,9 @@ import {
 } from '@/validation'
 import {
   extractPaymentIntentFields,
+  reportCriticalOrderPersistFailure,
   sendAdminNotificationEmail,
+  throwCriticalOrderPersistFailure,
   toIsoString,
 } from '@/utils'
 import { log } from '@/libs'
@@ -19,7 +21,7 @@ import {
   retryableStatuses,
 } from '@/constants'
 import { BadRequest, Internal, NotFound, Unauthorized } from '@/errors'
-import { AdminNotification } from '@/types'
+import { AdminNotification, IssueCode } from '@/types'
 import type {
   Order,
   OrderInsert,
@@ -76,47 +78,216 @@ export async function retrieveOrderSyncStatus(
 ): Promise<PaymentSyncStatus> {
   const validatedId = validate(paymentIdSchema, paymentId)
   let order = await authorizePaymentAccess(validatedId, access)
-  const orderAgeMs = Date.now() - order.updatedAt.getTime()
+
+  const fallbackReference = order.lastStripeSyncCheckedAt ?? order.updatedAt
+  const orderAgeMs = Date.now() - fallbackReference.getTime()
   const shouldFallbackToStripe =
     retryableStatuses.includes(order.paymentStatus) &&
     orderAgeMs >= orderSyncStripeFallbackThresholdMs
 
   if (shouldFallbackToStripe) {
+    const stripeSyncCheckedAt = new Date()
+
     try {
       const paymentIntent = await stripe.paymentIntents.retrieve(validatedId)
       const statusChanged = paymentIntent.status !== order.paymentStatus
+      const updateData: OrderUpdate = {
+        lastStripeSyncCheckedAt: stripeSyncCheckedAt,
+        ...(statusChanged
+          ? {
+              ...extractPaymentIntentFields(paymentIntent),
+              paymentStatus: paymentIntent.status,
+              ...(paymentIntent.status === 'succeeded' && !order.paidAt
+                ? { paidAt: new Date() }
+                : {}),
+            }
+          : {}),
+      }
 
-      if (statusChanged) {
-        const updateData: OrderUpdate = {
-          ...extractPaymentIntentFields(paymentIntent),
-          paymentStatus: paymentIntent.status,
-        }
-
-        if (paymentIntent.status === 'succeeded' && !order.paidAt) {
-          updateData.paidAt = new Date()
-        }
-
+      try {
         const syncedOrder = await ordersDB.updateOrder(validatedId, updateData)
 
         if (syncedOrder) {
           order = syncedOrder
-        } else {
-          void log.error(
-            '[CRITICAL] Stripe fallback detected status drift but DB update failed',
-            {
-              paymentId: validatedId,
-              dbStatus: order.paymentStatus,
-              stripeStatus: paymentIntent.status,
+        } else if (statusChanged) {
+          throwCriticalOrderPersistFailure({
+            issueCode: IssueCode.ORDER_SYNC_DRIFT_PERSIST_FAILED,
+            message:
+              '[CRITICAL] Stripe fallback detected status drift but DB update failed',
+            throwMessage:
+              'Order status sync is temporarily unavailable. Manual verification is required.',
+            errorName: 'ServiceUnavailable',
+            statusCode: 503,
+            operation: 'update',
+            paymentId: validatedId,
+            persistFailureReason: 'returned_null',
+            dbStatus: order.paymentStatus,
+            stripeStatus: paymentIntent.status,
+            order: {
+              paymentId: order.paymentId,
+              paymentStatus: paymentIntent.status,
+              items: order.items,
+              total: order.total,
+              currency: order.currency,
+              firstName: order.firstName,
+              lastName: order.lastName,
+              email: paymentIntent.receipt_email ?? order.email ?? null,
+              shipping: paymentIntent.shipping ?? order.shipping ?? null,
             },
-          )
+          })
+        } else {
+          reportCriticalOrderPersistFailure({
+            issueCode: IssueCode.ORDER_SYNC_MARKER_PERSIST_FAILED,
+            message:
+              '[CRITICAL] Stripe fallback sync check timestamp persistence failed',
+            operation: 'update',
+            paymentId: validatedId,
+            persistFailureReason: 'returned_null',
+            dbStatus: order.paymentStatus,
+            notifyAdmin: false,
+            order: {
+              paymentId: order.paymentId,
+              paymentStatus: order.paymentStatus,
+              items: order.items,
+              total: order.total,
+              currency: order.currency,
+              firstName: order.firstName,
+              lastName: order.lastName,
+              email: order.email,
+              shipping: order.shipping,
+            },
+          })
+        }
+      } catch (persistError) {
+        if (
+          persistError instanceof Internal &&
+          persistError.name === 'ServiceUnavailable' &&
+          persistError.status === 503
+        ) {
+          throw persistError
+        }
+
+        if (statusChanged) {
+          throwCriticalOrderPersistFailure({
+            issueCode: IssueCode.ORDER_SYNC_DRIFT_PERSIST_FAILED,
+            message:
+              '[CRITICAL] Stripe fallback detected status drift but DB update failed',
+            throwMessage:
+              'Order status sync is temporarily unavailable. Manual verification is required.',
+            errorName: 'ServiceUnavailable',
+            statusCode: 503,
+            operation: 'update',
+            paymentId: validatedId,
+            persistFailureReason: 'threw',
+            persistError,
+            dbStatus: order.paymentStatus,
+            stripeStatus: paymentIntent.status,
+            order: {
+              paymentId: order.paymentId,
+              paymentStatus: paymentIntent.status,
+              items: order.items,
+              total: order.total,
+              currency: order.currency,
+              firstName: order.firstName,
+              lastName: order.lastName,
+              email: paymentIntent.receipt_email ?? order.email ?? null,
+              shipping: paymentIntent.shipping ?? order.shipping ?? null,
+            },
+          })
+        } else {
+          reportCriticalOrderPersistFailure({
+            issueCode: IssueCode.ORDER_SYNC_MARKER_PERSIST_FAILED,
+            message:
+              '[CRITICAL] Stripe fallback sync check timestamp persistence failed',
+            operation: 'update',
+            paymentId: validatedId,
+            persistFailureReason: 'threw',
+            persistError,
+            dbStatus: order.paymentStatus,
+            notifyAdmin: false,
+            order: {
+              paymentId: order.paymentId,
+              paymentStatus: order.paymentStatus,
+              items: order.items,
+              total: order.total,
+              currency: order.currency,
+              firstName: order.firstName,
+              lastName: order.lastName,
+              email: order.email,
+              shipping: order.shipping,
+            },
+          })
         }
       }
     } catch (error) {
+      if (
+        error instanceof Internal &&
+        error.name === 'ServiceUnavailable' &&
+        error.status === 503
+      ) {
+        throw error
+      }
+
       void log.warn('Stripe fallback sync failed for order status', {
         paymentId: validatedId,
         dbStatus: order.paymentStatus,
         error,
       })
+
+      try {
+        const syncMarkerOrder = await ordersDB.updateOrder(validatedId, {
+          lastStripeSyncCheckedAt: stripeSyncCheckedAt,
+        })
+
+        if (syncMarkerOrder) {
+          order = syncMarkerOrder
+        } else {
+          reportCriticalOrderPersistFailure({
+            issueCode: IssueCode.ORDER_SYNC_MARKER_PERSIST_FAILED,
+            message:
+              '[CRITICAL] Stripe fallback sync check timestamp persistence failed',
+            operation: 'update',
+            paymentId: validatedId,
+            persistFailureReason: 'returned_null',
+            dbStatus: order.paymentStatus,
+            notifyAdmin: false,
+            order: {
+              paymentId: order.paymentId,
+              paymentStatus: order.paymentStatus,
+              items: order.items,
+              total: order.total,
+              currency: order.currency,
+              firstName: order.firstName,
+              lastName: order.lastName,
+              email: order.email,
+              shipping: order.shipping,
+            },
+          })
+        }
+      } catch (persistError) {
+        reportCriticalOrderPersistFailure({
+          issueCode: IssueCode.ORDER_SYNC_MARKER_PERSIST_FAILED,
+          message:
+            '[CRITICAL] Stripe fallback sync check timestamp persistence failed',
+          operation: 'update',
+          paymentId: validatedId,
+          persistFailureReason: 'threw',
+          persistError,
+          dbStatus: order.paymentStatus,
+          notifyAdmin: false,
+          order: {
+            paymentId: order.paymentId,
+            paymentStatus: order.paymentStatus,
+            items: order.items,
+            total: order.total,
+            currency: order.currency,
+            firstName: order.firstName,
+            lastName: order.lastName,
+            email: order.email,
+            shipping: order.shipping,
+          },
+        })
+      }
     }
   }
 
@@ -290,15 +461,29 @@ export async function cancelPaymentIntent(
       paymentStatus: 'canceled',
     })
   } catch (error) {
-    void log.error(
-      '[CRITICAL] Stripe payment canceled but order status update failed',
-      {
-        paymentId: validatedId,
+    throwCriticalOrderPersistFailure({
+      issueCode: IssueCode.PAYMENT_CANCEL_PERSIST_FAILED,
+      message:
+        '[CRITICAL] Stripe payment canceled but order status update failed',
+      throwMessage: 'Failed to persist canceled payment status',
+      operation: 'update',
+      paymentId: validatedId,
+      persistFailureReason: 'threw',
+      persistError: error,
+      dbStatus: order.paymentStatus,
+      stripeStatus: 'canceled',
+      order: {
+        paymentId: order.paymentId,
         paymentStatus: order.paymentStatus,
-        error,
+        items: order.items,
+        total: order.total,
+        currency: order.currency,
+        firstName: order.firstName,
+        lastName: order.lastName,
+        email: order.email,
+        shipping: order.shipping,
       },
-    )
-    throw new Internal('Failed to persist canceled payment status')
+    })
   }
 
   return cancelledIntent

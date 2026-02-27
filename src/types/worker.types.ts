@@ -1,4 +1,5 @@
 import type { QUEUE } from '@/constants'
+import type { AdminNotification } from './enums'
 import type { Order } from './orders.types'
 
 export type QueueName = typeof QUEUE.EMAIL.NAME
@@ -31,12 +32,6 @@ export type AdminPaymentNotificationEmailItem = Pick<
   Order['items'][number],
   'title' | 'quantity' | 'price' | 'discount'
 >
-
-export enum AdminNotification {
-  Created = 'created',
-  Confirmed = 'confirmed',
-  Error = 'error',
-}
 
 export type AdminPaymentNotificationEmailProps = {
   type: 'adminPaymentNotification'

@@ -1,5 +1,8 @@
 import { mock } from 'bun:test'
-import { stripSensitiveUserFields, stripTimestamps } from '@/utils'
+import {
+  stripSensitiveUserFields,
+  stripTimestamps,
+} from '@/utils/transform.utils'
 
 export const mockUsersDB = {
   getUserBy: mock(),
@@ -101,6 +104,10 @@ await mock.module('@/utils', () => ({
     Avatars: 'avatars',
     ProductImages: 'product-images',
   },
+}))
+
+await mock.module('@/utils/email.utils', () => ({
+  sendAdminNotificationEmail: mockSendAdminNotificationEmail,
 }))
 
 await mock.module('@/queues', () => ({

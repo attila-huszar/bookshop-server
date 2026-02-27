@@ -15,6 +15,9 @@ export const ordersTable = sqliteTable('orders', {
     .notNull(),
   lastStripeEventCreated: int('last_stripe_event_created').$type<number>(),
   lastStripeEventId: text('last_stripe_event_id'),
+  lastStripeSyncCheckedAt: int('last_stripe_sync_checked_at', {
+    mode: 'timestamp',
+  }).$type<Date>(),
   paidAt: int('paid_at', { mode: 'timestamp' }).$type<Date>(),
   total: real().notNull(),
   currency: text().notNull(),

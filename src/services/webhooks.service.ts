@@ -5,6 +5,7 @@ import {
   extractPaymentIntentFields,
   getPaymentIntentId,
   sendAdminNotificationEmail,
+  throwCriticalOrderPersistFailure,
 } from '@/utils'
 import { log } from '@/libs'
 import { emailQueue } from '@/queues'
@@ -16,6 +17,7 @@ import {
   isDisputeEvent,
   isPaymentIntentEvent,
   isRefundEvent,
+  IssueCode,
   type OrderConfirmationEmailProps,
   type OrderUpdate,
   type PaymentIntentStatus,
@@ -61,7 +63,7 @@ function reportMissingOrderForPaymentIntentWebhook({
   const extractedFields = extractPaymentIntentFields(paymentIntent)
 
   void log.error('[CRITICAL] Missing order for Stripe payment_intent webhook', {
-    issueCode: 'WEBHOOK_MISSING_ORDER',
+    issueCode: IssueCode.WEBHOOK_MISSING_ORDER,
     paymentId: paymentIntent.id,
     eventType,
     eventId,
@@ -472,6 +474,36 @@ export async function updateOrderFromWebhook(
     updateData.paidAt = new Date()
   }
 
-  const updatedOrder = await ordersDB.updateOrder(paymentIntentId, updateData)
-  return updatedOrder ? { ...updatedOrder, justPaid } : null
+  try {
+    const updatedOrder = await ordersDB.updateOrder(paymentIntentId, updateData)
+    return updatedOrder ? { ...updatedOrder, justPaid } : null
+  } catch (persistError) {
+    throwCriticalOrderPersistFailure({
+      issueCode: IssueCode.WEBHOOK_ORDER_PERSIST_FAILED,
+      message: '[CRITICAL] Webhook order update persistence failed',
+      throwMessage: 'Failed to persist webhook order update',
+      operation: 'update',
+      paymentId: paymentIntentId,
+      persistFailureReason: 'threw',
+      persistError,
+      dbStatus: existingOrder.paymentStatus,
+      stripeStatus: data.paymentStatus,
+      additionalContext: {
+        eventType,
+        eventId,
+        eventCreated,
+      },
+      order: {
+        paymentId: existingOrder.paymentId,
+        paymentStatus: data.paymentStatus ?? existingOrder.paymentStatus,
+        items: existingOrder.items,
+        total: existingOrder.total,
+        currency: existingOrder.currency,
+        firstName: existingOrder.firstName,
+        lastName: existingOrder.lastName,
+        email: existingOrder.email,
+        shipping: existingOrder.shipping,
+      },
+    })
+  }
 }

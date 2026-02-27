@@ -15,6 +15,13 @@
       "when": 1772135562128,
       "tag": "0001_spotty_morbius",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1772184157038,
+      "tag": "0002_huge_redwing",
+      "breakpoints": true
     }
   ]
 }

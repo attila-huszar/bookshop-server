@@ -1,6 +1,6 @@
 import { int, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import type { Stripe } from 'stripe'
-import { UserRole } from '@/types/users.types'
+import { UserRole } from '@/types/enums'
 import { timestamps } from './column.helpers'
 
 export const usersTable = sqliteTable('users', {

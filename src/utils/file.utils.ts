@@ -1,10 +1,6 @@
 import { s3, write } from 'bun'
 import { log } from '@/libs'
-
-export const enum Folder {
-  Avatars = 'avatars',
-  ProductImages = 'product-images',
-}
+import { Folder } from '@/types/enums'
 
 export const uploadFile = async (
   file: File,

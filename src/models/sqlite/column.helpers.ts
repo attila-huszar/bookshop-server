@@ -9,6 +9,7 @@ export const timestamps = {
 
   updatedAt: integer('updated_at', { mode: 'timestamp' })
     .default(sql`(unixepoch())`)
+    .$onUpdateFn(() => new Date())
     .notNull()
     .$type<Date>(),
 }

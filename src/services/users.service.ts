@@ -11,7 +11,6 @@ import {
   validate,
 } from '@/validation'
 import {
-  Folder,
   signAccessToken,
   signRefreshToken,
   stripSensitiveUserFields,
@@ -22,6 +21,7 @@ import { emailQueue } from '@/queues'
 import { authMessage, jobOpts, QUEUE, userMessage } from '@/constants'
 import { BadRequest, Forbidden, NotFound, Unauthorized } from '@/errors'
 import {
+  Folder,
   type LoginRequest,
   type PasswordResetRequest,
   type PasswordResetSubmit,
