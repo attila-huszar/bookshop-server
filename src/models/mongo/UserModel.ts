@@ -14,7 +14,7 @@ const userSchema = new mongo.Schema<User>(
       default: UserRole.User,
       required: true,
     },
-    email: { type: String, unique: true, required: true },
+    email: { type: String, required: true, lowercase: true, trim: true },
     password: { type: String, required: true },
     address: { type: Object, default: null },
     phone: { type: String, default: null },
@@ -30,5 +30,12 @@ const userSchema = new mongo.Schema<User>(
 )
 
 userSchema.plugin(autoIncrementPlugin)
+userSchema.index(
+  { email: 1 },
+  {
+    unique: true,
+    collation: { locale: 'en', strength: 2 },
+  },
+)
 
 export const UserModel = mongo.model<User>('User', userSchema)

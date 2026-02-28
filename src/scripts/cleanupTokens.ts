@@ -2,7 +2,7 @@ import { mongo, sqliteClient } from '@/db'
 import { env } from '@/config'
 import { usersDB } from '@/repositories'
 import { log } from '@/libs'
-import { DB_REPO } from '@/constants'
+import { DB_REPO } from '@/types/enums'
 
 async function main(): Promise<void> {
   let exitCode = 0

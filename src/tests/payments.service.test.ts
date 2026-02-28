@@ -1,0 +1,534 @@
+import { beforeEach, describe, expect, it } from 'bun:test'
+import { BadRequest, Internal, Unauthorized } from '@/errors'
+import { IssueCode, type Order } from '@/types'
+import {
+  mockLogger,
+  mockOrdersDB,
+  mockSendEmail,
+  mockStripe,
+  mockValidate,
+} from './test-setup'
+
+const { cancelPaymentIntent, retrieveOrderSyncStatus, retrievePaymentIntent } =
+  await import('@/services/payments.service')
+
+const createOrder = (overrides: Partial<Order> = {}): Order => ({
+  id: 1,
+  paymentId: 'pi_test_123',
+  paymentStatus: 'processing',
+  lastStripeEventCreated: null,
+  lastStripeEventId: null,
+  lastStripeSyncCheckedAt: null,
+  paidAt: null,
+  total: 12.34,
+  currency: 'USD',
+  items: [],
+  firstName: 'Guest',
+  lastName: 'User',
+  email: 'guest@example.com',
+  shipping: null,
+  createdAt: new Date('2026-02-24T10:00:00.000Z'),
+  updatedAt: new Date('2026-02-24T10:05:00.000Z'),
+  ...overrides,
+})
+
+describe('Payments Service', () => {
+  beforeEach(() => {
+    mockValidate.mockClear()
+    mockOrdersDB.getOrder.mockClear()
+    mockOrdersDB.updateOrder.mockClear()
+    mockStripe.paymentIntents.retrieve.mockClear()
+    mockStripe.paymentIntents.cancel.mockClear()
+    mockSendEmail.mockClear()
+    mockLogger.error.mockClear()
+
+    mockValidate.mockReturnValue('pi_test_123')
+  })
+
+  describe('retrievePaymentIntent', () => {
+    it('rejects unauthorized access before Stripe retrieval', async () => {
+      mockOrdersDB.getOrder.mockResolvedValueOnce(createOrder())
+
+      let resultError: unknown = null
+
+      try {
+        await retrievePaymentIntent('pi_test_123', {
+          userEmail: 'other@example.com',
+        })
+      } catch (error) {
+        resultError = error
+      }
+
+      expect(resultError).toBeInstanceOf(Unauthorized)
+      expect(mockStripe.paymentIntents.retrieve).not.toHaveBeenCalled()
+    })
+
+    it('rejects when order does not exist', async () => {
+      mockOrdersDB.getOrder.mockResolvedValueOnce(null)
+
+      let resultError: unknown = null
+
+      try {
+        await retrievePaymentIntent('pi_test_123', {
+          paymentSessionId: 'pi_test_123',
+        })
+      } catch (error) {
+        resultError = error
+      }
+
+      expect(resultError).toBeInstanceOf(Unauthorized)
+      expect(mockStripe.paymentIntents.retrieve).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('retrieveOrderSyncStatus', () => {
+    it('returns mapped order sync response for authorized guest access', async () => {
+      const order = createOrder({
+        paymentStatus: 'succeeded',
+        paidAt: new Date('2026-02-24T10:03:00.000Z'),
+      })
+      mockOrdersDB.getOrder.mockResolvedValueOnce(order)
+
+      const result = await retrieveOrderSyncStatus('pi_test_123', {
+        paymentSessionId: 'pi_test_123',
+      })
+
+      expect(result).toEqual({
+        paymentId: 'pi_test_123',
+        paymentStatus: 'succeeded',
+        amount: 1234,
+        currency: 'USD',
+        receiptEmail: 'guest@example.com',
+        shipping: null,
+        finalizedAt: '2026-02-24T10:03:00.000Z',
+        webhookUpdatedAt: '2026-02-24T10:05:00.000Z',
+      })
+      expect(mockOrdersDB.getOrder).toHaveBeenCalledTimes(1)
+      expect(mockStripe.paymentIntents.retrieve).not.toHaveBeenCalled()
+    })
+
+    it('falls back to Stripe when retryable status is stale', async () => {
+      const staleOrder = createOrder({
+        paymentStatus: 'processing',
+        updatedAt: new Date(Date.now() - 60_000),
+      })
+      const syncedOrder = createOrder({
+        paymentStatus: 'processing',
+        updatedAt: new Date(),
+        lastStripeSyncCheckedAt: new Date(),
+      })
+
+      mockOrdersDB.getOrder.mockResolvedValueOnce(staleOrder)
+      mockStripe.paymentIntents.retrieve.mockResolvedValueOnce({
+        status: 'processing',
+      })
+      mockOrdersDB.updateOrder.mockResolvedValueOnce(syncedOrder)
+
+      const result = await retrieveOrderSyncStatus('pi_test_123', {
+        paymentSessionId: 'pi_test_123',
+      })
+
+      expect(result.paymentStatus).toBe('processing')
+      expect(mockStripe.paymentIntents.retrieve).toHaveBeenCalledTimes(1)
+      expect(mockOrdersDB.updateOrder).toHaveBeenCalledWith(
+        'pi_test_123',
+        expect.objectContaining({
+          lastStripeSyncCheckedAt: expect.any(Date) as Date,
+        }),
+      )
+      expect(mockSendEmail).not.toHaveBeenCalled()
+    })
+
+    it('does not call Stripe again immediately after unchanged fallback sync', async () => {
+      const now = new Date()
+      const staleOrder = createOrder({
+        paymentStatus: 'processing',
+        updatedAt: new Date(now.getTime() - 60_000),
+        lastStripeSyncCheckedAt: null,
+      })
+      const recentlyCheckedOrder = createOrder({
+        paymentStatus: 'processing',
+        updatedAt: now,
+        lastStripeSyncCheckedAt: now,
+      })
+
+      mockOrdersDB.getOrder
+        .mockResolvedValueOnce(staleOrder)
+        .mockResolvedValueOnce(recentlyCheckedOrder)
+      mockStripe.paymentIntents.retrieve.mockResolvedValue({
+        status: 'processing',
+      })
+      mockOrdersDB.updateOrder.mockResolvedValueOnce(recentlyCheckedOrder)
+
+      await retrieveOrderSyncStatus('pi_test_123', {
+        paymentSessionId: 'pi_test_123',
+      })
+      await retrieveOrderSyncStatus('pi_test_123', {
+        paymentSessionId: 'pi_test_123',
+      })
+
+      expect(mockStripe.paymentIntents.retrieve).toHaveBeenCalledTimes(1)
+    })
+
+    it('persists fallback check timestamp even when Stripe sync fails', async () => {
+      const now = new Date()
+      const staleOrder = createOrder({
+        paymentStatus: 'processing',
+        updatedAt: new Date(now.getTime() - 60_000),
+      })
+      const recentlyCheckedOrder = createOrder({
+        paymentStatus: 'processing',
+        updatedAt: now,
+        lastStripeSyncCheckedAt: now,
+      })
+
+      mockOrdersDB.getOrder
+        .mockResolvedValueOnce(staleOrder)
+        .mockResolvedValueOnce(recentlyCheckedOrder)
+      mockStripe.paymentIntents.retrieve.mockRejectedValueOnce(
+        new Error('Stripe unavailable'),
+      )
+      mockOrdersDB.updateOrder.mockResolvedValueOnce(recentlyCheckedOrder)
+
+      await retrieveOrderSyncStatus('pi_test_123', {
+        paymentSessionId: 'pi_test_123',
+      })
+      await retrieveOrderSyncStatus('pi_test_123', {
+        paymentSessionId: 'pi_test_123',
+      })
+
+      expect(mockOrdersDB.updateOrder).toHaveBeenCalledTimes(1)
+      expect(mockOrdersDB.updateOrder).toHaveBeenCalledWith(
+        'pi_test_123',
+        expect.objectContaining({
+          lastStripeSyncCheckedAt: expect.any(Date) as Date,
+        }),
+      )
+      expect(mockStripe.paymentIntents.retrieve).toHaveBeenCalledTimes(1)
+    })
+
+    it('updates status and fallback timestamp when Stripe reports drift', async () => {
+      const staleOrder = createOrder({
+        paymentStatus: 'processing',
+        updatedAt: new Date(Date.now() - 60_000),
+        paidAt: null,
+      })
+      const syncedOrder = createOrder({
+        paymentStatus: 'succeeded',
+        paidAt: new Date(),
+        updatedAt: new Date(),
+        lastStripeSyncCheckedAt: new Date(),
+      })
+
+      mockOrdersDB.getOrder.mockResolvedValueOnce(staleOrder)
+      mockStripe.paymentIntents.retrieve.mockResolvedValueOnce({
+        status: 'succeeded',
+      })
+      mockOrdersDB.updateOrder.mockResolvedValueOnce(syncedOrder)
+
+      await retrieveOrderSyncStatus('pi_test_123', {
+        paymentSessionId: 'pi_test_123',
+      })
+
+      expect(mockOrdersDB.updateOrder).toHaveBeenCalledWith(
+        'pi_test_123',
+        expect.objectContaining({
+          paymentStatus: 'succeeded',
+          paidAt: expect.any(Date) as Date,
+          lastStripeSyncCheckedAt: expect.any(Date) as Date,
+        }),
+      )
+      expect(mockSendEmail).toHaveBeenCalledTimes(2)
+      expect(mockSendEmail).toHaveBeenCalledWith('orderConfirmation', {
+        order: syncedOrder,
+        source: 'fallback',
+      })
+      expect(mockSendEmail).toHaveBeenCalledWith('adminPaymentNotification', {
+        order: syncedOrder,
+        notificationType: 'confirmed',
+      })
+    })
+
+    it('does not send confirmed notifications when fallback drift is non-succeeded', async () => {
+      const staleOrder = createOrder({
+        paymentStatus: 'processing',
+        updatedAt: new Date(Date.now() - 60_000),
+        paidAt: null,
+      })
+      const syncedOrder = createOrder({
+        paymentStatus: 'canceled',
+        paidAt: null,
+        updatedAt: new Date(),
+        lastStripeSyncCheckedAt: new Date(),
+      })
+
+      mockOrdersDB.getOrder.mockResolvedValueOnce(staleOrder)
+      mockStripe.paymentIntents.retrieve.mockResolvedValueOnce({
+        status: 'canceled',
+      })
+      mockOrdersDB.updateOrder.mockResolvedValueOnce(syncedOrder)
+
+      await retrieveOrderSyncStatus('pi_test_123', {
+        paymentSessionId: 'pi_test_123',
+      })
+
+      expect(mockSendEmail).not.toHaveBeenCalled()
+    })
+
+    it('throws 503 and notifies admin when drift is detected but DB update returns null', async () => {
+      const staleOrder = createOrder({
+        paymentStatus: 'processing',
+        updatedAt: new Date(Date.now() - 60_000),
+        paidAt: null,
+      })
+      const stripeShipping = {
+        name: 'Buyer Example',
+        phone: null,
+        address: {
+          city: 'Budapest',
+          country: 'HU',
+          line1: 'Example st. 1',
+          line2: null,
+          postal_code: '1011',
+          state: null,
+        },
+      }
+
+      mockOrdersDB.getOrder.mockResolvedValueOnce(staleOrder)
+      mockStripe.paymentIntents.retrieve.mockResolvedValueOnce({
+        status: 'succeeded',
+        receipt_email: 'stripe@example.com',
+        shipping: stripeShipping,
+      })
+      mockOrdersDB.updateOrder.mockResolvedValueOnce(null)
+
+      let resultError: unknown = null
+
+      try {
+        await retrieveOrderSyncStatus('pi_test_123', {
+          paymentSessionId: 'pi_test_123',
+        })
+      } catch (error) {
+        resultError = error
+      }
+
+      expect(resultError).toBeInstanceOf(Internal)
+      expect((resultError as Internal).status).toBe(503)
+      expect(mockSendEmail).toHaveBeenCalledTimes(1)
+      expect(mockSendEmail).toHaveBeenCalledWith(
+        'adminPaymentNotification',
+        expect.objectContaining({
+          notificationType: 'error',
+          order: expect.objectContaining({
+            paymentId: 'pi_test_123',
+            paymentStatus: 'succeeded',
+            email: 'stripe@example.com',
+            shipping: stripeShipping,
+          }) as Order,
+        }),
+      )
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        '[CRITICAL] Stripe fallback detected status drift but DB update failed',
+        expect.objectContaining({
+          issueCode: IssueCode.ORDER_SYNC_DRIFT_PERSIST_FAILED,
+          persistFailureReason: 'returned_null',
+          entity: 'order',
+          operation: 'update',
+        }),
+      )
+    })
+
+    it('throws 503 and notifies admin when drift is detected but DB update throws', async () => {
+      const staleOrder = createOrder({
+        paymentStatus: 'processing',
+        updatedAt: new Date(Date.now() - 60_000),
+        paidAt: null,
+      })
+      const stripeShipping = {
+        name: 'Buyer Example',
+        phone: null,
+        address: {
+          city: 'Budapest',
+          country: 'HU',
+          line1: 'Example st. 2',
+          line2: null,
+          postal_code: '1012',
+          state: null,
+        },
+      }
+
+      mockOrdersDB.getOrder.mockResolvedValueOnce(staleOrder)
+      mockStripe.paymentIntents.retrieve.mockResolvedValueOnce({
+        status: 'canceled',
+        receipt_email: 'stripe-cancel@example.com',
+        shipping: stripeShipping,
+      })
+      mockOrdersDB.updateOrder.mockRejectedValueOnce(
+        new Error('DB write failed'),
+      )
+
+      let resultError: unknown = null
+
+      try {
+        await retrieveOrderSyncStatus('pi_test_123', {
+          paymentSessionId: 'pi_test_123',
+        })
+      } catch (error) {
+        resultError = error
+      }
+
+      expect(resultError).toBeInstanceOf(Internal)
+      expect((resultError as Internal).status).toBe(503)
+      expect(mockSendEmail).toHaveBeenCalledTimes(1)
+      expect(mockSendEmail).toHaveBeenCalledWith(
+        'adminPaymentNotification',
+        expect.objectContaining({
+          notificationType: 'error',
+          order: expect.objectContaining({
+            paymentId: 'pi_test_123',
+            paymentStatus: 'canceled',
+            email: 'stripe-cancel@example.com',
+            shipping: stripeShipping,
+          }) as Order,
+        }),
+      )
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        '[CRITICAL] Stripe fallback detected status drift but DB update failed',
+        expect.objectContaining({
+          issueCode: IssueCode.ORDER_SYNC_DRIFT_PERSIST_FAILED,
+          persistFailureReason: 'threw',
+          entity: 'order',
+          operation: 'update',
+        }),
+      )
+    })
+
+    it('does not fallback to Stripe for non-retryable status', async () => {
+      mockOrdersDB.getOrder.mockResolvedValueOnce(
+        createOrder({
+          paymentStatus: 'canceled',
+          updatedAt: new Date(Date.now() - 3600_000),
+        }),
+      )
+
+      const result = await retrieveOrderSyncStatus('pi_test_123', {
+        paymentSessionId: 'pi_test_123',
+      })
+
+      expect(result.paymentStatus).toBe('canceled')
+      expect(mockStripe.paymentIntents.retrieve).not.toHaveBeenCalled()
+      expect(mockOrdersDB.updateOrder).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('cancelPaymentIntent', () => {
+    it('rejects unauthorized cancel before hitting Stripe', async () => {
+      mockOrdersDB.getOrder.mockResolvedValueOnce(createOrder())
+
+      let resultError: unknown = null
+
+      try {
+        await cancelPaymentIntent('pi_test_123', {
+          userEmail: 'other@example.com',
+        })
+      } catch (error) {
+        resultError = error
+      }
+
+      expect(resultError).toBeInstanceOf(Unauthorized)
+      expect(mockStripe.paymentIntents.retrieve).not.toHaveBeenCalled()
+      expect(mockStripe.paymentIntents.cancel).not.toHaveBeenCalled()
+      expect(mockOrdersDB.updateOrder).not.toHaveBeenCalled()
+    })
+
+    it('rejects cancel for already canceled payment before hitting Stripe', async () => {
+      mockOrdersDB.getOrder.mockResolvedValueOnce(
+        createOrder({ paymentStatus: 'canceled' }),
+      )
+
+      let resultError: unknown = null
+
+      try {
+        await cancelPaymentIntent('pi_test_123', {
+          paymentSessionId: 'pi_test_123',
+        })
+      } catch (error) {
+        resultError = error
+      }
+
+      expect(resultError).toBeInstanceOf(BadRequest)
+      expect((resultError as Error).message).toBe('Payment already canceled')
+      expect(mockStripe.paymentIntents.cancel).not.toHaveBeenCalled()
+      expect(mockOrdersDB.updateOrder).not.toHaveBeenCalled()
+    })
+
+    it('rejects cancel for succeeded payment before hitting Stripe', async () => {
+      mockOrdersDB.getOrder.mockResolvedValueOnce(
+        createOrder({ paymentStatus: 'succeeded' }),
+      )
+
+      let resultError: unknown = null
+
+      try {
+        await cancelPaymentIntent('pi_test_123', {
+          paymentSessionId: 'pi_test_123',
+        })
+      } catch (error) {
+        resultError = error
+      }
+
+      expect(resultError).toBeInstanceOf(BadRequest)
+      expect((resultError as Error).message).toBe(
+        'Cannot cancel succeeded payment',
+      )
+      expect(mockStripe.paymentIntents.cancel).not.toHaveBeenCalled()
+      expect(mockOrdersDB.updateOrder).not.toHaveBeenCalled()
+    })
+
+    it('throws 500 and notifies admin when cancel persistence fails', async () => {
+      mockOrdersDB.getOrder.mockResolvedValueOnce(
+        createOrder({ paymentStatus: 'processing' }),
+      )
+      mockStripe.paymentIntents.cancel.mockResolvedValueOnce({
+        id: 'pi_test_123',
+        status: 'canceled',
+      })
+      mockOrdersDB.updateOrder.mockRejectedValueOnce(
+        new Error('cancel persistence failed'),
+      )
+
+      let resultError: unknown = null
+
+      try {
+        await cancelPaymentIntent('pi_test_123', {
+          paymentSessionId: 'pi_test_123',
+        })
+      } catch (error) {
+        resultError = error
+      }
+
+      expect(resultError).toBeInstanceOf(Internal)
+      expect((resultError as Internal).status).toBe(500)
+      expect(mockSendEmail).toHaveBeenCalledTimes(1)
+      expect(mockSendEmail).toHaveBeenCalledWith(
+        'adminPaymentNotification',
+        expect.objectContaining({
+          notificationType: 'error',
+          order: expect.objectContaining({
+            paymentId: 'pi_test_123',
+          }) as Order,
+        }),
+      )
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        '[CRITICAL] Stripe payment canceled but order status update failed',
+        expect.objectContaining({
+          issueCode: IssueCode.PAYMENT_CANCEL_PERSIST_FAILED,
+          persistFailureReason: 'threw',
+          entity: 'order',
+          operation: 'update',
+          stripeStatus: 'canceled',
+        }),
+      )
+    })
+  })
+})

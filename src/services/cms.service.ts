@@ -15,7 +15,7 @@ import {
   uuidSchema,
   validate,
 } from '@/validation'
-import { Folder, uploadFile } from '@/utils'
+import { uploadFile } from '@/utils'
 import { BadRequest } from '@/errors'
 import type {
   Author,
@@ -31,7 +31,7 @@ import type {
   UserInsert,
   UserUpdate,
 } from '@/types'
-import { UserRole } from '@/types'
+import { Folder, UserRole } from '@/types'
 
 // --- READ --- //
 export async function getAllBooks(): Promise<Book[]> {

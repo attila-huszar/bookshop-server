@@ -1,4 +1,4 @@
-import { DB_REPO } from '@/constants'
+import { DB_REPO } from '@/types/enums'
 
 export const env = {
   mailerService: Bun.env.MAILER_SERVICE ?? 'gmail',

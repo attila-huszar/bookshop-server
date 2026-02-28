@@ -32,7 +32,7 @@ export async function updateUserBy(
 ): Promise<User | null> {
   const [updatedUser] = await sqlite
     .update(usersTable)
-    .set({ ...fields, updatedAt: new Date() })
+    .set(fields)
     .where(eq(usersTable[field], value))
     .returning()
   return updatedUser ?? null

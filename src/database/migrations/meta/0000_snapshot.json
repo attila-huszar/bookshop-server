@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "c722a058-12c2-42aa-86b0-78adeaf19765",
+  "id": "68ddb8d5-2da9-4978-96ee-0e2bc2060ec6",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "authors": {
@@ -289,6 +289,27 @@
           "autoincrement": false,
           "default": "'processing'"
         },
+        "last_stripe_event_created": {
+          "name": "last_stripe_event_created",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "last_stripe_event_id": {
+          "name": "last_stripe_event_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "last_stripe_sync_checked_at": {
+          "name": "last_stripe_sync_checked_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "paid_at": {
           "name": "paid_at",
           "type": "integer",
@@ -517,10 +538,10 @@
           ],
           "isUnique": true
         },
-        "users_email_unique": {
-          "name": "users_email_unique",
+        "email_unique_ci": {
+          "name": "email_unique_ci",
           "columns": [
-            "email"
+            "lower(\"email\")"
           ],
           "isUnique": true
         }
@@ -539,6 +560,14 @@
     "columns": {}
   },
   "internal": {
-    "indexes": {}
+    "indexes": {
+      "email_unique_ci": {
+        "columns": {
+          "lower(\"email\")": {
+            "isExpression": true
+          }
+        }
+      }
+    }
   }
 }

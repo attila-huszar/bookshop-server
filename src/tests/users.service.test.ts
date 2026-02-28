@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'bun:test'
 import { type UserInsert, UserRole } from '@/types'
 import * as usersService from '../services/users.service'
 import {
-  mockEmailQueue,
+  mockSendEmail,
   mockSignAccessToken,
   mockSignRefreshToken,
   mockUsersDB,
@@ -10,7 +10,7 @@ import {
 } from './test-setup'
 
 beforeEach(() => {
-  mockEmailQueue.add.mockClear()
+  mockSendEmail.mockClear()
 })
 
 describe('Users Service', () => {
@@ -97,7 +97,6 @@ describe('Users Service', () => {
       mockValidate.mockReturnValueOnce(validatedData)
       mockUsersDB.getUserBy.mockResolvedValueOnce(null)
       mockUsersDB.createUser.mockResolvedValueOnce(mockUser)
-      mockEmailQueue.add.mockResolvedValueOnce(undefined)
 
       const result = await usersService.registerUser(formData)
 
@@ -107,14 +106,12 @@ describe('Users Service', () => {
         'test@example.com',
       )
       expect(mockUsersDB.createUser).toHaveBeenCalled()
-      expect(mockEmailQueue.add).toHaveBeenCalledWith(
+      expect(mockSendEmail).toHaveBeenCalledWith(
         'verification',
         expect.objectContaining({
-          type: 'verification',
           toAddress: 'test@example.com',
           toName: 'John',
         }),
-        expect.any(Object),
       )
       expect(result).toEqual({ email: 'test@example.com' })
     })
@@ -177,19 +174,16 @@ describe('Users Service', () => {
       mockValidate.mockReturnValueOnce(request)
       mockUsersDB.getUserBy.mockResolvedValueOnce(mockUser)
       mockUsersDB.updateUserBy.mockResolvedValueOnce(updatedUser)
-      mockEmailQueue.add.mockResolvedValueOnce(undefined)
 
       const result = await usersService.passwordResetRequest(request)
 
       expect(mockUsersDB.updateUserBy).toHaveBeenCalled()
-      expect(mockEmailQueue.add).toHaveBeenCalledWith(
+      expect(mockSendEmail).toHaveBeenCalledWith(
         'passwordReset',
         expect.objectContaining({
-          type: 'passwordReset',
           toAddress: 'test@example.com',
           toName: 'John',
         }),
-        expect.any(Object),
       )
       expect(result).toHaveProperty('message')
     })
@@ -203,7 +197,7 @@ describe('Users Service', () => {
       const result = await usersService.passwordResetRequest(request)
 
       expect(result).toHaveProperty('message')
-      expect(mockEmailQueue.add).not.toHaveBeenCalled()
+      expect(mockSendEmail).not.toHaveBeenCalled()
     })
   })
 

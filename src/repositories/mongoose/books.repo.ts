@@ -3,7 +3,6 @@ import type {
   BookDocPopulatedWithAuthorId,
   BookDocPopulatedWithAuthorName,
 } from '@/models/mongo/BookModel'
-import { mongoQueryBuilder } from '@/utils'
 import { PAGINATION } from '@/constants'
 import type {
   Book,
@@ -12,6 +11,7 @@ import type {
   BookUpdate,
   BookWithAuthor,
 } from '@/types'
+import { bookQueryBuilder } from './books.query'
 
 type AggregateResult = {
   _id: null
@@ -37,7 +37,7 @@ export async function getBooks(query?: BookQuery): Promise<{
   )
   const offset = (page - 1) * limit
 
-  let filter = mongoQueryBuilder(query)
+  let filter = bookQueryBuilder(query)
 
   if (query?.authorId) {
     const author = await AuthorModel.findOne({ id: query.authorId })

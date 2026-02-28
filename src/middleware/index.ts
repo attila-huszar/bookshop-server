@@ -1,4 +1,5 @@
 export { authMiddleware } from './auth.middleware'
 export { authAdminMiddleware } from './authAdmin.middleware'
 export { optionalAuthMiddleware } from './optionalAuth.middleware'
+export { paymentAccessMiddleware } from './paymentAccess.middleware'
 export { payloadLimiter } from './payloadLimiter.middleware'

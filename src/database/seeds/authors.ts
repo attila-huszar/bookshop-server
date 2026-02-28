@@ -1,5 +1,5 @@
 import { env } from '@/config'
-import { DB_REPO } from '@/constants'
+import { DB_REPO } from '@/types/enums'
 import authorsData from './authors.json'
 
 export async function seedAuthors() {

@@ -1,6 +1,6 @@
 import { type Job, Worker } from 'bullmq'
 import { env } from '@/config'
-import { log, sendEmail } from '@/libs'
+import { log, sendMail } from '@/libs'
 import { concurrency, QUEUE } from '@/constants'
 import type { SendEmailProps } from '@/types'
 
@@ -8,7 +8,7 @@ const parsedUrl = new URL(env.redisUrl)
 
 export const emailWorker = new Worker(
   QUEUE.EMAIL.NAME,
-  async (job: Job<SendEmailProps>) => sendEmail(job.data),
+  async (job: Job<SendEmailProps>) => sendMail(job.data),
   {
     connection: {
       host: parsedUrl.hostname,
