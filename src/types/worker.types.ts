@@ -49,3 +49,30 @@ export type SendEmailProps =
   | PasswordResetEmailProps
   | OrderConfirmationEmailProps
   | AdminPaymentNotificationEmailProps
+
+type OrderForAdminEmail = Pick<
+  Order,
+  'paymentId' | 'items' | 'total' | 'currency' | 'paymentStatus'
+> &
+  Partial<Pick<Order, 'firstName' | 'lastName' | 'email' | 'shipping'>>
+
+export type SendEmailInputMap = {
+  [QUEUE.EMAIL.JOB.VERIFICATION]: {
+    toAddress: string
+    toName: string
+    tokenLink: string
+  }
+  [QUEUE.EMAIL.JOB.PASSWORD_RESET]: {
+    toAddress: string
+    toName: string
+    tokenLink: string
+  }
+  [QUEUE.EMAIL.JOB.ORDER_CONFIRMATION]: {
+    order: Order
+    source: 'webhook' | 'fallback'
+  }
+  [QUEUE.EMAIL.JOB.ADMIN_PAYMENT_NOTIFICATION]: {
+    order: OrderForAdminEmail
+    notificationType: AdminNotification
+  }
+}

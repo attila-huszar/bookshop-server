@@ -1,4 +1,6 @@
 import { mock } from 'bun:test'
+import { throwCriticalOrderPersistFailure } from '@/utils/persistence.utils'
+import { getOrderRef } from '@/utils/string.utils'
 import {
   stripSensitiveUserFields,
   stripTimestamps,
@@ -35,8 +37,8 @@ export const mockValidate = mock()
 export const mockSignAccessToken = mock()
 export const mockSignRefreshToken = mock()
 export const mockUploadFile = mock()
+export const mockSendMail = mock()
 export const mockSendEmail = mock()
-export const mockSendAdminNotificationEmail = mock()
 export const mockExtractPaymentIntentFields = mock(() => ({}))
 export const mockGetPaymentIntentId = mock(
   (source: { payment_intent?: unknown }) =>
@@ -92,14 +94,16 @@ await mock.module('@/validation', () => ({
 }))
 
 await mock.module('@/utils', () => ({
-  sendAdminNotificationEmail: mockSendAdminNotificationEmail,
+  sendEmail: mockSendEmail,
   extractPaymentIntentFields: mockExtractPaymentIntentFields,
   getPaymentIntentId: mockGetPaymentIntentId,
   signAccessToken: mockSignAccessToken,
   signRefreshToken: mockSignRefreshToken,
   uploadFile: mockUploadFile,
+  throwCriticalOrderPersistFailure,
   stripSensitiveUserFields,
   stripTimestamps,
+  getOrderRef,
   Folder: {
     Avatars: 'avatars',
     ProductImages: 'product-images',
@@ -107,7 +111,7 @@ await mock.module('@/utils', () => ({
 }))
 
 await mock.module('@/utils/email.utils', () => ({
-  sendAdminNotificationEmail: mockSendAdminNotificationEmail,
+  sendEmail: mockSendEmail,
 }))
 
 await mock.module('@/queues', () => ({

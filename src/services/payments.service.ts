@@ -10,7 +10,7 @@ import {
 import {
   extractPaymentIntentFields,
   reportCriticalOrderPersistFailure,
-  sendAdminNotificationEmail,
+  sendEmail,
   throwCriticalOrderPersistFailure,
   toIsoString,
 } from '@/utils'
@@ -91,15 +91,15 @@ export async function retrieveOrderSyncStatus(
     try {
       const paymentIntent = await stripe.paymentIntents.retrieve(validatedId)
       const statusChanged = paymentIntent.status !== order.paymentStatus
+      const justPaid =
+        statusChanged && paymentIntent.status === 'succeeded' && !order.paidAt
       const updateData: OrderUpdate = {
         lastStripeSyncCheckedAt: stripeSyncCheckedAt,
         ...(statusChanged
           ? {
               ...extractPaymentIntentFields(paymentIntent),
               paymentStatus: paymentIntent.status,
-              ...(paymentIntent.status === 'succeeded' && !order.paidAt
-                ? { paidAt: new Date() }
-                : {}),
+              ...(justPaid ? { paidAt: new Date() } : {}),
             }
           : {}),
       }
@@ -109,6 +109,17 @@ export async function retrieveOrderSyncStatus(
 
         if (syncedOrder) {
           order = syncedOrder
+
+          if (justPaid) {
+            sendEmail('orderConfirmation', {
+              order: syncedOrder,
+              source: 'fallback',
+            })
+            sendEmail('adminPaymentNotification', {
+              order: syncedOrder,
+              notificationType: AdminNotification.Confirmed,
+            })
+          }
         } else if (statusChanged) {
           throwCriticalOrderPersistFailure({
             issueCode: IssueCode.ORDER_SYNC_DRIFT_PERSIST_FAILED,
@@ -399,7 +410,7 @@ export async function createPaymentIntent(
       throw new Internal('Failed to create order in database')
     }
 
-    sendAdminNotificationEmail({
+    sendEmail('adminPaymentNotification', {
       order: createdOrder,
       notificationType: AdminNotification.Created,
     })
@@ -411,7 +422,7 @@ export async function createPaymentIntent(
     }
   } catch (error) {
     if (stripePaymentId) {
-      sendAdminNotificationEmail({
+      sendEmail('adminPaymentNotification', {
         notificationType: AdminNotification.Error,
         order: {
           paymentId: stripePaymentId,

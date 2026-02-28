@@ -27,7 +27,7 @@ transporter
     log.error('SMTP transporter verification failed', error)
   })
 
-export async function sendEmail(props: SendEmailProps) {
+export async function sendMail(props: SendEmailProps) {
   try {
     const mailOptions: SendMailOptions = {
       from: `${env.mailerName} <${env.mailerUser!}>`,

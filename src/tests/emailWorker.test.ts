@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it } from 'bun:test'
 import type { SendEmailProps } from '@/types'
-import { mockLogger, mockSendEmail, mockWorker } from './test-setup'
+import { mockLogger, mockSendMail, mockWorker } from './test-setup'
 
 describe('Email Worker', () => {
   beforeEach(() => {
-    mockSendEmail.mockClear()
+    mockSendMail.mockClear()
     mockLogger.info.mockClear()
     mockLogger.error.mockClear()
     mockWorker.on.mockClear()
@@ -30,10 +30,10 @@ describe('Email Worker', () => {
       tokenLink: 'https://example.com/verify?token=abc123',
     }
 
-    mockSendEmail.mockResolvedValueOnce(undefined)
-    await mockSendEmail(jobData)
+    mockSendMail.mockResolvedValueOnce(undefined)
+    await mockSendMail(jobData)
 
-    expect(mockSendEmail).toHaveBeenCalledWith(jobData)
+    expect(mockSendMail).toHaveBeenCalledWith(jobData)
   })
 
   it('should log success when job completes', () => {

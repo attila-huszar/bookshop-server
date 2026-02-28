@@ -1,4 +1,4 @@
-import { sendAdminNotificationEmail } from '@/utils/email.utils'
+import { sendEmail } from '@/utils/email.utils'
 import { log } from '@/libs'
 import { Internal } from '@/errors'
 import {
@@ -64,7 +64,7 @@ export function reportCriticalOrderPersistFailure({
   })
 
   if (notifyAdmin) {
-    sendAdminNotificationEmail({
+    sendEmail('adminPaymentNotification', {
       notificationType: AdminNotification.Error,
       order,
     })

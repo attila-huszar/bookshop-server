@@ -11,14 +11,13 @@ import {
   validate,
 } from '@/validation'
 import {
+  sendEmail,
   signAccessToken,
   signRefreshToken,
   stripSensitiveUserFields,
   uploadFile,
 } from '@/utils'
-import { log } from '@/libs'
-import { emailQueue } from '@/queues'
-import { authMessage, jobOpts, QUEUE, userMessage } from '@/constants'
+import { authMessage, userMessage } from '@/constants'
 import { BadRequest, Forbidden, NotFound, Unauthorized } from '@/errors'
 import {
   Folder,
@@ -27,7 +26,6 @@ import {
   type PasswordResetSubmit,
   type PasswordResetToken,
   type PublicUser,
-  type SendEmailProps,
   type UserInsert,
   UserRole,
   type UserUpdate,
@@ -114,23 +112,11 @@ export async function registerUser(formData: FormData) {
     throw new Error(userMessage.createError)
   }
 
-  void emailQueue
-    .add(
-      QUEUE.EMAIL.JOB.VERIFICATION,
-      {
-        type: QUEUE.EMAIL.JOB.VERIFICATION,
-        toAddress: email,
-        toName: firstName,
-        tokenLink,
-      } satisfies SendEmailProps,
-      jobOpts,
-    )
-    .catch((error: Error) => {
-      void log.error(
-        '[QUEUE] Failed to queue registration verification email',
-        { error },
-      )
-    })
+  sendEmail('verification', {
+    toAddress: email,
+    toName: firstName,
+    tokenLink,
+  })
 
   return { email: userCreated.email }
 }
@@ -187,22 +173,11 @@ export async function passwordResetRequest(
     throw new Error(userMessage.updateError)
   }
 
-  void emailQueue
-    .add(
-      QUEUE.EMAIL.JOB.PASSWORD_RESET,
-      {
-        type: QUEUE.EMAIL.JOB.PASSWORD_RESET,
-        toAddress: user.email,
-        toName: user.firstName,
-        tokenLink,
-      } satisfies SendEmailProps,
-      jobOpts,
-    )
-    .catch((error: Error) => {
-      void log.error('[QUEUE] Failed to queue password reset email', {
-        error,
-      })
-    })
+  sendEmail('passwordReset', {
+    toAddress: user.email,
+    toName: user.firstName,
+    tokenLink,
+  })
 
   return { message: userMessage.forgotPasswordRequest }
 }

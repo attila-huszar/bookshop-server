@@ -11,12 +11,156 @@ import { AdminNotification } from '@/types'
 import type {
   AdminPaymentNotificationEmailItem,
   AdminPaymentNotificationEmailProps,
-  Order,
+  PasswordResetEmailProps,
+  SendEmailInputMap,
   SendEmailProps,
+  VerificationEmailProps,
 } from '@/types'
 import { getOrderRef } from './string.utils'
 
 const baseLink = env.clientBaseUrl!
+
+type SendEmailArgs = {
+  [K in keyof SendEmailInputMap]: [type: K, data: SendEmailInputMap[K]]
+}[keyof SendEmailInputMap]
+
+export function sendEmail(...args: SendEmailArgs): void {
+  const [type, data] = args
+
+  switch (type) {
+    case QUEUE.EMAIL.JOB.VERIFICATION: {
+      const payload: VerificationEmailProps = {
+        type,
+        ...data,
+      }
+
+      void emailQueue.add(type, payload, jobOpts).catch((error: Error) => {
+        void log.error(
+          '[QUEUE] Failed to queue registration verification email',
+          {
+            error,
+            toAddress: payload.toAddress,
+          },
+        )
+      })
+      break
+    }
+    case QUEUE.EMAIL.JOB.PASSWORD_RESET: {
+      const payload: PasswordResetEmailProps = {
+        type,
+        ...data,
+      }
+
+      void emailQueue.add(type, payload, jobOpts).catch((error: Error) => {
+        void log.error('[QUEUE] Failed to queue password reset email', {
+          error,
+          toAddress: payload.toAddress,
+        })
+      })
+      break
+    }
+    case QUEUE.EMAIL.JOB.ORDER_CONFIRMATION: {
+      const { order, source } = data
+
+      if (!order.email || !order.firstName) {
+        void log.error(
+          'Order missing email or first name for confirmation email',
+          {
+            paymentId: order.paymentId,
+            source,
+          },
+        )
+        return
+      }
+
+      const payload: SendEmailProps = {
+        type,
+        toAddress: order.email,
+        toName: order.firstName,
+        order,
+      }
+
+      void emailQueue.add(type, payload, jobOpts).catch((error: Error) => {
+        void log.error('[QUEUE] Order confirmation email queueing failed', {
+          error,
+          paymentId: order.paymentId,
+          source,
+        })
+      })
+      break
+    }
+    case QUEUE.EMAIL.JOB.ADMIN_PAYMENT_NOTIFICATION: {
+      const { notificationType, order } = data
+
+      const emailTitleMap: Record<AdminNotification, string> = {
+        [AdminNotification.Created]: '🛍️ Order Created',
+        [AdminNotification.Confirmed]: '✅ Order Confirmed',
+        [AdminNotification.Error]: '⚠️ Order Error',
+      }
+
+      const shippingMessageMap: Record<AdminNotification, string> = {
+        [AdminNotification.Created]:
+          '⏳ Shipping address will be available after confirmation',
+        [AdminNotification.Confirmed]: '🚫 Shipping address unavailable',
+        [AdminNotification.Error]: '❌ Error during order processing',
+      }
+
+      const emailTitle = emailTitleMap[notificationType]
+      const shippingMessage = shippingMessageMap[notificationType]
+
+      const shippingAddressParts = order.shipping
+        ? [
+            order.shipping.address?.line1,
+            order.shipping.address?.line2,
+            [
+              order.shipping.address?.city,
+              order.shipping.address?.state,
+              order.shipping.address?.postal_code,
+            ]
+              .filter(Boolean)
+              .join(', '),
+            order.shipping.address?.country,
+          ]
+            .filter((part): part is string => Boolean(part))
+            .map((part) => Bun.escapeHTML(part))
+        : []
+
+      const shippingAddress = shippingAddressParts.length
+        ? shippingAddressParts.join('<br />')
+        : shippingMessage
+
+      const payload: AdminPaymentNotificationEmailProps = {
+        type,
+        notificationType,
+        toAddress: env.adminEmail!,
+        emailTitle,
+        paymentId: order.paymentId,
+        customerName:
+          order.firstName && order.lastName
+            ? `${order.firstName} ${order.lastName}`
+            : (order.firstName ?? 'Guest User'),
+        customerEmail: order.email ?? 'N/A',
+        items: order.items,
+        total: order.total,
+        currency: order.currency,
+        paymentStatus: order.paymentStatus,
+        shippingAddress,
+      }
+
+      void emailQueue.add(type, payload, jobOpts).catch((error: Error) => {
+        void log.error(
+          '[QUEUE] Admin payment notification email queueing failed',
+          {
+            error,
+            paymentId: order.paymentId,
+            notificationType,
+          },
+        )
+      })
+      break
+    }
+  }
+}
 
 const interpolate = (template: string, vars: Record<string, string>) =>
   template.replace(/{{\s*(\w+)\s*}}/g, (_, key: string) => vars[key] ?? '')
@@ -135,89 +279,4 @@ export function getEmailHtml(props: SendEmailProps): string {
     default:
       throw new Error('Unknown email type')
   }
-}
-
-type OrderForAdminEmail = Pick<
-  Order,
-  'paymentId' | 'items' | 'total' | 'currency' | 'paymentStatus'
-> &
-  Partial<Pick<Order, 'firstName' | 'lastName' | 'email' | 'shipping'>>
-
-type SendAdminNotificationEmailParams = {
-  notificationType: AdminNotification
-  order: OrderForAdminEmail
-}
-
-export function sendAdminNotificationEmail({
-  notificationType,
-  order,
-}: SendAdminNotificationEmailParams): void {
-  if (!env.adminEmail) {
-    void log.warn('Admin email not configured, skipping notification', {
-      paymentId: order.paymentId,
-    })
-    return
-  }
-
-  const emailTitleMap: Record<AdminNotification, string> = {
-    [AdminNotification.Created]: '🛍️ Order Created',
-    [AdminNotification.Confirmed]: '✅ Order Confirmed',
-    [AdminNotification.Error]: '⚠️ Order Error',
-  }
-  const shippingMessageMap: Record<AdminNotification, string> = {
-    [AdminNotification.Created]:
-      '⏳ Shipping address will be available after confirmation',
-    [AdminNotification.Confirmed]: '🚫 Shipping address unavailable',
-    [AdminNotification.Error]: '❌ Error during order processing',
-  }
-  const emailTitle = emailTitleMap[notificationType]
-  const shippingMessage = shippingMessageMap[notificationType]
-
-  const shippingAddressParts = order.shipping
-    ? [
-        order.shipping.address?.line1,
-        order.shipping.address?.line2,
-        [
-          order.shipping.address?.city,
-          order.shipping.address?.state,
-          order.shipping.address?.postal_code,
-        ]
-          .filter(Boolean)
-          .join(', '),
-        order.shipping.address?.country,
-      ]
-        .filter((part): part is string => Boolean(part))
-        .map((part) => Bun.escapeHTML(part))
-    : []
-
-  const shippingAddress = shippingAddressParts.length
-    ? shippingAddressParts.join('<br />')
-    : shippingMessage
-
-  const adminEmailData: AdminPaymentNotificationEmailProps = {
-    type: QUEUE.EMAIL.JOB.ADMIN_PAYMENT_NOTIFICATION,
-    notificationType,
-    toAddress: env.adminEmail,
-    emailTitle,
-    paymentId: order.paymentId,
-    customerName:
-      order.firstName && order.lastName
-        ? `${order.firstName} ${order.lastName}`
-        : (order.firstName ?? 'Guest User'),
-    customerEmail: order.email ?? 'N/A',
-    items: order.items,
-    total: order.total,
-    currency: order.currency,
-    paymentStatus: order.paymentStatus,
-    shippingAddress,
-  }
-
-  void emailQueue
-    .add(QUEUE.EMAIL.JOB.ADMIN_PAYMENT_NOTIFICATION, adminEmailData, jobOpts)
-    .catch((error: Error) => {
-      void log.error(
-        '[QUEUE] Admin payment notification email queueing failed',
-        { error, paymentId: order.paymentId },
-      )
-    })
 }

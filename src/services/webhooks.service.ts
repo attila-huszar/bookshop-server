@@ -4,12 +4,11 @@ import { ordersDB } from '@/repositories'
 import {
   extractPaymentIntentFields,
   getPaymentIntentId,
-  sendAdminNotificationEmail,
+  sendEmail,
   throwCriticalOrderPersistFailure,
 } from '@/utils'
 import { log } from '@/libs'
-import { emailQueue } from '@/queues'
-import { jobOpts, QUEUE, terminalStatuses } from '@/constants'
+import { terminalStatuses } from '@/constants'
 import { BadRequest, Internal } from '@/errors'
 import {
   AdminNotification,
@@ -18,7 +17,6 @@ import {
   isPaymentIntentEvent,
   isRefundEvent,
   IssueCode,
-  type OrderConfirmationEmailProps,
   type OrderUpdate,
   type PaymentIntentStatus,
   type StripeEvent,
@@ -74,7 +72,7 @@ function reportMissingOrderForPaymentIntentWebhook({
     receiptEmail: paymentIntent.receipt_email ?? null,
   })
 
-  sendAdminNotificationEmail({
+  sendEmail('adminPaymentNotification', {
     notificationType: AdminNotification.Error,
     order: {
       paymentId: paymentIntent.id,
@@ -153,29 +151,12 @@ export async function processStripeWebhook(
 
         const { justPaid, ...updatedOrder } = result
 
-        if (!updatedOrder.email || !updatedOrder.firstName) {
-          void log.error(
-            'Order missing email or first name for confirmation email',
-            { paymentId: paymentIntent.id },
-          )
-        } else if (justPaid) {
-          const jobData: OrderConfirmationEmailProps = {
-            type: QUEUE.EMAIL.JOB.ORDER_CONFIRMATION,
-            toAddress: updatedOrder.email,
-            toName: updatedOrder.firstName,
+        if (justPaid) {
+          sendEmail('orderConfirmation', {
             order: updatedOrder,
-          }
-
-          void emailQueue
-            .add(QUEUE.EMAIL.JOB.ORDER_CONFIRMATION, jobData, jobOpts)
-            .catch((error: Error) => {
-              void log.error(
-                '[QUEUE] Order confirmation email queueing failed',
-                { error, paymentId: paymentIntent.id },
-              )
-            })
-
-          sendAdminNotificationEmail({
+            source: 'webhook',
+          })
+          sendEmail('adminPaymentNotification', {
             order: updatedOrder,
             notificationType: AdminNotification.Confirmed,
           })
