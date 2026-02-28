@@ -5,22 +5,8 @@
     {
       "idx": 0,
       "version": "6",
-      "when": 1770320905691,
-      "tag": "0000_burly_karma",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1772135562128,
-      "tag": "0001_spotty_morbius",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1772184157038,
-      "tag": "0002_huge_redwing",
+      "when": 1772284651450,
+      "tag": "0000_whole_blazing_skull",
       "breakpoints": true
     }
   ]

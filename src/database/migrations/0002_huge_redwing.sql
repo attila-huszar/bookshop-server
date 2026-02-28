@@ -1,1 +1,0 @@
-ALTER TABLE `orders` ADD `last_stripe_sync_checked_at` integer;

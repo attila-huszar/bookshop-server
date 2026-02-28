@@ -42,6 +42,9 @@ CREATE TABLE `orders` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
 	`payment_id` text NOT NULL,
 	`payment_status` text DEFAULT 'processing' NOT NULL,
+	`last_stripe_event_created` integer,
+	`last_stripe_event_id` text,
+	`last_stripe_sync_checked_at` integer,
 	`paid_at` integer,
 	`total` real NOT NULL,
 	`currency` text NOT NULL,
@@ -77,4 +80,4 @@ CREATE TABLE `users` (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `users_uuid_unique` ON `users` (`uuid`);--> statement-breakpoint
-CREATE UNIQUE INDEX `users_email_unique` ON `users` (`email`);
+CREATE UNIQUE INDEX `email_unique_ci` ON `users` (lower("email"));

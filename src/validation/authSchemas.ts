@@ -2,7 +2,10 @@ import { z } from 'zod'
 import { imageSchema } from './commonSchemas'
 
 export const emailSchema = z.object({
-  email: z.email('Invalid email'),
+  email: z
+    .email('Invalid email')
+    .trim()
+    .transform((email) => email.toLowerCase()),
 })
 
 export const passwordSchema = z.object({
