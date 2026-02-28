@@ -1,4 +1,4 @@
-import { eq, inArray } from 'drizzle-orm'
+import { desc, eq, inArray } from 'drizzle-orm'
 import { sqlite } from '@/db'
 import model from '@/models'
 import type { Order, OrderInsert, OrderUpdate } from '@/types'
@@ -36,6 +36,16 @@ export async function updateOrder(
 
 export async function getAllOrders(): Promise<Order[]> {
   const orderRecords = await sqlite.select().from(ordersTable)
+  return orderRecords
+}
+
+export async function getOrdersByEmail(email: string): Promise<Order[]> {
+  const orderRecords = await sqlite
+    .select()
+    .from(ordersTable)
+    .where(eq(ordersTable.email, email))
+    .orderBy(desc(ordersTable.createdAt))
+
   return orderRecords
 }
 

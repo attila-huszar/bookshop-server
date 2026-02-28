@@ -18,6 +18,7 @@ export const mockBooksDB = {
 
 export const mockOrdersDB = {
   getOrder: mock(),
+  getOrdersByEmail: mock(),
   createOrder: mock(),
   updateOrder: mock(),
 }

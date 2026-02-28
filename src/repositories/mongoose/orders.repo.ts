@@ -38,6 +38,15 @@ export async function getAllOrders(): Promise<Order[]> {
   return orders
 }
 
+export async function getOrdersByEmail(email: string): Promise<Order[]> {
+  const orders = await OrderModel.find({ email })
+    .sort({ createdAt: -1 })
+    .lean()
+    .exec()
+
+  return orders
+}
+
 export async function insertOrder(order: OrderInsert): Promise<Order> {
   const { id, createdAt, updatedAt, ...orderData } = order
   const created = await OrderModel.create(orderData)

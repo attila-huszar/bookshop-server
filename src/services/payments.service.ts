@@ -348,6 +348,7 @@ export async function createPaymentIntent(
       id: book.id,
       title: book.title,
       author: book.author,
+      imgUrl: book.imgUrl ?? '',
       price: book.price,
       discount: book.discount ?? 0,
       quantity: item.quantity,

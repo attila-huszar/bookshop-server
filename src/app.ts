@@ -20,6 +20,7 @@ import {
   cms,
   logs,
   news,
+  orders,
   payments,
   users,
   webhooks,
@@ -94,6 +95,7 @@ app.get('/health', (c) => c.text('OK', 200))
 api.use('/users/profile', authMiddleware)
 api.use('/users/logout', authMiddleware)
 api.use('/users/avatar', authMiddleware)
+api.use('/orders', authMiddleware)
 api.use('/payments', optionalAuthMiddleware)
 api.use('/payments/:paymentId', paymentAccessMiddleware)
 api.use('/payments/:paymentId/*', paymentAccessMiddleware)
@@ -104,6 +106,7 @@ api.route('/authors', authors)
 api.route('/news', news)
 api.route('/search_opts', bookSearchOptions)
 api.route('/users', users)
+api.route('/orders', orders)
 api.route('/payments', payments)
 api.route('/cms', cms)
 api.route('/logs', logs)
