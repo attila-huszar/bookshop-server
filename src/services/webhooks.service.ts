@@ -5,6 +5,7 @@ import {
   extractPaymentIntentFields,
   getPaymentIntentId,
   sendEmail,
+  SendEmailPreconditionError,
   throwCriticalOrderPersistFailure,
 } from '@/utils'
 import { log } from '@/libs'
@@ -41,8 +42,16 @@ const paymentStatusRank: Partial<Record<PaymentIntentStatus, number>> = {
   canceled: 100,
 }
 
-const getPaymentStatusRank = (status?: PaymentIntentStatus): number =>
-  status ? (paymentStatusRank[status] ?? 0) : 0
+const getPaymentStatusRank = (status?: PaymentIntentStatus): number | null => {
+  if (!status) return null
+  const rank = paymentStatusRank[status]
+
+  if (rank === undefined) {
+    void log.warn('[STRIPE] Unmapped payment status rank', { status })
+    return null
+  }
+  return rank
+}
 
 const isCriticalMissingOrderEventType = (eventType: string): boolean =>
   eventType === 'payment_intent.succeeded' ||
@@ -152,10 +161,25 @@ export async function processStripeWebhook(
         const { justPaid, ...updatedOrder } = result
 
         if (justPaid) {
-          sendEmail('orderConfirmation', {
-            order: updatedOrder,
-            source: 'webhook',
-          })
+          try {
+            sendEmail('orderConfirmation', {
+              order: updatedOrder,
+              source: 'webhook',
+            })
+          } catch (error) {
+            if (error instanceof SendEmailPreconditionError) {
+              void log.warn(
+                '[QUEUE] Skipped order confirmation email due to missing recipient data',
+                {
+                  paymentId: updatedOrder.paymentId,
+                  source: 'webhook',
+                },
+              )
+            } else {
+              throw error
+            }
+          }
+
           sendEmail('adminPaymentNotification', {
             order: updatedOrder,
             notificationType: AdminNotification.Confirmed,
@@ -420,13 +444,17 @@ export async function updateOrderFromWebhook(
     return { ...existingOrder, justPaid: false }
   }
 
+  const nextStatusRank = getPaymentStatusRank(nextStatus)
+  const currentStatusRank = getPaymentStatusRank(existingOrder.paymentStatus)
+
   if (
     nextStatus &&
     lastEventCreated !== null &&
     eventCreated === lastEventCreated &&
     lastEventId !== eventId &&
-    getPaymentStatusRank(nextStatus) <
-      getPaymentStatusRank(existingOrder.paymentStatus)
+    nextStatusRank !== null &&
+    currentStatusRank !== null &&
+    nextStatusRank < currentStatusRank
   ) {
     void log.warn(
       '[STRIPE] Ignoring same-second regressive status transition',

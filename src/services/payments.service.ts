@@ -11,6 +11,7 @@ import {
   extractPaymentIntentFields,
   reportCriticalOrderPersistFailure,
   sendEmail,
+  SendEmailPreconditionError,
   throwCriticalOrderPersistFailure,
   toIsoString,
 } from '@/utils'
@@ -111,10 +112,25 @@ export async function retrieveOrderSyncStatus(
           order = syncedOrder
 
           if (justPaid) {
-            sendEmail('orderConfirmation', {
-              order: syncedOrder,
-              source: 'fallback',
-            })
+            try {
+              sendEmail('orderConfirmation', {
+                order: syncedOrder,
+                source: 'fallback',
+              })
+            } catch (error) {
+              if (error instanceof SendEmailPreconditionError) {
+                void log.warn(
+                  '[QUEUE] Skipped order confirmation email due to missing recipient data',
+                  {
+                    paymentId: syncedOrder.paymentId,
+                    source: 'fallback',
+                  },
+                )
+              } else {
+                throw error
+              }
+            }
+
             sendEmail('adminPaymentNotification', {
               order: syncedOrder,
               notificationType: AdminNotification.Confirmed,

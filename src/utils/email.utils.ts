@@ -24,6 +24,13 @@ type SendEmailArgs = {
   [K in keyof SendEmailInputMap]: [type: K, data: SendEmailInputMap[K]]
 }[keyof SendEmailInputMap]
 
+export class SendEmailPreconditionError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'SendEmailPreconditionError'
+  }
+}
+
 export function sendEmail(...args: SendEmailArgs): void {
   const [type, data] = args
 
@@ -43,7 +50,7 @@ export function sendEmail(...args: SendEmailArgs): void {
           },
         )
       })
-      break
+      return
     }
     case QUEUE.EMAIL.JOB.PASSWORD_RESET: {
       const payload: PasswordResetEmailProps = {
@@ -57,7 +64,7 @@ export function sendEmail(...args: SendEmailArgs): void {
           toAddress: payload.toAddress,
         })
       })
-      break
+      return
     }
     case QUEUE.EMAIL.JOB.ORDER_CONFIRMATION: {
       const { order, source } = data
@@ -70,7 +77,9 @@ export function sendEmail(...args: SendEmailArgs): void {
             source,
           },
         )
-        return
+        throw new SendEmailPreconditionError(
+          'Order confirmation email recipient data is missing',
+        )
       }
 
       const payload: SendEmailProps = {
@@ -87,7 +96,7 @@ export function sendEmail(...args: SendEmailArgs): void {
           source,
         })
       })
-      break
+      return
     }
     case QUEUE.EMAIL.JOB.ADMIN_PAYMENT_NOTIFICATION: {
       const { notificationType, order } = data
@@ -157,7 +166,11 @@ export function sendEmail(...args: SendEmailArgs): void {
           },
         )
       })
-      break
+      return
+    }
+    default: {
+      const exhaustiveCheck: never = type
+      return exhaustiveCheck
     }
   }
 }
