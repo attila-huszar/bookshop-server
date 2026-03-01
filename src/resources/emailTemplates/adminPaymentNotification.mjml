@@ -16,13 +16,6 @@
   <mj-body background-color="#f4f4f4">
     <mj-section>
       <mj-column>
-        <mj-image
-          src="cid:{{cid}}"
-          alt="Bookshop Logo"
-          href="{{baseLink}}"
-          width="97px"
-          align="left"
-        />
         <mj-text font-size="20px" font-weight="bold" color="#ff6b35">{{
           emailTitle
         }}</mj-text>
@@ -61,6 +54,13 @@
           This is an automated notification.<br />
           <strong>Bookshop Admin System</strong>
         </mj-text>
+        <mj-image
+          src="cid:{{cid}}"
+          alt="Bookshop Logo"
+          href="{{baseLink}}"
+          width="97px"
+          align="left"
+        />
       </mj-column>
     </mj-section>
   </mj-body>

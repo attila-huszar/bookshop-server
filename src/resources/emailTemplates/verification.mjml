@@ -25,7 +25,7 @@
           <em>These links are valid for 24 hours</em>
         </mj-text>
         <mj-text font-size="16px" font-weight="bold" padding-bottom="10px"
-          >Book Shop Team</mj-text
+          >Bookshop Team</mj-text
         >
         <mj-image
           src="cid:{{cid}}"

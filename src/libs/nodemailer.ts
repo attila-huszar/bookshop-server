@@ -1,7 +1,13 @@
 import nodemailer, { type SendMailOptions } from 'nodemailer'
 import { env } from '@/config'
-import { getEmailHtml } from '@/utils'
-import { attachments, getEmailSubject, userMessage } from '@/constants'
+import { getEmailHtml, getEmailSubject } from '@/utils'
+import {
+  emailLogoContentId,
+  emailLogoFilename,
+  emailLogoMimeType,
+  emailLogoPath,
+  userMessage,
+} from '@/constants'
 import type { SendEmailProps } from '@/types'
 import { log } from './logger'
 
@@ -26,6 +32,15 @@ transporter
   .catch((error: unknown) => {
     log.error('SMTP transporter verification failed', error)
   })
+
+const attachments = [
+  {
+    filename: emailLogoFilename,
+    path: process.cwd() + emailLogoPath,
+    contentType: emailLogoMimeType,
+    cid: emailLogoContentId,
+  },
+]
 
 export async function sendMail(props: SendEmailProps) {
   try {

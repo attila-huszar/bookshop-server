@@ -2,7 +2,7 @@ import mjml2html from 'mjml'
 import { env } from '@/config'
 import { log } from '@/libs'
 import { emailQueue } from '@/queues'
-import { cid, jobOpts, QUEUE } from '@/constants'
+import { emailLogoContentId, jobOpts, QUEUE } from '@/constants'
 import adminPaymentNotification from '@/resources/emailTemplates/adminPaymentNotification.mjml' with { type: 'text' }
 import orderConfirmation from '@/resources/emailTemplates/orderConfirmation.mjml' with { type: 'text' }
 import passwordReset from '@/resources/emailTemplates/passwordReset.mjml' with { type: 'text' }
@@ -11,6 +11,7 @@ import { AdminNotification } from '@/types'
 import type {
   AdminPaymentNotificationEmailItem,
   AdminPaymentNotificationEmailProps,
+  EmailJobType,
   PasswordResetEmailProps,
   SendEmailInputMap,
   SendEmailProps,
@@ -102,9 +103,9 @@ export function sendEmail(...args: SendEmailArgs): void {
       const { notificationType, order } = data
 
       const emailTitleMap: Record<AdminNotification, string> = {
-        [AdminNotification.Created]: '🛍️ Order Created',
-        [AdminNotification.Confirmed]: '✅ Order Confirmed',
-        [AdminNotification.Error]: '⚠️ Order Error',
+        [AdminNotification.Created]: 'Order Created',
+        [AdminNotification.Confirmed]: 'Order Confirmed',
+        [AdminNotification.Error]: 'Order Error',
       }
 
       const shippingMessageMap: Record<AdminNotification, string> = {
@@ -217,7 +218,7 @@ export function getEmailHtml(props: SendEmailProps): string {
             .map((part) => Bun.escapeHTML(part))
             .join(', '),
           baseLink,
-          cid,
+          cid: emailLogoContentId,
         })
         return mjml2html(mjmlString).html
       } catch (error) {
@@ -232,7 +233,7 @@ export function getEmailHtml(props: SendEmailProps): string {
           toName: Bun.escapeHTML(toName),
           tokenLink,
           baseLink,
-          cid,
+          cid: emailLogoContentId,
         })
         return mjml2html(mjmlString).html
       } catch (error) {
@@ -247,7 +248,7 @@ export function getEmailHtml(props: SendEmailProps): string {
           toName: Bun.escapeHTML(toName),
           tokenLink,
           baseLink,
-          cid,
+          cid: emailLogoContentId,
         })
         return mjml2html(mjmlString).html
       } catch (error) {
@@ -279,7 +280,7 @@ export function getEmailHtml(props: SendEmailProps): string {
           paymentStatus,
           shippingAddress,
           baseLink,
-          cid,
+          cid: emailLogoContentId,
         })
         return mjml2html(mjmlString).html
       } catch (error) {
@@ -291,5 +292,30 @@ export function getEmailHtml(props: SendEmailProps): string {
     }
     default:
       throw new Error('Unknown email type')
+  }
+}
+
+type StaticSubjectType = Exclude<EmailJobType, 'adminPaymentNotification'>
+
+const staticSubjectMap: Record<StaticSubjectType, string> = {
+  verification: 'Bookshop - Verify your email address',
+  passwordReset: 'Bookshop - Forgotten Password',
+  orderConfirmation: 'Bookshop - Order Confirmation',
+}
+
+const adminPhaseLabelMap: Record<AdminNotification, string> = {
+  [AdminNotification.Created]: '🆕 CREATED',
+  [AdminNotification.Confirmed]: '✅ CONFIRMED',
+  [AdminNotification.Error]: '❌ ERROR',
+}
+
+export const getEmailSubject = (props: SendEmailProps): string => {
+  switch (props.type) {
+    case 'adminPaymentNotification':
+      return `Order #${getOrderRef(props.paymentId)} | ${adminPhaseLabelMap[props.notificationType]}`
+    case 'verification':
+    case 'passwordReset':
+    case 'orderConfirmation':
+      return staticSubjectMap[props.type]
   }
 }
