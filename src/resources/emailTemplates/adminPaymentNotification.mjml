@@ -20,8 +20,8 @@
           emailTitle
         }}</mj-text>
         <mj-text font-size="16px" line-height="1.5">
-          <strong>Payment ID:</strong> #{{ paymentId }}<br />
-          <strong>Customer:</strong> {{ customerName }} ({{ customerEmail }})
+          <strong>{{ customerName }}</strong> ({{ customerEmail }})<br />
+          Order Ref: #{{ paymentId }}
         </mj-text>
         <mj-divider border-color="#5469d4" />
         <mj-table css-class="order-table">
