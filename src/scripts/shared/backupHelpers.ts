@@ -1,3 +1,4 @@
+import { stat } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { env } from '@/config'
 import { log } from '@/libs'
@@ -28,7 +29,8 @@ export async function pruneOldBackups(
     )
   }
 
-  if (!(await Bun.file(directory).exists())) return
+  const directoryStat = await stat(directory).catch(() => null)
+  if (!directoryStat?.isDirectory()) return
 
   const pattern =
     backupType === DB_REPO.MONGO ? '*.archive.gz' : `*-${params.sourceFileName}`

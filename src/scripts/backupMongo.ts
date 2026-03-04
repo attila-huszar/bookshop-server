@@ -19,12 +19,11 @@ async function main(): Promise<void> {
     const outputFile = join(mongoBackupDir, `${timestamp()}.archive.gz`)
 
     const dumpProcess = Bun.spawn({
-      cmd: [
-        'mongodump',
-        `--uri=${env.dbMongoUrl}`,
-        `--archive=${outputFile}`,
-        '--gzip',
-      ],
+      cmd: ['mongodump', `--archive=${outputFile}`, '--gzip'],
+      env: {
+        ...process.env,
+        MONGODB_URI: env.dbMongoUrl,
+      },
       stdout: 'inherit',
       stderr: 'inherit',
     })

@@ -25,7 +25,7 @@ async function main(): Promise<void> {
     }
 
     const backupProcess = Bun.spawn({
-      cmd: ['sqlite3', source, `.backup ${outputFile}`],
+      cmd: ['sqlite3', source, `.backup main "${outputFile}"`],
       stdout: 'inherit',
       stderr: 'inherit',
     })
