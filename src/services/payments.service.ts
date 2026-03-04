@@ -373,6 +373,14 @@ export async function createPaymentIntent(
 
   total = Number(total.toFixed(2))
 
+  if (Math.abs(total - validatedRequest.expectedTotal) > 0.05) {
+    throw new BadRequest(
+      'Prices have been updated in your cart. Please review before checkout.',
+      'PriceConflict',
+      409,
+    )
+  }
+
   const amountInCents = Math.round(total * 100)
 
   let stripePaymentId: string | null = null

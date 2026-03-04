@@ -10,4 +10,5 @@ export const paymentIntentRequestSchema = z.object({
       }),
     )
     .min(1),
+  expectedTotal: z.number().nonnegative(),
 })
