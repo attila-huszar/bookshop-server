@@ -1,40 +1,17 @@
 import { join, resolve } from 'node:path'
 import { env } from '@/config'
 import { log } from '@/libs'
-
-function timestamp(): string {
-  return new Date().toISOString().replace(/[:.]/g, '-')
-}
-
-async function pruneOldBackups(
-  directory: string,
-  retentionDays: number,
-): Promise<void> {
-  const maxAgeMs = retentionDays * 24 * 60 * 60 * 1000
-  const files = Array.from(
-    new Bun.Glob('*.archive.gz').scanSync({ cwd: directory }),
-  )
-
-  const now = Date.now()
-
-  await Promise.all(
-    files.map(async (fileName) => {
-      const filePath = join(directory, fileName)
-      const stat = await Bun.file(filePath).stat()
-      if (now - stat.mtimeMs > maxAgeMs) {
-        await Bun.$`rm -f ${filePath}`
-        void log.info('Removed old Mongo backup', { filePath })
-      }
-    }),
-  )
-}
+import {
+  BACKUP_DIR,
+  pruneOldMongoBackups,
+  timestamp,
+} from './shared/backupHelpers'
 
 async function main(): Promise<void> {
   let exitCode = 0
 
   try {
-    const backupUri = env.dbMongoUrl
-    const backupsRoot = resolve(process.cwd(), env.backupDir)
+    const backupsRoot = resolve(process.cwd(), BACKUP_DIR)
     const mongoBackupDir = join(backupsRoot, 'mongo')
 
     await Bun.$`mkdir -p ${mongoBackupDir}`
@@ -44,7 +21,7 @@ async function main(): Promise<void> {
     const dumpProcess = Bun.spawn({
       cmd: [
         'mongodump',
-        `--uri=${backupUri}`,
+        `--uri=${env.dbMongoUrl}`,
         `--archive=${outputFile}`,
         '--gzip',
       ],
@@ -58,7 +35,7 @@ async function main(): Promise<void> {
       throw new Error(`mongodump exited with code ${code}`)
     }
 
-    await pruneOldBackups(mongoBackupDir, env.backupRetentionDays)
+    await pruneOldMongoBackups()
 
     void log.info('Mongo backup created', { outputFile })
   } catch (error) {

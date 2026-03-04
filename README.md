@@ -122,7 +122,7 @@ Container logs are shipped to Loki through Docker's Loki log driver.
 
 Cron jobs are wrapped with `cronitor exec` when `CRONITOR_API_KEY` is set.
 
-- install happens in the `cron` image build (`curl https://cronitor.io/install-linux?sudo=0 | sh`)
+- install happens in the `cron` image build via installer script download from `https://cronitor.io/install-linux?sudo=0`
 - API key is loaded from env (`CRONITOR_API_KEY`)
 - monitor keys are configured via env:
   - `CRONITOR_CLEANUP_MONITOR`
@@ -138,8 +138,7 @@ Backup scripts:
 - `bun run backup:sqlite` -> file snapshot of `DB_SQLITE_FILE`
 - `bun run backup:mongo` -> `mongodump` archive (`.archive.gz`)
 
-Config:
+Defaults are defined in `src/scripts/shared/backupHelpers.ts`:
 
-- `BACKUP_DIR` (default: `data/backups`)
-- `BACKUP_RETENTION_DAYS` (default: `7`)
-- optional `MONGO_BACKUP_URI` (falls back to `DB_MONGO_URL`)
+- `BACKUP_DIR` = `data/backups`
+- `BACKUP_RETENTION_DAYS` = `7`

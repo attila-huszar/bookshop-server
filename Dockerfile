@@ -18,6 +18,9 @@ CMD ["bun", "worker:email"]
 
 FROM base AS cron
 RUN apk add --no-cache curl bash mongodb-tools
-RUN curl -s "https://cronitor.io/install-linux?sudo=0" | sh
+RUN curl -sSfL "https://cronitor.io/install-linux?sudo=0" \
+  -o /tmp/cronitor-install.sh && \
+  sh /tmp/cronitor-install.sh && \
+  rm /tmp/cronitor-install.sh
 RUN chmod +x /bookshop-server/docker/cron/entrypoint.sh
 CMD ["/bookshop-server/docker/cron/entrypoint.sh"]

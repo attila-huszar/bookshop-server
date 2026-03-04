@@ -24,16 +24,6 @@ export function validateEnv(): void {
     process.exit(1)
   }
 
-  if (
-    !Number.isFinite(env.backupRetentionDays) ||
-    env.backupRetentionDays < 1
-  ) {
-    console.error(
-      `❌ Invalid BACKUP_RETENTION_DAYS: ${Bun.env.BACKUP_RETENTION_DAYS}`,
-    )
-    process.exit(1)
-  }
-
   const missing = requiredKeys.filter((key) => !env[key])
 
   if (missing.length > 0) {
