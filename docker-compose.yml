@@ -208,6 +208,7 @@ services:
       - ./src:/bookshop-server/src
       - ./docker/cron:/bookshop-server/docker/cron
       - sqlite_data:/bookshop-server/data
+      - backups_data:/bookshop-server/data/backups
 
   cron-with-mongo:
     build:
