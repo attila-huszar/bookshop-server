@@ -24,6 +24,17 @@ export function validateEnv(): void {
     process.exit(1)
   }
 
+  const backupRetentionDays = Number(env.backupRetentionDays)
+  const isValidRetention =
+    Number.isInteger(backupRetentionDays) && backupRetentionDays > 0
+
+  if (!isValidRetention) {
+    console.error(
+      `❌ Invalid BACKUP_RETENTION_DAYS: ${env.backupRetentionDays}. It must be a positive integer.`,
+    )
+    process.exit(1)
+  }
+
   const missing = requiredKeys.filter((key) => !env[key])
 
   if (missing.length > 0) {

@@ -2,7 +2,7 @@ import { basename, join, resolve } from 'node:path'
 import { env } from '@/config'
 import { log } from '@/libs'
 import {
-  BACKUP_DIR,
+  getBackupDir,
   pruneOldSqliteBackups,
   timestamp,
 } from './shared/backupHelpers'
@@ -12,24 +12,30 @@ async function main(): Promise<void> {
 
   try {
     const source = resolve(process.cwd(), env.dbSqliteFile)
-    const backupsRoot = resolve(process.cwd(), BACKUP_DIR)
-    const sqliteBackupDir = join(backupsRoot, 'sqlite')
+    const sourceFileName = basename(source)
+    const sqliteBackupDir = getBackupDir('sqlite')
 
     await Bun.$`mkdir -p ${sqliteBackupDir}`
 
-    const outputFile = join(
-      sqliteBackupDir,
-      `${timestamp()}-${basename(source) || 'db.sqlite'}`,
-    )
+    const outputFile = join(sqliteBackupDir, `${timestamp()}-${sourceFileName}`)
 
-    const sourceFile = Bun.file(source)
-
-    if (!(await sourceFile.exists())) {
+    if (!(await Bun.file(source).exists())) {
       throw new Error(`SQLite file not found: ${source}`)
     }
 
-    await Bun.write(outputFile, sourceFile)
-    await pruneOldSqliteBackups()
+    const backupProcess = Bun.spawn({
+      cmd: ['sqlite3', source, `.backup ${outputFile}`],
+      stdout: 'inherit',
+      stderr: 'inherit',
+    })
+
+    const code = await backupProcess.exited
+
+    if (code !== 0) {
+      throw new Error(`sqlite3 backup exited with code ${code}`)
+    }
+
+    await pruneOldSqliteBackups(sourceFileName)
 
     void log.info('SQLite backup created', { source, outputFile })
   } catch (error) {

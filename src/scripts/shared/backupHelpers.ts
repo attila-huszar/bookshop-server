@@ -1,8 +1,12 @@
 import { join, resolve } from 'node:path'
+import { env } from '@/config'
 import { log } from '@/libs'
 
-export const BACKUP_DIR = 'data/backups'
-export const BACKUP_RETENTION_DAYS = 7
+type BackupDirectory = 'mongo' | 'sqlite'
+
+export function getBackupDir(directory: BackupDirectory): string {
+  return join(resolve(process.cwd(), env.backupDir), directory)
+}
 
 export function timestamp(): string {
   return new Date().toISOString().replace(/[:.]/g, '-')
@@ -13,7 +17,7 @@ async function pruneOldBackups(
   pattern: string,
   backupType: 'Mongo' | 'SQLite',
 ): Promise<void> {
-  const maxAgeMs = BACKUP_RETENTION_DAYS * 24 * 60 * 60 * 1000
+  const maxAgeMs = Number(env.backupRetentionDays) * 24 * 60 * 60 * 1000
   const files = Array.from(new Bun.Glob(pattern).scanSync({ cwd: directory }))
 
   const now = Date.now()
@@ -31,13 +35,11 @@ async function pruneOldBackups(
 }
 
 export async function pruneOldMongoBackups(): Promise<void> {
-  const backupsRoot = resolve(process.cwd(), BACKUP_DIR)
-  const mongoBackupDir = join(backupsRoot, 'mongo')
-  await pruneOldBackups(mongoBackupDir, '*.archive.gz', 'Mongo')
+  await pruneOldBackups(getBackupDir('mongo'), '*.archive.gz', 'Mongo')
 }
 
-export async function pruneOldSqliteBackups(): Promise<void> {
-  const backupsRoot = resolve(process.cwd(), BACKUP_DIR)
-  const sqliteBackupDir = join(backupsRoot, 'sqlite')
-  await pruneOldBackups(sqliteBackupDir, '*.sqlite', 'SQLite')
+export async function pruneOldSqliteBackups(
+  sourceFileName: string,
+): Promise<void> {
+  await pruneOldBackups(getBackupDir('sqlite'), `*-${sourceFileName}`, 'SQLite')
 }

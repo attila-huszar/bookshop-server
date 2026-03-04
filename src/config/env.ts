@@ -1,6 +1,8 @@
 import { DB_REPO } from '@/types/enums'
 
 export const env = {
+  adminEmail: Bun.env.ADMIN_EMAIL,
+  adminPassword: Bun.env.ADMIN_PASSWORD,
   mailerService: Bun.env.MAILER_SERVICE ?? 'gmail',
   mailerHost: Bun.env.MAILER_HOST ?? 'smtp.gmail.com',
   mailerPort: Bun.env.MAILER_PORT ?? '465',
@@ -13,8 +15,8 @@ export const env = {
   dbRepo: Bun.env.DB_REPO === DB_REPO.MONGO ? DB_REPO.MONGO : DB_REPO.SQLITE,
   dbSqliteFile: Bun.env.DB_SQLITE_FILE ?? 'data/db.sqlite',
   dbMongoUrl: Bun.env.DB_MONGO_URL ?? 'mongodb://mongodb:27017/bookshop',
-  adminEmail: Bun.env.ADMIN_EMAIL,
-  adminPassword: Bun.env.ADMIN_PASSWORD,
+  backupDir: Bun.env.BACKUP_DIR ?? 'data/backups',
+  backupRetentionDays: Bun.env.BACKUP_RETENTION_DAYS ?? '7',
   mailerName: Bun.env.MAILER_NAME ?? 'Bookshop',
   mailerUser: Bun.env.MAILER_USER,
   mailerPass: Bun.env.MAILER_PASS,

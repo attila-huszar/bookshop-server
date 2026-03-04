@@ -1,8 +1,8 @@
-import { join, resolve } from 'node:path'
+import { join } from 'node:path'
 import { env } from '@/config'
 import { log } from '@/libs'
 import {
-  BACKUP_DIR,
+  getBackupDir,
   pruneOldMongoBackups,
   timestamp,
 } from './shared/backupHelpers'
@@ -11,8 +11,7 @@ async function main(): Promise<void> {
   let exitCode = 0
 
   try {
-    const backupsRoot = resolve(process.cwd(), BACKUP_DIR)
-    const mongoBackupDir = join(backupsRoot, 'mongo')
+    const mongoBackupDir = getBackupDir('mongo')
 
     await Bun.$`mkdir -p ${mongoBackupDir}`
 
