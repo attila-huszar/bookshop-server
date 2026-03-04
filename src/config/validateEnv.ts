@@ -1,7 +1,9 @@
 import { DB_REPO } from '@/types/enums'
 import { env } from './env'
 
-const requiredKeys = [
+type EnvKey = keyof typeof env
+
+const requiredKeys: EnvKey[] = [
   'adminEmail',
   'adminPassword',
   'clientBaseUrl',
@@ -16,22 +18,11 @@ const requiredKeys = [
   'awsRegion',
   'awsBucket',
   'redisUrl',
-] as const as (keyof typeof env)[]
+]
 
 export function validateEnv(): void {
   if (env.dbRepo !== DB_REPO.SQLITE && env.dbRepo !== DB_REPO.MONGO) {
     console.error(`❌ Invalid DB_REPO: ${Bun.env.DB_REPO}`)
-    process.exit(1)
-  }
-
-  const backupRetentionDays = Number(env.backupRetentionDays)
-  const isValidRetention =
-    Number.isInteger(backupRetentionDays) && backupRetentionDays > 0
-
-  if (!isValidRetention) {
-    console.error(
-      `❌ Invalid BACKUP_RETENTION_DAYS: ${env.backupRetentionDays}. It must be a positive integer.`,
-    )
     process.exit(1)
   }
 

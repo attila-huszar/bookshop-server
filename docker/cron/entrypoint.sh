@@ -7,10 +7,6 @@ if [ ! -f "${CRON_FILE:-}" ]; then
   exit 1
 fi
 
-if [ -n "$CRONITOR_API_KEY" ]; then
-  cronitor configure --api-key "$CRONITOR_API_KEY"
-fi
-
 cp "$CRON_FILE" /etc/crontabs/root
 
 echo "Using cron schedule from $CRON_FILE"

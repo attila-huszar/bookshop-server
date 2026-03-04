@@ -20,9 +20,19 @@ export async function pruneOldBackups(
 ): Promise<void> {
   const { backupType } = params
   const directory = getBackupDir(backupType)
+
+  const retentionDays = Number(env.backupRetentionDays)
+  if (!Number.isInteger(retentionDays) || retentionDays <= 0) {
+    throw new Error(
+      `Invalid BACKUP_RETENTION_DAYS: ${env.backupRetentionDays}. It must be a positive integer.`,
+    )
+  }
+
+  if (!(await Bun.file(directory).exists())) return
+
   const pattern =
     backupType === DB_REPO.MONGO ? '*.archive.gz' : `*-${params.sourceFileName}`
-  const maxAgeMs = Number(env.backupRetentionDays) * 24 * 60 * 60 * 1000
+  const maxAgeMs = retentionDays * 24 * 60 * 60 * 1000
   const files = Array.from(new Bun.Glob(pattern).scanSync({ cwd: directory }))
 
   const now = Date.now()
