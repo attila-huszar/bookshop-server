@@ -1,9 +1,10 @@
 import { join } from 'node:path'
 import { env } from '@/config'
 import { log } from '@/libs'
+import { DB_REPO } from '@/types/enums'
 import {
   getBackupDir,
-  pruneOldMongoBackups,
+  pruneOldBackups,
   timestamp,
 } from './shared/backupHelpers'
 
@@ -11,7 +12,7 @@ async function main(): Promise<void> {
   let exitCode = 0
 
   try {
-    const mongoBackupDir = getBackupDir('mongo')
+    const mongoBackupDir = getBackupDir(DB_REPO.MONGO)
 
     await Bun.$`mkdir -p ${mongoBackupDir}`
 
@@ -34,7 +35,7 @@ async function main(): Promise<void> {
       throw new Error(`mongodump exited with code ${code}`)
     }
 
-    await pruneOldMongoBackups()
+    await pruneOldBackups({ backupType: DB_REPO.MONGO })
 
     void log.info('Mongo backup created', { outputFile })
   } catch (error) {

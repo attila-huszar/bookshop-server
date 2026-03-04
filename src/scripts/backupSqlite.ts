@@ -1,9 +1,10 @@
 import { basename, join, resolve } from 'node:path'
 import { env } from '@/config'
 import { log } from '@/libs'
+import { DB_REPO } from '@/types/enums'
 import {
   getBackupDir,
-  pruneOldSqliteBackups,
+  pruneOldBackups,
   timestamp,
 } from './shared/backupHelpers'
 
@@ -13,7 +14,7 @@ async function main(): Promise<void> {
   try {
     const source = resolve(process.cwd(), env.dbSqliteFile)
     const sourceFileName = basename(source)
-    const sqliteBackupDir = getBackupDir('sqlite')
+    const sqliteBackupDir = getBackupDir(DB_REPO.SQLITE)
 
     await Bun.$`mkdir -p ${sqliteBackupDir}`
 
@@ -35,7 +36,10 @@ async function main(): Promise<void> {
       throw new Error(`sqlite3 backup exited with code ${code}`)
     }
 
-    await pruneOldSqliteBackups(sourceFileName)
+    await pruneOldBackups({
+      backupType: DB_REPO.SQLITE,
+      sourceFileName,
+    })
 
     void log.info('SQLite backup created', { source, outputFile })
   } catch (error) {
