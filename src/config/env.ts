@@ -31,4 +31,14 @@ export const env = {
   awsRegion: Bun.env.AWS_REGION,
   awsBucket: Bun.env.AWS_BUCKET,
   redisUrl: Bun.env.REDIS_URL ?? 'redis://localhost:6379',
+  cronitorApiKey: Bun.env.CRONITOR_API_KEY,
+  cronitorEnv: Bun.env.CRONITOR_ENV ?? 'production',
+  cronitorCleanupMonitor:
+    Bun.env.CRONITOR_CLEANUP_MONITOR ?? 'bookshop-cleanup',
+  cronitorSqliteBackupMonitor:
+    Bun.env.CRONITOR_SQLITE_BACKUP_MONITOR ?? 'bookshop-sqlite-backup',
+  cronitorMongoBackupMonitor:
+    Bun.env.CRONITOR_MONGO_BACKUP_MONITOR ?? 'bookshop-mongo-backup',
+  backupDir: Bun.env.BACKUP_DIR ?? 'data/backups',
+  backupRetentionDays: Number(Bun.env.BACKUP_RETENTION_DAYS ?? '7'),
 }
