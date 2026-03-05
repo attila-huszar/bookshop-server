@@ -31,6 +31,9 @@ async function main(): Promise<void> {
     const code = await dumpProcess.exited
 
     if (code !== 0) {
+      await Bun.$`rm -f ${outputFile}`.catch(() =>
+        log.warn('Failed to remove incomplete backup file', { outputFile }),
+      )
       throw new Error(`mongodump exited with code ${code}`)
     }
 

@@ -35,15 +35,17 @@ export async function pruneOldBackups(
   const pattern =
     backupType === DB_REPO.MONGO ? '*.archive.gz' : `*-${params.sourceFileName}`
   const maxAgeMs = retentionDays * 24 * 60 * 60 * 1000
-  const files = Array.from(new Bun.Glob(pattern).scanSync({ cwd: directory }))
+  const files = await Array.fromAsync(
+    new Bun.Glob(pattern).scan({ cwd: directory }),
+  )
 
   const now = Date.now()
 
   await Promise.all(
     files.map(async (fileName) => {
       const filePath = join(directory, fileName)
-      const stat = await Bun.file(filePath).stat()
-      if (now - stat.mtimeMs > maxAgeMs) {
+      const fileStat = await Bun.file(filePath).stat()
+      if (now - fileStat.mtimeMs > maxAgeMs) {
         await Bun.$`rm -f ${filePath}`
         void log.info(`Removed old ${backupType} backup`, { filePath })
       }
