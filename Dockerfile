@@ -23,4 +23,4 @@ RUN curl -sSfL "https://cronitor.io/install-linux?sudo=0" \
   sh /tmp/cronitor-install.sh && \
   rm /tmp/cronitor-install.sh
 RUN chmod +x /bookshop-server/docker/cron/entrypoint.sh
-CMD ["/bookshop-server/docker/cron/entrypoint.sh"]
+CMD ["/bin/sh", "/bookshop-server/docker/cron/entrypoint.sh"]

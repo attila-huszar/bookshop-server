@@ -44,8 +44,10 @@ export async function pruneOldBackups(
   await Promise.all(
     files.map(async (fileName) => {
       const filePath = join(directory, fileName)
-      const fileStat = await Bun.file(filePath).stat()
-      if (now - fileStat.mtimeMs > maxAgeMs) {
+      const fileStat = await Bun.file(filePath)
+        .stat()
+        .catch(() => null)
+      if (fileStat && now - fileStat.mtimeMs > maxAgeMs) {
         await Bun.$`rm -f ${filePath}`
         void log.info(`Removed old ${backupType} backup`, { filePath })
       }

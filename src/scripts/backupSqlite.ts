@@ -27,7 +27,7 @@ async function main(): Promise<void> {
     const backupProcess = Bun.spawn({
       cmd: ['sqlite3', source],
       stdin: new TextEncoder().encode(
-        `.backup main "${outputFile.replace(/"/g, '""')}"\n.exit\n`,
+        `.bail on\n.backup main "${outputFile.replace(/"/g, '""')}"\n.exit\n`,
       ),
       stdout: 'inherit',
       stderr: 'inherit',
