@@ -124,10 +124,10 @@ Cron jobs are wrapped with `cronitor exec` when `CRONITOR_API_KEY` is set.
 
 - install happens in the `cron` image build via installer script download from `https://cronitor.io/install-linux?sudo=0`
 - API key is loaded from env (`CRONITOR_API_KEY`)
-- monitor keys are configured via env:
-  - `CRONITOR_CLEANUP_MONITOR`
-  - `CRONITOR_SQLITE_BACKUP_MONITOR`
-  - `CRONITOR_MONGO_BACKUP_MONITOR`
+- monitor keys for job scripts:
+  - `cleanup`
+  - `sqlite-backup`
+  - `mongo-backup`
 
 If `CRONITOR_API_KEY` is empty, cron jobs still run normally without monitoring.
 
