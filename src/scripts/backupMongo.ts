@@ -11,13 +11,14 @@ import {
 
 async function main(): Promise<void> {
   let exitCode = 0
+  let outputFile: string | undefined
 
   try {
     const mongoBackupDir = getBackupDir(DB_REPO.MONGO)
 
     await Bun.$`mkdir -p ${mongoBackupDir}`
 
-    const outputFile = join(mongoBackupDir, `${timestamp()}.archive.gz`)
+    outputFile = join(mongoBackupDir, `${timestamp()}.archive.gz`)
 
     const dumpProcess = Bun.spawn({
       cmd: ['mongodump', `--archive=${outputFile}`, '--gzip'],
@@ -32,18 +33,20 @@ async function main(): Promise<void> {
     const code = await waitForProcessExitWithTimeout('mongodump', dumpProcess)
 
     if (code !== 0) {
-      await Bun.$`rm -f ${outputFile}`.catch(() =>
-        log.warn('Failed to remove incomplete backup file', { outputFile }),
-      )
       throw new Error(`mongodump exited with code ${code}`)
     }
 
     await pruneOldBackups({ backupType: DB_REPO.MONGO })
 
-    void log.info('Mongo backup created', { outputFile })
+    log.info('Mongo backup created', { outputFile })
   } catch (error) {
     exitCode = 1
-    void log.error('Mongo backup failed', { error })
+    if (outputFile) {
+      await Bun.$`rm -f ${outputFile}`.catch(() =>
+        log.warn('Failed to remove incomplete backup file', { outputFile }),
+      )
+    }
+    log.error('Mongo backup failed', { error })
   }
 
   process.exit(exitCode)

@@ -11,6 +11,7 @@ import {
 
 async function main(): Promise<void> {
   let exitCode = 0
+  let outputFile: string | undefined
 
   try {
     const source = resolve(process.cwd(), env.dbSqliteFile)
@@ -19,7 +20,7 @@ async function main(): Promise<void> {
 
     await Bun.$`mkdir -p ${sqliteBackupDir}`
 
-    const outputFile = join(sqliteBackupDir, `${timestamp()}-${sourceFileName}`)
+    outputFile = join(sqliteBackupDir, `${timestamp()}-${sourceFileName}`)
 
     if (!(await Bun.file(source).exists())) {
       throw new Error(`SQLite file not found: ${source}`)
@@ -40,9 +41,6 @@ async function main(): Promise<void> {
     )
 
     if (code !== 0) {
-      await Bun.$`rm -f ${outputFile}`.catch(() =>
-        log.warn('Failed to remove incomplete backup file', { outputFile }),
-      )
       throw new Error(`sqlite3 backup exited with code ${code}`)
     }
 
@@ -51,10 +49,15 @@ async function main(): Promise<void> {
       sourceFileName,
     })
 
-    void log.info('SQLite backup created', { source, outputFile })
+    log.info('SQLite backup created', { source, outputFile })
   } catch (error) {
     exitCode = 1
-    void log.error('SQLite backup failed', { error })
+    if (outputFile) {
+      await Bun.$`rm -f ${outputFile}`.catch(() =>
+        log.warn('Failed to remove incomplete backup file', { outputFile }),
+      )
+    }
+    log.error('SQLite backup failed', { error })
   }
 
   process.exit(exitCode)

@@ -56,7 +56,7 @@ export async function pruneOldBackups(
         .catch(() => null)
       if (fileStat && now - fileStat.mtimeMs > maxAgeMs) {
         await Bun.$`rm -f ${filePath}`
-        void log.info(`Removed old ${backupType} backup`, { filePath })
+        log.info(`Removed old ${backupType} backup`, { filePath })
       }
     }),
   )
