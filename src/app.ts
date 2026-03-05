@@ -71,7 +71,7 @@ app.use('*', payloadLimiter)
 app.use('*', timeout(10000))
 app.use('/favicon.ico', serveStatic({ path: './static/favicon.ico' }))
 
-if (Bun.env.NODE_ENV === 'prod') {
+if (Bun.env.NODE_ENV === 'production') {
   const csrfMiddleware: MiddlewareHandler = csrf({
     origin: [env.clientBaseUrl!],
   })

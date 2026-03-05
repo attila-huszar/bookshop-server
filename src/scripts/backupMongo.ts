@@ -6,6 +6,7 @@ import {
   getBackupDir,
   pruneOldBackups,
   timestamp,
+  waitForProcessExitWithTimeout,
 } from './shared/backupHelpers'
 
 async function main(): Promise<void> {
@@ -28,7 +29,7 @@ async function main(): Promise<void> {
       stderr: 'inherit',
     })
 
-    const code = await dumpProcess.exited
+    const code = await waitForProcessExitWithTimeout('mongodump', dumpProcess)
 
     if (code !== 0) {
       await Bun.$`rm -f ${outputFile}`.catch(() =>

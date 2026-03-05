@@ -8,6 +8,13 @@ type PruneBackupsParams =
   | { backupType: DB_REPO.MONGO }
   | { backupType: DB_REPO.SQLITE; sourceFileName: string }
 
+type SpawnedProcess = {
+  exited: Promise<number>
+  kill: (signal?: number | NodeJS.Signals) => void
+}
+
+export const BACKUP_PROCESS_TIMEOUT_MS = 30 * 60 * 1000
+
 export function getBackupDir(backupType: DB_REPO): string {
   return join(resolve(process.cwd(), env.backupDir), backupType.toLowerCase())
 }
@@ -53,4 +60,27 @@ export async function pruneOldBackups(
       }
     }),
   )
+}
+
+export async function waitForProcessExitWithTimeout(
+  processName: string,
+  process: SpawnedProcess,
+  timeoutMs = BACKUP_PROCESS_TIMEOUT_MS,
+): Promise<number> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(`${processName} timed out after ${timeoutMs}ms`))
+    }, timeoutMs)
+  })
+
+  try {
+    return await Promise.race([process.exited, timeoutPromise])
+  } catch (error) {
+    process.kill('SIGTERM')
+    throw error
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId)
+  }
 }

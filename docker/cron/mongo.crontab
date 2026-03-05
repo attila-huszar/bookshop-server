@@ -2,7 +2,7 @@ SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # Every 30 minutes: clean up stale reset tokens and unverified users
-*/30 * * * * /bin/sh /bookshop-server/docker/cron/jobs/cleanup.sh
+*/30 * * * * /bin/sh /bookshop-server/docker/cron/jobs/cleanup.sh >> /proc/1/fd/1 2>&1
 
 # Daily at 02:30: create MongoDB backup archive
-30 2 * * * /bin/sh /bookshop-server/docker/cron/jobs/backup_mongo.sh
+30 2 * * * /bin/sh /bookshop-server/docker/cron/jobs/backup_mongo.sh >> /proc/1/fd/1 2>&1
