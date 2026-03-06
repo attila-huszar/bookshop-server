@@ -33,5 +33,4 @@ export const env = {
   awsRegion: Bun.env.AWS_REGION,
   awsBucket: Bun.env.AWS_BUCKET,
   redisUrl: Bun.env.REDIS_URL ?? 'redis://localhost:6379',
-  cronitorApiKey: Bun.env.CRONITOR_API_KEY,
 }
