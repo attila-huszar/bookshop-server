@@ -14,6 +14,7 @@ type SpawnedProcess = {
 }
 
 export const BACKUP_PROCESS_TIMEOUT_MS = 30 * 60 * 1000
+const PROCESS_TERMINATION_GRACE_MS = 5000
 
 export function getBackupDir(backupType: DB_REPO): string {
   return join(resolve(process.cwd(), env.backupDir), backupType.toLowerCase())
@@ -79,6 +80,12 @@ export async function waitForProcessExitWithTimeout(
     return await Promise.race([spawnedProcess.exited, timeoutPromise])
   } catch (error) {
     spawnedProcess.kill('SIGTERM')
+    await Promise.race([
+      spawnedProcess.exited,
+      new Promise((resolve) =>
+        setTimeout(resolve, PROCESS_TERMINATION_GRACE_MS),
+      ),
+    ])
     throw error
   } finally {
     if (timeoutId) clearTimeout(timeoutId)
