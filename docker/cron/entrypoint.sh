@@ -10,4 +10,4 @@ fi
 cp "$CRON_FILE" /etc/crontabs/root
 
 echo "Using cron schedule from $CRON_FILE"
-crond -f -l 8
+exec crond -f -l 8

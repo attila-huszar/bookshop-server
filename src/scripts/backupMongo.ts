@@ -1,3 +1,4 @@
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { env } from '@/config'
 import { log } from '@/libs'
@@ -13,6 +14,7 @@ async function main(): Promise<void> {
   let exitCode = 0
   let backupCreated = false
   let outputFile: string | undefined
+  const configFile = join(tmpdir(), `mongodump-${process.pid}.yaml`)
 
   try {
     const mongoBackupDir = getBackupDir(DB_REPO.MONGO)
@@ -21,12 +23,17 @@ async function main(): Promise<void> {
 
     outputFile = join(mongoBackupDir, `${timestamp()}.archive.gz`)
 
+    await Bun.write(configFile, `uri: ${JSON.stringify(env.dbMongoUrl)}\n`)
+    await Bun.$`chmod 600 ${configFile}`
+
     const dumpProcess = Bun.spawn({
-      cmd: ['mongodump', `--archive=${outputFile}`, '--gzip'],
-      env: {
-        ...process.env,
-        MONGODB_URI: env.dbMongoUrl,
-      },
+      cmd: [
+        'mongodump',
+        `--config=${configFile}`,
+        `--archive=${outputFile}`,
+        '--gzip',
+      ],
+      env: process.env,
       stdout: 'inherit',
       stderr: 'inherit',
     })
@@ -54,6 +61,8 @@ async function main(): Promise<void> {
         : 'Mongo backup failed',
       backupCreated ? { error, outputFile } : { error },
     )
+  } finally {
+    await Bun.$`rm -f ${configFile}`.catch(() => null)
   }
 
   process.exit(exitCode)
