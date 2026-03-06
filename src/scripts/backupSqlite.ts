@@ -21,13 +21,13 @@ async function main(): Promise<void> {
 
     await Bun.$`mkdir -p ${sqliteBackupDir}`
 
-    outputFile = join(sqliteBackupDir, `${timestamp()}-${sourceFileName}`)
-
-    await Bun.write(outputFile, '', { mode: 0o600 })
-
     if (!(await Bun.file(source).exists())) {
       throw new Error(`SQLite file not found: ${source}`)
     }
+
+    outputFile = join(sqliteBackupDir, `${timestamp()}-${sourceFileName}`)
+
+    await Bun.write(outputFile, '', { mode: 0o600 })
 
     const backupProcess = Bun.spawn({
       cmd: ['sqlite3', source],
