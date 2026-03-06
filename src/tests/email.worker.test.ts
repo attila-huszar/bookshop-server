@@ -12,7 +12,7 @@ describe('Email Worker', () => {
   })
 
   it('should create worker with correct configuration', async () => {
-    const { emailWorker } = await import('@/workers/emailWorker')
+    const { emailWorker } = await import('@/workers')
 
     expect(emailWorker).toBeDefined()
     expect(mockWorker.on).toHaveBeenCalledWith(

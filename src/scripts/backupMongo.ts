@@ -23,8 +23,9 @@ async function main(): Promise<void> {
 
     outputFile = join(mongoBackupDir, `${timestamp()}.archive.gz`)
 
-    await Bun.write(configFile, `uri: ${JSON.stringify(env.dbMongoUrl)}\n`)
-    await Bun.$`chmod 600 ${configFile}`
+    await Bun.write(configFile, `uri: ${JSON.stringify(env.dbMongoUrl)}\n`, {
+      mode: 0o600,
+    })
 
     const dumpProcess = Bun.spawn({
       cmd: [

@@ -23,6 +23,8 @@ async function main(): Promise<void> {
 
     outputFile = join(sqliteBackupDir, `${timestamp()}-${sourceFileName}`)
 
+    await Bun.write(outputFile, '', { mode: 0o600 })
+
     if (!(await Bun.file(source).exists())) {
       throw new Error(`SQLite file not found: ${source}`)
     }

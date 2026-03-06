@@ -252,7 +252,7 @@ services:
       - '3100:3100'
     volumes:
       - loki-data:/loki
-      - ./loki-config.yaml:/etc/loki/loki-config.yaml
+      - ./docker/loki/loki-config.yaml:/etc/loki/loki-config.yaml
     command: -config.file=/etc/loki/loki-config.yaml
     restart: unless-stopped
 
@@ -280,7 +280,7 @@ services:
     ports:
       - '80:80'
     volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
 
 volumes:
   sqlite_data:

@@ -8,7 +8,7 @@
     "typecheck": "bun --bun tsc --noEmit",
     "migrate": "bun src/database/migrate.ts",
     "seed": "bun src/database/seed.ts",
-    "worker:email": "bun src/workers/emailWorker.ts",
+    "worker:email": "bun src/workers/email.worker.ts",
     "cron:cleanup": "bun src/scripts/cleanupTokens.ts",
     "backup:sqlite": "bun src/scripts/backupSqlite.ts",
     "backup:mongo": "bun src/scripts/backupMongo.ts"
