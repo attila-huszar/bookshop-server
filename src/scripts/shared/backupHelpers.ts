@@ -64,7 +64,7 @@ export async function pruneOldBackups(
 
 export async function waitForProcessExitWithTimeout(
   processName: string,
-  process: SpawnedProcess,
+  spawnedProcess: SpawnedProcess,
   timeoutMs = BACKUP_PROCESS_TIMEOUT_MS,
 ): Promise<number> {
   let timeoutId: ReturnType<typeof setTimeout> | undefined
@@ -76,9 +76,9 @@ export async function waitForProcessExitWithTimeout(
   })
 
   try {
-    return await Promise.race([process.exited, timeoutPromise])
+    return await Promise.race([spawnedProcess.exited, timeoutPromise])
   } catch (error) {
-    process.kill('SIGTERM')
+    spawnedProcess.kill('SIGTERM')
     throw error
   } finally {
     if (timeoutId) clearTimeout(timeoutId)
