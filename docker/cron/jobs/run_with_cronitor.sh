@@ -6,7 +6,7 @@ MONITOR_KEY="$1"
 shift
 
 if [ -n "$CRONITOR_API_KEY" ]; then
-  exec cronitor --env "${NODE_ENV:-production}" exec "$MONITOR_KEY" "$@"
+  exec cronitor exec --env "${NODE_ENV:-production}" "$MONITOR_KEY" "$@"
 fi
 
 exec "$@"
