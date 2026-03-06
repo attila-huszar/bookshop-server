@@ -11,6 +11,7 @@ import {
 
 async function main(): Promise<void> {
   let exitCode = 0
+  let backupCreated = false
   let outputFile: string | undefined
 
   try {
@@ -44,6 +45,7 @@ async function main(): Promise<void> {
       throw new Error(`sqlite3 backup exited with code ${code}`)
     }
 
+    backupCreated = true
     await pruneOldBackups({
       backupType: DB_REPO.SQLITE,
       sourceFileName,
@@ -52,12 +54,17 @@ async function main(): Promise<void> {
     log.info('SQLite backup created', { source, outputFile })
   } catch (error) {
     exitCode = 1
-    if (outputFile) {
+    if (outputFile && !backupCreated) {
       await Bun.$`rm -f ${outputFile}`.catch(() =>
         log.warn('Failed to remove incomplete backup file', { outputFile }),
       )
     }
-    log.error('SQLite backup failed', { error })
+    log.error(
+      backupCreated
+        ? 'SQLite backup created, but retention cleanup failed'
+        : 'SQLite backup failed',
+      backupCreated ? { error, outputFile } : { error },
+    )
   }
 
   process.exit(exitCode)
