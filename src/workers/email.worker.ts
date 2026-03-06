@@ -1,11 +1,10 @@
 import { type Job, Worker } from 'bullmq'
 import { env } from '@/config'
 import { log, sendMail } from '@/libs'
-import { concurrency, QUEUE } from '@/constants'
+import { concurrency, QUEUE, SHUTDOWN_SIGNALS } from '@/constants'
 import type { SendEmailProps } from '@/types'
 
 const parsedUrl = new URL(env.redisUrl)
-const shutdownSignals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM']
 let shuttingDown = false
 
 export const emailWorker = new Worker(
@@ -58,7 +57,7 @@ export async function shutdownEmailWorker(
   }
 }
 
-for (const signal of shutdownSignals) {
+for (const signal of SHUTDOWN_SIGNALS) {
   process.once(signal, () => {
     void shutdownEmailWorker(signal)
   })
