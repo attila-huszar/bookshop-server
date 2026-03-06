@@ -23,6 +23,8 @@ async function main(): Promise<void> {
 
     outputFile = join(mongoBackupDir, `${timestamp()}.archive.gz`)
 
+    await Bun.write(outputFile, '', { mode: 0o600 })
+
     await Bun.write(configFile, `uri: ${JSON.stringify(env.dbMongoUrl)}\n`, {
       mode: 0o600,
     })
