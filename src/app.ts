@@ -118,8 +118,6 @@ api.route('/logs', logs)
 app.route('/api', api)
 app.route('/webhooks', webhooks)
 
-if (env.ngrokAuthToken) void ngrokForward()
-
 let httpServer: Bun.Server<undefined> | undefined
 let shuttingDown = false
 
@@ -136,6 +134,14 @@ if (import.meta.main) {
     hostname: httpServer.hostname,
     port: httpServer.port,
   })
+
+  if (env.ngrokAuthToken) void ngrokForward()
+
+  for (const signal of SHUTDOWN_SIGNALS) {
+    process.once(signal, () => {
+      void shutdownApp(signal)
+    })
+  }
 }
 
 async function shutdownApp(signal: NodeJS.Signals): Promise<void> {
@@ -178,12 +184,6 @@ async function shutdownApp(signal: NodeJS.Signals): Promise<void> {
   })
 
   process.exit(hasShutdownError ? 1 : 0)
-}
-
-for (const signal of SHUTDOWN_SIGNALS) {
-  process.once(signal, () => {
-    void shutdownApp(signal)
-  })
 }
 
 export default app
