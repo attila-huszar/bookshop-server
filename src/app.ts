@@ -163,7 +163,7 @@ async function shutdownApp(signal: NodeJS.Signals): Promise<void> {
       sqliteClient?.close()
     } catch (error: unknown) {
       hasShutdownError = true
-      log.error('Failed to close SQLite client', { signal, error })
+      log.error('SQLite client close threw unexpectedly', { signal, error })
     }
   } else if (env.dbRepo === DB_REPO.MONGO) {
     await mongo.connection.close().catch((error: unknown) => {

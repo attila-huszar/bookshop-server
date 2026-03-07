@@ -57,8 +57,10 @@ export async function shutdownEmailWorker(
   }
 }
 
-for (const signal of SHUTDOWN_SIGNALS) {
-  process.once(signal, () => {
-    void shutdownEmailWorker(signal)
-  })
+if (import.meta.main) {
+  for (const signal of SHUTDOWN_SIGNALS) {
+    process.once(signal, () => {
+      void shutdownEmailWorker(signal)
+    })
+  }
 }
