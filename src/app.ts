@@ -13,6 +13,7 @@ import { csrf } from 'hono/csrf'
 import { timeout } from 'hono/timeout'
 import { trimTrailingSlash } from 'hono/trailing-slash'
 import { env } from './config/env'
+import { SHUTDOWN_SIGNALS } from './constants'
 import {
   authors,
   books,
@@ -25,6 +26,7 @@ import {
   users,
   webhooks,
 } from './controller'
+import { mongo, sqliteClient } from './db'
 import { log } from './libs'
 import {
   authAdminMiddleware,
@@ -33,7 +35,9 @@ import {
   payloadLimiter,
   paymentAccessMiddleware,
 } from './middleware'
-import { formatUptime, ngrokForward } from './utils'
+import { emailQueue } from './queues'
+import { DB_REPO } from './types/enums'
+import { closeNgrokTunnel, formatUptime, ngrokForward } from './utils'
 
 const app = new Hono()
 const api = new Hono()
@@ -58,7 +62,7 @@ const corsMiddleware = cors({
 app.use('*', async (c, next) => {
   try {
     await next()
-  } catch (error) {
+  } catch (error: unknown) {
     log.error(`${c.req.method} ${c.req.url}`, { error })
     throw error
   }
@@ -71,7 +75,7 @@ app.use('*', payloadLimiter)
 app.use('*', timeout(10000))
 app.use('/favicon.ico', serveStatic({ path: './static/favicon.ico' }))
 
-if (Bun.env.NODE_ENV === 'prod') {
+if (Bun.env.NODE_ENV === 'production') {
   const csrfMiddleware: MiddlewareHandler = csrf({
     origin: [env.clientBaseUrl!],
   })
@@ -114,6 +118,72 @@ api.route('/logs', logs)
 app.route('/api', api)
 app.route('/webhooks', webhooks)
 
-if (env.ngrokAuthToken) void ngrokForward()
+let httpServer: Bun.Server<undefined> | undefined
+let shuttingDown = false
+
+if (import.meta.main) {
+  const port = Number(env.port)
+
+  httpServer = Bun.serve({
+    fetch: app.fetch,
+    port,
+    hostname: '0.0.0.0',
+  })
+
+  log.info('Server started', {
+    hostname: httpServer.hostname,
+    port: httpServer.port,
+  })
+
+  if (env.ngrokAuthToken) void ngrokForward()
+
+  for (const signal of SHUTDOWN_SIGNALS) {
+    process.once(signal, () => {
+      void shutdownApp(signal)
+    })
+  }
+}
+
+async function shutdownApp(signal: NodeJS.Signals): Promise<void> {
+  if (shuttingDown) return
+  shuttingDown = true
+
+  log.info('Server shutting down', { signal })
+
+  let hasShutdownError = false
+
+  if (httpServer) {
+    await httpServer.stop(true).catch((error: unknown) => {
+      hasShutdownError = true
+      log.error('Failed to stop HTTP server', { signal, error })
+    })
+  }
+
+  await emailQueue.close().catch((error: unknown) => {
+    hasShutdownError = true
+    log.error('Failed to close email queue', { signal, error })
+  })
+
+  if (env.dbRepo === DB_REPO.SQLITE) {
+    try {
+      sqliteClient?.close()
+    } catch (error: unknown) {
+      hasShutdownError = true
+      log.error('SQLite client close threw unexpectedly', { signal, error })
+    }
+  } else if (env.dbRepo === DB_REPO.MONGO) {
+    await mongo.connection.close().catch((error: unknown) => {
+      hasShutdownError = true
+      log.error('Failed to close Mongo connection', { signal, error })
+    })
+  }
+
+  await closeNgrokTunnel().catch((error: unknown) => {
+    hasShutdownError = true
+    log.error('Failed to close ngrok tunnel', { signal, error })
+  })
+
+  process.exit(hasShutdownError ? 1 : 0)
+}
 
 export default app
