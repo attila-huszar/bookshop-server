@@ -38,6 +38,12 @@ services:
                 level: level
           - labels:
               level:
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://127.0.0.1:5000/health']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     volumes:
       - ./src:/bookshop-server/src
       - sqlite_data:/bookshop-server/data
@@ -83,6 +89,12 @@ services:
                 level: level
           - labels:
               level:
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://127.0.0.1:5000/health']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     volumes:
       - ./src:/bookshop-server/src
 
@@ -100,6 +112,20 @@ services:
     volumes:
       - mongodb_data:/data/db
     restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'mongosh',
+          '--quiet',
+          '--eval',
+          "db.adminCommand('ping').ok",
+          'mongodb://127.0.0.1:27017/admin',
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
 
   redis:
     image: redis:alpine
@@ -185,7 +211,7 @@ services:
     profiles: ['sqlite']
     depends_on:
       server:
-        condition: service_started
+        condition: service_healthy
       loki:
         condition: service_started
     restart: unless-stopped
@@ -219,9 +245,9 @@ services:
     profiles: ['mongo']
     depends_on:
       server-with-mongo:
-        condition: service_started
+        condition: service_healthy
       mongodb:
-        condition: service_started
+        condition: service_healthy
       loki:
         condition: service_started
     restart: unless-stopped

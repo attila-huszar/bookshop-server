@@ -1,7 +1,7 @@
 FROM oven/bun:alpine AS base
 
 RUN apk update && apk upgrade --no-cache
-RUN apk add --no-cache sqlite
+RUN apk add --no-cache sqlite curl
 
 WORKDIR /bookshop-server
 
@@ -17,7 +17,7 @@ FROM base AS worker
 CMD ["bun", "worker:email"]
 
 FROM base AS cron
-RUN apk add --no-cache curl bash mongodb-tools
+RUN apk add --no-cache bash mongodb-tools
 RUN curl -sSfL "https://cronitor.io/install-linux?sudo=0" \
   -o /tmp/cronitor-install.sh && \
   sh /tmp/cronitor-install.sh && \
