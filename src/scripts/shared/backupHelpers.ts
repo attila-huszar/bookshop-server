@@ -78,14 +78,20 @@ export async function waitForProcessExitWithTimeout(
 
   try {
     return await Promise.race([spawnedProcess.exited, timeoutPromise])
-  } catch (error) {
+  } catch (error: unknown) {
     spawnedProcess.kill('SIGTERM')
-    await Promise.race([
-      spawnedProcess.exited,
-      new Promise((resolve) =>
-        setTimeout(resolve, PROCESS_TERMINATION_GRACE_MS),
+
+    const exited = await Promise.race([
+      spawnedProcess.exited.then(() => true),
+      new Promise<false>((resolve) =>
+        setTimeout(() => resolve(false), PROCESS_TERMINATION_GRACE_MS),
       ),
     ])
+
+    if (!exited) {
+      spawnedProcess.kill('SIGKILL')
+    }
+
     throw error
   } finally {
     if (timeoutId) clearTimeout(timeoutId)
