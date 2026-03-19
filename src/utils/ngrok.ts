@@ -19,7 +19,9 @@ export async function ngrokForward(): Promise<NgrokListener | undefined> {
 
   await trackOperation(
     (currentOperation ?? Promise.resolve())
-      .catch(() => null)
+      .catch(() => {
+        // Previous operation failed; ignore so we can retry forwarding
+      })
       .then(async () => {
         if (currentListener) return
 
@@ -32,6 +34,7 @@ export async function ngrokForward(): Promise<NgrokListener | undefined> {
         console.log(`Ingress established at: ${currentListener.url()}`)
       }),
   )
+
   return currentListener
 }
 
@@ -40,7 +43,9 @@ export async function closeNgrokTunnel(): Promise<void> {
 
   await trackOperation(
     (currentOperation ?? Promise.resolve())
-      .catch(() => null)
+      .catch(() => {
+        // Previous operation failed; continue to close safely
+      })
       .then(async () => {
         const listenerToClose = currentListener
         currentListener = undefined
