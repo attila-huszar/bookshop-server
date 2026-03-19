@@ -1,26 +1,39 @@
 export const userMessage = {
   noSession: 'Session unavailable',
-  verifyFirst: 'Please verify your email address before logging in',
-  emailTaken: 'Email address is already registered',
-  sendEmail: 'Error sending email',
-  getError: 'Error getting user',
-  createError: 'Error creating user',
-  updateError: 'Error updating user',
+  verifyFirst: 'Please verify your email address before logging in.',
+  emailTaken: 'Email address is already registered.',
+  emailSendFailed:
+    'We could not send the email right now. Please try again later.',
+  notFound: 'User account was not found.',
+  createFailed:
+    'We could not create your account right now. Please try again later.',
+  updateFailed:
+    'We could not save your account changes right now. Please try again later.',
   forgotPasswordRequest:
-    "If you're registered with us, you'll receive a password reset link shortly",
-  passwordResetSuccess: 'Password successfully reset',
+    "If you're registered with us, you'll receive a password reset link shortly.",
+  passwordResetSuccess: 'Password successfully reset.',
 } as const
 
 export const authMessage = {
-  authError: 'Email or password is incorrect',
-  loginError: 'Login error',
-  logoutError: 'Logout error',
-  registerError: 'Register error',
-  verifyError: 'Error verifying email',
-  forgotPasswordError: 'Error sending password reset email',
-  resetPasswordError: 'Error resetting password',
-  verifyTokenError: 'Error verifying token',
-  invalidToken: 'The token provided is either expired or invalid',
+  credentialsInvalid: 'Invalid credentials. Please try again.',
+  mfaStateUpdateError:
+    'We could not complete sign-in right now. Please try again later.',
+  logoutFailed: 'We could not sign you out right now. Please try again later.',
+  registerFailed:
+    'We could not complete registration right now. Please try again later.',
+  mfaCodeError: 'The OTP code you entered is incorrect.',
+  mfaCodeExpired: 'The OTP code has expired. Please sign in again.',
+  mfaDeliveryUnavailable:
+    'MFA code delivery is temporarily unavailable. Please try again later.',
+  verifyEmailFailed:
+    'We could not verify your email right now. Please try again later.',
+  passwordResetRequestFailed:
+    'We could not start password reset right now. Please try again later.',
+  passwordResetSubmitFailed:
+    'We could not reset your password right now. Please try again later.',
+  tokenVerifyFailed:
+    'We could not verify the token right now. Please try again later.',
+  invalidToken: 'The token provided is either expired or invalid.',
 } as const
 
 export const paymentMessage = {

@@ -8,8 +8,6 @@ const requiredKeys: EnvKey[] = [
   'adminPassword',
   'clientBaseUrl',
   'cookieSecret',
-  'mailerUser',
-  'mailerPass',
   'jwtAccessSecret',
   'jwtRefreshSecret',
   'stripeSecret',

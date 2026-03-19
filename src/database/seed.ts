@@ -13,4 +13,12 @@ async function seed() {
   process.exit(0)
 }
 
-void seed()
+void (async () => {
+  try {
+    await seed()
+    process.exit(0)
+  } catch (error) {
+    console.error('❌ Database seed failed:', error)
+    process.exit(1)
+  }
+})()

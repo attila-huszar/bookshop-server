@@ -13,6 +13,7 @@ import {
   verifyUser,
 } from '@/services'
 import { signAccessToken, signRefreshToken, verifyJWTRefresh } from '@/utils'
+import { API } from '@/constants'
 import { errorHandler } from '@/errors'
 import type {
   AuthJWTPayload,
@@ -33,7 +34,7 @@ type Variables = {
 
 export const users = new Hono<{ Variables: Variables }>()
 
-users.post('/login', async (c) => {
+users.post(API.users.login, async (c) => {
   try {
     const loginRequest = await c.req.json<LoginRequest>()
     const { accessToken, refreshToken, firstName } =
@@ -53,7 +54,7 @@ users.post('/login', async (c) => {
   }
 })
 
-users.post('/register', async (c) => {
+users.post(API.users.register, async (c) => {
   try {
     const registerRequest = await c.req.formData()
     const { email } = await registerUser(registerRequest)
@@ -64,7 +65,7 @@ users.post('/register', async (c) => {
   }
 })
 
-users.post('/verification', async (c) => {
+users.post(API.users.verification, async (c) => {
   try {
     const verificationRequest = await c.req.json<VerificationRequest>()
     const { email } = await verifyUser(verificationRequest)
@@ -75,7 +76,7 @@ users.post('/verification', async (c) => {
   }
 })
 
-users.post('/password-reset-request', async (c) => {
+users.post(API.users.passwordResetRequest, async (c) => {
   try {
     const request = await c.req.json<PasswordResetRequest>()
     const { message } = await passwordResetRequest(request)
@@ -86,7 +87,7 @@ users.post('/password-reset-request', async (c) => {
   }
 })
 
-users.post('/password-reset-token', async (c) => {
+users.post(API.users.passwordResetToken, async (c) => {
   try {
     const request = await c.req.json<PasswordResetToken>()
     const { token } = await passwordResetToken(request)
@@ -97,7 +98,7 @@ users.post('/password-reset-token', async (c) => {
   }
 })
 
-users.post('/password-reset-submit', async (c) => {
+users.post(API.users.passwordResetSubmit, async (c) => {
   try {
     const request = await c.req.json<PasswordResetSubmit>()
     const { message } = await passwordResetSubmit(request)
@@ -108,7 +109,7 @@ users.post('/password-reset-submit', async (c) => {
   }
 })
 
-users.get('/profile', async (c) => {
+users.get(API.users.profile, async (c) => {
   try {
     const jwtPayload = c.get('jwtPayload')
     const user: PublicUser = await getUserProfile(jwtPayload.uuid)
@@ -119,7 +120,7 @@ users.get('/profile', async (c) => {
   }
 })
 
-users.patch('/profile', async (c) => {
+users.patch(API.users.profile, async (c) => {
   try {
     const jwtPayload = c.get('jwtPayload')
     const updateFields = await c.req.json<UserUpdate>()
@@ -134,7 +135,7 @@ users.patch('/profile', async (c) => {
   }
 })
 
-users.post('/logout', (c) => {
+users.post(API.users.logout, (c) => {
   try {
     deleteCookie(c, REFRESH_TOKEN, cookieOptions)
 
@@ -144,7 +145,7 @@ users.post('/logout', (c) => {
   }
 })
 
-users.post('/refresh', async (c) => {
+users.post(API.users.refresh, async (c) => {
   try {
     const refreshTokenCookie = await getSignedCookie(
       c,
@@ -187,7 +188,7 @@ users.post('/refresh', async (c) => {
   }
 })
 
-users.post('/avatar', async (c) => {
+users.post(API.users.avatar, async (c) => {
   try {
     const jwtPayload = c.get('jwtPayload')
     const formData = await c.req.formData()
@@ -201,7 +202,7 @@ users.post('/avatar', async (c) => {
   }
 })
 
-users.get('/country', (c) => {
+users.get(API.users.country, (c) => {
   try {
     const country = c.req.header('cf-ipcountry')?.toLowerCase()
     return c.json({ country })
@@ -210,7 +211,7 @@ users.get('/country', (c) => {
   }
 })
 
-users.get('/country-codes', async (c) => {
+users.get(API.users.countryCodes, async (c) => {
   try {
     const file = Bun.file('./src/resources/country-codes.json')
     const content: unknown = await file.json()

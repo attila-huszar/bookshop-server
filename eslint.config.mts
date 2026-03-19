@@ -6,9 +6,6 @@ import globals from 'globals'
 import tseslint from 'typescript-eslint'
 
 export default defineConfig(
-  {
-    ignores: ['node_modules', 'eslint.config.js'],
-  },
   eslint.configs.recommended,
   importPlugin.flatConfigs.recommended,
   {
@@ -59,5 +56,8 @@ export default defineConfig(
   {
     files: ['**/*.js'],
     extends: [tseslint.configs.disableTypeChecked],
+  },
+  {
+    ignores: ['node_modules', 'eslint.config.js'],
   },
 )

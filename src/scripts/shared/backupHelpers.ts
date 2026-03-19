@@ -41,7 +41,9 @@ export async function pruneOldBackups(
   if (!directoryStat?.isDirectory()) return
 
   const pattern =
-    backupType === DB_REPO.MONGO ? '*.archive.gz' : `*-${params.sourceFileName}`
+    params.backupType === DB_REPO.MONGO
+      ? '*.archive.gz'
+      : `*-${params.sourceFileName}`
   const maxAgeMs = retentionDays * 24 * 60 * 60 * 1000
   const files = await Array.fromAsync(
     new Bun.Glob(pattern).scan({ cwd: directory }),

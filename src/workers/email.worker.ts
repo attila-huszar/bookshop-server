@@ -4,7 +4,6 @@ import { log, sendMail } from '@/libs'
 import { concurrency, QUEUE, SHUTDOWN_SIGNALS } from '@/constants'
 import type { SendEmailProps } from '@/types'
 
-const parsedUrl = new URL(env.redisUrl)
 let shuttingDown = false
 
 export const emailWorker = new Worker(
@@ -12,8 +11,7 @@ export const emailWorker = new Worker(
   async (job: Job<SendEmailProps>) => sendMail(job.data),
   {
     connection: {
-      host: parsedUrl.hostname,
-      port: Number(parsedUrl.port),
+      url: env.redisUrl,
       maxRetriesPerRequest: null,
     },
     concurrency,

@@ -138,7 +138,7 @@ Backup scripts:
 - `bun run backup:sqlite` -> file snapshot of `DB_SQLITE_FILE`
 - `bun run backup:mongo` -> `mongodump` archive (`.archive.gz`)
 
-Defaults are defined in `src/scripts/shared/backupHelpers.ts`:
+Defaults are defined in `src/config/env.ts` (via `Bun.env.BACKUP_DIR` and `Bun.env.BACKUP_RETENTION_DAYS`):
 
-- `BACKUP_DIR` = `data/backups`
-- `BACKUP_RETENTION_DAYS` = `7`
+- `BACKUP_DIR` defaults to `data/backups`
+- `BACKUP_RETENTION_DAYS` defaults to `7`

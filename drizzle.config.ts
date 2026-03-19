@@ -1,12 +1,14 @@
 import { defineConfig } from 'drizzle-kit'
+import { env } from '@/config'
+import { MIGRATIONS_DIR, MODELS_DIR } from './src/constants/'
 
 const dbType = 'sqlite'
 
 export default defineConfig({
   dialect: dbType,
   dbCredentials: {
-    url: 'file:data/db.sqlite',
+    url: `file:${env.dbSqliteFile}`,
   },
-  out: './src/database/migrations',
-  schema: `./src/models/${dbType}`,
+  out: MIGRATIONS_DIR,
+  schema: `${MODELS_DIR}/${dbType}`,
 })

@@ -3,9 +3,11 @@
   "module": "app.ts",
   "type": "module",
   "scripts": {
-    "dev": "bun run --hot src/app.ts",
+    "dev": "bun --hot src/app.ts",
     "lint": "eslint . --max-warnings 0",
     "typecheck": "bun --bun tsc --noEmit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "migrate": "bun src/database/migrate.ts",
     "seed": "bun src/database/seed.ts",
     "worker:email": "bun src/workers/email.worker.ts",

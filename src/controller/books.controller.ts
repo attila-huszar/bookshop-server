@@ -1,11 +1,12 @@
 import { Hono } from 'hono'
 import { getBookById, getBooks } from '@/services'
+import { API } from '@/constants'
 import { errorHandler, NotFound } from '@/errors'
 import type { BookQuery } from '@/types'
 
 export const books = new Hono()
 
-books.get('/', async (c) => {
+books.get(API.books.root, async (c) => {
   try {
     const query = c.req.query() as BookQuery | undefined
 

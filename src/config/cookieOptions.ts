@@ -1,3 +1,4 @@
+import { API } from '@/constants'
 import { env } from './env'
 
 export const REFRESH_TOKEN = 'refresh_token'
@@ -8,7 +9,7 @@ export const cookieOptions: CookieOptions = {
   httpOnly: true,
   secure: Bun.env.NODE_ENV === 'production',
   sameSite: Bun.env.NODE_ENV === 'production' ? 'none' : 'lax',
-  path: '/api/users/refresh',
+  path: `${API.api}${API.users.refresh}`,
 }
 
 export const paymentCookieOptions: CookieOptions = {
@@ -16,7 +17,7 @@ export const paymentCookieOptions: CookieOptions = {
   httpOnly: true,
   secure: Bun.env.NODE_ENV === 'production',
   sameSite: Bun.env.NODE_ENV === 'production' ? 'none' : 'lax',
-  path: '/api/payments',
+  path: `${API.api}${API.payments.root}`,
 }
 
 type CookieOptions = {

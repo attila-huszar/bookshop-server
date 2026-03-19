@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+import { writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { env } from '@/config'
@@ -10,11 +12,36 @@ import {
   waitForProcessExitWithTimeout,
 } from './shared/backupHelpers'
 
+async function createMongoDumpConfigFile(uri: string): Promise<string> {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const configFile = join(
+      tmpdir(),
+      `mongodump-${process.pid}-${randomUUID()}.yaml`,
+    )
+
+    try {
+      await writeFile(configFile, `uri: ${JSON.stringify(uri)}\n`, {
+        mode: 0o600,
+        flag: 'wx',
+      })
+      return configFile
+    } catch (error) {
+      const errorWithCode = error as { code?: string }
+      if (errorWithCode?.code === 'EEXIST') {
+        continue
+      }
+      throw error
+    }
+  }
+
+  throw new Error('Failed to create temporary mongodump config file')
+}
+
 async function main(): Promise<void> {
   let exitCode = 0
   let backupCreated = false
   let outputFile: string | undefined
-  const configFile = join(tmpdir(), `mongodump-${process.pid}.yaml`)
+  let configFile: string | undefined
 
   try {
     const mongoBackupDir = getBackupDir(DB_REPO.MONGO)
@@ -25,9 +52,7 @@ async function main(): Promise<void> {
 
     await Bun.write(outputFile, '', { mode: 0o600 })
 
-    await Bun.write(configFile, `uri: ${JSON.stringify(env.dbMongoUrl)}\n`, {
-      mode: 0o600,
-    })
+    configFile = await createMongoDumpConfigFile(env.dbMongoUrl)
 
     const dumpProcess = Bun.spawn({
       cmd: [
@@ -65,7 +90,9 @@ async function main(): Promise<void> {
       backupCreated ? { error, outputFile } : { error },
     )
   } finally {
-    await Bun.$`rm -f ${configFile}`.catch(() => null)
+    if (configFile) {
+      await Bun.$`rm -f ${configFile}`.catch(() => null)
+    }
   }
 
   process.exit(exitCode)

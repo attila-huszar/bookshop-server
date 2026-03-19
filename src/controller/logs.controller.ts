@@ -1,11 +1,12 @@
 import { Hono } from 'hono'
 import { logSchema, validate } from '@/validation'
 import { log } from '@/libs'
+import { API } from '@/constants'
 import type { LogEntry } from '@/types'
 
 export const logs = new Hono()
 
-logs.post('/', async (c) => {
+logs.post(API.logs.root, async (c) => {
   try {
     const body = await c.req.json<LogEntry>()
     const validatedBody = validate(logSchema, body)

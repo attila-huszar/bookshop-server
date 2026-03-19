@@ -1,7 +1,12 @@
 import { migrate } from 'drizzle-orm/bun-sqlite/migrator'
 import { sqlite } from '@/db'
+import { MIGRATIONS_DIR } from '@/constants'
 
-migrate(sqlite, { migrationsFolder: './src/database/migrations' })
-
-console.info('Database migrated \u2705')
-process.exit(0)
+try {
+  migrate(sqlite, { migrationsFolder: MIGRATIONS_DIR })
+  console.info('Database migrated ✅')
+  process.exit(0)
+} catch (error) {
+  console.error('❌ Database migration failed:', error)
+  process.exit(1)
+}
