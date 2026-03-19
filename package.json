@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "bun --hot src/app.ts",
-    "lint": "eslint . --max-warnings 0",
+    "lint": "bun --bun eslint . --max-warnings 0",
     "typecheck": "bun --bun tsc --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

@@ -1,4 +1,3 @@
-import { createHmac } from 'node:crypto'
 import { beforeEach, describe, expect, it } from 'bun:test'
 import { env } from '@/config'
 import {
@@ -75,15 +74,17 @@ function createPaymentIntentEvent({
   } as const
 }
 
-function createSignedWebhookRequest(event: unknown): {
+async function createSignedWebhookRequest(event: unknown): Promise<{
   payload: string
   signature: string
-} {
+}> {
   const payload = JSON.stringify(event)
   const timestamp = Math.floor(Date.now() / 1000)
-  const signedPayload = `${timestamp}.${payload}`
+
+  const { createHmac } = await import('node:crypto')
+
   const signature = createHmac('sha256', TEST_WEBHOOK_SECRET)
-    .update(signedPayload, 'utf8')
+    .update(`${timestamp}.${payload}`, 'utf8')
     .digest('hex')
 
   return {
@@ -309,7 +310,7 @@ describe('Webhooks Service', () => {
       type: 'payment_intent.succeeded',
       status: 'succeeded',
     })
-    const { payload, signature } = createSignedWebhookRequest(event)
+    const { payload, signature } = await createSignedWebhookRequest(event)
 
     let resultError: unknown = null
 
@@ -376,7 +377,7 @@ describe('Webhooks Service', () => {
       type: 'payment_intent.succeeded',
       status: 'succeeded',
     })
-    const { payload, signature } = createSignedWebhookRequest(event)
+    const { payload, signature } = await createSignedWebhookRequest(event)
 
     const result = await processStripeWebhook(payload, signature)
 
@@ -423,7 +424,7 @@ describe('Webhooks Service', () => {
       type: 'payment_intent.succeeded',
       status: 'succeeded',
     })
-    const { payload, signature } = createSignedWebhookRequest(event)
+    const { payload, signature } = await createSignedWebhookRequest(event)
 
     const result = await processStripeWebhook(payload, signature)
 
@@ -452,7 +453,7 @@ describe('Webhooks Service', () => {
       type: 'payment_intent.succeeded',
       status: 'succeeded',
     })
-    const { payload, signature } = createSignedWebhookRequest(event)
+    const { payload, signature } = await createSignedWebhookRequest(event)
 
     const result = await processStripeWebhook(payload, signature)
 
@@ -510,7 +511,7 @@ describe('Webhooks Service', () => {
       type: 'payment_intent.canceled',
       status: 'canceled',
     })
-    const { payload, signature } = createSignedWebhookRequest(event)
+    const { payload, signature } = await createSignedWebhookRequest(event)
 
     const result = await processStripeWebhook(payload, signature)
 
