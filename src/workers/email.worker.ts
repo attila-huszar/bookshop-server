@@ -43,14 +43,14 @@ export async function shutdownEmailWorker(
   if (shuttingDown) return
   shuttingDown = true
 
-  log.info('Email worker shutting down', { signal })
+  log.info('🟡 Email worker shutting down...', { signal })
 
   try {
     await emailWorker.close()
-    log.info('Email worker closed', { signal })
+    log.info('🔴 Email worker closed', { signal })
     process.exit(0)
   } catch (error) {
-    log.error('Email worker shutdown failed', { signal, error })
+    log.error('⚠️ Email worker shutdown failed', { signal, error })
     process.exit(1)
   }
 }

@@ -167,20 +167,25 @@ async function shutdownApp(signal: NodeJS.Signals): Promise<void> {
   if (shuttingDown) return
   shuttingDown = true
 
-  log.info('Server shutting down', { signal })
+  log.info('🟡 Server shutting down...', { signal })
 
   let hasShutdownError = false
 
   if (httpServer) {
-    await httpServer.stop(true).catch((error: unknown) => {
-      hasShutdownError = true
-      log.error('Failed to stop HTTP server', { signal, error })
-    })
+    await httpServer
+      .stop(true)
+      .catch((error: unknown) => {
+        hasShutdownError = true
+        log.error('⚠️ Failed to stop HTTP server', { signal, error })
+      })
+      .finally(() => {
+        log.info('🔴 HTTP server stopped', { signal })
+      })
   }
 
   await emailQueue.close().catch((error: unknown) => {
     hasShutdownError = true
-    log.error('Failed to close email queue', { signal, error })
+    log.error('⚠️ Failed to close email queue', { signal, error })
   })
 
   if (env.dbRepo === DB_REPO.SQLITE) {
@@ -188,18 +193,18 @@ async function shutdownApp(signal: NodeJS.Signals): Promise<void> {
       sqliteClient?.close()
     } catch (error: unknown) {
       hasShutdownError = true
-      log.error('SQLite client close threw unexpectedly', { signal, error })
+      log.error('⚠️ SQLite client close threw unexpectedly', { signal, error })
     }
   } else if (env.dbRepo === DB_REPO.MONGO) {
     await mongo.connection.close().catch((error: unknown) => {
       hasShutdownError = true
-      log.error('Failed to close Mongo connection', { signal, error })
+      log.error('⚠️ Failed to close Mongo connection', { signal, error })
     })
   }
 
   await closeNgrokTunnel().catch((error: unknown) => {
     hasShutdownError = true
-    log.error('Failed to close ngrok tunnel', { signal, error })
+    log.error('⚠️ Failed to close ngrok tunnel', { signal, error })
   })
 
   process.exit(hasShutdownError ? 1 : 0)
