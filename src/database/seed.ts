@@ -10,7 +10,6 @@ async function seed() {
 
   console.info('✅ Database seeded successfully!')
   console.info({ ...authors, ...books, ...news, ...users })
-  process.exit(0)
 }
 
 void (async () => {

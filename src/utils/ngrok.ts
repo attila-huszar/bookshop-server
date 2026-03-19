@@ -1,60 +1,52 @@
 import ngrok from '@ngrok/ngrok'
 import { env } from '@/config'
 
-let listener: Awaited<ReturnType<typeof ngrok.forward>> | undefined
-let inFlightForwarding: Promise<void> | null = null
-let inFlightClosing: Promise<void> | null = null
+type NgrokListener = Awaited<ReturnType<typeof ngrok.forward>>
 
-export async function ngrokForward(): Promise<
-  Awaited<ReturnType<typeof ngrok.forward>> | undefined
-> {
-  if (inFlightClosing) await inFlightClosing
-  if (listener) return listener
-  if (inFlightForwarding) {
-    await inFlightForwarding
-    return listener
-  }
+let currentListener: NgrokListener | undefined
+let currentOperation: Promise<void> | null = null
 
-  inFlightForwarding = (async () => {
-    listener = await ngrok.forward({
-      addr: 'nginx:80',
-      authtoken: env.ngrokAuthToken,
-      domain: env.ngrokDomain,
-    })
+function trackOperation(operation: Promise<void>): Promise<void> {
+  const tracked = operation.finally(() => {
+    if (currentOperation === tracked) currentOperation = null
+  })
+  currentOperation = tracked
+  return tracked
+}
 
-    console.log(`Ingress established at: ${listener.url()}`)
-  })()
+export async function ngrokForward(): Promise<NgrokListener | undefined> {
+  if (currentListener) return currentListener
 
-  try {
-    await inFlightForwarding
-  } finally {
-    inFlightForwarding = null
-  }
+  await trackOperation(
+    (currentOperation ?? Promise.resolve())
+      .catch(() => null)
+      .then(async () => {
+        if (currentListener) return
 
-  return listener
+        currentListener = await ngrok.forward({
+          addr: 'nginx:80',
+          authtoken: env.ngrokAuthToken,
+          domain: env.ngrokDomain,
+        })
+
+        console.log(`Ingress established at: ${currentListener.url()}`)
+      }),
+  )
+  return currentListener
 }
 
 export async function closeNgrokTunnel(): Promise<void> {
-  if (inFlightClosing) {
-    await inFlightClosing
-    return
-  }
+  if (!currentListener && !currentOperation) return
 
-  if (inFlightForwarding) {
-    await inFlightForwarding.catch(() => null)
-  }
+  await trackOperation(
+    (currentOperation ?? Promise.resolve())
+      .catch(() => null)
+      .then(async () => {
+        const listenerToClose = currentListener
+        currentListener = undefined
 
-  if (!listener) return
-
-  const currentListener = listener
-  inFlightClosing = (async () => {
-    await currentListener.close()
-    if (listener === currentListener) listener = undefined
-  })()
-
-  try {
-    await inFlightClosing
-  } finally {
-    inFlightClosing = null
-  }
+        if (!listenerToClose) return
+        await listenerToClose.close()
+      }),
+  )
 }
