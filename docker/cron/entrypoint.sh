@@ -7,7 +7,11 @@ if [ ! -f "${CRON_FILE:-}" ]; then
   exit 1
 fi
 
-cp "$CRON_FILE" /etc/crontabs/root
+CRONTAB_DIR=/bookshop-server/docker/cron/crontabs
+CRON_USER="$(id -un)"
+
+mkdir -p "$CRONTAB_DIR"
+cp "$CRON_FILE" "$CRONTAB_DIR/$CRON_USER"
 
 echo "Using cron schedule from $CRON_FILE"
-exec crond -f -l 8
+exec crond -f -l 8 -c "$CRONTAB_DIR"

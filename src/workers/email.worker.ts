@@ -1,6 +1,6 @@
 import { type Job, Worker } from 'bullmq'
 import { env } from '@/config'
-import { log, sendMail } from '@/libs'
+import { closeMailer, log, sendMail } from '@/libs'
 import { concurrency, QUEUE, SHUTDOWN_SIGNALS } from '@/constants'
 import type { SendEmailProps } from '@/types'
 
@@ -47,6 +47,7 @@ export async function shutdownEmailWorker(
 
   try {
     await emailWorker.close()
+    closeMailer()
     log.info('🔴 Email worker closed', { signal })
     process.exit(0)
   } catch (error) {

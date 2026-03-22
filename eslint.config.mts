@@ -58,6 +58,6 @@ export default defineConfig(
     extends: [tseslint.configs.disableTypeChecked],
   },
   {
-    ignores: ['node_modules', 'eslint.config.js'],
+    ignores: ['node_modules'],
   },
 )

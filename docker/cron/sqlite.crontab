@@ -1,5 +1,6 @@
 SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+TZ=UTC
 
 # Every 30 minutes: clean up stale reset tokens and unverified users
 */30 * * * * /bin/sh /bookshop-server/docker/cron/jobs/cleanup.sh >> /proc/1/fd/1 2>&1

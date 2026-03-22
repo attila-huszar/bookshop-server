@@ -1,4 +1,4 @@
-import { stat } from 'node:fs/promises'
+import { rm, stat } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { env } from '@/config'
 import { log } from '@/libs'
@@ -58,7 +58,7 @@ export async function pruneOldBackups(
         .stat()
         .catch(() => null)
       if (fileStat && now - fileStat.mtimeMs > maxAgeMs) {
-        await Bun.$`rm -f ${filePath}`
+        await rm(filePath, { force: true })
         log.info(`Removed old ${backupType} backup`, { filePath })
       }
     }),
@@ -81,7 +81,11 @@ export async function waitForProcessExitWithTimeout(
   try {
     return await Promise.race([spawnedProcess.exited, timeoutPromise])
   } catch (error: unknown) {
-    spawnedProcess.kill('SIGTERM')
+    try {
+      spawnedProcess.kill('SIGTERM')
+    } catch {
+      // Ignore if the process has already exited.
+    }
 
     const exited = await Promise.race([
       spawnedProcess.exited.then(() => true),
@@ -91,7 +95,11 @@ export async function waitForProcessExitWithTimeout(
     ])
 
     if (!exited) {
-      spawnedProcess.kill('SIGKILL')
+      try {
+        spawnedProcess.kill('SIGKILL')
+      } catch {
+        // Ignore if the process has already exited.
+      }
     }
 
     throw error

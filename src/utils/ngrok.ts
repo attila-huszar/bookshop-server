@@ -4,54 +4,51 @@ import { env } from '@/config'
 type NgrokListener = Awaited<ReturnType<typeof ngrok.forward>>
 
 let currentListener: NgrokListener | undefined
-let currentOperation: Promise<void> | null = null
+let operationQueue: Promise<void> = Promise.resolve()
 
-function trackOperation(operation: Promise<void>): Promise<void> {
-  const tracked = operation.finally(() => {
-    if (currentOperation === tracked) currentOperation = null
+async function runExclusive<T>(operation: () => Promise<T>): Promise<T> {
+  const previous = operationQueue
+  let release!: () => void
+  operationQueue = new Promise<void>((resolve) => {
+    release = resolve
   })
-  currentOperation = tracked
-  return tracked
+
+  await previous.catch(() => {
+    // Ignore previous operation failures so queue processing can continue.
+  })
+
+  try {
+    return await operation()
+  } finally {
+    release()
+  }
 }
 
 export async function ngrokForward(): Promise<NgrokListener | undefined> {
-  if (currentListener) return currentListener
+  return runExclusive(async () => {
+    if (currentListener) return currentListener
 
-  await trackOperation(
-    (currentOperation ?? Promise.resolve())
-      .catch(() => {
-        // Previous operation failed; ignore so we can retry forwarding
-      })
-      .then(async () => {
-        if (currentListener) return
+    currentListener = await ngrok.forward({
+      addr: 'nginx:80',
+      authtoken: env.ngrokAuthToken,
+      domain: env.ngrokDomain,
+    })
 
-        currentListener = await ngrok.forward({
-          addr: 'nginx:80',
-          authtoken: env.ngrokAuthToken,
-          domain: env.ngrokDomain,
-        })
+    console.log(`Ingress established at: ${currentListener.url()}`)
 
-        console.log(`Ingress established at: ${currentListener.url()}`)
-      }),
-  )
-
-  return currentListener
+    return currentListener
+  })
 }
 
 export async function closeNgrokTunnel(): Promise<void> {
-  if (!currentListener && !currentOperation) return
+  await runExclusive(async () => {
+    const listenerToClose = currentListener
+    if (!listenerToClose) return
 
-  await trackOperation(
-    (currentOperation ?? Promise.resolve())
-      .catch(() => {
-        // Previous operation failed; continue to close safely
-      })
-      .then(async () => {
-        const listenerToClose = currentListener
-        currentListener = undefined
+    await listenerToClose.close()
 
-        if (!listenerToClose) return
-        await listenerToClose.close()
-      }),
-  )
+    if (currentListener === listenerToClose) {
+      currentListener = undefined
+    }
+  })
 }

@@ -62,6 +62,15 @@ export function initMailer(): void {
   getTransporter()
 }
 
+export function closeMailer(): void {
+  const activeTransporter = transporter
+  transporter = null
+
+  if (!activeTransporter) return
+
+  activeTransporter.close()
+}
+
 export async function sendMail(
   props: SendEmailProps,
 ): Promise<SentMessageInfo> {

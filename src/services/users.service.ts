@@ -17,7 +17,7 @@ import {
   stripSensitiveUserFields,
   uploadFile,
 } from '@/utils'
-import { authMessage, userMessage } from '@/constants'
+import { authMessage, DUMMY_PASSWORD_HASH, userMessage } from '@/constants'
 import {
   BadRequest,
   Forbidden,
@@ -42,6 +42,16 @@ export async function loginUser(loginRequest: LoginRequest) {
   const { email, password } = validate(loginSchema, loginRequest)
 
   const user = await usersDB.getUserBy('email', email)
+  let isPasswordCorrect = false
+
+  try {
+    isPasswordCorrect = await Bun.password.verify(
+      password,
+      user ? user.password : DUMMY_PASSWORD_HASH,
+    )
+  } catch {
+    // Treat malformed hashes as invalid credentials.
+  }
 
   if (!user) {
     throw new Unauthorized(authMessage.credentialsInvalid)
@@ -50,8 +60,6 @@ export async function loginUser(loginRequest: LoginRequest) {
   if (!user.verified) {
     throw new Forbidden(userMessage.verifyFirst)
   }
-
-  const isPasswordCorrect = await Bun.password.verify(password, user.password)
 
   if (!isPasswordCorrect) {
     throw new Unauthorized(authMessage.credentialsInvalid)
@@ -208,9 +216,14 @@ export async function passwordResetSubmit(
   const { token, password } = validate(passwordResetSchema, passwordResetSubmit)
 
   const user = await usersDB.getUserBy('passwordResetToken', token)
+  const passwordResetExpiry = user?.passwordResetExpires
 
-  if (!user) {
-    throw new NotFound(userMessage.notFound)
+  if (
+    !user ||
+    !passwordResetExpiry ||
+    new Date(passwordResetExpiry) <= new Date()
+  ) {
+    throw new Unauthorized(authMessage.invalidToken)
   }
 
   const userUpdated = await usersDB.updateUserBy('email', user.email, {
