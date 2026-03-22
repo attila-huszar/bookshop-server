@@ -3,6 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      target: server
     container_name: server
     profiles: ['sqlite']
     ports:
@@ -14,18 +15,23 @@ services:
     env_file: .env
     environment:
       DB_REPO: SQLITE
-    command: >
-      sh -c "
-       set -e
-       if [ -n \"$SETUP\" ]; then
-         bun migrate && bun seed
-       fi
-       if [ \"$NODE_ENV\" = \"prod\" ]; then
-         bun src/app.ts
-       else
-         bun dev --watch
-       fi
-       "
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+
+        if [ -n "${SETUP:-}" ]; then
+          bun run migrate
+          bun run seed
+        fi
+
+        if [ "${NODE_ENV:-}" = "production" ]; then
+          bun src/app.ts
+        else
+          bun dev
+        fi
+
     logging:
       driver: loki
       options:
@@ -37,6 +43,12 @@ services:
                 level: level
           - labels:
               level:
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://127.0.0.1:5000/health']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     volumes:
       - ./src:/bookshop-server/src
       - sqlite_data:/bookshop-server/data
@@ -45,6 +57,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      target: server
     container_name: server-with-mongo
     profiles: ['mongo']
     ports:
@@ -58,18 +71,23 @@ services:
     env_file: .env
     environment:
       DB_REPO: MONGO
-    command: >
-      sh -c "
-       set -e
-       if [ -n \"$SETUP\" ]; then
-         bun seed
-       fi
-       if [ \"$NODE_ENV\" = \"prod\" ]; then
-         bun src/app.ts
-       else
-         bun dev --watch
-       fi
-       "
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+
+        if [ -n "${SETUP:-}" ]; then
+          bun run migrate
+          bun run seed
+        fi
+
+        if [ "${NODE_ENV:-}" = "production" ]; then
+          bun src/app.ts
+        else
+          bun dev
+        fi
+
     logging:
       driver: loki
       options:
@@ -81,6 +99,12 @@ services:
                 level: level
           - labels:
               level:
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://127.0.0.1:5000/health']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     volumes:
       - ./src:/bookshop-server/src
 
@@ -91,13 +115,27 @@ services:
     ports:
       - '27017:27017'
     logging:
-      driver: 'loki'
+      driver: loki
       options:
         loki-url: 'http://127.0.0.1:3100/loki/api/v1/push'
         loki-external-labels: 'job=mongodb'
     volumes:
       - mongodb_data:/data/db
     restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'mongosh',
+          '--quiet',
+          '--eval',
+          "db.adminCommand('ping').ok",
+          'mongodb://127.0.0.1:27017/admin',
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
 
   redis:
     image: redis:alpine
@@ -111,6 +149,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      target: worker
     container_name: worker
     profiles: ['sqlite']
     depends_on:
@@ -124,13 +163,7 @@ services:
     env_file: .env
     environment:
       DB_REPO: SQLITE
-    command: >
-      sh -c "
-       set -e
-       echo '*/30 * * * * cd /bookshop-server && /usr/local/bin/bun src/scripts/cleanupTokens.ts' > /etc/crontabs/root
-       crond &
-       bun worker:email
-       "
+    command: bun worker:email
     logging:
       driver: loki
       options:
@@ -150,6 +183,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      target: worker
     container_name: worker-with-mongo
     profiles: ['mongo']
     depends_on:
@@ -163,13 +197,7 @@ services:
     env_file: .env
     environment:
       DB_REPO: MONGO
-    command: >
-      sh -c "
-       set -e
-       echo '*/30 * * * * cd /bookshop-server && /usr/local/bin/bun src/scripts/cleanupTokens.ts' > /etc/crontabs/root
-       crond &
-       bun worker:email
-       "
+    command: bun worker:email
     logging:
       driver: loki
       options:
@@ -184,6 +212,76 @@ services:
     volumes:
       - ./src:/bookshop-server/src
 
+  cron:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: cron
+    container_name: cron
+    profiles: ['sqlite']
+    depends_on:
+      server:
+        condition: service_healthy
+      loki:
+        condition: service_started
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DB_REPO: SQLITE
+      CRON_FILE: /bookshop-server/docker/cron/sqlite.crontab
+    logging:
+      driver: loki
+      options:
+        loki-url: 'http://127.0.0.1:3100/loki/api/v1/push'
+        loki-external-labels: 'job=cron'
+        loki-pipeline-stages: |
+          - json:
+              expressions:
+                level: level
+          - labels:
+              level:
+    volumes:
+      - ./src:/bookshop-server/src
+      - ./docker/cron:/bookshop-server/docker/cron
+      - sqlite_data:/bookshop-server/data
+      # Intentionally override /bookshop-server/data/backups so backup archives persist independently.
+      - backups_data:/bookshop-server/data/backups
+
+  cron-with-mongo:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: cron
+    container_name: cron-with-mongo
+    profiles: ['mongo']
+    depends_on:
+      server-with-mongo:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      loki:
+        condition: service_started
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DB_REPO: MONGO
+      CRON_FILE: /bookshop-server/docker/cron/mongo.crontab
+    logging:
+      driver: loki
+      options:
+        loki-url: 'http://127.0.0.1:3100/loki/api/v1/push'
+        loki-external-labels: 'job=cron-with-mongo'
+        loki-pipeline-stages: |
+          - json:
+              expressions:
+                level: level
+          - labels:
+              level:
+    volumes:
+      - ./src:/bookshop-server/src
+      - ./docker/cron:/bookshop-server/docker/cron
+      - backups_data:/bookshop-server/data/backups
+
   loki:
     image: grafana/loki
     container_name: loki
@@ -191,7 +289,7 @@ services:
       - '3100:3100'
     volumes:
       - loki-data:/loki
-      - ./loki-config.yaml:/etc/loki/loki-config.yaml
+      - ./docker/loki/loki-config.yaml:/etc/loki/loki-config.yaml
     command: -config.file=/etc/loki/loki-config.yaml
     restart: unless-stopped
 
@@ -219,10 +317,11 @@ services:
     ports:
       - '80:80'
     volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
 
 volumes:
   sqlite_data:
   mongodb_data:
+  backups_data:
   loki-data:
   grafana-data:

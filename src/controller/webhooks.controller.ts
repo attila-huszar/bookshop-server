@@ -1,10 +1,11 @@
 import { Hono } from 'hono'
 import { processStripeWebhook } from '@/services'
+import { API } from '@/constants'
 import { errorHandler } from '@/errors'
 
 export const webhooks = new Hono()
 
-webhooks.post('/stripe', async (c) => {
+webhooks.post(API.webhooks.stripe, async (c) => {
   try {
     const signature = c.req.header('stripe-signature')
 

@@ -18,6 +18,7 @@ import {
   updateUser,
   uploadProductImage,
 } from '@/services'
+import { API } from '@/constants'
 import { errorHandler } from '@/errors'
 import type {
   AuthorInsert,
@@ -33,7 +34,7 @@ import type {
 export const cms = new Hono()
 
 // --- GET --- //
-cms.get('/books', async (c) => {
+cms.get(API.cms.books, async (c) => {
   try {
     const booksList = await getAllBooks()
     return c.json(booksList)
@@ -42,7 +43,7 @@ cms.get('/books', async (c) => {
   }
 })
 
-cms.get('/authors', async (c) => {
+cms.get(API.cms.authors, async (c) => {
   try {
     const authorsList = await getAllAuthors()
     return c.json(authorsList)
@@ -51,7 +52,7 @@ cms.get('/authors', async (c) => {
   }
 })
 
-cms.get('/orders', async (c) => {
+cms.get(API.cms.orders, async (c) => {
   try {
     const ordersList = await getAllOrders()
     return c.json(ordersList)
@@ -60,7 +61,7 @@ cms.get('/orders', async (c) => {
   }
 })
 
-cms.get('/users', async (c) => {
+cms.get(API.cms.users, async (c) => {
   try {
     const usersList = await getAllUsers()
     return c.json(usersList)
@@ -70,7 +71,7 @@ cms.get('/users', async (c) => {
 })
 
 // --- POST --- //
-cms.post('/books', async (c) => {
+cms.post(API.cms.books, async (c) => {
   try {
     const book = await c.req.json<BookInsert>()
     const newBook = await addBook(book)
@@ -80,7 +81,7 @@ cms.post('/books', async (c) => {
   }
 })
 
-cms.post('/authors', async (c) => {
+cms.post(API.cms.authors, async (c) => {
   try {
     const author = await c.req.json<AuthorInsert>()
     const newAuthor = await addAuthor(author)
@@ -90,7 +91,7 @@ cms.post('/authors', async (c) => {
   }
 })
 
-cms.post('/orders', async (c) => {
+cms.post(API.cms.orders, async (c) => {
   try {
     const order = await c.req.json<OrderInsert>()
     const newOrder = await addOrder(order)
@@ -100,7 +101,7 @@ cms.post('/orders', async (c) => {
   }
 })
 
-cms.post('/users', async (c) => {
+cms.post(API.cms.users, async (c) => {
   try {
     const user = await c.req.json<UserInsert>()
     const newUser = await addUser(user)
@@ -111,7 +112,7 @@ cms.post('/users', async (c) => {
 })
 
 // --- PATCH --- //
-cms.patch('/books', async (c) => {
+cms.patch(API.cms.books, async (c) => {
   try {
     const { id, ...book } = await c.req.json<BookUpdate & { id: number }>()
     const updatedBook = await updateBook(id, book)
@@ -121,7 +122,7 @@ cms.patch('/books', async (c) => {
   }
 })
 
-cms.patch('/authors', async (c) => {
+cms.patch(API.cms.authors, async (c) => {
   try {
     const { id, ...author } = await c.req.json<AuthorUpdate & { id: number }>()
     const updatedAuthor = await updateAuthor(id, author)
@@ -131,7 +132,7 @@ cms.patch('/authors', async (c) => {
   }
 })
 
-cms.patch('/orders', async (c) => {
+cms.patch(API.cms.orders, async (c) => {
   try {
     const { paymentId, ...fields } = await c.req.json<
       OrderUpdate & { paymentId: string }
@@ -143,7 +144,7 @@ cms.patch('/orders', async (c) => {
   }
 })
 
-cms.patch('/users', async (c) => {
+cms.patch(API.cms.users, async (c) => {
   try {
     const { uuid, ...fields } = await c.req.json<
       UserUpdate & { uuid: string }
@@ -156,7 +157,7 @@ cms.patch('/users', async (c) => {
 })
 
 // --- DELETE --- //
-cms.delete('/books', async (c) => {
+cms.delete(API.cms.books, async (c) => {
   try {
     const { bookIds } = await c.req.json<{ bookIds: number[] }>()
     const deletedIds = await deleteBooks(bookIds)
@@ -166,7 +167,7 @@ cms.delete('/books', async (c) => {
   }
 })
 
-cms.delete('/authors', async (c) => {
+cms.delete(API.cms.authors, async (c) => {
   try {
     const { authorIds } = await c.req.json<{ authorIds: number[] }>()
     const deletedIds = await deleteAuthors(authorIds)
@@ -176,7 +177,7 @@ cms.delete('/authors', async (c) => {
   }
 })
 
-cms.delete('/orders', async (c) => {
+cms.delete(API.cms.orders, async (c) => {
   try {
     const { orderIds } = await c.req.json<{ orderIds: number[] }>()
     const deletedIds = await deleteOrders(orderIds)
@@ -186,7 +187,7 @@ cms.delete('/orders', async (c) => {
   }
 })
 
-cms.delete('/users', async (c) => {
+cms.delete(API.cms.users, async (c) => {
   try {
     const { userIds } = await c.req.json<{ userIds: number[] }>()
     const deletedIds = await deleteUsers(userIds)
@@ -197,7 +198,7 @@ cms.delete('/users', async (c) => {
 })
 
 // --- UPLOAD --- //
-cms.post('/product-image', async (c) => {
+cms.post(API.cms.productImage, async (c) => {
   try {
     const formData = await c.req.formData()
     const image = formData.get('image')

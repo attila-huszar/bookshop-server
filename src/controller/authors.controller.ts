@@ -1,10 +1,11 @@
 import { Hono } from 'hono'
 import { getAuthorById, getAuthorsByName } from '@/services'
+import { API } from '@/constants'
 import { errorHandler } from '@/errors'
 
 export const authors = new Hono()
 
-authors.get('/', async (c) => {
+authors.get(API.authors.root, async (c) => {
   try {
     const query = c.req.query()
     if (!query.name) return c.json([], 200)
@@ -17,7 +18,7 @@ authors.get('/', async (c) => {
   }
 })
 
-authors.get('/:id', async (c) => {
+authors.get(API.authors.byId, async (c) => {
   try {
     const id = c.req.param('id')
     const authorRecord = await getAuthorById(Number(id))

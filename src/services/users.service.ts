@@ -17,8 +17,14 @@ import {
   stripSensitiveUserFields,
   uploadFile,
 } from '@/utils'
-import { authMessage, userMessage } from '@/constants'
-import { BadRequest, Forbidden, NotFound, Unauthorized } from '@/errors'
+import { authMessage, DUMMY_PASSWORD_HASH, userMessage } from '@/constants'
+import {
+  BadRequest,
+  Forbidden,
+  Internal,
+  NotFound,
+  Unauthorized,
+} from '@/errors'
 import {
   Folder,
   type LoginRequest,
@@ -36,19 +42,27 @@ export async function loginUser(loginRequest: LoginRequest) {
   const { email, password } = validate(loginSchema, loginRequest)
 
   const user = await usersDB.getUserBy('email', email)
+  let isPasswordCorrect = false
+
+  try {
+    isPasswordCorrect = await Bun.password.verify(
+      password,
+      user ? user.password : DUMMY_PASSWORD_HASH,
+    )
+  } catch {
+    // Treat malformed hashes as invalid credentials.
+  }
 
   if (!user) {
-    throw new Unauthorized(authMessage.authError)
+    throw new Unauthorized(authMessage.credentialsInvalid)
   }
 
   if (!user.verified) {
     throw new Forbidden(userMessage.verifyFirst)
   }
 
-  const isPasswordCorrect = await Bun.password.verify(password, user.password)
-
   if (!isPasswordCorrect) {
-    throw new Unauthorized(authMessage.authError)
+    throw new Unauthorized(authMessage.credentialsInvalid)
   }
 
   const timestamp = Math.floor(Date.now() / 1000)
@@ -109,7 +123,7 @@ export async function registerUser(formData: FormData) {
   const userCreated = await usersDB.createUser(newUser)
 
   if (!userCreated) {
-    throw new Error(userMessage.createError)
+    throw new Internal(userMessage.createFailed)
   }
 
   sendEmail('verification', {
@@ -143,7 +157,7 @@ export async function verifyUser(verificationRequest: VerificationRequest) {
   })
 
   if (!userUpdated) {
-    throw new Error(userMessage.updateError)
+    throw new Internal(userMessage.updateFailed)
   }
 
   return { email: userUpdated.email }
@@ -170,7 +184,7 @@ export async function passwordResetRequest(
   })
 
   if (!userUpdated) {
-    throw new Error(userMessage.updateError)
+    throw new Internal(userMessage.updateFailed)
   }
 
   sendEmail('passwordReset', {
@@ -202,9 +216,14 @@ export async function passwordResetSubmit(
   const { token, password } = validate(passwordResetSchema, passwordResetSubmit)
 
   const user = await usersDB.getUserBy('passwordResetToken', token)
+  const passwordResetExpiry = user?.passwordResetExpires
 
-  if (!user) {
-    throw new NotFound(userMessage.getError)
+  if (
+    !user ||
+    !passwordResetExpiry ||
+    new Date(passwordResetExpiry) <= new Date()
+  ) {
+    throw new Unauthorized(authMessage.invalidToken)
   }
 
   const userUpdated = await usersDB.updateUserBy('email', user.email, {
@@ -214,7 +233,7 @@ export async function passwordResetSubmit(
   })
 
   if (!userUpdated) {
-    throw new Error(userMessage.updateError)
+    throw new Internal(userMessage.updateFailed)
   }
 
   return { message: userMessage.passwordResetSuccess }
@@ -235,7 +254,7 @@ export async function getUserProfile(
     if (options?.optional) {
       return null
     }
-    throw new NotFound(userMessage.getError)
+    throw new NotFound(userMessage.notFound)
   }
 
   return stripSensitiveUserFields(user)
@@ -250,7 +269,7 @@ export async function updateUserProfile(
   const user = await usersDB.getUserBy('uuid', uuid)
 
   if (!user) {
-    throw new NotFound(userMessage.getError)
+    throw new NotFound(userMessage.notFound)
   }
 
   if (validatedFields.password) {
@@ -264,7 +283,7 @@ export async function updateUserProfile(
   )
 
   if (!userUpdated) {
-    throw new Error(userMessage.updateError)
+    throw new Internal(userMessage.updateFailed)
   }
 
   return stripSensitiveUserFields(userUpdated)
@@ -277,7 +296,7 @@ export async function uploadUserAvatar(
   const user = await usersDB.getUserBy('uuid', userUuid)
 
   if (!user) {
-    throw new NotFound(userMessage.getError)
+    throw new NotFound(userMessage.notFound)
   }
 
   if (!(avatar instanceof File)) {
@@ -293,7 +312,7 @@ export async function uploadUserAvatar(
   })
 
   if (!userUpdated) {
-    throw new Error(userMessage.updateError)
+    throw new Internal(userMessage.updateFailed)
   }
 
   return stripSensitiveUserFields(userUpdated)

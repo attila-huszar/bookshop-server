@@ -1,13 +1,13 @@
 import { DB_REPO } from '@/types/enums'
 import { env } from './env'
 
-const requiredKeys = [
+type EnvKey = keyof typeof env
+
+const requiredKeys: EnvKey[] = [
   'adminEmail',
   'adminPassword',
   'clientBaseUrl',
   'cookieSecret',
-  'mailerUser',
-  'mailerPass',
   'jwtAccessSecret',
   'jwtRefreshSecret',
   'stripeSecret',
@@ -16,7 +16,7 @@ const requiredKeys = [
   'awsRegion',
   'awsBucket',
   'redisUrl',
-] as const as (keyof typeof env)[]
+]
 
 export function validateEnv(): void {
   if (env.dbRepo !== DB_REPO.SQLITE && env.dbRepo !== DB_REPO.MONGO) {
@@ -27,7 +27,7 @@ export function validateEnv(): void {
   const missing = requiredKeys.filter((key) => !env[key])
 
   if (missing.length > 0) {
-    const isDev = Bun.env.NODE_ENV !== 'prod'
+    const isDev = Bun.env.NODE_ENV !== 'production'
 
     if (isDev) {
       console.error('\n🚨 ENVIRONMENT CONFIGURATION ERROR 🚨')

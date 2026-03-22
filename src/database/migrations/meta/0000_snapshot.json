@@ -196,12 +196,8 @@
           "name": "books_author_id_authors_id_fk",
           "tableFrom": "books",
           "tableTo": "authors",
-          "columnsFrom": [
-            "author_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["author_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -386,9 +382,7 @@
       "indexes": {
         "orders_payment_id_unique": {
           "name": "orders_payment_id_unique",
-          "columns": [
-            "payment_id"
-          ],
+          "columns": ["payment_id"],
           "isUnique": true
         }
       },
@@ -533,16 +527,12 @@
       "indexes": {
         "users_uuid_unique": {
           "name": "users_uuid_unique",
-          "columns": [
-            "uuid"
-          ],
+          "columns": ["uuid"],
           "isUnique": true
         },
         "email_unique_ci": {
           "name": "email_unique_ci",
-          "columns": [
-            "lower(\"email\")"
-          ],
+          "columns": ["lower(\"email\")"],
           "isUnique": true
         }
       },

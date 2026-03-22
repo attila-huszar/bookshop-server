@@ -25,6 +25,14 @@ Deployed on AWS EC2, with Docker and ngrok for https
 
 ## Docker Compose Setup
 
+### Service architecture
+
+- `server` / `server-with-mongo`: HTTP API
+- `worker` / `worker-with-mongo`: BullMQ email worker (`worker:email`)
+- `cron` / `cron-with-mongo`: scheduled maintenance and backup jobs
+
+All services are built from one multi-target Dockerfile (`server`, `worker`, `cron`) to keep dependency layers shared and service responsibilities isolated.
+
 ### Initial setup vs normal run
 
 `SETUP` controls one-time initialization inside the app container command:
@@ -97,4 +105,40 @@ Container logs are shipped to Loki through Docker's Loki log driver.
 
 - Open Grafana at `http://localhost/grafana/` (or `https://<your-ngrok-domain>/grafana/`)
 - Default credentials: `admin` / `admin`
-- In Explore, query by `job` label (for example: `server`, `server-with-mongo`, `worker`, `worker-with-mongo`, `mongodb`)
+- In Explore, query by `job` label (for example: `server`, `worker`, `cron`, `mongodb`)
+
+## Scheduled Jobs (Cron)
+
+`cron` and `cron-with-mongo` run dedicated crontab files from `docker/cron`.
+
+- SQLite profile (`docker/cron/sqlite.crontab`)
+  - every 30 min: cleanup reset tokens / unverified users
+  - daily at 02:00: SQLite backup
+- Mongo profile (`docker/cron/mongo.crontab`)
+  - every 30 min: cleanup reset tokens / unverified users
+  - daily at 02:30: Mongo backup
+
+## Cronitor Integration
+
+Cron jobs are wrapped with `cronitor exec` when `CRONITOR_API_KEY` is set.
+
+- install happens in the `cron` image build via installer script download from `https://cronitor.io/install-linux?sudo=0`
+- API key is loaded from env (`CRONITOR_API_KEY`)
+- monitor keys for job scripts:
+  - `cleanup`
+  - `sqlite-backup`
+  - `mongo-backup`
+
+If `CRONITOR_API_KEY` is empty, cron jobs still run normally without monitoring.
+
+## Backups
+
+Backup scripts:
+
+- `bun run backup:sqlite` -> file snapshot of `DB_SQLITE_FILE`
+- `bun run backup:mongo` -> `mongodump` archive (`.archive.gz`)
+
+Defaults are defined in `src/config/env.ts` (via `Bun.env.BACKUP_DIR` and `Bun.env.BACKUP_RETENTION_DAYS`):
+
+- `BACKUP_DIR` defaults to `data/backups`
+- `BACKUP_RETENTION_DAYS` defaults to `7`

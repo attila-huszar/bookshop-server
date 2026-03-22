@@ -20,7 +20,7 @@ if (env.dbRepo === DB_REPO.SQLITE) {
       casing: 'snake_case',
     })
   } catch (error) {
-    console.error('Error connecting to SQLite:', error)
+    console.error('⛔ Error connecting to SQLite:', error)
     process.exit(1)
   }
 }
@@ -30,7 +30,7 @@ if (env.dbRepo === DB_REPO.MONGO) {
     const mongoose = await import('mongoose')
     mongo = await mongoose.connect(env.dbMongoUrl)
   } catch (error) {
-    console.error('Error connecting to MongoDB:', error)
+    console.error('⛔ Error connecting to MongoDB:', error)
     process.exit(1)
   }
 }

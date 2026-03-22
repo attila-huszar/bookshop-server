@@ -8,7 +8,7 @@ import {
   retrieveOrderSyncStatus,
   retrievePaymentIntent,
 } from '@/services'
-import { retryableStatuses } from '@/constants'
+import { API, retryableStatuses } from '@/constants'
 import { errorHandler } from '@/errors'
 import type { PaymentIntentRequest, PublicUser } from '@/types'
 
@@ -24,7 +24,7 @@ type Variables = {
 
 export const payments = new Hono<{ Variables: Variables }>()
 
-payments.get('/:paymentId/order-sync', async (c) => {
+payments.get(API.payments.orderSync, async (c) => {
   try {
     const paymentId = c.req.param('paymentId')
     const { paymentSessionId, userEmail } = c.get('paymentAccess') ?? {}
@@ -44,7 +44,7 @@ payments.get('/:paymentId/order-sync', async (c) => {
   }
 })
 
-payments.get('/:paymentId', async (c) => {
+payments.get(API.payments.byId, async (c) => {
   try {
     const paymentId = c.req.param('paymentId')
     const { paymentSessionId, userEmail } = c.get('paymentAccess') ?? {}
@@ -60,7 +60,7 @@ payments.get('/:paymentId', async (c) => {
   }
 })
 
-payments.post('/', async (c) => {
+payments.post(API.payments.root, async (c) => {
   try {
     const paymentIntentRequest = await c.req.json<PaymentIntentRequest>()
 
@@ -90,7 +90,7 @@ payments.post('/', async (c) => {
   }
 })
 
-payments.delete('/:paymentId', async (c) => {
+payments.delete(API.payments.byId, async (c) => {
   try {
     const paymentId = c.req.param('paymentId')
     const { paymentSessionId, userEmail } = c.get('paymentAccess') ?? {}

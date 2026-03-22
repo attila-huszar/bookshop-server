@@ -1,2 +1,2 @@
-export { sendMail } from './nodemailer'
-export { log } from './logger'
+export * from './nodemailer'
+export * from './logger'

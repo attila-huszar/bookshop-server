@@ -1,9 +1,10 @@
+.env
 .git
 .gitignore
 **/.gitkeep
 **/db.sqlite
 node_modules
 docker-compose.yml
-prettier.config.js
+prettier.config.ts
 README.md
 *.template
