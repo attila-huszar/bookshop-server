@@ -4,7 +4,6 @@ services:
       context: .
       dockerfile: Dockerfile
       target: server
-    container_name: server
     profiles: ['sqlite']
     ports:
       - '${PORT}:${PORT}'
@@ -58,7 +57,6 @@ services:
       context: .
       dockerfile: Dockerfile
       target: server
-    container_name: server-with-mongo
     profiles: ['mongo']
     ports:
       - '${PORT}:${PORT}'
@@ -110,7 +108,6 @@ services:
 
   mongodb:
     image: mongo
-    container_name: mongodb
     profiles: ['mongo']
     ports:
       - '27017:27017'
@@ -139,10 +136,9 @@ services:
 
   redis:
     image: redis:alpine
-    container_name: redis
     restart: unless-stopped
     ports:
-      - '6379:6379'
+      - '${REDIS_PORT:-6380}:6379'
     command: redis-server --maxmemory 128mb --maxmemory-policy noeviction
 
   worker:
@@ -150,7 +146,6 @@ services:
       context: .
       dockerfile: Dockerfile
       target: worker
-    container_name: worker
     profiles: ['sqlite']
     depends_on:
       redis:
@@ -184,7 +179,6 @@ services:
       context: .
       dockerfile: Dockerfile
       target: worker
-    container_name: worker-with-mongo
     profiles: ['mongo']
     depends_on:
       redis:
@@ -217,7 +211,6 @@ services:
       context: .
       dockerfile: Dockerfile
       target: cron
-    container_name: cron
     profiles: ['sqlite']
     depends_on:
       server:
@@ -252,7 +245,6 @@ services:
       context: .
       dockerfile: Dockerfile
       target: cron
-    container_name: cron-with-mongo
     profiles: ['mongo']
     depends_on:
       server-with-mongo:
@@ -284,7 +276,6 @@ services:
 
   loki:
     image: grafana/loki
-    container_name: loki
     ports:
       - '3100:3100'
     volumes:
@@ -295,7 +286,6 @@ services:
 
   grafana:
     image: grafana/grafana
-    container_name: grafana
     environment:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: admin
@@ -309,7 +299,6 @@ services:
 
   nginx:
     image: nginx:alpine
-    container_name: nginx
     restart: unless-stopped
     depends_on:
       loki:

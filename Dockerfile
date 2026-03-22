@@ -2,7 +2,6 @@ FROM oven/bun:alpine AS base
 
 RUN apk update && apk upgrade --no-cache
 RUN apk add --no-cache sqlite curl
-RUN addgroup -S app && adduser -S -u 1000 -G app app
 
 WORKDIR /bookshop-server
 
@@ -11,14 +10,14 @@ RUN bun install --frozen-lockfile
 
 COPY . .
 RUN mkdir -p /bookshop-server/docker/cron/crontabs && \
-  chown -R app:app /bookshop-server
+  chown -R bun:bun /bookshop-server
 
 FROM base AS server
-USER app
+USER bun
 CMD ["bun", "src/app.ts"]
 
 FROM base AS worker
-USER app
+USER bun
 CMD ["bun", "worker:email"]
 
 FROM base AS cron
@@ -29,6 +28,6 @@ RUN curl -sSfL "https://cronitor.io/install-linux?sudo=0" \
   rm /tmp/cronitor-install.sh
 RUN chmod +x /bookshop-server/docker/cron/entrypoint.sh && \
   mkdir -p /bookshop-server/docker/cron/crontabs && \
-  chown -R app:app /bookshop-server/docker/cron
-USER app
+  chown -R bun:bun /bookshop-server/docker/cron
+USER bun
 CMD ["/bin/sh", "/bookshop-server/docker/cron/entrypoint.sh"]

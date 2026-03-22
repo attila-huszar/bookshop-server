@@ -7,7 +7,7 @@ if [ ! -f "${CRON_FILE:-}" ]; then
   exit 1
 fi
 
-CRONTAB_DIR=/bookshop-server/docker/cron/crontabs
+CRONTAB_DIR="${CRONTAB_DIR:-/tmp/crontabs}"
 CRON_USER="$(id -un)"
 
 mkdir -p "$CRONTAB_DIR"
