@@ -25,11 +25,7 @@ services:
           bun run seed
         fi
 
-        if [ "${NODE_ENV:-}" = "production" ]; then
-          bun src/app.ts
-        else
-          bun dev
-        fi
+        bun src/app.ts
 
     logging:
       driver: loki
@@ -80,11 +76,7 @@ services:
           bun run seed
         fi
 
-        if [ "${NODE_ENV:-}" = "production" ]; then
-          bun src/app.ts
-        else
-          bun dev
-        fi
+        bun src/app.ts
 
     logging:
       driver: loki
