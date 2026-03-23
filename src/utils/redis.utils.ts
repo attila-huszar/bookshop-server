@@ -3,6 +3,20 @@ const DEFAULT_REDIS_TARGET = {
   port: '6379',
 } as const
 
+const knownRedisCodes = new Set([
+  'econnrefused',
+  'enotfound',
+  'eai_again',
+  'etimedout',
+])
+
+const knownRedisMessageFragments = [
+  'econnrefused',
+  'connection is closed',
+  'connect etimedout',
+  'getaddrinfo enotfound',
+]
+
 export function getRedisConnectionHint(
   error: unknown,
   redisUrl?: string,
@@ -38,20 +52,6 @@ function isRedisConnectionError(error: unknown): boolean {
     'code' in error
       ? String((error as Error & { code?: unknown }).code).toLowerCase()
       : ''
-
-  const knownRedisCodes = new Set([
-    'econnrefused',
-    'enotfound',
-    'eai_again',
-    'etimedout',
-  ])
-
-  const knownRedisMessageFragments = [
-    'econnrefused',
-    'connection is closed',
-    'connect etimedout',
-    'getaddrinfo enotfound',
-  ]
 
   return (
     knownRedisCodes.has(code) ||

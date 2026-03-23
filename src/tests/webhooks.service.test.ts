@@ -383,14 +383,18 @@ describe('Webhooks Service', () => {
 
     expect(result).toEqual({ received: true })
     expect(mockEnqueueEmail).toHaveBeenCalledTimes(2)
-    expect(mockEnqueueEmail).toHaveBeenCalledWith('orderConfirmation', {
+    expect(mockEnqueueEmail).toHaveBeenNthCalledWith(1, 'orderConfirmation', {
       order: updatedOrder,
       source: 'webhook',
     })
-    expect(mockEnqueueEmail).toHaveBeenCalledWith('adminPaymentNotification', {
-      order: updatedOrder,
-      notificationType: 'confirmed',
-    })
+    expect(mockEnqueueEmail).toHaveBeenNthCalledWith(
+      2,
+      'adminPaymentNotification',
+      {
+        order: updatedOrder,
+        notificationType: 'confirmed',
+      },
+    )
   })
 
   it('does not send confirmed notifications for succeeded webhook when order is already paid', async () => {
