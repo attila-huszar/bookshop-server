@@ -39,12 +39,22 @@ function isRedisConnectionError(error: unknown): boolean {
       ? String((error as Error & { code?: unknown }).code).toLowerCase()
       : ''
 
+  const knownRedisCodes = new Set([
+    'econnrefused',
+    'enotfound',
+    'eai_again',
+    'etimedout',
+  ])
+
+  const knownRedisMessageFragments = [
+    'econnrefused',
+    'connection is closed',
+    'connect etimedout',
+    'getaddrinfo enotfound',
+  ]
+
   return (
-    code === 'econnrefused' ||
-    code === 'enotfound' ||
-    code === 'eai_again' ||
-    message.includes('connect') ||
-    message.includes('econnrefused') ||
-    message.includes('connection is closed')
+    knownRedisCodes.has(code) ||
+    knownRedisMessageFragments.some((fragment) => message.includes(fragment))
   )
 }
