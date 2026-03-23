@@ -242,5 +242,3 @@ async function shutdownApp(signal: NodeJS.Signals): Promise<void> {
     process.exit(hasShutdownError ? 1 : 0)
   }
 }
-
-export default app
