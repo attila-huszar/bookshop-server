@@ -36,13 +36,13 @@ emailWorker.on('failed', (job, error) => {
 })
 
 emailWorker.on('error', (error) => {
-  const hintMeta = getRedisConnectionHint(error, env.redisUrl)
+  const hint = getRedisConnectionHint(error, env.redisUrl)
 
-  if (hintMeta) {
+  if (hint) {
     if (redisConnectionErrorShown) return
     redisConnectionErrorShown = true
 
-    log.warn('🚫 Redis is not reachable for email worker', hintMeta)
+    log.warn('🚫 Redis is not reachable for email worker', { hint })
     return
   }
 

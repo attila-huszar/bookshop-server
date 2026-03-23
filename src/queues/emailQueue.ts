@@ -14,13 +14,13 @@ export const emailQueue = new Queue(QUEUE.EMAIL.NAME, {
 })
 
 emailQueue.on('error', (error) => {
-  const hintMeta = getRedisConnectionHint(error, env.redisUrl)
+  const hint = getRedisConnectionHint(error, env.redisUrl)
 
-  if (hintMeta) {
+  if (hint) {
     if (redisConnectionErrorShown) return
     redisConnectionErrorShown = true
 
-    log.warn('🚫 Redis is not reachable for email queue', hintMeta)
+    log.warn('🚫 Redis is not reachable for email queue', { hint })
     return
   }
 

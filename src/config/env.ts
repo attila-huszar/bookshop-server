@@ -42,5 +42,5 @@ export const env = {
   awsRegion: Bun.env.AWS_REGION,
   awsBucket: Bun.env.AWS_BUCKET,
 
-  redisUrl: Bun.env.REDIS_URL ?? 'redis://localhost:6379',
+  redisUrl: Bun.env.REDIS_URL,
 }

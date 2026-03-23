@@ -1,12 +1,4 @@
-type RedisConnectionHint = {
-  host: string
-  port: string
-  redactedRedisUrl: string
-  hint: string
-}
-
 const DEFAULT_REDIS_TARGET = {
-  protocol: 'redis:',
   host: 'localhost',
   port: '6379',
 } as const
@@ -14,23 +6,14 @@ const DEFAULT_REDIS_TARGET = {
 export function getRedisConnectionHint(
   error: unknown,
   redisUrl?: string,
-): RedisConnectionHint | null {
+): string | null {
   if (!isRedisConnectionError(error)) return null
 
-  const { protocol, host, port } = resolveRedisTarget(redisUrl)
-
-  const redactedRedisUrl = `${protocol}//${formatHostForUrl(host)}:${port}`
-
-  return {
-    redactedRedisUrl,
-    host,
-    port,
-    hint: `Start Redis locally and retry (expected at ${host}:${port})`,
-  }
+  const { host, port } = resolveRedisTarget(redisUrl)
+  return `Start Redis locally and retry (expected at ${host}:${port})`
 }
 
 function resolveRedisTarget(redisUrl?: string): {
-  protocol: string
   host: string
   port: string
 } {
@@ -39,21 +22,12 @@ function resolveRedisTarget(redisUrl?: string): {
   try {
     const parsedRedisUrl = new URL(redisUrl)
     return {
-      protocol: parsedRedisUrl.protocol || DEFAULT_REDIS_TARGET.protocol,
       host: parsedRedisUrl.hostname || DEFAULT_REDIS_TARGET.host,
       port: parsedRedisUrl.port || DEFAULT_REDIS_TARGET.port,
     }
   } catch {
     return { ...DEFAULT_REDIS_TARGET }
   }
-}
-
-function formatHostForUrl(host: string): string {
-  if (host.includes(':') && !host.startsWith('[') && !host.endsWith(']')) {
-    return `[${host}]`
-  }
-
-  return host
 }
 
 function isRedisConnectionError(error: unknown): boolean {

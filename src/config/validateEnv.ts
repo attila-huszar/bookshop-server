@@ -15,6 +15,7 @@ const requiredKeys: EnvKey[] = [
   'awsSecretAccessKey',
   'awsRegion',
   'awsBucket',
+  'redisUrl',
 ]
 
 export function validateEnv(): void {
