@@ -2,9 +2,9 @@ import { beforeEach, describe, expect, it } from 'bun:test'
 import { BadRequest, Internal, Unauthorized } from '@/errors'
 import { IssueCode, type Order } from '@/types'
 import {
+  mockEnqueueEmail,
   mockLogger,
   mockOrdersDB,
-  mockSendEmail,
   mockStripe,
   mockValidate,
 } from './test-setup'
@@ -39,7 +39,7 @@ describe('Payments Service', () => {
     mockOrdersDB.updateOrder.mockClear()
     mockStripe.paymentIntents.retrieve.mockClear()
     mockStripe.paymentIntents.cancel.mockClear()
-    mockSendEmail.mockClear()
+    mockEnqueueEmail.mockClear()
     mockLogger.error.mockClear()
 
     mockValidate.mockReturnValue('pi_test_123')
@@ -136,7 +136,7 @@ describe('Payments Service', () => {
           lastStripeSyncCheckedAt: expect.any(Date) as Date,
         }),
       )
-      expect(mockSendEmail).not.toHaveBeenCalled()
+      expect(mockEnqueueEmail).not.toHaveBeenCalled()
     })
 
     it('does not call Stripe again immediately after unchanged fallback sync', async () => {
@@ -238,15 +238,18 @@ describe('Payments Service', () => {
           lastStripeSyncCheckedAt: expect.any(Date) as Date,
         }),
       )
-      expect(mockSendEmail).toHaveBeenCalledTimes(2)
-      expect(mockSendEmail).toHaveBeenCalledWith('orderConfirmation', {
+      expect(mockEnqueueEmail).toHaveBeenCalledTimes(2)
+      expect(mockEnqueueEmail).toHaveBeenCalledWith('orderConfirmation', {
         order: syncedOrder,
         source: 'fallback',
       })
-      expect(mockSendEmail).toHaveBeenCalledWith('adminPaymentNotification', {
-        order: syncedOrder,
-        notificationType: 'confirmed',
-      })
+      expect(mockEnqueueEmail).toHaveBeenCalledWith(
+        'adminPaymentNotification',
+        {
+          order: syncedOrder,
+          notificationType: 'confirmed',
+        },
+      )
     })
 
     it('does not send confirmed notifications when fallback drift is non-succeeded', async () => {
@@ -272,7 +275,7 @@ describe('Payments Service', () => {
         paymentSessionId: 'pi_test_123',
       })
 
-      expect(mockSendEmail).not.toHaveBeenCalled()
+      expect(mockEnqueueEmail).not.toHaveBeenCalled()
     })
 
     it('throws 503 and notifies admin when drift is detected but DB update returns null', async () => {
@@ -314,8 +317,8 @@ describe('Payments Service', () => {
 
       expect(resultError).toBeInstanceOf(Internal)
       expect((resultError as Internal).status).toBe(503)
-      expect(mockSendEmail).toHaveBeenCalledTimes(1)
-      expect(mockSendEmail).toHaveBeenCalledWith(
+      expect(mockEnqueueEmail).toHaveBeenCalledTimes(1)
+      expect(mockEnqueueEmail).toHaveBeenCalledWith(
         'adminPaymentNotification',
         expect.objectContaining({
           notificationType: 'error',
@@ -379,8 +382,8 @@ describe('Payments Service', () => {
 
       expect(resultError).toBeInstanceOf(Internal)
       expect((resultError as Internal).status).toBe(503)
-      expect(mockSendEmail).toHaveBeenCalledTimes(1)
-      expect(mockSendEmail).toHaveBeenCalledWith(
+      expect(mockEnqueueEmail).toHaveBeenCalledTimes(1)
+      expect(mockEnqueueEmail).toHaveBeenCalledWith(
         'adminPaymentNotification',
         expect.objectContaining({
           notificationType: 'error',
@@ -509,8 +512,8 @@ describe('Payments Service', () => {
 
       expect(resultError).toBeInstanceOf(Internal)
       expect((resultError as Internal).status).toBe(500)
-      expect(mockSendEmail).toHaveBeenCalledTimes(1)
-      expect(mockSendEmail).toHaveBeenCalledWith(
+      expect(mockEnqueueEmail).toHaveBeenCalledTimes(1)
+      expect(mockEnqueueEmail).toHaveBeenCalledWith(
         'adminPaymentNotification',
         expect.objectContaining({
           notificationType: 'error',

@@ -43,7 +43,7 @@ export const mockSignAccessToken = mock()
 export const mockSignRefreshToken = mock()
 export const mockUploadFile = mock()
 export const mockSendMail = mock()
-export const mockSendEmail = mock()
+export const mockEnqueueEmail = mock()
 export const mockExtractPaymentIntentFields = mock(() => ({}))
 export const mockGetPaymentIntentId = mock(
   (source: { payment_intent?: unknown }) =>
@@ -99,7 +99,6 @@ await mock.module('@/validation', () => ({
 }))
 
 await mock.module('@/utils', () => ({
-  sendEmail: mockSendEmail,
   extractPaymentIntentFields: mockExtractPaymentIntentFields,
   getPaymentIntentId: mockGetPaymentIntentId,
   signAccessToken: mockSignAccessToken,
@@ -119,14 +118,13 @@ await mock.module('@/utils', () => ({
 
 await mock.module('@/queues', () => ({
   emailQueue: mockEmailQueue,
-  sendEmail: mockSendEmail,
+  enqueueEmail: mockEnqueueEmail,
   SendEmailPreconditionError: class SendEmailPreconditionError extends Error {},
 }))
 
 await mock.module('@/libs', () => ({
   log: mockLogger,
   logWorker: mockLogger,
-  sendEmail: mock(),
 }))
 
 await mock.module('ioredis', () => ({

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'bun:test'
 import { Internal } from '@/errors'
 import { IssueCode, type Order } from '@/types'
-import { mockLogger, mockSendEmail } from './test-setup'
+import { mockEnqueueEmail, mockLogger } from './test-setup'
 
 const { reportCriticalOrderPersistFailure, throwCriticalOrderPersistFailure } =
   await import('@/utils/persistence.utils')
@@ -28,7 +28,7 @@ const baseOrderSnapshot: Pick<
 describe('Persistence Utils', () => {
   beforeEach(() => {
     mockLogger.error.mockClear()
-    mockSendEmail.mockClear()
+    mockEnqueueEmail.mockClear()
   })
 
   it('reports critical persistence failures with structured log context and admin notification', () => {
@@ -61,7 +61,7 @@ describe('Persistence Utils', () => {
         source: 'payments.retrieveOrderSyncStatus',
       }),
     )
-    expect(mockSendEmail).toHaveBeenCalledWith(
+    expect(mockEnqueueEmail).toHaveBeenCalledWith(
       'adminPaymentNotification',
       expect.objectContaining({
         notificationType: 'error',
@@ -83,7 +83,7 @@ describe('Persistence Utils', () => {
     })
 
     expect(mockLogger.error).toHaveBeenCalledTimes(1)
-    expect(mockSendEmail).not.toHaveBeenCalled()
+    expect(mockEnqueueEmail).not.toHaveBeenCalled()
   })
 
   it('throws mapped Internal error after reporting critical failure', () => {
@@ -112,6 +112,6 @@ describe('Persistence Utils', () => {
       'Failed to persist webhook order update',
     )
     expect(mockLogger.error).toHaveBeenCalledTimes(1)
-    expect(mockSendEmail).toHaveBeenCalledTimes(1)
+    expect(mockEnqueueEmail).toHaveBeenCalledTimes(1)
   })
 })

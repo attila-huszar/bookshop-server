@@ -7,10 +7,10 @@ import {
 import { Internal } from '@/errors'
 import { IssueCode, type Order, type PaymentIntentStatus } from '@/types'
 import {
+  mockEnqueueEmail,
   mockExtractPaymentIntentFields,
   mockLogger,
   mockOrdersDB,
-  mockSendEmail,
   mockStripe,
 } from './test-setup'
 
@@ -102,7 +102,7 @@ describe('Webhooks Service', () => {
     mockLogger.warn.mockClear()
     mockLogger.error.mockClear()
     mockExtractPaymentIntentFields.mockClear()
-    mockSendEmail.mockClear()
+    mockEnqueueEmail.mockClear()
     mockExtractPaymentIntentFields.mockReturnValue({})
   })
 
@@ -322,8 +322,8 @@ describe('Webhooks Service', () => {
 
     expect(resultError).toBeInstanceOf(Internal)
     expect((resultError as Internal).status).toBe(500)
-    expect(mockSendEmail).toHaveBeenCalledTimes(1)
-    expect(mockSendEmail).toHaveBeenCalledWith(
+    expect(mockEnqueueEmail).toHaveBeenCalledTimes(1)
+    expect(mockEnqueueEmail).toHaveBeenCalledWith(
       'adminPaymentNotification',
       expect.objectContaining({
         notificationType: 'error',
@@ -382,12 +382,12 @@ describe('Webhooks Service', () => {
     const result = await processStripeWebhook(payload, signature)
 
     expect(result).toEqual({ received: true })
-    expect(mockSendEmail).toHaveBeenCalledTimes(2)
-    expect(mockSendEmail).toHaveBeenCalledWith('orderConfirmation', {
+    expect(mockEnqueueEmail).toHaveBeenCalledTimes(2)
+    expect(mockEnqueueEmail).toHaveBeenCalledWith('orderConfirmation', {
       order: updatedOrder,
       source: 'webhook',
     })
-    expect(mockSendEmail).toHaveBeenCalledWith('adminPaymentNotification', {
+    expect(mockEnqueueEmail).toHaveBeenCalledWith('adminPaymentNotification', {
       order: updatedOrder,
       notificationType: 'confirmed',
     })
@@ -429,7 +429,7 @@ describe('Webhooks Service', () => {
     const result = await processStripeWebhook(payload, signature)
 
     expect(result).toEqual({ received: true })
-    expect(mockSendEmail).not.toHaveBeenCalled()
+    expect(mockEnqueueEmail).not.toHaveBeenCalled()
   })
 
   it('logs and alerts on missing order for payment_intent.succeeded', async () => {
@@ -458,7 +458,7 @@ describe('Webhooks Service', () => {
     const result = await processStripeWebhook(payload, signature)
 
     expect(result).toEqual({ received: true })
-    expect(mockSendEmail).toHaveBeenCalledWith(
+    expect(mockEnqueueEmail).toHaveBeenCalledWith(
       'adminPaymentNotification',
       expect.objectContaining({
         notificationType: 'error',
@@ -516,7 +516,7 @@ describe('Webhooks Service', () => {
     const result = await processStripeWebhook(payload, signature)
 
     expect(result).toEqual({ received: true })
-    expect(mockSendEmail).toHaveBeenCalledWith(
+    expect(mockEnqueueEmail).toHaveBeenCalledWith(
       'adminPaymentNotification',
       expect.objectContaining({
         notificationType: 'error',

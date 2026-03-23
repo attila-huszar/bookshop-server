@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'bun:test'
 import { type UserInsert, UserRole } from '@/types'
 import * as usersService from '../services/users.service'
 import {
-  mockSendEmail,
+  mockEnqueueEmail,
   mockSignAccessToken,
   mockSignRefreshToken,
   mockUsersDB,
@@ -10,7 +10,7 @@ import {
 } from './test-setup'
 
 beforeEach(() => {
-  mockSendEmail.mockClear()
+  mockEnqueueEmail.mockClear()
 })
 
 describe('Users Service', () => {
@@ -106,7 +106,7 @@ describe('Users Service', () => {
         'test@example.com',
       )
       expect(mockUsersDB.createUser).toHaveBeenCalled()
-      expect(mockSendEmail).toHaveBeenCalledWith(
+      expect(mockEnqueueEmail).toHaveBeenCalledWith(
         'verification',
         expect.objectContaining({
           toAddress: 'test@example.com',
@@ -178,7 +178,7 @@ describe('Users Service', () => {
       const result = await usersService.passwordResetRequest(request)
 
       expect(mockUsersDB.updateUserBy).toHaveBeenCalled()
-      expect(mockSendEmail).toHaveBeenCalledWith(
+      expect(mockEnqueueEmail).toHaveBeenCalledWith(
         'passwordReset',
         expect.objectContaining({
           toAddress: 'test@example.com',
@@ -197,7 +197,7 @@ describe('Users Service', () => {
       const result = await usersService.passwordResetRequest(request)
 
       expect(result).toHaveProperty('message')
-      expect(mockSendEmail).not.toHaveBeenCalled()
+      expect(mockEnqueueEmail).not.toHaveBeenCalled()
     })
   })
 
