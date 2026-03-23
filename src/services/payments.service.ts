@@ -10,12 +10,11 @@ import {
 import {
   extractPaymentIntentFields,
   reportCriticalOrderPersistFailure,
-  sendEmail,
-  SendEmailPreconditionError,
   throwCriticalOrderPersistFailure,
   toIsoString,
 } from '@/utils'
 import { log } from '@/libs'
+import { enqueueEmail, SendEmailPreconditionError } from '@/queues'
 import {
   defaultCurrency,
   orderSyncStripeFallbackThresholdMs,
@@ -113,7 +112,7 @@ export async function retrieveOrderSyncStatus(
 
           if (justPaid) {
             try {
-              sendEmail('orderConfirmation', {
+              enqueueEmail('orderConfirmation', {
                 order: syncedOrder,
                 source: 'fallback',
               })
@@ -131,7 +130,7 @@ export async function retrieveOrderSyncStatus(
               }
             }
 
-            sendEmail('adminPaymentNotification', {
+            enqueueEmail('adminPaymentNotification', {
               order: syncedOrder,
               notificationType: AdminNotification.Confirmed,
             })
@@ -435,7 +434,7 @@ export async function createPaymentIntent(
       throw new Internal('Failed to create order in database')
     }
 
-    sendEmail('adminPaymentNotification', {
+    enqueueEmail('adminPaymentNotification', {
       order: createdOrder,
       notificationType: AdminNotification.Created,
     })
@@ -447,7 +446,7 @@ export async function createPaymentIntent(
     }
   } catch (error) {
     if (stripePaymentId) {
-      sendEmail('adminPaymentNotification', {
+      enqueueEmail('adminPaymentNotification', {
         notificationType: AdminNotification.Error,
         order: {
           paymentId: stripePaymentId,

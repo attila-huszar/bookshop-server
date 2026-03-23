@@ -1,12 +1,12 @@
 import { type Job, Worker } from 'bullmq'
 import { env } from '@/config'
-import { getRedisConnectionHint } from '@/utils'
+import { getRedisConnectionHint } from '@/utils/redis.utils'
 import { closeMailer, log, sendMail } from '@/libs'
 import { concurrency, QUEUE, SHUTDOWN_SIGNALS } from '@/constants'
 import type { SendEmailProps } from '@/types'
 
 let shuttingDown = false
-let redisHelpShown = false
+let redisConnectionErrorShown = false
 
 export const emailWorker = new Worker(
   QUEUE.EMAIL.NAME,
@@ -36,11 +36,22 @@ emailWorker.on('failed', (job, error) => {
 })
 
 emailWorker.on('error', (error) => {
+  const hintMeta = getRedisConnectionHint(error, env.redisUrl)
+
+  if (hintMeta) {
+    if (redisConnectionErrorShown) return
+    redisConnectionErrorShown = true
+
+    log.warn('🚫 Redis is not reachable for email worker', hintMeta)
+    return
+  }
+
+  redisConnectionErrorShown = false
   log.error('Email worker error', { error })
-  logRedisStartupHint(error)
 })
 
 emailWorker.on('ready', () => {
+  redisConnectionErrorShown = false
   log.info('🟢 Email worker started', {
     queue: QUEUE.EMAIL.NAME,
     concurrency,
@@ -73,17 +84,4 @@ if (import.meta.main) {
       void shutdownEmailWorker(signal)
     })
   }
-}
-
-function logRedisStartupHint(error: unknown): void {
-  if (redisHelpShown) return
-
-  const hintMeta = getRedisConnectionHint(error, env.redisUrl)
-  if (!hintMeta) return
-
-  redisHelpShown = true
-
-  log.warn('Redis is not reachable for email worker', {
-    ...hintMeta,
-  })
 }

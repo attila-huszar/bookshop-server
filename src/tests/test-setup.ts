@@ -1,5 +1,9 @@
 import { mock } from 'bun:test'
-import { throwCriticalOrderPersistFailure } from '@/utils/persistence.utils'
+import { toIsoString } from '@/utils/date.utils'
+import {
+  reportCriticalOrderPersistFailure,
+  throwCriticalOrderPersistFailure,
+} from '@/utils/persistence.utils'
 import { getOrderRef } from '@/utils/string.utils'
 import {
   stripSensitiveUserFields,
@@ -101,9 +105,11 @@ await mock.module('@/utils', () => ({
   signAccessToken: mockSignAccessToken,
   signRefreshToken: mockSignRefreshToken,
   uploadFile: mockUploadFile,
+  reportCriticalOrderPersistFailure,
   throwCriticalOrderPersistFailure,
   stripSensitiveUserFields,
   stripTimestamps,
+  toIsoString,
   getOrderRef,
   Folder: {
     Avatars: 'avatars',
@@ -111,12 +117,10 @@ await mock.module('@/utils', () => ({
   },
 }))
 
-await mock.module('@/utils/email.utils', () => ({
-  sendEmail: mockSendEmail,
-}))
-
 await mock.module('@/queues', () => ({
   emailQueue: mockEmailQueue,
+  sendEmail: mockSendEmail,
+  SendEmailPreconditionError: class SendEmailPreconditionError extends Error {},
 }))
 
 await mock.module('@/libs', () => ({

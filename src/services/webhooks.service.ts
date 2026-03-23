@@ -4,11 +4,10 @@ import { ordersDB } from '@/repositories'
 import {
   extractPaymentIntentFields,
   getPaymentIntentId,
-  sendEmail,
-  SendEmailPreconditionError,
   throwCriticalOrderPersistFailure,
 } from '@/utils'
 import { log } from '@/libs'
+import { enqueueEmail, SendEmailPreconditionError } from '@/queues'
 import { terminalStatuses } from '@/constants'
 import { BadRequest, Internal } from '@/errors'
 import {
@@ -81,7 +80,7 @@ function reportMissingOrderForPaymentIntentWebhook({
     receiptEmail: paymentIntent.receipt_email ?? null,
   })
 
-  sendEmail('adminPaymentNotification', {
+  enqueueEmail('adminPaymentNotification', {
     notificationType: AdminNotification.Error,
     order: {
       paymentId: paymentIntent.id,
@@ -162,7 +161,7 @@ export async function processStripeWebhook(
 
         if (justPaid) {
           try {
-            sendEmail('orderConfirmation', {
+            enqueueEmail('orderConfirmation', {
               order: updatedOrder,
               source: 'webhook',
             })
@@ -180,7 +179,7 @@ export async function processStripeWebhook(
             }
           }
 
-          sendEmail('adminPaymentNotification', {
+          enqueueEmail('adminPaymentNotification', {
             order: updatedOrder,
             notificationType: AdminNotification.Confirmed,
           })

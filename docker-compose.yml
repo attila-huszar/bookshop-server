@@ -14,6 +14,7 @@ services:
     env_file: .env
     environment:
       DB_REPO: SQLITE
+      REDIS_URL: redis://redis:6379
     command:
       - sh
       - -c
@@ -65,6 +66,7 @@ services:
     env_file: .env
     environment:
       DB_REPO: MONGO
+      REDIS_URL: redis://redis:6379
     command:
       - sh
       - -c
@@ -130,7 +132,7 @@ services:
     image: redis:alpine
     restart: unless-stopped
     ports:
-      - '${REDIS_PORT:-6380}:6379'
+      - '${REDIS_PUBLISHED_PORT:-6380}:6379'
     command: redis-server --maxmemory 128mb --maxmemory-policy noeviction
 
   worker:
@@ -150,6 +152,7 @@ services:
     env_file: .env
     environment:
       DB_REPO: SQLITE
+      REDIS_URL: redis://redis:6379
     command: bun worker:email
     logging:
       driver: loki
@@ -183,6 +186,7 @@ services:
     env_file: .env
     environment:
       DB_REPO: MONGO
+      REDIS_URL: redis://redis:6379
     command: bun worker:email
     logging:
       driver: loki

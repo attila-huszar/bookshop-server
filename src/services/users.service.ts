@@ -11,12 +11,12 @@ import {
   validate,
 } from '@/validation'
 import {
-  sendEmail,
   signAccessToken,
   signRefreshToken,
   stripSensitiveUserFields,
   uploadFile,
 } from '@/utils'
+import { enqueueEmail } from '@/queues'
 import { authMessage, DUMMY_PASSWORD_HASH, userMessage } from '@/constants'
 import {
   BadRequest,
@@ -126,7 +126,7 @@ export async function registerUser(formData: FormData) {
     throw new Internal(userMessage.createFailed)
   }
 
-  sendEmail('verification', {
+  enqueueEmail('verification', {
     toAddress: email,
     toName: firstName,
     tokenLink,
@@ -187,7 +187,7 @@ export async function passwordResetRequest(
     throw new Internal(userMessage.updateFailed)
   }
 
-  sendEmail('passwordReset', {
+  enqueueEmail('passwordReset', {
     toAddress: user.email,
     toName: user.firstName,
     tokenLink,

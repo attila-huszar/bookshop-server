@@ -1,5 +1,5 @@
-import { sendEmail } from '@/utils/email.utils'
 import { log } from '@/libs'
+import { enqueueEmail } from '@/queues'
 import { Internal } from '@/errors'
 import {
   AdminNotification,
@@ -64,7 +64,7 @@ export function reportCriticalOrderPersistFailure({
   })
 
   if (notifyAdmin) {
-    sendEmail('adminPaymentNotification', {
+    enqueueEmail('adminPaymentNotification', {
       notificationType: AdminNotification.Error,
       order,
     })

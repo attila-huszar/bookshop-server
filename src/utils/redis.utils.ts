@@ -1,33 +1,59 @@
 type RedisConnectionHint = {
   host: string
   port: string
-  redisUrl: string
+  redactedRedisUrl: string
   hint: string
 }
 
+const DEFAULT_REDIS_TARGET = {
+  protocol: 'redis:',
+  host: 'localhost',
+  port: '6379',
+} as const
+
 export function getRedisConnectionHint(
   error: unknown,
-  redisUrl: string,
+  redisUrl?: string,
 ): RedisConnectionHint | null {
   if (!isRedisConnectionError(error)) return null
 
-  let host = 'localhost'
-  let port = '6379'
+  const { protocol, host, port } = resolveRedisTarget(redisUrl)
+
+  const redactedRedisUrl = `${protocol}//${formatHostForUrl(host)}:${port}`
+
+  return {
+    redactedRedisUrl,
+    host,
+    port,
+    hint: `Start Redis locally and retry (expected at ${host}:${port})`,
+  }
+}
+
+function resolveRedisTarget(redisUrl?: string): {
+  protocol: string
+  host: string
+  port: string
+} {
+  if (!redisUrl) return { ...DEFAULT_REDIS_TARGET }
 
   try {
     const parsedRedisUrl = new URL(redisUrl)
-    host = parsedRedisUrl.hostname || host
-    port = parsedRedisUrl.port || port
+    return {
+      protocol: parsedRedisUrl.protocol || DEFAULT_REDIS_TARGET.protocol,
+      host: parsedRedisUrl.hostname || DEFAULT_REDIS_TARGET.host,
+      port: parsedRedisUrl.port || DEFAULT_REDIS_TARGET.port,
+    }
   } catch {
-    // Keep fallback host/port for malformed REDIS_URL values.
+    return { ...DEFAULT_REDIS_TARGET }
+  }
+}
+
+function formatHostForUrl(host: string): string {
+  if (host.includes(':') && !host.startsWith('[') && !host.endsWith(']')) {
+    return `[${host}]`
   }
 
-  return {
-    redisUrl,
-    host,
-    port,
-    hint: `Start Redis locally and retry (expected at ${host}:${port}), or update REDIS_URL in .env`,
-  }
+  return host
 }
 
 function isRedisConnectionError(error: unknown): boolean {
