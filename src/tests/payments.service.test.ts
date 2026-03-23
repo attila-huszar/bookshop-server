@@ -10,7 +10,7 @@ import {
 } from './test-setup'
 
 const { cancelPaymentIntent, retrieveOrderSyncStatus, retrievePaymentIntent } =
-  await import('@/services/payments.service')
+  await import('@/services/payments')
 
 const createOrder = (overrides: Partial<Order> = {}): Order => ({
   id: 1,
@@ -278,7 +278,7 @@ describe('Payments Service', () => {
       expect(mockEnqueueEmail).not.toHaveBeenCalled()
     })
 
-    it('throws 503 and notifies admin when drift is detected but DB update returns null', async () => {
+    it('throws 503 without admin email when drift is detected but DB update returns null', async () => {
       const staleOrder = createOrder({
         paymentStatus: 'processing',
         updatedAt: new Date(Date.now() - 60_000),
@@ -317,19 +317,7 @@ describe('Payments Service', () => {
 
       expect(resultError).toBeInstanceOf(Internal)
       expect((resultError as Internal).status).toBe(503)
-      expect(mockEnqueueEmail).toHaveBeenCalledTimes(1)
-      expect(mockEnqueueEmail).toHaveBeenCalledWith(
-        'adminPaymentNotification',
-        expect.objectContaining({
-          notificationType: 'error',
-          order: expect.objectContaining({
-            paymentId: 'pi_test_123',
-            paymentStatus: 'succeeded',
-            email: 'stripe@example.com',
-            shipping: stripeShipping,
-          }) as Order,
-        }),
-      )
+      expect(mockEnqueueEmail).not.toHaveBeenCalled()
       expect(mockLogger.error).toHaveBeenCalledWith(
         '[CRITICAL] Stripe fallback detected status drift but DB update failed',
         expect.objectContaining({
@@ -341,7 +329,7 @@ describe('Payments Service', () => {
       )
     })
 
-    it('throws 503 and notifies admin when drift is detected but DB update throws', async () => {
+    it('throws 503 without admin email when drift is detected but DB update throws', async () => {
       const staleOrder = createOrder({
         paymentStatus: 'processing',
         updatedAt: new Date(Date.now() - 60_000),
@@ -382,19 +370,7 @@ describe('Payments Service', () => {
 
       expect(resultError).toBeInstanceOf(Internal)
       expect((resultError as Internal).status).toBe(503)
-      expect(mockEnqueueEmail).toHaveBeenCalledTimes(1)
-      expect(mockEnqueueEmail).toHaveBeenCalledWith(
-        'adminPaymentNotification',
-        expect.objectContaining({
-          notificationType: 'error',
-          order: expect.objectContaining({
-            paymentId: 'pi_test_123',
-            paymentStatus: 'canceled',
-            email: 'stripe-cancel@example.com',
-            shipping: stripeShipping,
-          }) as Order,
-        }),
-      )
+      expect(mockEnqueueEmail).not.toHaveBeenCalled()
       expect(mockLogger.error).toHaveBeenCalledWith(
         '[CRITICAL] Stripe fallback detected status drift but DB update failed',
         expect.objectContaining({
