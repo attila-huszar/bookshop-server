@@ -1,10 +1,14 @@
 import { mock } from 'bun:test'
+import { env } from '@/config'
 import { toIsoString } from '@/utils/date.utils'
 import { getOrderRef } from '@/utils/string.utils'
 import {
   stripSensitiveUserFields,
   stripTimestamps,
 } from '@/utils/transform.utils'
+
+env.stripeSecret ??= 'sk_test_123'
+env.stripeWebhookSecret ??= 'whsec_test'
 
 export const mockUsersDB = {
   getUserBy: mock(),

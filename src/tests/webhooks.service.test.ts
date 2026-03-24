@@ -1,9 +1,5 @@
 import { beforeEach, describe, expect, it } from 'bun:test'
 import { env } from '@/config'
-import {
-  processStripeWebhook,
-  updateOrderFromWebhook,
-} from '@/services/webhooks.service'
 import { Internal } from '@/errors'
 import { IssueCode, type Order, type PaymentIntentStatus } from '@/types'
 import {
@@ -13,6 +9,9 @@ import {
   mockOrdersDB,
   mockStripe,
 } from './test-setup'
+
+const { processStripeWebhook, updateOrderFromWebhook } =
+  await import('@/services/webhooks.service')
 
 const TEST_WEBHOOK_SECRET = env.stripeWebhookSecret ?? 'whsec_test'
 env.stripeWebhookSecret ??= TEST_WEBHOOK_SECRET
