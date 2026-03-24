@@ -32,11 +32,7 @@ const fallbackMarkerPersistFailureMessage =
   '[CRITICAL] Stripe fallback sync check timestamp persistence failed'
 
 function isServiceUnavailableError(error: unknown): boolean {
-  return (
-    error instanceof Internal &&
-    error.name === 'ServiceUnavailable' &&
-    error.status === 503
-  )
+  return error instanceof Internal && error.status === 503
 }
 
 function shouldFallbackToStripe(order: Order): boolean {

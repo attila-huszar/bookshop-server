@@ -23,7 +23,7 @@ async function buildOrderItemsAndTotal(
   paymentIntentRequest: PaymentIntentRequest,
 ): Promise<{ items: OrderItem[]; total: number }> {
   const items: OrderItem[] = []
-  let total = 0
+  let totalCents = 0
 
   const books = await Promise.all(
     paymentIntentRequest.items.map((item) => booksDB.getBookById(item.id)),
@@ -39,9 +39,11 @@ async function buildOrderItemsAndTotal(
       )
     }
 
-    const itemTotal =
-      item.quantity * book.price * (1 - (book.discount ?? 0) / 100)
-    total += itemTotal
+    const priceCents = Math.round(book.price * 100)
+    const itemTotalCents = Math.round(
+      item.quantity * priceCents * (1 - (book.discount ?? 0) / 100),
+    )
+    totalCents += itemTotalCents
 
     items.push({
       id: book.id,
@@ -56,7 +58,7 @@ async function buildOrderItemsAndTotal(
 
   return {
     items,
-    total: Number(total.toFixed(2)),
+    total: totalCents / 100,
   }
 }
 
