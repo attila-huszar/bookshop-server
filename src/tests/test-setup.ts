@@ -1,9 +1,5 @@
 import { mock } from 'bun:test'
 import { toIsoString } from '@/utils/date.utils'
-import {
-  reportCriticalOrderPersistFailure,
-  throwCriticalOrderPersistFailure,
-} from '@/utils/persistence.utils'
 import { getOrderRef } from '@/utils/string.utils'
 import {
   stripSensitiveUserFields,
@@ -98,6 +94,22 @@ await mock.module('@/validation', () => ({
   userUpdateSchema: {},
 }))
 
+await mock.module('@/queues', () => ({
+  emailQueue: mockEmailQueue,
+  enqueueEmail: mockEnqueueEmail,
+}))
+
+await mock.module('@/libs', () => ({
+  log: mockLogger,
+  logWorker: mockLogger,
+  stripe: mockStripe,
+  sendMail: mockSendMail,
+  closeMailer: mock(),
+}))
+
+const { reportCriticalOrderPersistFailure, throwCriticalOrderPersistFailure } =
+  await import('@/utils/persistence.utils')
+
 await mock.module('@/utils', () => ({
   extractPaymentIntentFields: mockExtractPaymentIntentFields,
   getPaymentIntentId: mockGetPaymentIntentId,
@@ -114,19 +126,6 @@ await mock.module('@/utils', () => ({
     Avatars: 'avatars',
     ProductImages: 'product-images',
   },
-}))
-
-await mock.module('@/queues', () => ({
-  emailQueue: mockEmailQueue,
-  enqueueEmail: mockEnqueueEmail,
-}))
-
-await mock.module('@/libs', () => ({
-  log: mockLogger,
-  logWorker: mockLogger,
-  stripe: mockStripe,
-  sendMail: mockSendMail,
-  closeMailer: mock(),
 }))
 
 await mock.module('ioredis', () => ({
