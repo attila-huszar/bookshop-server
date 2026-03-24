@@ -39,16 +39,16 @@ const createOrder = (overrides: Partial<Order> = {}): Order => ({
 
 describe('Payments Service', () => {
   beforeEach(() => {
-    mockValidate.mockClear()
-    mockBooksDB.getBookById.mockClear()
-    mockOrdersDB.getOrder.mockClear()
-    mockOrdersDB.createOrder.mockClear()
-    mockOrdersDB.updateOrder.mockClear()
-    mockStripe.paymentIntents.create.mockClear()
-    mockStripe.paymentIntents.retrieve.mockClear()
-    mockStripe.paymentIntents.cancel.mockClear()
-    mockEnqueueEmail.mockClear()
-    mockLogger.error.mockClear()
+    mockValidate.mockReset()
+    mockBooksDB.getBookById.mockReset()
+    mockOrdersDB.getOrder.mockReset()
+    mockOrdersDB.createOrder.mockReset()
+    mockOrdersDB.updateOrder.mockReset()
+    mockStripe.paymentIntents.create.mockReset()
+    mockStripe.paymentIntents.retrieve.mockReset()
+    mockStripe.paymentIntents.cancel.mockReset()
+    mockEnqueueEmail.mockReset()
+    mockLogger.error.mockReset()
 
     mockValidate.mockReturnValue('pi_test_123')
   })

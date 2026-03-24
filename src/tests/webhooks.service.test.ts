@@ -95,14 +95,14 @@ async function createSignedWebhookRequest(event: unknown): Promise<{
 
 describe('Webhooks Service', () => {
   beforeEach(() => {
-    mockOrdersDB.getOrder.mockClear()
-    mockOrdersDB.updateOrder.mockClear()
-    mockStripe.webhooks.constructEventAsync.mockClear()
-    mockLogger.info.mockClear()
-    mockLogger.warn.mockClear()
-    mockLogger.error.mockClear()
-    mockExtractPaymentIntentFields.mockClear()
-    mockEnqueueEmail.mockClear()
+    mockOrdersDB.getOrder.mockReset()
+    mockOrdersDB.updateOrder.mockReset()
+    mockStripe.webhooks.constructEventAsync.mockReset()
+    mockLogger.info.mockReset()
+    mockLogger.warn.mockReset()
+    mockLogger.error.mockReset()
+    mockExtractPaymentIntentFields.mockReset()
+    mockEnqueueEmail.mockReset()
     mockExtractPaymentIntentFields.mockReturnValue({})
   })
 

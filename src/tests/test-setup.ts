@@ -124,6 +124,9 @@ await mock.module('@/queues', () => ({
 await mock.module('@/libs', () => ({
   log: mockLogger,
   logWorker: mockLogger,
+  stripe: mockStripe,
+  sendMail: mockSendMail,
+  closeMailer: mock(),
 }))
 
 await mock.module('ioredis', () => ({
