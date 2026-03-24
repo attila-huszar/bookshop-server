@@ -119,7 +119,6 @@ await mock.module('@/utils', () => ({
 await mock.module('@/queues', () => ({
   emailQueue: mockEmailQueue,
   enqueueEmail: mockEnqueueEmail,
-  SendEmailPreconditionError: class SendEmailPreconditionError extends Error {},
 }))
 
 await mock.module('@/libs', () => ({

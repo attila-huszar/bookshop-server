@@ -1,4 +1,3 @@
-import { Stripe } from 'stripe'
 import { env } from '@/config'
 import { ordersDB } from '@/repositories'
 import {
@@ -6,8 +5,8 @@ import {
   getPaymentIntentId,
   throwCriticalOrderPersistFailure,
 } from '@/utils'
-import { log } from '@/libs'
-import { enqueueEmail, SendEmailPreconditionError } from '@/queues'
+import { log, stripe } from '@/libs'
+import { enqueueEmail } from '@/queues'
 import { terminalStatuses } from '@/constants'
 import { BadRequest, Internal } from '@/errors'
 import {
@@ -22,8 +21,6 @@ import {
   type StripeEvent,
   type StripePaymentIntent,
 } from '@/types'
-
-const stripe = new Stripe(env.stripeSecret!)
 
 type WebhookEventMeta = {
   eventType: string
@@ -159,31 +156,21 @@ export async function processStripeWebhook(
 
         const { justPaid, ...updatedOrder } = result
 
-        if (justPaid) {
-          try {
-            enqueueEmail('orderConfirmation', {
-              order: updatedOrder,
-              source: 'webhook',
-            })
-          } catch (error) {
-            if (error instanceof SendEmailPreconditionError) {
-              void log.warn(
-                '[QUEUE] Skipped order confirmation email due to missing recipient data',
-                {
-                  paymentId: updatedOrder.paymentId,
-                  source: 'webhook',
-                },
-              )
-            } else {
-              throw error
-            }
-          }
-
-          enqueueEmail('adminPaymentNotification', {
-            order: updatedOrder,
-            notificationType: AdminNotification.Confirmed,
+        if (!justPaid) {
+          void log.info('[STRIPE] Payment succeeded via webhook', {
+            paymentId: paymentIntent.id,
           })
+          break
         }
+
+        enqueueEmail('orderConfirmation', {
+          order: updatedOrder,
+        })
+
+        enqueueEmail('adminPaymentNotification', {
+          order: updatedOrder,
+          notificationType: AdminNotification.Confirmed,
+        })
 
         void log.info('[STRIPE] Payment succeeded via webhook', {
           paymentId: paymentIntent.id,

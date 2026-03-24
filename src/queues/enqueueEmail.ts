@@ -15,13 +15,6 @@ type SendEmailArgs = {
   [K in keyof SendEmailInputMap]: [type: K, data: SendEmailInputMap[K]]
 }[keyof SendEmailInputMap]
 
-export class SendEmailPreconditionError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'SendEmailPreconditionError'
-  }
-}
-
 export function enqueueEmail(...args: SendEmailArgs): void {
   const [type, data] = args
 
@@ -58,19 +51,14 @@ export function enqueueEmail(...args: SendEmailArgs): void {
       return
     }
     case QUEUE.EMAIL.JOB.ORDER_CONFIRMATION: {
-      const { order, source } = data
+      const { order } = data
 
       if (!order.email || !order.firstName) {
-        void log.error(
+        void log.warn(
           'Order missing email or first name for confirmation email',
-          {
-            paymentId: order.paymentId,
-            source,
-          },
+          { paymentId: order.paymentId },
         )
-        throw new SendEmailPreconditionError(
-          'Order confirmation email recipient data is missing',
-        )
+        return
       }
 
       const payload: SendEmailProps = {
@@ -84,7 +72,6 @@ export function enqueueEmail(...args: SendEmailArgs): void {
         void log.error('[QUEUE] Order confirmation email queueing failed', {
           error,
           paymentId: order.paymentId,
-          source,
         })
       })
       return

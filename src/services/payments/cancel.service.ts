@@ -1,29 +1,23 @@
 import { ordersDB } from '@/repositories'
-import { paymentIdSchema, validate } from '@/validation'
 import { throwCriticalOrderPersistFailure } from '@/utils'
-import { BadRequest } from '@/errors'
-import { IssueCode } from '@/types'
+import { stripe } from '@/libs'
+import { IssueCode, type StripePaymentIntent } from '@/types'
 import {
-  authorizePaymentAccess,
+  assertCancelablePaymentStatus,
   type PaymentAccess,
-  stripe,
+  resolveAuthorizedPayment,
   toOrderPersistSnapshot,
 } from './shared'
 
 export async function cancelPaymentIntent(
   paymentId: string,
   access?: PaymentAccess,
-) {
-  const validatedId = validate(paymentIdSchema, paymentId)
-  const order = await authorizePaymentAccess(validatedId, access)
-
-  if (order.paymentStatus === 'canceled') {
-    throw new BadRequest('Payment already canceled')
-  }
-
-  if (order.paymentStatus === 'succeeded') {
-    throw new BadRequest('Cannot cancel succeeded payment')
-  }
+): Promise<StripePaymentIntent> {
+  const { validatedId, order } = await resolveAuthorizedPayment({
+    paymentId,
+    access,
+  })
+  assertCancelablePaymentStatus(order.paymentStatus)
 
   const cancelledIntent = await stripe.paymentIntents.cancel(validatedId)
 

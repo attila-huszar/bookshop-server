@@ -69,7 +69,6 @@ export type SendEmailInputMap = {
   }
   [QUEUE.EMAIL.JOB.ORDER_CONFIRMATION]: {
     order: Order
-    source: 'webhook' | 'fallback'
   }
   [QUEUE.EMAIL.JOB.ADMIN_PAYMENT_NOTIFICATION]: {
     order: OrderForAdminEmail

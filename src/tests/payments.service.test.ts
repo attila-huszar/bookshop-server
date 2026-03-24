@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'bun:test'
 import { BadRequest, Internal, Unauthorized } from '@/errors'
 import { IssueCode, type Order } from '@/types'
 import {
+  mockBooksDB,
   mockEnqueueEmail,
   mockLogger,
   mockOrdersDB,
@@ -9,8 +10,12 @@ import {
   mockValidate,
 } from './test-setup'
 
-const { cancelPaymentIntent, retrieveOrderSyncStatus, retrievePaymentIntent } =
-  await import('@/services/payments')
+const {
+  cancelPaymentIntent,
+  createPaymentIntent,
+  retrieveOrderSyncStatus,
+  retrievePaymentIntent,
+} = await import('@/services/payments')
 
 const createOrder = (overrides: Partial<Order> = {}): Order => ({
   id: 1,
@@ -35,8 +40,11 @@ const createOrder = (overrides: Partial<Order> = {}): Order => ({
 describe('Payments Service', () => {
   beforeEach(() => {
     mockValidate.mockClear()
+    mockBooksDB.getBookById.mockClear()
     mockOrdersDB.getOrder.mockClear()
+    mockOrdersDB.createOrder.mockClear()
     mockOrdersDB.updateOrder.mockClear()
+    mockStripe.paymentIntents.create.mockClear()
     mockStripe.paymentIntents.retrieve.mockClear()
     mockStripe.paymentIntents.cancel.mockClear()
     mockEnqueueEmail.mockClear()
@@ -78,6 +86,63 @@ describe('Payments Service', () => {
 
       expect(resultError).toBeInstanceOf(Unauthorized)
       expect(mockStripe.paymentIntents.retrieve).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('createPaymentIntent', () => {
+    it('uses Stripe payment intent status in admin notification when order creation fails', async () => {
+      mockValidate
+        .mockReturnValueOnce({
+          items: [{ id: 1, quantity: 1 }],
+          expectedTotal: 12.34,
+        })
+        .mockReturnValueOnce({})
+      mockBooksDB.getBookById.mockResolvedValueOnce({
+        id: 1,
+        title: 'Sample Book',
+        author: 'Sample Author',
+        imgUrl: '',
+        price: 12.34,
+        discount: 0,
+      })
+      mockStripe.paymentIntents.create.mockResolvedValueOnce({
+        id: 'pi_test_123',
+        status: 'processing',
+        client_secret: 'pi_test_secret',
+      })
+      mockOrdersDB.createOrder.mockResolvedValueOnce(null)
+
+      let resultError: unknown = null
+
+      try {
+        await createPaymentIntent(
+          {
+            items: [{ id: 1, quantity: 1 }],
+            expectedTotal: 12.34,
+          },
+          null,
+        )
+      } catch (error) {
+        resultError = error
+      }
+
+      expect(resultError).toBeInstanceOf(Internal)
+      expect((resultError as Error).message).toBe(
+        'Failed to create order in database',
+      )
+      expect(mockEnqueueEmail).toHaveBeenCalledWith(
+        'adminPaymentNotification',
+        {
+          notificationType: 'error',
+          order: expect.objectContaining({
+            paymentId: 'pi_test_123',
+            paymentStatus: 'processing',
+          }) as Order,
+        },
+      )
+      expect(mockStripe.paymentIntents.cancel).toHaveBeenCalledWith(
+        'pi_test_123',
+      )
     })
   })
 
@@ -241,7 +306,6 @@ describe('Payments Service', () => {
       expect(mockEnqueueEmail).toHaveBeenCalledTimes(2)
       expect(mockEnqueueEmail).toHaveBeenCalledWith('orderConfirmation', {
         order: syncedOrder,
-        source: 'fallback',
       })
       expect(mockEnqueueEmail).toHaveBeenCalledWith(
         'adminPaymentNotification',
@@ -464,9 +528,32 @@ describe('Payments Service', () => {
       expect(mockOrdersDB.updateOrder).not.toHaveBeenCalled()
     })
 
-    it('throws 500 and notifies admin when cancel persistence fails', async () => {
+    it('rejects cancel for processing payment before hitting Stripe', async () => {
       mockOrdersDB.getOrder.mockResolvedValueOnce(
         createOrder({ paymentStatus: 'processing' }),
+      )
+
+      let resultError: unknown = null
+
+      try {
+        await cancelPaymentIntent('pi_test_123', {
+          paymentSessionId: 'pi_test_123',
+        })
+      } catch (error) {
+        resultError = error
+      }
+
+      expect(resultError).toBeInstanceOf(BadRequest)
+      expect((resultError as Error).message).toBe(
+        'Cannot cancel payment while it is processing',
+      )
+      expect(mockStripe.paymentIntents.cancel).not.toHaveBeenCalled()
+      expect(mockOrdersDB.updateOrder).not.toHaveBeenCalled()
+    })
+
+    it('throws 500 and notifies admin when cancel persistence fails', async () => {
+      mockOrdersDB.getOrder.mockResolvedValueOnce(
+        createOrder({ paymentStatus: 'requires_action' }),
       )
       mockStripe.paymentIntents.cancel.mockResolvedValueOnce({
         id: 'pi_test_123',

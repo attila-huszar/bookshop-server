@@ -1,11 +1,10 @@
 import { booksDB, ordersDB } from '@/repositories'
 import {
   orderInsertSchema,
-  paymentIdSchema,
   paymentIntentRequestSchema,
   validate,
 } from '@/validation'
-import { log } from '@/libs'
+import { log, stripe } from '@/libs'
 import { enqueueEmail } from '@/queues'
 import { defaultCurrency } from '@/constants'
 import { BadRequest, Internal, NotFound } from '@/errors'
@@ -16,8 +15,9 @@ import type {
   PaymentIntentRequest,
   PaymentSession,
   PublicUser,
+  StripePaymentIntent,
 } from '@/types'
-import { authorizePaymentAccess, type PaymentAccess, stripe } from './shared'
+import { type PaymentAccess, resolveAuthorizedPayment } from './shared'
 
 async function buildOrderItemsAndTotal(
   paymentIntentRequest: PaymentIntentRequest,
@@ -107,6 +107,7 @@ function notifyAdminOrderCreationFailed(args: {
   paymentId: string
   items: OrderItem[]
   total: number
+  paymentStatus: StripePaymentIntent['status']
 }): void {
   enqueueEmail('adminPaymentNotification', {
     notificationType: AdminNotification.Error,
@@ -115,7 +116,7 @@ function notifyAdminOrderCreationFailed(args: {
       items: args.items,
       total: args.total,
       currency: defaultCurrency,
-      paymentStatus: 'requires_action',
+      paymentStatus: args.paymentStatus,
     },
   })
 }
@@ -124,8 +125,7 @@ export async function retrievePaymentIntent(
   paymentId: string,
   access?: PaymentAccess,
 ) {
-  const validatedId = validate(paymentIdSchema, paymentId)
-  await authorizePaymentAccess(validatedId, access)
+  const { validatedId } = await resolveAuthorizedPayment({ paymentId, access })
   return await stripe.paymentIntents.retrieve(validatedId)
 }
 
@@ -142,37 +142,31 @@ export async function createPaymentIntent(
   assertExpectedTotal(total, validatedRequest.expectedTotal)
 
   const amountInCents = Math.round(total * 100)
-  let stripePaymentId: string | null = null
+  const paymentIntent = await stripe.paymentIntents.create({
+    amount: amountInCents,
+    currency: defaultCurrency.toLowerCase(),
+    ...(user && {
+      metadata: {
+        userEmail: user.email,
+        userName: `${user.firstName} ${user.lastName}`.trim(),
+      },
+    }),
+  })
+
+  if (!paymentIntent?.client_secret) {
+    throw new Internal('Failed to create payment intent: missing client secret')
+  }
+
+  const orderData: OrderInsert = {
+    paymentId: paymentIntent.id,
+    paymentStatus: paymentIntent.status,
+    currency: defaultCurrency,
+    items,
+    total,
+    ...buildUserOrderIdentity(user),
+  }
 
   try {
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: amountInCents,
-      currency: defaultCurrency.toLowerCase(),
-      ...(user && {
-        metadata: {
-          userEmail: user.email,
-          userName: `${user.firstName} ${user.lastName}`.trim(),
-        },
-      }),
-    })
-
-    if (!paymentIntent?.client_secret) {
-      throw new Internal(
-        'Failed to create payment intent: missing client secret',
-      )
-    }
-
-    stripePaymentId = paymentIntent.id
-
-    const orderData: OrderInsert = {
-      paymentId: stripePaymentId,
-      paymentStatus: paymentIntent.status,
-      currency: defaultCurrency,
-      items,
-      total,
-      ...buildUserOrderIdentity(user),
-    }
-
     const validatedOrderData = validate(orderInsertSchema, orderData)
     const createdOrder = await ordersDB.createOrder(validatedOrderData)
 
@@ -184,21 +178,20 @@ export async function createPaymentIntent(
       order: createdOrder,
       notificationType: AdminNotification.Created,
     })
-
-    return {
-      paymentId: stripePaymentId,
-      paymentToken: paymentIntent.client_secret,
-      amount: amountInCents,
-    }
   } catch (error) {
-    if (stripePaymentId) {
-      notifyAdminOrderCreationFailed({
-        paymentId: stripePaymentId,
-        items,
-        total,
-      })
-      await rollbackFailedOrderCreation(stripePaymentId)
-    }
+    notifyAdminOrderCreationFailed({
+      paymentId: paymentIntent.id,
+      items,
+      total,
+      paymentStatus: paymentIntent.status,
+    })
+    await rollbackFailedOrderCreation(paymentIntent.id)
     throw error
+  }
+
+  return {
+    paymentId: paymentIntent.id,
+    paymentToken: paymentIntent.client_secret,
+    amount: amountInCents,
   }
 }

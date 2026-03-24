@@ -1,11 +1,8 @@
-import { Stripe } from 'stripe'
-import { env } from '@/config'
 import { ordersDB } from '@/repositories'
+import { paymentIdSchema, validate } from '@/validation'
 import { toIsoString } from '@/utils'
-import { Unauthorized } from '@/errors'
+import { BadRequest, Unauthorized } from '@/errors'
 import type { Order, PaymentSyncStatus } from '@/types'
-
-export const stripe = new Stripe(env.stripeSecret!)
 
 export type PaymentAccess = {
   paymentSessionId?: string
@@ -39,6 +36,31 @@ export async function authorizePaymentAccess(
   }
 
   throw new Unauthorized('Unauthorized payment access')
+}
+
+export async function resolveAuthorizedPayment(args: {
+  paymentId: string
+  access?: PaymentAccess
+}): Promise<{ validatedId: string; order: Order }> {
+  const validatedId = validate(paymentIdSchema, args.paymentId)
+  const order = await authorizePaymentAccess(validatedId, args.access)
+
+  return { validatedId, order }
+}
+
+export function assertCancelablePaymentStatus(
+  paymentStatus: Order['paymentStatus'],
+): void {
+  switch (paymentStatus) {
+    case 'canceled':
+      throw new BadRequest('Payment already canceled')
+    case 'processing':
+      throw new BadRequest('Cannot cancel payment while it is processing')
+    case 'succeeded':
+      throw new BadRequest('Cannot cancel succeeded payment')
+    default:
+      return
+  }
 }
 
 export function toOrderPersistSnapshot(

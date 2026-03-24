@@ -1,12 +1,11 @@
 import { ordersDB } from '@/repositories'
-import { paymentIdSchema, validate } from '@/validation'
 import {
   extractPaymentIntentFields,
   reportCriticalOrderPersistFailure,
   throwCriticalOrderPersistFailure,
 } from '@/utils'
-import { log } from '@/libs'
-import { enqueueEmail, SendEmailPreconditionError } from '@/queues'
+import { log, stripe } from '@/libs'
+import { enqueueEmail } from '@/queues'
 import {
   orderSyncStripeFallbackThresholdMs,
   retryableStatuses,
@@ -21,9 +20,8 @@ import {
   type StripePaymentIntent,
 } from '@/types'
 import {
-  authorizePaymentAccess,
   type PaymentAccess,
-  stripe,
+  resolveAuthorizedPayment,
   toOrderPersistSnapshot,
   toPaymentSyncStatus,
 } from './shared'
@@ -99,42 +97,16 @@ function throwFallbackDriftPersistFailure(args: {
   })
 }
 
-function enqueueFallbackConfirmationEmails(order: Order): void {
-  try {
-    enqueueEmail('orderConfirmation', {
-      order,
-      source: 'fallback',
-    })
-  } catch (error) {
-    if (error instanceof SendEmailPreconditionError) {
-      void log.warn(
-        '[QUEUE] Skipped order confirmation email due to missing recipient data',
-        {
-          paymentId: order.paymentId,
-          source: 'fallback',
-        },
-      )
-    } else {
-      throw error
-    }
-  }
-
-  enqueueEmail('adminPaymentNotification', {
-    order,
-    notificationType: AdminNotification.Confirmed,
-  })
-}
-
 async function persistStripeFallbackSync(args: {
   paymentId: string
   order: Order
   paymentIntent: StripePaymentIntent
   stripeSyncCheckedAt: Date
 }): Promise<Order> {
-  const { paymentId, paymentIntent, stripeSyncCheckedAt } = args
-  const statusChanged = paymentIntent.status !== args.order.paymentStatus
+  const { paymentId, order, paymentIntent, stripeSyncCheckedAt } = args
+  const statusChanged = paymentIntent.status !== order.paymentStatus
   const justPaid =
-    statusChanged && paymentIntent.status === 'succeeded' && !args.order.paidAt
+    statusChanged && paymentIntent.status === 'succeeded' && !order.paidAt
   const updateData: OrderUpdate = {
     lastStripeSyncCheckedAt: stripeSyncCheckedAt,
     ...(statusChanged
@@ -150,9 +122,16 @@ async function persistStripeFallbackSync(args: {
     const syncedOrder = await ordersDB.updateOrder(paymentId, updateData)
 
     if (syncedOrder) {
-      if (justPaid) {
-        enqueueFallbackConfirmationEmails(syncedOrder)
-      }
+      if (!justPaid) return syncedOrder
+
+      enqueueEmail('orderConfirmation', {
+        order: syncedOrder,
+      })
+
+      enqueueEmail('adminPaymentNotification', {
+        order: syncedOrder,
+        notificationType: AdminNotification.Confirmed,
+      })
 
       return syncedOrder
     }
@@ -160,7 +139,7 @@ async function persistStripeFallbackSync(args: {
     if (statusChanged) {
       throwFallbackDriftPersistFailure({
         paymentId,
-        order: args.order,
+        order,
         paymentIntent,
         persistFailureReason: 'returned_null',
       })
@@ -168,11 +147,11 @@ async function persistStripeFallbackSync(args: {
 
     reportFallbackMarkerPersistFailure({
       paymentId,
-      order: args.order,
+      order,
       persistFailureReason: 'returned_null',
     })
 
-    return args.order
+    return order
   } catch (persistError) {
     if (isServiceUnavailableError(persistError)) {
       throw persistError
@@ -181,7 +160,7 @@ async function persistStripeFallbackSync(args: {
     if (statusChanged) {
       throwFallbackDriftPersistFailure({
         paymentId,
-        order: args.order,
+        order,
         paymentIntent,
         persistFailureReason: 'threw',
         persistError,
@@ -190,12 +169,12 @@ async function persistStripeFallbackSync(args: {
 
     reportFallbackMarkerPersistFailure({
       paymentId,
-      order: args.order,
+      order,
       persistFailureReason: 'threw',
       persistError,
     })
 
-    return args.order
+    return order
   }
 }
 
@@ -236,8 +215,12 @@ export async function retrieveOrderSyncStatus(
   paymentId: string,
   access?: PaymentAccess,
 ): Promise<PaymentSyncStatus> {
-  const validatedId = validate(paymentIdSchema, paymentId)
-  let order = await authorizePaymentAccess(validatedId, access)
+  const { validatedId, order: authorizedOrder } =
+    await resolveAuthorizedPayment({
+      paymentId,
+      access,
+    })
+  let order = authorizedOrder
 
   if (!shouldFallbackToStripe(order)) {
     return toPaymentSyncStatus(order)

@@ -385,7 +385,6 @@ describe('Webhooks Service', () => {
     expect(mockEnqueueEmail).toHaveBeenCalledTimes(2)
     expect(mockEnqueueEmail).toHaveBeenNthCalledWith(1, 'orderConfirmation', {
       order: updatedOrder,
-      source: 'webhook',
     })
     expect(mockEnqueueEmail).toHaveBeenNthCalledWith(
       2,
