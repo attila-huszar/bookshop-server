@@ -1,6 +1,7 @@
 import { ordersDB } from '@/repositories'
 import { paymentIdSchema, validate } from '@/validation'
 import { toIsoString } from '@/utils'
+import { paymentMessage } from '@/constants'
 import { BadRequest, Unauthorized } from '@/errors'
 import type { Order, PaymentSyncStatus } from '@/types'
 
@@ -53,11 +54,9 @@ export function assertCancelablePaymentStatus(
 ): void {
   switch (paymentStatus) {
     case 'canceled':
-      throw new BadRequest('Payment already canceled')
-    case 'processing':
-      throw new BadRequest('Cannot cancel payment while it is processing')
+      throw new BadRequest(paymentMessage.paymentAlreadyCanceled)
     case 'succeeded':
-      throw new BadRequest('Cannot cancel succeeded payment')
+      throw new BadRequest(paymentMessage.paymentCannotCancelSucceeded)
     default:
       return
   }

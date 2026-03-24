@@ -342,7 +342,7 @@ describe('Payments Service', () => {
       expect(mockEnqueueEmail).not.toHaveBeenCalled()
     })
 
-    it('throws 503 without admin email when drift is detected but DB update returns null', async () => {
+    it('throws 503 and notifies admin when drift is detected but DB update returns null', async () => {
       const staleOrder = createOrder({
         paymentStatus: 'processing',
         updatedAt: new Date(Date.now() - 60_000),
@@ -381,7 +381,19 @@ describe('Payments Service', () => {
 
       expect(resultError).toBeInstanceOf(Internal)
       expect((resultError as Internal).status).toBe(503)
-      expect(mockEnqueueEmail).not.toHaveBeenCalled()
+      expect(mockEnqueueEmail).toHaveBeenCalledTimes(1)
+      expect(mockEnqueueEmail).toHaveBeenCalledWith(
+        'adminPaymentNotification',
+        expect.objectContaining({
+          notificationType: 'error',
+          order: expect.objectContaining({
+            paymentId: 'pi_test_123',
+            paymentStatus: 'succeeded',
+            email: 'stripe@example.com',
+            shipping: stripeShipping,
+          }) as Order,
+        }),
+      )
       expect(mockLogger.error).toHaveBeenCalledWith(
         '[CRITICAL] Stripe fallback detected status drift but DB update failed',
         expect.objectContaining({
@@ -393,7 +405,7 @@ describe('Payments Service', () => {
       )
     })
 
-    it('throws 503 without admin email when drift is detected but DB update throws', async () => {
+    it('throws 503 and notifies admin when drift is detected but DB update throws', async () => {
       const staleOrder = createOrder({
         paymentStatus: 'processing',
         updatedAt: new Date(Date.now() - 60_000),
@@ -434,7 +446,19 @@ describe('Payments Service', () => {
 
       expect(resultError).toBeInstanceOf(Internal)
       expect((resultError as Internal).status).toBe(503)
-      expect(mockEnqueueEmail).not.toHaveBeenCalled()
+      expect(mockEnqueueEmail).toHaveBeenCalledTimes(1)
+      expect(mockEnqueueEmail).toHaveBeenCalledWith(
+        'adminPaymentNotification',
+        expect.objectContaining({
+          notificationType: 'error',
+          order: expect.objectContaining({
+            paymentId: 'pi_test_123',
+            paymentStatus: 'canceled',
+            email: 'stripe-cancel@example.com',
+            shipping: stripeShipping,
+          }) as Order,
+        }),
+      )
       expect(mockLogger.error).toHaveBeenCalledWith(
         '[CRITICAL] Stripe fallback detected status drift but DB update failed',
         expect.objectContaining({
@@ -528,27 +552,27 @@ describe('Payments Service', () => {
       expect(mockOrdersDB.updateOrder).not.toHaveBeenCalled()
     })
 
-    it('rejects cancel for processing payment before hitting Stripe', async () => {
+    it('defers processing payment cancellation eligibility to Stripe', async () => {
       mockOrdersDB.getOrder.mockResolvedValueOnce(
         createOrder({ paymentStatus: 'processing' }),
       )
+      mockStripe.paymentIntents.cancel.mockResolvedValueOnce({
+        id: 'pi_test_123',
+        status: 'canceled',
+      })
 
-      let resultError: unknown = null
+      const result = await cancelPaymentIntent('pi_test_123', {
+        paymentSessionId: 'pi_test_123',
+      })
 
-      try {
-        await cancelPaymentIntent('pi_test_123', {
-          paymentSessionId: 'pi_test_123',
-        })
-      } catch (error) {
-        resultError = error
-      }
-
-      expect(resultError).toBeInstanceOf(BadRequest)
-      expect((resultError as Error).message).toBe(
-        'Cannot cancel payment while it is processing',
+      expect(result.id).toBe('pi_test_123')
+      expect(result.status).toBe('canceled')
+      expect(mockStripe.paymentIntents.cancel).toHaveBeenCalledWith(
+        'pi_test_123',
       )
-      expect(mockStripe.paymentIntents.cancel).not.toHaveBeenCalled()
-      expect(mockOrdersDB.updateOrder).not.toHaveBeenCalled()
+      expect(mockOrdersDB.updateOrder).toHaveBeenCalledWith('pi_test_123', {
+        paymentStatus: 'canceled',
+      })
     })
 
     it('throws 500 and notifies admin when cancel persistence fails', async () => {

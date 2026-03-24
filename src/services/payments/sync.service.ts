@@ -82,7 +82,6 @@ function throwFallbackDriftPersistFailure(args: {
       'Order status sync is temporarily unavailable. Manual verification is required.',
     errorName: 'ServiceUnavailable',
     statusCode: 503,
-    notifyAdmin: false,
     operation: 'update',
     paymentId: args.paymentId,
     persistFailureReason: args.persistFailureReason,

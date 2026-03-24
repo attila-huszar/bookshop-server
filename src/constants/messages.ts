@@ -42,8 +42,12 @@ export const paymentMessage = {
   paymentFailed: 'Payment failed',
   paymentPending: 'Payment is pending, please check back later',
   paymentCancelled: 'Payment has been cancelled',
+  paymentAlreadyCanceled: 'Payment already canceled',
+  paymentCannotCancelSucceeded: 'Cannot cancel succeeded payment',
   paymentRefunded: 'Payment has been refunded',
   paymentDeclined: 'Payment has been declined',
+  priceUpdatedInCart:
+    'Prices have been updated in your cart. Please review before checkout.',
 } as const
 
 export const commonMessage = {

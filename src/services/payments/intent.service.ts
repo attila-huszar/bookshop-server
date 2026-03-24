@@ -6,7 +6,7 @@ import {
 } from '@/validation'
 import { log, stripe } from '@/libs'
 import { enqueueEmail } from '@/queues'
-import { defaultCurrency } from '@/constants'
+import { defaultCurrency, paymentMessage } from '@/constants'
 import { BadRequest, Internal, NotFound } from '@/errors'
 import { AdminNotification } from '@/types'
 import type {
@@ -63,7 +63,7 @@ async function buildOrderItemsAndTotal(
 function assertExpectedTotal(total: number, expectedTotal: number): void {
   if (Math.abs(total - expectedTotal) > 0.05) {
     throw new BadRequest(
-      'Prices have been updated in your cart. Please review before checkout.',
+      paymentMessage.priceUpdatedInCart,
       'PriceConflict',
       409,
     )
