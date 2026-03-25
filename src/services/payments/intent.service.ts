@@ -15,9 +15,8 @@ import type {
   PaymentIntentRequest,
   PaymentSession,
   PublicUser,
-  StripePaymentIntent,
 } from '@/types'
-import { type PaymentAccess, resolveAuthorizedPayment } from './shared'
+import { type PaymentAccess, resolveAuthorizedPayment } from '../shared'
 
 async function buildOrderItemsAndTotal(
   paymentIntentRequest: PaymentIntentRequest,
@@ -62,16 +61,6 @@ async function buildOrderItemsAndTotal(
   }
 }
 
-function assertExpectedTotal(total: number, expectedTotal: number): void {
-  if (Math.abs(total - expectedTotal) > 0.05) {
-    throw new BadRequest(
-      paymentMessage.priceUpdatedInCart,
-      'PriceConflict',
-      409,
-    )
-  }
-}
-
 function buildUserOrderIdentity(user: PublicUser | null) {
   if (!user) return {}
 
@@ -86,41 +75,6 @@ function buildUserOrderIdentity(user: PublicUser | null) {
       phone: user.phone ?? undefined,
     },
   }
-}
-
-async function rollbackFailedOrderCreation(paymentId: string): Promise<void> {
-  try {
-    await stripe.paymentIntents.cancel(paymentId)
-    void log.warn(
-      'Rolled back Stripe payment intent after order creation failed',
-      {
-        paymentId,
-      },
-    )
-  } catch (rollbackError) {
-    void log.error('Failed to rollback Stripe payment intent', {
-      paymentId,
-      rollbackError,
-    })
-  }
-}
-
-function notifyAdminOrderCreationFailed(args: {
-  paymentId: string
-  items: OrderItem[]
-  total: number
-  paymentStatus: StripePaymentIntent['status']
-}): void {
-  enqueueEmail('adminPaymentNotification', {
-    notificationType: AdminNotification.Error,
-    order: {
-      paymentId: args.paymentId,
-      items: args.items,
-      total: args.total,
-      currency: defaultCurrency,
-      paymentStatus: args.paymentStatus,
-    },
-  })
 }
 
 export async function retrievePaymentIntent(
@@ -141,7 +95,13 @@ export async function createPaymentIntent(
   )
   const { items, total } = await buildOrderItemsAndTotal(validatedRequest)
 
-  assertExpectedTotal(total, validatedRequest.expectedTotal)
+  if (Math.abs(total - validatedRequest.expectedTotal) > 0.05) {
+    throw new BadRequest(
+      paymentMessage.priceUpdatedInCart,
+      'PriceConflict',
+      409,
+    )
+  }
 
   const amountInCents = Math.round(total * 100)
   const paymentIntent = await stripe.paymentIntents.create({
@@ -181,13 +141,32 @@ export async function createPaymentIntent(
       notificationType: AdminNotification.Created,
     })
   } catch (error) {
-    notifyAdminOrderCreationFailed({
-      paymentId: paymentIntent.id,
-      items,
-      total,
-      paymentStatus: paymentIntent.status,
+    enqueueEmail('adminPaymentNotification', {
+      notificationType: AdminNotification.Error,
+      order: {
+        paymentId: paymentIntent.id,
+        items,
+        total,
+        currency: defaultCurrency,
+        paymentStatus: paymentIntent.status,
+      },
     })
-    await rollbackFailedOrderCreation(paymentIntent.id)
+
+    try {
+      await stripe.paymentIntents.cancel(paymentIntent.id)
+      void log.warn(
+        'Rolled back Stripe payment intent after order creation failed',
+        {
+          paymentId: paymentIntent.id,
+        },
+      )
+    } catch (rollbackError) {
+      void log.error('Failed to rollback Stripe payment intent', {
+        paymentId: paymentIntent.id,
+        rollbackError,
+      })
+    }
+
     throw error
   }
 

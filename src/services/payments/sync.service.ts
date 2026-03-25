@@ -1,9 +1,5 @@
 import { ordersDB } from '@/repositories'
-import {
-  extractPaymentIntentFields,
-  reportCriticalOrderPersistFailure,
-  throwCriticalOrderPersistFailure,
-} from '@/utils'
+import { extractPaymentIntentFields } from '@/utils'
 import { log, stripe } from '@/libs'
 import { enqueueEmail } from '@/queues'
 import {
@@ -21,15 +17,22 @@ import {
 } from '@/types'
 import {
   type PaymentAccess,
+  reportCriticalOrderPersistFailure,
   resolveAuthorizedPayment,
+  throwCriticalOrderPersistFailure,
   toOrderPersistSnapshot,
   toPaymentSyncStatus,
-} from './shared'
+} from '../shared'
 
 const fallbackDriftPersistFailureMessage =
   '[CRITICAL] Stripe fallback detected status drift but DB update failed'
 const fallbackMarkerPersistFailureMessage =
   '[CRITICAL] Stripe fallback sync check timestamp persistence failed'
+type PersistFailureReason = 'threw' | 'returned_null'
+type PersistFailureHandler = (
+  persistFailureReason: PersistFailureReason,
+  persistError?: unknown,
+) => never | void
 
 function isServiceUnavailableError(error: unknown): boolean {
   return error instanceof Internal && error.status === 503
@@ -48,9 +51,9 @@ function shouldFallbackToStripe(order: Order): boolean {
 function reportFallbackMarkerPersistFailure(args: {
   paymentId: string
   order: Order
-  persistFailureReason: 'threw' | 'returned_null'
+  persistFailureReason: PersistFailureReason
   persistError?: unknown
-}) {
+}): void {
   reportCriticalOrderPersistFailure({
     issueCode: IssueCode.ORDER_SYNC_MARKER_PERSIST_FAILED,
     message: fallbackMarkerPersistFailureMessage,
@@ -68,7 +71,7 @@ function throwFallbackDriftPersistFailure(args: {
   paymentId: string
   order: Order
   paymentIntent: StripePaymentIntent
-  persistFailureReason: 'threw' | 'returned_null'
+  persistFailureReason: PersistFailureReason
   persistError?: unknown
 }): never {
   throwCriticalOrderPersistFailure({
@@ -92,6 +95,47 @@ function throwFallbackDriftPersistFailure(args: {
   })
 }
 
+function sendFallbackPaidNotifications(order: Order): void {
+  enqueueEmail('orderConfirmation', {
+    order,
+  })
+
+  enqueueEmail('adminPaymentNotification', {
+    order,
+    notificationType: AdminNotification.Confirmed,
+  })
+}
+
+async function persistOrderSyncUpdate(args: {
+  paymentId: string
+  order: Order
+  updateData: OrderUpdate
+  onPersistFailure: PersistFailureHandler
+  onPersisted?: (syncedOrder: Order) => void
+}): Promise<Order> {
+  try {
+    const syncedOrder = await ordersDB.updateOrder(
+      args.paymentId,
+      args.updateData,
+    )
+
+    if (!syncedOrder) {
+      args.onPersistFailure('returned_null')
+      return args.order
+    }
+
+    args.onPersisted?.(syncedOrder)
+    return syncedOrder
+  } catch (persistError) {
+    if (isServiceUnavailableError(persistError)) {
+      throw persistError
+    }
+
+    args.onPersistFailure('threw', persistError)
+    return args.order
+  }
+}
+
 async function persistStripeFallbackSync(args: {
   paymentId: string
   order: Order
@@ -113,97 +157,30 @@ async function persistStripeFallbackSync(args: {
       : {}),
   }
 
-  try {
-    const syncedOrder = await ordersDB.updateOrder(paymentId, updateData)
+  return await persistOrderSyncUpdate({
+    paymentId,
+    order,
+    updateData,
+    onPersistFailure: (persistFailureReason, persistError) => {
+      if (statusChanged) {
+        throwFallbackDriftPersistFailure({
+          paymentId,
+          order,
+          paymentIntent,
+          persistFailureReason,
+          persistError,
+        })
+      }
 
-    if (syncedOrder) {
-      if (!justPaid) return syncedOrder
-
-      enqueueEmail('orderConfirmation', {
-        order: syncedOrder,
-      })
-
-      enqueueEmail('adminPaymentNotification', {
-        order: syncedOrder,
-        notificationType: AdminNotification.Confirmed,
-      })
-
-      return syncedOrder
-    }
-
-    if (statusChanged) {
-      throwFallbackDriftPersistFailure({
+      reportFallbackMarkerPersistFailure({
         paymentId,
         order,
-        paymentIntent,
-        persistFailureReason: 'returned_null',
-      })
-    }
-
-    reportFallbackMarkerPersistFailure({
-      paymentId,
-      order,
-      persistFailureReason: 'returned_null',
-    })
-
-    return order
-  } catch (persistError) {
-    if (isServiceUnavailableError(persistError)) {
-      throw persistError
-    }
-
-    if (statusChanged) {
-      throwFallbackDriftPersistFailure({
-        paymentId,
-        order,
-        paymentIntent,
-        persistFailureReason: 'threw',
+        persistFailureReason,
         persistError,
       })
-    }
-
-    reportFallbackMarkerPersistFailure({
-      paymentId,
-      order,
-      persistFailureReason: 'threw',
-      persistError,
-    })
-
-    return order
-  }
-}
-
-async function persistStripeSyncMarkerOnly(args: {
-  paymentId: string
-  order: Order
-  stripeSyncCheckedAt: Date
-}): Promise<Order> {
-  try {
-    const syncMarkerOrder = await ordersDB.updateOrder(args.paymentId, {
-      lastStripeSyncCheckedAt: args.stripeSyncCheckedAt,
-    })
-
-    if (syncMarkerOrder) {
-      return syncMarkerOrder
-    }
-
-    reportFallbackMarkerPersistFailure({
-      paymentId: args.paymentId,
-      order: args.order,
-      persistFailureReason: 'returned_null',
-    })
-
-    return args.order
-  } catch (persistError) {
-    reportFallbackMarkerPersistFailure({
-      paymentId: args.paymentId,
-      order: args.order,
-      persistFailureReason: 'threw',
-      persistError,
-    })
-
-    return args.order
-  }
+    },
+    onPersisted: justPaid ? sendFallbackPaidNotifications : undefined,
+  })
 }
 
 export async function retrieveOrderSyncStatus(
@@ -243,10 +220,20 @@ export async function retrieveOrderSyncStatus(
       error,
     })
 
-    order = await persistStripeSyncMarkerOnly({
+    order = await persistOrderSyncUpdate({
       paymentId: validatedId,
       order,
-      stripeSyncCheckedAt,
+      updateData: {
+        lastStripeSyncCheckedAt: stripeSyncCheckedAt,
+      },
+      onPersistFailure: (persistFailureReason, persistError) => {
+        reportFallbackMarkerPersistFailure({
+          paymentId: validatedId,
+          order,
+          persistFailureReason,
+          persistError,
+        })
+      },
     })
   }
 

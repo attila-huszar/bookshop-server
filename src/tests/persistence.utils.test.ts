@@ -4,7 +4,7 @@ import { IssueCode, type Order } from '@/types'
 import { mockEnqueueEmail, mockLogger } from './test-setup'
 
 const { reportCriticalOrderPersistFailure, throwCriticalOrderPersistFailure } =
-  await import('@/utils/persistence.utils')
+  await import('@/services/shared')
 
 const baseOrderSnapshot: Pick<
   Order,

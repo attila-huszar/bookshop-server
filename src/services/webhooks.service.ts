@@ -1,10 +1,6 @@
 import { env } from '@/config'
 import { ordersDB } from '@/repositories'
-import {
-  extractPaymentIntentFields,
-  getPaymentIntentId,
-  throwCriticalOrderPersistFailure,
-} from '@/utils'
+import { extractPaymentIntentFields, getPaymentIntentId } from '@/utils'
 import { log, stripe } from '@/libs'
 import { enqueueEmail } from '@/queues'
 import { terminalStatuses } from '@/constants'
@@ -21,6 +17,10 @@ import {
   type StripeEvent,
   type StripePaymentIntent,
 } from '@/types'
+import {
+  throwCriticalOrderPersistFailure,
+  toOrderPersistSnapshot,
+} from './shared'
 
 type WebhookEventMeta = {
   eventType: string
@@ -488,17 +488,9 @@ export async function updateOrderFromWebhook(
         eventId,
         eventCreated,
       },
-      order: {
-        paymentId: existingOrder.paymentId,
+      order: toOrderPersistSnapshot(existingOrder, {
         paymentStatus: data.paymentStatus ?? existingOrder.paymentStatus,
-        items: existingOrder.items,
-        total: existingOrder.total,
-        currency: existingOrder.currency,
-        firstName: existingOrder.firstName,
-        lastName: existingOrder.lastName,
-        email: existingOrder.email,
-        shipping: existingOrder.shipping,
-      },
+      }),
     })
   }
 }

@@ -1,13 +1,13 @@
 import { ordersDB } from '@/repositories'
-import { throwCriticalOrderPersistFailure } from '@/utils'
 import { stripe } from '@/libs'
 import { IssueCode, type StripePaymentIntent } from '@/types'
 import {
   assertCancelablePaymentStatus,
   type PaymentAccess,
   resolveAuthorizedPayment,
+  throwCriticalOrderPersistFailure,
   toOrderPersistSnapshot,
-} from './shared'
+} from '../shared'
 
 export async function cancelPaymentIntent(
   paymentId: string,

@@ -112,7 +112,7 @@ await mock.module('@/libs', () => ({
 }))
 
 const { reportCriticalOrderPersistFailure, throwCriticalOrderPersistFailure } =
-  await import('@/utils/persistence.utils')
+  await import('@/services/shared')
 
 await mock.module('@/utils', () => ({
   extractPaymentIntentFields: mockExtractPaymentIntentFields,
