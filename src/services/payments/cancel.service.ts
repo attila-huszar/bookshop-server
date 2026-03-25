@@ -11,7 +11,7 @@ import {
 
 export async function cancelPaymentIntent(
   paymentId: string,
-  access?: PaymentAccess,
+  access: PaymentAccess,
 ): Promise<StripePaymentIntent> {
   const { validatedId, order } = await resolveAuthorizedPayment(
     paymentId,
@@ -26,23 +26,38 @@ export async function cancelPaymentIntent(
   }
 
   const cancelledIntent = await stripe.paymentIntents.cancel(validatedId)
-
-  try {
-    await ordersDB.updateOrder(validatedId, {
-      paymentStatus: 'canceled',
-    })
-  } catch (error) {
+  const reportCancelSaveFailure = (
+    saveFailureReason: 'threw' | 'returned_null',
+    saveError?: unknown,
+  ) => {
     reportOrderSaveError({
       issueCode: IssueCode.PAYMENT_CANCEL_SAVE_FAILED,
       message: '[CRITICAL] Stripe payment canceled but order save failed',
       operation: 'update',
       paymentId: validatedId,
-      saveFailureReason: 'threw',
-      saveError: error,
+      saveFailureReason,
+      saveError,
       dbStatus: order.paymentStatus,
       stripeStatus: 'canceled',
       order,
     })
+  }
+
+  try {
+    const updatedOrder = await ordersDB.updateOrder(validatedId, {
+      paymentStatus: 'canceled',
+    })
+
+    if (!updatedOrder) {
+      reportCancelSaveFailure('returned_null')
+      throw new Internal('Failed to save canceled payment status')
+    }
+  } catch (error) {
+    if (error instanceof Internal) {
+      throw error
+    }
+
+    reportCancelSaveFailure('threw', error)
     throw new Internal('Failed to save canceled payment status')
   }
 

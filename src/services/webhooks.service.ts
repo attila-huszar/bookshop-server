@@ -465,17 +465,16 @@ export async function updateOrderFromWebhook(
   if (justPaid) {
     updateData.paidAt = new Date()
   }
-
-  try {
-    const updatedOrder = await ordersDB.updateOrder(paymentIntentId, updateData)
-    return updatedOrder ? { ...updatedOrder, justPaid } : null
-  } catch (saveError) {
+  const reportWebhookSaveFailure = (
+    saveFailureReason: 'threw' | 'returned_null',
+    saveError?: unknown,
+  ) => {
     reportOrderSaveError({
       issueCode: IssueCode.WEBHOOK_ORDER_SAVE_FAILED,
       message: '[CRITICAL] Webhook order update save failed',
       operation: 'update',
       paymentId: paymentIntentId,
-      saveFailureReason: 'threw',
+      saveFailureReason,
       saveError,
       dbStatus: existingOrder.paymentStatus,
       stripeStatus: data.paymentStatus,
@@ -489,6 +488,23 @@ export async function updateOrderFromWebhook(
         paymentStatus: data.paymentStatus ?? existingOrder.paymentStatus,
       },
     })
+  }
+
+  try {
+    const updatedOrder = await ordersDB.updateOrder(paymentIntentId, updateData)
+
+    if (!updatedOrder) {
+      reportWebhookSaveFailure('returned_null')
+      throw new Internal('Failed to save webhook order update')
+    }
+
+    return { ...updatedOrder, justPaid }
+  } catch (saveError) {
+    if (saveError instanceof Internal) {
+      throw saveError
+    }
+
+    reportWebhookSaveFailure('threw', saveError)
     throw new Internal('Failed to save webhook order update')
   }
 }

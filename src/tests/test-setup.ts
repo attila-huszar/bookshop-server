@@ -25,6 +25,7 @@ export const mockOrdersDB = {
   getOrdersByEmail: mock(),
   createOrder: mock(),
   updateOrder: mock(),
+  updateOrderWithPaidTransition: mock(),
 }
 
 export const mockStripe = {

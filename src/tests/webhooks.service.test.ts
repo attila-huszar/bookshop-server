@@ -348,6 +348,70 @@ describe('Webhooks Service', () => {
     )
   })
 
+  it('throws 500 and alerts admin when webhook order update returns null', async () => {
+    mockOrdersDB.getOrder.mockResolvedValueOnce(
+      createOrder({
+        paymentStatus: 'processing',
+      }),
+    )
+    mockOrdersDB.updateOrder.mockResolvedValueOnce(null)
+    mockExtractPaymentIntentFields.mockReturnValue({
+      email: 'buyer@example.com',
+    })
+    mockStripe.webhooks.constructEventAsync.mockResolvedValueOnce(
+      createPaymentIntentEvent({
+        eventId: 'evt_save_returned_null',
+        eventCreated: 402,
+        type: 'payment_intent.succeeded',
+        status: 'succeeded',
+      }),
+    )
+
+    const event = createPaymentIntentEvent({
+      eventId: 'evt_save_returned_null',
+      eventCreated: 402,
+      type: 'payment_intent.succeeded',
+      status: 'succeeded',
+    })
+    const { payload, signature } = await createSignedWebhookRequest(event)
+
+    let resultError: unknown = null
+
+    try {
+      await processStripeWebhook(payload, signature)
+    } catch (error) {
+      resultError = error
+    }
+
+    expect(resultError).toBeInstanceOf(Internal)
+    expect((resultError as Internal).status).toBe(500)
+    expect(mockEnqueueEmail).toHaveBeenCalledTimes(1)
+    expect(mockEnqueueEmail).toHaveBeenCalledWith(
+      'adminPaymentNotification',
+      expect.objectContaining({
+        notificationType: 'error',
+        order: expect.objectContaining({
+          paymentId: 'pi_test_123',
+          paymentStatus: 'succeeded',
+        }) as Order,
+      }),
+    )
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      '[CRITICAL] Webhook order update save failed',
+      expect.objectContaining({
+        issueCode: IssueCode.WEBHOOK_ORDER_SAVE_FAILED,
+        saveFailureReason: 'returned_null',
+        entity: 'order',
+        operation: 'update',
+        paymentId: 'pi_test_123',
+        stripeStatus: 'succeeded',
+        eventType: 'payment_intent.succeeded',
+        eventId: 'evt_save_returned_null',
+        eventCreated: 402,
+      }),
+    )
+  })
+
   it('sends confirmed notifications when webhook marks order as just paid', async () => {
     const updatedOrder = createOrder({
       paymentStatus: 'succeeded',

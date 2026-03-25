@@ -1,4 +1,4 @@
-import { desc, eq, inArray } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm'
 import { sqlite } from '@/db'
 import model from '@/models'
 import type { Order, OrderInsert, OrderUpdate } from '@/types'
@@ -26,12 +26,64 @@ export async function updateOrder(
   paymentId: string,
   fields: OrderUpdate,
 ): Promise<Order | null> {
-  const [updatedOrder] = await sqlite
+  const { order } = await updateOrderWithPaidTransition(paymentId, fields)
+  return order
+}
+
+export async function updateOrderWithPaidTransition(
+  paymentId: string,
+  fields: OrderUpdate,
+): Promise<{ order: Order | null; becamePaid: boolean }> {
+  const shouldAttemptPaidTransition = fields.paidAt instanceof Date
+
+  if (!shouldAttemptPaidTransition) {
+    const [updatedOrder] = await sqlite
+      .update(ordersTable)
+      .set(fields)
+      .where(eq(ordersTable.paymentId, paymentId))
+      .returning()
+
+    return {
+      order: updatedOrder ?? null,
+      becamePaid: false,
+    }
+  }
+
+  const [paidTransitionOrder] = await sqlite
     .update(ordersTable)
     .set(fields)
+    .where(
+      and(eq(ordersTable.paymentId, paymentId), isNull(ordersTable.paidAt)),
+    )
+    .returning()
+
+  if (paidTransitionOrder) {
+    return {
+      order: paidTransitionOrder,
+      becamePaid: true,
+    }
+  }
+
+  const fieldsWithoutPaidAt: OrderUpdate = { ...fields }
+  delete fieldsWithoutPaidAt.paidAt
+
+  if (Object.keys(fieldsWithoutPaidAt).length === 0) {
+    return {
+      order: await getOrder(paymentId),
+      becamePaid: false,
+    }
+  }
+
+  const [updatedOrder] = await sqlite
+    .update(ordersTable)
+    .set(fieldsWithoutPaidAt)
     .where(eq(ordersTable.paymentId, paymentId))
     .returning()
-  return updatedOrder ?? null
+
+  return {
+    order: updatedOrder ?? null,
+    becamePaid: false,
+  }
 }
 
 export async function getAllOrders(): Promise<Order[]> {

@@ -49,6 +49,7 @@ describe('Payments Service', () => {
     mockOrdersDB.getOrder.mockReset()
     mockOrdersDB.createOrder.mockReset()
     mockOrdersDB.updateOrder.mockReset()
+    mockOrdersDB.updateOrderWithPaidTransition.mockReset()
     mockStripe.paymentIntents.create.mockReset()
     mockStripe.paymentIntents.retrieve.mockReset()
     mockStripe.paymentIntents.cancel.mockReset()
@@ -126,6 +127,7 @@ describe('Payments Service', () => {
             expectedTotal: 12.34,
           },
           null,
+          'req_test_123',
         )
       } catch (error) {
         resultError = error
@@ -192,7 +194,10 @@ describe('Payments Service', () => {
       mockStripe.paymentIntents.retrieve.mockResolvedValueOnce({
         status: 'processing',
       })
-      mockOrdersDB.updateOrder.mockResolvedValueOnce(syncedOrder)
+      mockOrdersDB.updateOrderWithPaidTransition.mockResolvedValueOnce({
+        order: syncedOrder,
+        becamePaid: false,
+      })
 
       const result = await retrieveOrderSyncStatus('pi_test_123', {
         paymentSessionId: 'pi_test_123',
@@ -200,7 +205,7 @@ describe('Payments Service', () => {
 
       expect(result.paymentStatus).toBe('processing')
       expect(mockStripe.paymentIntents.retrieve).toHaveBeenCalledTimes(1)
-      expect(mockOrdersDB.updateOrder).toHaveBeenCalledWith(
+      expect(mockOrdersDB.updateOrderWithPaidTransition).toHaveBeenCalledWith(
         'pi_test_123',
         expect.objectContaining({
           lastStripeSyncCheckedAt: expect.any(Date) as Date,
@@ -228,7 +233,10 @@ describe('Payments Service', () => {
       mockStripe.paymentIntents.retrieve.mockResolvedValue({
         status: 'processing',
       })
-      mockOrdersDB.updateOrder.mockResolvedValueOnce(recentlyCheckedOrder)
+      mockOrdersDB.updateOrderWithPaidTransition.mockResolvedValueOnce({
+        order: recentlyCheckedOrder,
+        becamePaid: false,
+      })
 
       await retrieveOrderSyncStatus('pi_test_123', {
         paymentSessionId: 'pi_test_123',
@@ -258,7 +266,10 @@ describe('Payments Service', () => {
       mockStripe.paymentIntents.retrieve.mockRejectedValueOnce(
         new Error('Stripe unavailable'),
       )
-      mockOrdersDB.updateOrder.mockResolvedValueOnce(recentlyCheckedOrder)
+      mockOrdersDB.updateOrderWithPaidTransition.mockResolvedValueOnce({
+        order: recentlyCheckedOrder,
+        becamePaid: false,
+      })
 
       await retrieveOrderSyncStatus('pi_test_123', {
         paymentSessionId: 'pi_test_123',
@@ -267,8 +278,10 @@ describe('Payments Service', () => {
         paymentSessionId: 'pi_test_123',
       })
 
-      expect(mockOrdersDB.updateOrder).toHaveBeenCalledTimes(1)
-      expect(mockOrdersDB.updateOrder).toHaveBeenCalledWith(
+      expect(mockOrdersDB.updateOrderWithPaidTransition).toHaveBeenCalledTimes(
+        1,
+      )
+      expect(mockOrdersDB.updateOrderWithPaidTransition).toHaveBeenCalledWith(
         'pi_test_123',
         expect.objectContaining({
           lastStripeSyncCheckedAt: expect.any(Date) as Date,
@@ -294,13 +307,16 @@ describe('Payments Service', () => {
       mockStripe.paymentIntents.retrieve.mockResolvedValueOnce({
         status: 'succeeded',
       })
-      mockOrdersDB.updateOrder.mockResolvedValueOnce(syncedOrder)
+      mockOrdersDB.updateOrderWithPaidTransition.mockResolvedValueOnce({
+        order: syncedOrder,
+        becamePaid: true,
+      })
 
       await retrieveOrderSyncStatus('pi_test_123', {
         paymentSessionId: 'pi_test_123',
       })
 
-      expect(mockOrdersDB.updateOrder).toHaveBeenCalledWith(
+      expect(mockOrdersDB.updateOrderWithPaidTransition).toHaveBeenCalledWith(
         'pi_test_123',
         expect.objectContaining({
           paymentStatus: 'succeeded',
@@ -338,7 +354,10 @@ describe('Payments Service', () => {
       mockStripe.paymentIntents.retrieve.mockResolvedValueOnce({
         status: 'canceled',
       })
-      mockOrdersDB.updateOrder.mockResolvedValueOnce(syncedOrder)
+      mockOrdersDB.updateOrderWithPaidTransition.mockResolvedValueOnce({
+        order: syncedOrder,
+        becamePaid: false,
+      })
 
       await retrieveOrderSyncStatus('pi_test_123', {
         paymentSessionId: 'pi_test_123',
@@ -372,7 +391,10 @@ describe('Payments Service', () => {
         receipt_email: 'stripe@example.com',
         shipping: stripeShipping,
       })
-      mockOrdersDB.updateOrder.mockResolvedValueOnce(null)
+      mockOrdersDB.updateOrderWithPaidTransition.mockResolvedValueOnce({
+        order: null,
+        becamePaid: false,
+      })
 
       let resultError: unknown = null
 
@@ -385,7 +407,7 @@ describe('Payments Service', () => {
       }
 
       expect(resultError).toBeInstanceOf(ServiceUnavailable)
-      expect((resultError as Internal).status).toBe(503)
+      expect((resultError as ServiceUnavailable).status).toBe(503)
       expect(mockEnqueueEmail).toHaveBeenCalledTimes(1)
       expect(mockEnqueueEmail).toHaveBeenCalledWith(
         'adminPaymentNotification',
@@ -435,7 +457,7 @@ describe('Payments Service', () => {
         receipt_email: 'stripe-cancel@example.com',
         shipping: stripeShipping,
       })
-      mockOrdersDB.updateOrder.mockRejectedValueOnce(
+      mockOrdersDB.updateOrderWithPaidTransition.mockRejectedValueOnce(
         new Error('DB write failed'),
       )
 
@@ -450,7 +472,7 @@ describe('Payments Service', () => {
       }
 
       expect(resultError).toBeInstanceOf(ServiceUnavailable)
-      expect((resultError as Internal).status).toBe(503)
+      expect((resultError as ServiceUnavailable).status).toBe(503)
       expect(mockEnqueueEmail).toHaveBeenCalledTimes(1)
       expect(mockEnqueueEmail).toHaveBeenCalledWith(
         'adminPaymentNotification',
@@ -489,7 +511,7 @@ describe('Payments Service', () => {
 
       expect(result.paymentStatus).toBe('canceled')
       expect(mockStripe.paymentIntents.retrieve).not.toHaveBeenCalled()
-      expect(mockOrdersDB.updateOrder).not.toHaveBeenCalled()
+      expect(mockOrdersDB.updateOrderWithPaidTransition).not.toHaveBeenCalled()
     })
   })
 
@@ -551,7 +573,7 @@ describe('Payments Service', () => {
 
       expect(resultError).toBeInstanceOf(BadRequest)
       expect((resultError as Error).message).toBe(
-        'Cannot cancel succeeded payment',
+        'Cannot cancel a successful payment',
       )
       expect(mockStripe.paymentIntents.cancel).not.toHaveBeenCalled()
       expect(mockOrdersDB.updateOrder).not.toHaveBeenCalled()
@@ -565,6 +587,9 @@ describe('Payments Service', () => {
         id: 'pi_test_123',
         status: 'canceled',
       })
+      mockOrdersDB.updateOrder.mockResolvedValueOnce(
+        createOrder({ paymentStatus: 'canceled' }),
+      )
 
       const result = await cancelPaymentIntent('pi_test_123', {
         paymentSessionId: 'pi_test_123',
@@ -619,6 +644,50 @@ describe('Payments Service', () => {
         expect.objectContaining({
           issueCode: IssueCode.PAYMENT_CANCEL_SAVE_FAILED,
           saveFailureReason: 'threw',
+          entity: 'order',
+          operation: 'update',
+          stripeStatus: 'canceled',
+        }),
+      )
+    })
+
+    it('throws 500 and notifies admin when cancel save returns null', async () => {
+      mockOrdersDB.getOrder.mockResolvedValueOnce(
+        createOrder({ paymentStatus: 'requires_action' }),
+      )
+      mockStripe.paymentIntents.cancel.mockResolvedValueOnce({
+        id: 'pi_test_123',
+        status: 'canceled',
+      })
+      mockOrdersDB.updateOrder.mockResolvedValueOnce(null)
+
+      let resultError: unknown = null
+
+      try {
+        await cancelPaymentIntent('pi_test_123', {
+          paymentSessionId: 'pi_test_123',
+        })
+      } catch (error) {
+        resultError = error
+      }
+
+      expect(resultError).toBeInstanceOf(Internal)
+      expect((resultError as Internal).status).toBe(500)
+      expect(mockEnqueueEmail).toHaveBeenCalledTimes(1)
+      expect(mockEnqueueEmail).toHaveBeenCalledWith(
+        'adminPaymentNotification',
+        expect.objectContaining({
+          notificationType: 'error',
+          order: expect.objectContaining({
+            paymentId: 'pi_test_123',
+          }) as Order,
+        }),
+      )
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        '[CRITICAL] Stripe payment canceled but order save failed',
+        expect.objectContaining({
+          issueCode: IssueCode.PAYMENT_CANCEL_SAVE_FAILED,
+          saveFailureReason: 'returned_null',
           entity: 'order',
           operation: 'update',
           stripeStatus: 'canceled',

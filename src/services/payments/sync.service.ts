@@ -62,20 +62,21 @@ async function saveOrderSyncUpdate(args: {
   order: Order
   updateData: OrderUpdate
   onSaveFailure: SaveFailureHandler
-  onSaved?: (savedOrder: Order) => void
+  onSaved?: (savedOrder: Order, saveResult: { becamePaid: boolean }) => void
 }): Promise<Order> {
   try {
-    const savedOrder = await ordersDB.updateOrder(
-      args.paymentId,
-      args.updateData,
-    )
+    const { order: savedOrder, becamePaid } =
+      await ordersDB.updateOrderWithPaidTransition(
+        args.paymentId,
+        args.updateData,
+      )
 
     if (!savedOrder) {
       args.onSaveFailure('returned_null')
       return args.order
     }
 
-    args.onSaved?.(savedOrder)
+    args.onSaved?.(savedOrder, { becamePaid })
     return savedOrder
   } catch (saveError) {
     if (saveError instanceof ServiceUnavailable) {
@@ -95,15 +96,15 @@ async function saveStripeFallbackSync(args: {
 }): Promise<Order> {
   const { paymentId, order, paymentIntent, stripeSyncCheckedAt } = args
   const statusChanged = paymentIntent.status !== order.paymentStatus
-  const justPaid =
-    statusChanged && paymentIntent.status === 'succeeded' && !order.paidAt
   const updateData: OrderUpdate = {
     lastStripeSyncCheckedAt: stripeSyncCheckedAt,
     ...(statusChanged
       ? {
           ...extractPaymentIntentFields(paymentIntent),
           paymentStatus: paymentIntent.status,
-          ...(justPaid ? { paidAt: new Date() } : {}),
+          ...(paymentIntent.status === 'succeeded'
+            ? { paidAt: new Date() }
+            : {}),
         }
       : {}),
   }
@@ -143,23 +144,25 @@ async function saveStripeFallbackSync(args: {
         saveError,
       })
     },
-    ...(justPaid && {
-      onSaved: (savedOrder: Order) => {
-        enqueueEmail('orderConfirmation', {
-          order: savedOrder,
-        })
-        enqueueEmail('adminPaymentNotification', {
-          order: savedOrder,
-          notificationType: AdminNotification.Confirmed,
-        })
-      },
-    }),
+    onSaved: (savedOrder: Order, saveResult: { becamePaid: boolean }) => {
+      if (!saveResult.becamePaid) {
+        return
+      }
+
+      enqueueEmail('orderConfirmation', {
+        order: savedOrder,
+      })
+      enqueueEmail('adminPaymentNotification', {
+        order: savedOrder,
+        notificationType: AdminNotification.Confirmed,
+      })
+    },
   })
 }
 
 export async function retrieveOrderSyncStatus(
   paymentId: string,
-  access?: PaymentAccess,
+  access: PaymentAccess,
 ): Promise<PaymentSyncStatus> {
   const { validatedId, order: authorizedOrder } =
     await resolveAuthorizedPayment(paymentId, access)

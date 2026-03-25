@@ -79,7 +79,7 @@ function buildUserOrderIdentity(user: PublicUser | null) {
 
 export async function retrievePaymentIntent(
   paymentId: string,
-  access?: PaymentAccess,
+  access: PaymentAccess,
 ) {
   const { validatedId } = await resolveAuthorizedPayment(paymentId, access)
   return await stripe.paymentIntents.retrieve(validatedId)
@@ -88,6 +88,7 @@ export async function retrievePaymentIntent(
 export async function createPaymentIntent(
   paymentIntentRequest: PaymentIntentRequest,
   user: PublicUser | null,
+  requestId: string,
 ): Promise<PaymentSession> {
   const validatedRequest = validate(
     paymentIntentRequestSchema,
@@ -104,19 +105,35 @@ export async function createPaymentIntent(
   }
 
   const amountInCents = Math.round(total * 100)
-  const paymentIntent = await stripe.paymentIntents.create({
-    amount: amountInCents,
-    currency: defaultCurrency.toLowerCase(),
-    ...(user && {
+  const paymentIntent = await stripe.paymentIntents.create(
+    {
+      amount: amountInCents,
+      currency: defaultCurrency.toLowerCase(),
       metadata: {
-        userEmail: user.email,
-        userName: `${user.firstName} ${user.lastName}`.trim(),
+        requestId,
+        ...(user && {
+          userEmail: user.email,
+          userName: `${user.firstName} ${user.lastName}`.trim(),
+        }),
       },
-    }),
-  })
+    },
+    {
+      idempotencyKey: requestId,
+    },
+  )
 
   if (!paymentIntent?.client_secret) {
     throw new Internal('Failed to create payment intent: missing client secret')
+  }
+
+  const existingOrder = await ordersDB.getOrder(paymentIntent.id)
+
+  if (existingOrder) {
+    return {
+      paymentId: paymentIntent.id,
+      paymentToken: paymentIntent.client_secret,
+      amount: amountInCents,
+    }
   }
 
   const orderData: OrderInsert = {
@@ -141,6 +158,24 @@ export async function createPaymentIntent(
       notificationType: AdminNotification.Created,
     })
   } catch (error) {
+    const existingOrderAfterFailure = await ordersDB.getOrder(paymentIntent.id)
+
+    if (existingOrderAfterFailure) {
+      void log.warn(
+        'Recovered idempotent payment intent after order create conflict',
+        {
+          paymentId: paymentIntent.id,
+          requestId,
+        },
+      )
+
+      return {
+        paymentId: paymentIntent.id,
+        paymentToken: paymentIntent.client_secret,
+        amount: amountInCents,
+      }
+    }
+
     enqueueEmail('adminPaymentNotification', {
       notificationType: AdminNotification.Error,
       order: {

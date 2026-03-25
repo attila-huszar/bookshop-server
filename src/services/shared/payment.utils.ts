@@ -35,7 +35,7 @@ type ReportOrderSaveErrorParams = {
 
 export async function resolveAuthorizedPayment(
   paymentId: string,
-  access?: PaymentAccess,
+  access: PaymentAccess,
 ): Promise<{ validatedId: string; order: Order }> {
   const validatedId = validate(paymentIdSchema, paymentId)
   const order = await ordersDB.getOrder(validatedId)

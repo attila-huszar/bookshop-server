@@ -43,7 +43,7 @@ export const paymentMessage = {
   paymentPending: 'Payment is pending, please check back later',
   paymentCancelled: 'Payment has been cancelled',
   paymentAlreadyCanceled: 'Payment already canceled',
-  paymentCannotCancelSucceeded: 'Cannot cancel succeeded payment',
+  paymentCannotCancelSucceeded: 'Cannot cancel a successful payment',
   paymentRefunded: 'Payment has been refunded',
   paymentDeclined: 'Payment has been declined',
   priceUpdatedInCart:
