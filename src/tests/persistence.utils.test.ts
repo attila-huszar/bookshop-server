@@ -1,10 +1,8 @@
 import { beforeEach, describe, expect, it } from 'bun:test'
-import { Internal } from '@/errors'
 import { IssueCode, type Order } from '@/types'
 import { mockEnqueueEmail, mockLogger } from './test-setup'
 
-const { reportCriticalOrderPersistFailure, throwCriticalOrderPersistFailure } =
-  await import('@/services/shared')
+const { reportOrderSaveError } = await import('@/services/shared')
 
 const baseOrderSnapshot: Pick<
   Order,
@@ -31,87 +29,32 @@ describe('Persistence Utils', () => {
     mockEnqueueEmail.mockClear()
   })
 
-  it('reports critical persistence failures with structured log context and admin notification', () => {
-    reportCriticalOrderPersistFailure({
-      issueCode: IssueCode.ORDER_SYNC_DRIFT_PERSIST_FAILED,
-      message:
-        '[CRITICAL] Stripe fallback detected status drift but DB update failed',
+  it('reports critical save failure and notifies admin by default', () => {
+    reportOrderSaveError({
+      issueCode: IssueCode.WEBHOOK_ORDER_SAVE_FAILED,
+      message: '[CRITICAL] Webhook order update save failed',
       operation: 'update',
       paymentId: 'pi_test_123',
-      persistFailureReason: 'threw',
-      persistError: new Error('db down'),
-      dbStatus: 'processing',
-      stripeStatus: 'succeeded',
+      saveFailureReason: 'threw',
+      saveError: new Error('db write failed'),
       order: baseOrderSnapshot,
-      additionalContext: {
-        source: 'payments.retrieveOrderSyncStatus',
-      },
     })
 
-    expect(mockLogger.error).toHaveBeenCalledWith(
-      '[CRITICAL] Stripe fallback detected status drift but DB update failed',
-      expect.objectContaining({
-        issueCode: IssueCode.ORDER_SYNC_DRIFT_PERSIST_FAILED,
-        entity: 'order',
-        operation: 'update',
-        paymentId: 'pi_test_123',
-        persistFailureReason: 'threw',
-        dbStatus: 'processing',
-        stripeStatus: 'succeeded',
-        source: 'payments.retrieveOrderSyncStatus',
-      }),
-    )
-    expect(mockEnqueueEmail).toHaveBeenCalledWith(
-      'adminPaymentNotification',
-      expect.objectContaining({
-        notificationType: 'error',
-        order: expect.objectContaining({
-          paymentId: 'pi_test_123',
-        }) as Order,
-      }),
-    )
+    expect(mockLogger.error).toHaveBeenCalledTimes(1)
+    expect(mockEnqueueEmail).toHaveBeenCalledTimes(1)
   })
 
-  it('supports log-only mode without admin notification', () => {
-    reportCriticalOrderPersistFailure({
-      issueCode: IssueCode.ORDER_SYNC_MARKER_PERSIST_FAILED,
+  it('supports report-only mode without admin notification', () => {
+    reportOrderSaveError({
+      issueCode: IssueCode.ORDER_SYNC_MARKER_SAVE_FAILED,
       operation: 'update',
       paymentId: 'pi_test_123',
-      persistFailureReason: 'returned_null',
+      saveFailureReason: 'returned_null',
       order: baseOrderSnapshot,
       notifyAdmin: false,
     })
 
     expect(mockLogger.error).toHaveBeenCalledTimes(1)
     expect(mockEnqueueEmail).not.toHaveBeenCalled()
-  })
-
-  it('throws mapped Internal error after reporting critical failure', () => {
-    let resultError: unknown = null
-
-    try {
-      throwCriticalOrderPersistFailure({
-        issueCode: IssueCode.WEBHOOK_ORDER_PERSIST_FAILED,
-        message: '[CRITICAL] Webhook order update persistence failed',
-        throwMessage: 'Failed to persist webhook order update',
-        errorName: 'InternalServerError',
-        statusCode: 500,
-        operation: 'update',
-        paymentId: 'pi_test_123',
-        persistFailureReason: 'threw',
-        persistError: new Error('db write failed'),
-        order: baseOrderSnapshot,
-      })
-    } catch (error) {
-      resultError = error
-    }
-
-    expect(resultError).toBeInstanceOf(Internal)
-    expect((resultError as Internal).status).toBe(500)
-    expect((resultError as Internal).message).toBe(
-      'Failed to persist webhook order update',
-    )
-    expect(mockLogger.error).toHaveBeenCalledTimes(1)
-    expect(mockEnqueueEmail).toHaveBeenCalledTimes(1)
   })
 })

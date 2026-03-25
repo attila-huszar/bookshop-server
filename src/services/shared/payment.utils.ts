@@ -1,16 +1,14 @@
 import { ordersDB } from '@/repositories'
 import { paymentIdSchema, validate } from '@/validation'
-import { toIsoString } from '@/utils'
 import { log } from '@/libs'
 import { enqueueEmail } from '@/queues'
-import { paymentMessage } from '@/constants'
-import { BadRequest, Internal, Unauthorized } from '@/errors'
+import { Unauthorized } from '@/errors'
 import {
   AdminNotification,
+  type AdminPaymentNotificationOrder,
   IssueCode,
   type Order,
   type PaymentIntentStatus,
-  type PaymentSyncStatus,
 } from '@/types'
 
 export type PaymentAccess = {
@@ -18,22 +16,16 @@ export type PaymentAccess = {
   userEmail?: string
 }
 
-export type OrderPersistSnapshot = Pick<
-  Order,
-  'paymentId' | 'items' | 'total' | 'currency' | 'paymentStatus'
-> &
-  Partial<Pick<Order, 'firstName' | 'lastName' | 'email' | 'shipping'>>
+type SaveOperation = 'create' | 'update'
+type SaveFailureReason = 'threw' | 'returned_null'
 
-type PersistFailureReason = 'threw' | 'returned_null'
-type PersistOperation = 'create' | 'update'
-
-type ReportCriticalOrderPersistFailureParams = {
+type ReportOrderSaveErrorParams = {
   issueCode: IssueCode
-  operation: PersistOperation
+  operation: SaveOperation
   paymentId: string
-  order: OrderPersistSnapshot
-  persistFailureReason: PersistFailureReason
-  persistError?: unknown
+  order: AdminPaymentNotificationOrder
+  saveFailureReason: SaveFailureReason
+  saveError?: unknown
   dbStatus?: PaymentIntentStatus
   stripeStatus?: PaymentIntentStatus
   message?: string
@@ -41,106 +33,51 @@ type ReportCriticalOrderPersistFailureParams = {
   additionalContext?: Record<string, unknown>
 }
 
-type ThrowCriticalOrderPersistFailureParams =
-  ReportCriticalOrderPersistFailureParams & {
-    throwMessage: string
-    errorName?: string
-    statusCode?: ConstructorParameters<typeof Internal>[2]
-  }
-
-function hasOrderPaymentAccess(
+export async function resolveAuthorizedPayment(
   paymentId: string,
-  orderEmail: string | null,
   access?: PaymentAccess,
-): boolean {
-  if (access?.paymentSessionId === paymentId) return true
-
-  return Boolean(
-    access?.userEmail &&
-    orderEmail?.toLowerCase() === access.userEmail.toLowerCase(),
-  )
-}
-
-export async function resolveAuthorizedPayment(args: {
-  paymentId: string
-  access?: PaymentAccess
-}): Promise<{ validatedId: string; order: Order }> {
-  const validatedId = validate(paymentIdSchema, args.paymentId)
+): Promise<{ validatedId: string; order: Order }> {
+  const validatedId = validate(paymentIdSchema, paymentId)
   const order = await ordersDB.getOrder(validatedId)
 
-  if (!order || !hasOrderPaymentAccess(validatedId, order.email, args.access)) {
+  if (!order) {
+    throw new Unauthorized('Unauthorized payment access')
+  }
+
+  const accessEmail = access?.userEmail?.toLowerCase()
+  const hasSessionAccess = access?.paymentSessionId === validatedId
+  const hasEmailAccess =
+    Boolean(accessEmail) && order.email?.toLowerCase() === accessEmail
+
+  if (!hasSessionAccess && !hasEmailAccess) {
     throw new Unauthorized('Unauthorized payment access')
   }
 
   return { validatedId, order }
 }
 
-export function assertCancelablePaymentStatus(
-  paymentStatus: Order['paymentStatus'],
-): void {
-  switch (paymentStatus) {
-    case 'canceled':
-      throw new BadRequest(paymentMessage.paymentAlreadyCanceled)
-    case 'succeeded':
-      throw new BadRequest(paymentMessage.paymentCannotCancelSucceeded)
-    default:
-      return
-  }
-}
-
-export function toPaymentSyncStatus(order: Order): PaymentSyncStatus {
-  return {
-    paymentId: order.paymentId,
-    paymentStatus: order.paymentStatus,
-    amount: Math.round(order.total * 100),
-    currency: order.currency,
-    receiptEmail: order.email ?? null,
-    shipping: order.shipping ?? null,
-    finalizedAt: toIsoString(order.paidAt),
-    webhookUpdatedAt: toIsoString(order.updatedAt),
-  }
-}
-
-export function toOrderPersistSnapshot(
-  order: Order,
-  overrides: Partial<OrderPersistSnapshot> = {},
-): OrderPersistSnapshot {
-  return {
-    paymentId: order.paymentId,
-    paymentStatus: order.paymentStatus,
-    items: order.items,
-    total: order.total,
-    currency: order.currency,
-    firstName: order.firstName,
-    lastName: order.lastName,
-    email: order.email,
-    shipping: order.shipping,
-    ...overrides,
-  }
-}
-
-export function reportCriticalOrderPersistFailure({
+export function reportOrderSaveError({
   issueCode,
   operation,
   paymentId,
   order,
-  persistFailureReason,
-  persistError,
+  saveFailureReason,
+  saveError,
   dbStatus,
   stripeStatus,
-  message = '[CRITICAL] Order persistence failed',
+  message = '[CRITICAL] Order save failed',
   notifyAdmin = true,
   additionalContext,
-}: ReportCriticalOrderPersistFailureParams): void {
+}: ReportOrderSaveErrorParams): void {
   void log.error(message, {
     issueCode,
     entity: 'order',
     operation,
     paymentId,
-    persistFailureReason,
+    saveFailureReason,
     dbStatus,
     stripeStatus,
-    error: persistError,
+    error: saveError,
     ...additionalContext,
   })
 
@@ -150,14 +87,4 @@ export function reportCriticalOrderPersistFailure({
       order,
     })
   }
-}
-
-export function throwCriticalOrderPersistFailure({
-  throwMessage,
-  errorName = 'InternalServerError',
-  statusCode = 500,
-  ...params
-}: ThrowCriticalOrderPersistFailureParams): never {
-  reportCriticalOrderPersistFailure(params)
-  throw new Internal(throwMessage, errorName, statusCode)
 }

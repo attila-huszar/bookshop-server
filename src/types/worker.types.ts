@@ -50,7 +50,7 @@ export type SendEmailProps =
   | OrderConfirmationEmailProps
   | AdminPaymentNotificationEmailProps
 
-type OrderForAdminEmail = Pick<
+export type AdminPaymentNotificationOrder = Pick<
   Order,
   'paymentId' | 'items' | 'total' | 'currency' | 'paymentStatus'
 > &
@@ -71,7 +71,7 @@ export type SendEmailInputMap = {
     order: Order
   }
   [QUEUE.EMAIL.JOB.ADMIN_PAYMENT_NOTIFICATION]: {
-    order: OrderForAdminEmail
+    order: AdminPaymentNotificationOrder
     notificationType: AdminNotification
   }
 }

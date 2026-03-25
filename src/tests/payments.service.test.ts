@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it } from 'bun:test'
-import { BadRequest, Internal, Unauthorized } from '@/errors'
+import {
+  BadRequest,
+  Internal,
+  ServiceUnavailable,
+  Unauthorized,
+} from '@/errors'
 import { IssueCode, type Order } from '@/types'
 import {
   mockBooksDB,
@@ -235,7 +240,7 @@ describe('Payments Service', () => {
       expect(mockStripe.paymentIntents.retrieve).toHaveBeenCalledTimes(1)
     })
 
-    it('persists fallback check timestamp even when Stripe sync fails', async () => {
+    it('saves fallback check timestamp even when Stripe sync fails', async () => {
       const now = new Date()
       const staleOrder = createOrder({
         paymentStatus: 'processing',
@@ -379,7 +384,7 @@ describe('Payments Service', () => {
         resultError = error
       }
 
-      expect(resultError).toBeInstanceOf(Internal)
+      expect(resultError).toBeInstanceOf(ServiceUnavailable)
       expect((resultError as Internal).status).toBe(503)
       expect(mockEnqueueEmail).toHaveBeenCalledTimes(1)
       expect(mockEnqueueEmail).toHaveBeenCalledWith(
@@ -395,10 +400,10 @@ describe('Payments Service', () => {
         }),
       )
       expect(mockLogger.error).toHaveBeenCalledWith(
-        '[CRITICAL] Stripe fallback detected status drift but DB update failed',
+        '[CRITICAL] Stripe fallback detected status drift but DB save failed',
         expect.objectContaining({
-          issueCode: IssueCode.ORDER_SYNC_DRIFT_PERSIST_FAILED,
-          persistFailureReason: 'returned_null',
+          issueCode: IssueCode.ORDER_SYNC_DRIFT_SAVE_FAILED,
+          saveFailureReason: 'returned_null',
           entity: 'order',
           operation: 'update',
         }),
@@ -444,7 +449,7 @@ describe('Payments Service', () => {
         resultError = error
       }
 
-      expect(resultError).toBeInstanceOf(Internal)
+      expect(resultError).toBeInstanceOf(ServiceUnavailable)
       expect((resultError as Internal).status).toBe(503)
       expect(mockEnqueueEmail).toHaveBeenCalledTimes(1)
       expect(mockEnqueueEmail).toHaveBeenCalledWith(
@@ -460,10 +465,10 @@ describe('Payments Service', () => {
         }),
       )
       expect(mockLogger.error).toHaveBeenCalledWith(
-        '[CRITICAL] Stripe fallback detected status drift but DB update failed',
+        '[CRITICAL] Stripe fallback detected status drift but DB save failed',
         expect.objectContaining({
-          issueCode: IssueCode.ORDER_SYNC_DRIFT_PERSIST_FAILED,
-          persistFailureReason: 'threw',
+          issueCode: IssueCode.ORDER_SYNC_DRIFT_SAVE_FAILED,
+          saveFailureReason: 'threw',
           entity: 'order',
           operation: 'update',
         }),
@@ -575,7 +580,7 @@ describe('Payments Service', () => {
       })
     })
 
-    it('throws 500 and notifies admin when cancel persistence fails', async () => {
+    it('throws 500 and notifies admin when cancel save fails', async () => {
       mockOrdersDB.getOrder.mockResolvedValueOnce(
         createOrder({ paymentStatus: 'requires_action' }),
       )
@@ -584,7 +589,7 @@ describe('Payments Service', () => {
         status: 'canceled',
       })
       mockOrdersDB.updateOrder.mockRejectedValueOnce(
-        new Error('cancel persistence failed'),
+        new Error('cancel save failed'),
       )
 
       let resultError: unknown = null
@@ -610,10 +615,10 @@ describe('Payments Service', () => {
         }),
       )
       expect(mockLogger.error).toHaveBeenCalledWith(
-        '[CRITICAL] Stripe payment canceled but order status update failed',
+        '[CRITICAL] Stripe payment canceled but order save failed',
         expect.objectContaining({
-          issueCode: IssueCode.PAYMENT_CANCEL_PERSIST_FAILED,
-          persistFailureReason: 'threw',
+          issueCode: IssueCode.PAYMENT_CANCEL_SAVE_FAILED,
+          saveFailureReason: 'threw',
           entity: 'order',
           operation: 'update',
           stripeStatus: 'canceled',

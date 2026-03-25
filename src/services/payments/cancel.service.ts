@@ -1,23 +1,29 @@
 import { ordersDB } from '@/repositories'
 import { stripe } from '@/libs'
+import { paymentMessage } from '@/constants'
+import { BadRequest, Internal } from '@/errors'
 import { IssueCode, type StripePaymentIntent } from '@/types'
 import {
-  assertCancelablePaymentStatus,
   type PaymentAccess,
+  reportOrderSaveError,
   resolveAuthorizedPayment,
-  throwCriticalOrderPersistFailure,
-  toOrderPersistSnapshot,
 } from '../shared'
 
 export async function cancelPaymentIntent(
   paymentId: string,
   access?: PaymentAccess,
 ): Promise<StripePaymentIntent> {
-  const { validatedId, order } = await resolveAuthorizedPayment({
+  const { validatedId, order } = await resolveAuthorizedPayment(
     paymentId,
     access,
-  })
-  assertCancelablePaymentStatus(order.paymentStatus)
+  )
+  if (order.paymentStatus === 'canceled') {
+    throw new BadRequest(paymentMessage.paymentAlreadyCanceled)
+  }
+
+  if (order.paymentStatus === 'succeeded') {
+    throw new BadRequest(paymentMessage.paymentCannotCancelSucceeded)
+  }
 
   const cancelledIntent = await stripe.paymentIntents.cancel(validatedId)
 
@@ -26,19 +32,18 @@ export async function cancelPaymentIntent(
       paymentStatus: 'canceled',
     })
   } catch (error) {
-    throwCriticalOrderPersistFailure({
-      issueCode: IssueCode.PAYMENT_CANCEL_PERSIST_FAILED,
-      message:
-        '[CRITICAL] Stripe payment canceled but order status update failed',
-      throwMessage: 'Failed to persist canceled payment status',
+    reportOrderSaveError({
+      issueCode: IssueCode.PAYMENT_CANCEL_SAVE_FAILED,
+      message: '[CRITICAL] Stripe payment canceled but order save failed',
       operation: 'update',
       paymentId: validatedId,
-      persistFailureReason: 'threw',
-      persistError: error,
+      saveFailureReason: 'threw',
+      saveError: error,
       dbStatus: order.paymentStatus,
       stripeStatus: 'canceled',
-      order: toOrderPersistSnapshot(order),
+      order,
     })
+    throw new Internal('Failed to save canceled payment status')
   }
 
   return cancelledIntent

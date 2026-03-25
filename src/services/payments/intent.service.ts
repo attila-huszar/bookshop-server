@@ -81,7 +81,7 @@ export async function retrievePaymentIntent(
   paymentId: string,
   access?: PaymentAccess,
 ) {
-  const { validatedId } = await resolveAuthorizedPayment({ paymentId, access })
+  const { validatedId } = await resolveAuthorizedPayment(paymentId, access)
   return await stripe.paymentIntents.retrieve(validatedId)
 }
 

@@ -17,10 +17,7 @@ import {
   type StripeEvent,
   type StripePaymentIntent,
 } from '@/types'
-import {
-  throwCriticalOrderPersistFailure,
-  toOrderPersistSnapshot,
-} from './shared'
+import { reportOrderSaveError } from './shared'
 
 type WebhookEventMeta = {
   eventType: string
@@ -472,15 +469,14 @@ export async function updateOrderFromWebhook(
   try {
     const updatedOrder = await ordersDB.updateOrder(paymentIntentId, updateData)
     return updatedOrder ? { ...updatedOrder, justPaid } : null
-  } catch (persistError) {
-    throwCriticalOrderPersistFailure({
-      issueCode: IssueCode.WEBHOOK_ORDER_PERSIST_FAILED,
-      message: '[CRITICAL] Webhook order update persistence failed',
-      throwMessage: 'Failed to persist webhook order update',
+  } catch (saveError) {
+    reportOrderSaveError({
+      issueCode: IssueCode.WEBHOOK_ORDER_SAVE_FAILED,
+      message: '[CRITICAL] Webhook order update save failed',
       operation: 'update',
       paymentId: paymentIntentId,
-      persistFailureReason: 'threw',
-      persistError,
+      saveFailureReason: 'threw',
+      saveError,
       dbStatus: existingOrder.paymentStatus,
       stripeStatus: data.paymentStatus,
       additionalContext: {
@@ -488,9 +484,11 @@ export async function updateOrderFromWebhook(
         eventId,
         eventCreated,
       },
-      order: toOrderPersistSnapshot(existingOrder, {
+      order: {
+        ...existingOrder,
         paymentStatus: data.paymentStatus ?? existingOrder.paymentStatus,
-      }),
+      },
     })
+    throw new Internal('Failed to save webhook order update')
   }
 }

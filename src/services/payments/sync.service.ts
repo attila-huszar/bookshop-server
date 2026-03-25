@@ -1,12 +1,12 @@
 import { ordersDB } from '@/repositories'
-import { extractPaymentIntentFields } from '@/utils'
+import { extractPaymentIntentFields, toIsoString } from '@/utils'
 import { log, stripe } from '@/libs'
 import { enqueueEmail } from '@/queues'
 import {
   orderSyncStripeFallbackThresholdMs,
   retryableStatuses,
 } from '@/constants'
-import { Internal } from '@/errors'
+import { ServiceUnavailable } from '@/errors'
 import {
   AdminNotification,
   IssueCode,
@@ -17,26 +17,15 @@ import {
 } from '@/types'
 import {
   type PaymentAccess,
-  reportCriticalOrderPersistFailure,
+  reportOrderSaveError,
   resolveAuthorizedPayment,
-  throwCriticalOrderPersistFailure,
-  toOrderPersistSnapshot,
-  toPaymentSyncStatus,
 } from '../shared'
 
-const fallbackDriftPersistFailureMessage =
-  '[CRITICAL] Stripe fallback detected status drift but DB update failed'
-const fallbackMarkerPersistFailureMessage =
-  '[CRITICAL] Stripe fallback sync check timestamp persistence failed'
-type PersistFailureReason = 'threw' | 'returned_null'
-type PersistFailureHandler = (
-  persistFailureReason: PersistFailureReason,
-  persistError?: unknown,
+type SaveFailureReason = 'threw' | 'returned_null'
+type SaveFailureHandler = (
+  saveFailureReason: SaveFailureReason,
+  saveError?: unknown,
 ) => never | void
-
-function isServiceUnavailableError(error: unknown): boolean {
-  return error instanceof Internal && error.status === 503
-}
 
 function shouldFallbackToStripe(order: Order): boolean {
   const fallbackReference = order.lastStripeSyncCheckedAt ?? order.updatedAt
@@ -48,95 +37,57 @@ function shouldFallbackToStripe(order: Order): boolean {
   )
 }
 
-function reportFallbackMarkerPersistFailure(args: {
+function reportFallbackMarkerSaveFailure(args: {
   paymentId: string
   order: Order
-  persistFailureReason: PersistFailureReason
-  persistError?: unknown
+  saveFailureReason: SaveFailureReason
+  saveError?: unknown
 }): void {
-  reportCriticalOrderPersistFailure({
-    issueCode: IssueCode.ORDER_SYNC_MARKER_PERSIST_FAILED,
-    message: fallbackMarkerPersistFailureMessage,
-    operation: 'update',
-    paymentId: args.paymentId,
-    persistFailureReason: args.persistFailureReason,
-    persistError: args.persistError,
-    dbStatus: args.order.paymentStatus,
-    notifyAdmin: false,
-    order: toOrderPersistSnapshot(args.order),
-  })
+  void log.error(
+    '[CRITICAL] Stripe fallback sync check timestamp save failed',
+    {
+      issueCode: IssueCode.ORDER_SYNC_MARKER_SAVE_FAILED,
+      entity: 'order',
+      operation: 'update',
+      paymentId: args.paymentId,
+      saveFailureReason: args.saveFailureReason,
+      dbStatus: args.order.paymentStatus,
+      error: args.saveError,
+    },
+  )
 }
 
-function throwFallbackDriftPersistFailure(args: {
-  paymentId: string
-  order: Order
-  paymentIntent: StripePaymentIntent
-  persistFailureReason: PersistFailureReason
-  persistError?: unknown
-}): never {
-  throwCriticalOrderPersistFailure({
-    issueCode: IssueCode.ORDER_SYNC_DRIFT_PERSIST_FAILED,
-    message: fallbackDriftPersistFailureMessage,
-    throwMessage:
-      'Order status sync is temporarily unavailable. Manual verification is required.',
-    errorName: 'ServiceUnavailable',
-    statusCode: 503,
-    operation: 'update',
-    paymentId: args.paymentId,
-    persistFailureReason: args.persistFailureReason,
-    persistError: args.persistError,
-    dbStatus: args.order.paymentStatus,
-    stripeStatus: args.paymentIntent.status,
-    order: toOrderPersistSnapshot(args.order, {
-      paymentStatus: args.paymentIntent.status,
-      email: args.paymentIntent.receipt_email ?? args.order.email ?? null,
-      shipping: args.paymentIntent.shipping ?? args.order.shipping ?? null,
-    }),
-  })
-}
-
-function sendFallbackPaidNotifications(order: Order): void {
-  enqueueEmail('orderConfirmation', {
-    order,
-  })
-
-  enqueueEmail('adminPaymentNotification', {
-    order,
-    notificationType: AdminNotification.Confirmed,
-  })
-}
-
-async function persistOrderSyncUpdate(args: {
+async function saveOrderSyncUpdate(args: {
   paymentId: string
   order: Order
   updateData: OrderUpdate
-  onPersistFailure: PersistFailureHandler
-  onPersisted?: (syncedOrder: Order) => void
+  onSaveFailure: SaveFailureHandler
+  onSaved?: (savedOrder: Order) => void
 }): Promise<Order> {
   try {
-    const syncedOrder = await ordersDB.updateOrder(
+    const savedOrder = await ordersDB.updateOrder(
       args.paymentId,
       args.updateData,
     )
 
-    if (!syncedOrder) {
-      args.onPersistFailure('returned_null')
+    if (!savedOrder) {
+      args.onSaveFailure('returned_null')
       return args.order
     }
 
-    args.onPersisted?.(syncedOrder)
-    return syncedOrder
-  } catch (persistError) {
-    if (isServiceUnavailableError(persistError)) {
-      throw persistError
+    args.onSaved?.(savedOrder)
+    return savedOrder
+  } catch (saveError) {
+    if (saveError instanceof ServiceUnavailable) {
+      throw saveError
     }
 
-    args.onPersistFailure('threw', persistError)
+    args.onSaveFailure('threw', saveError)
     return args.order
   }
 }
 
-async function persistStripeFallbackSync(args: {
+async function saveStripeFallbackSync(args: {
   paymentId: string
   order: Order
   paymentIntent: StripePaymentIntent
@@ -157,29 +108,52 @@ async function persistStripeFallbackSync(args: {
       : {}),
   }
 
-  return await persistOrderSyncUpdate({
+  return await saveOrderSyncUpdate({
     paymentId,
     order,
     updateData,
-    onPersistFailure: (persistFailureReason, persistError) => {
+    onSaveFailure: (saveFailureReason, saveError) => {
       if (statusChanged) {
-        throwFallbackDriftPersistFailure({
+        reportOrderSaveError({
+          issueCode: IssueCode.ORDER_SYNC_DRIFT_SAVE_FAILED,
+          message:
+            '[CRITICAL] Stripe fallback detected status drift but DB save failed',
+          operation: 'update',
           paymentId,
-          order,
-          paymentIntent,
-          persistFailureReason,
-          persistError,
+          saveFailureReason,
+          saveError,
+          dbStatus: order.paymentStatus,
+          stripeStatus: paymentIntent.status,
+          order: {
+            ...order,
+            paymentStatus: paymentIntent.status,
+            email: paymentIntent.receipt_email ?? order.email ?? null,
+            shipping: paymentIntent.shipping ?? order.shipping ?? null,
+          },
         })
+        throw new ServiceUnavailable(
+          'Order status sync is temporarily unavailable. Manual verification is required.',
+        )
       }
 
-      reportFallbackMarkerPersistFailure({
+      reportFallbackMarkerSaveFailure({
         paymentId,
         order,
-        persistFailureReason,
-        persistError,
+        saveFailureReason,
+        saveError,
       })
     },
-    onPersisted: justPaid ? sendFallbackPaidNotifications : undefined,
+    ...(justPaid && {
+      onSaved: (savedOrder: Order) => {
+        enqueueEmail('orderConfirmation', {
+          order: savedOrder,
+        })
+        enqueueEmail('adminPaymentNotification', {
+          order: savedOrder,
+          notificationType: AdminNotification.Confirmed,
+        })
+      },
+    }),
   })
 }
 
@@ -188,54 +162,58 @@ export async function retrieveOrderSyncStatus(
   access?: PaymentAccess,
 ): Promise<PaymentSyncStatus> {
   const { validatedId, order: authorizedOrder } =
-    await resolveAuthorizedPayment({
-      paymentId,
-      access,
-    })
+    await resolveAuthorizedPayment(paymentId, access)
   let order = authorizedOrder
 
-  if (!shouldFallbackToStripe(order)) {
-    return toPaymentSyncStatus(order)
-  }
+  if (shouldFallbackToStripe(order)) {
+    const stripeSyncCheckedAt = new Date()
 
-  const stripeSyncCheckedAt = new Date()
+    try {
+      const paymentIntent = await stripe.paymentIntents.retrieve(validatedId)
 
-  try {
-    const paymentIntent = await stripe.paymentIntents.retrieve(validatedId)
+      order = await saveStripeFallbackSync({
+        paymentId: validatedId,
+        order,
+        paymentIntent,
+        stripeSyncCheckedAt,
+      })
+    } catch (error) {
+      if (error instanceof ServiceUnavailable) {
+        throw error
+      }
 
-    order = await persistStripeFallbackSync({
-      paymentId: validatedId,
-      order,
-      paymentIntent,
-      stripeSyncCheckedAt,
-    })
-  } catch (error) {
-    if (isServiceUnavailableError(error)) {
-      throw error
+      void log.warn('Stripe fallback sync failed for order status', {
+        paymentId: validatedId,
+        dbStatus: order.paymentStatus,
+        error,
+      })
+
+      order = await saveOrderSyncUpdate({
+        paymentId: validatedId,
+        order,
+        updateData: {
+          lastStripeSyncCheckedAt: stripeSyncCheckedAt,
+        },
+        onSaveFailure: (saveFailureReason, saveError) => {
+          reportFallbackMarkerSaveFailure({
+            paymentId: validatedId,
+            order,
+            saveFailureReason,
+            saveError,
+          })
+        },
+      })
     }
-
-    void log.warn('Stripe fallback sync failed for order status', {
-      paymentId: validatedId,
-      dbStatus: order.paymentStatus,
-      error,
-    })
-
-    order = await persistOrderSyncUpdate({
-      paymentId: validatedId,
-      order,
-      updateData: {
-        lastStripeSyncCheckedAt: stripeSyncCheckedAt,
-      },
-      onPersistFailure: (persistFailureReason, persistError) => {
-        reportFallbackMarkerPersistFailure({
-          paymentId: validatedId,
-          order,
-          persistFailureReason,
-          persistError,
-        })
-      },
-    })
   }
 
-  return toPaymentSyncStatus(order)
+  return {
+    paymentId: order.paymentId,
+    paymentStatus: order.paymentStatus,
+    amount: Math.round(order.total * 100),
+    currency: order.currency,
+    receiptEmail: order.email ?? null,
+    shipping: order.shipping ?? null,
+    finalizedAt: toIsoString(order.paidAt),
+    webhookUpdatedAt: toIsoString(order.updatedAt),
+  }
 }

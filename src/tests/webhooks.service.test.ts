@@ -282,7 +282,7 @@ describe('Webhooks Service', () => {
     expect(result?.justPaid).toBe(false)
   })
 
-  it('throws 500 and alerts admin when webhook order update persistence throws', async () => {
+  it('throws 500 and alerts admin when webhook order update save throws', async () => {
     mockOrdersDB.getOrder.mockResolvedValueOnce(
       createOrder({
         paymentStatus: 'processing',
@@ -296,7 +296,7 @@ describe('Webhooks Service', () => {
     })
     mockStripe.webhooks.constructEventAsync.mockResolvedValueOnce(
       createPaymentIntentEvent({
-        eventId: 'evt_persist_failed',
+        eventId: 'evt_save_failed',
         eventCreated: 401,
         type: 'payment_intent.succeeded',
         status: 'succeeded',
@@ -304,7 +304,7 @@ describe('Webhooks Service', () => {
     )
 
     const event = createPaymentIntentEvent({
-      eventId: 'evt_persist_failed',
+      eventId: 'evt_save_failed',
       eventCreated: 401,
       type: 'payment_intent.succeeded',
       status: 'succeeded',
@@ -333,16 +333,16 @@ describe('Webhooks Service', () => {
       }),
     )
     expect(mockLogger.error).toHaveBeenCalledWith(
-      '[CRITICAL] Webhook order update persistence failed',
+      '[CRITICAL] Webhook order update save failed',
       expect.objectContaining({
-        issueCode: IssueCode.WEBHOOK_ORDER_PERSIST_FAILED,
-        persistFailureReason: 'threw',
+        issueCode: IssueCode.WEBHOOK_ORDER_SAVE_FAILED,
+        saveFailureReason: 'threw',
         entity: 'order',
         operation: 'update',
         paymentId: 'pi_test_123',
         stripeStatus: 'succeeded',
         eventType: 'payment_intent.succeeded',
-        eventId: 'evt_persist_failed',
+        eventId: 'evt_save_failed',
         eventCreated: 401,
       }),
     )

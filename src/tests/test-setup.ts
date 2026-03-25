@@ -111,17 +111,12 @@ await mock.module('@/libs', () => ({
   closeMailer: mock(),
 }))
 
-const { reportCriticalOrderPersistFailure, throwCriticalOrderPersistFailure } =
-  await import('@/services/shared')
-
 await mock.module('@/utils', () => ({
   extractPaymentIntentFields: mockExtractPaymentIntentFields,
   getPaymentIntentId: mockGetPaymentIntentId,
   signAccessToken: mockSignAccessToken,
   signRefreshToken: mockSignRefreshToken,
   uploadFile: mockUploadFile,
-  reportCriticalOrderPersistFailure,
-  throwCriticalOrderPersistFailure,
   stripSensitiveUserFields,
   stripTimestamps,
   toIsoString,
