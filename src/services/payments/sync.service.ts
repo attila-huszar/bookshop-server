@@ -65,11 +65,10 @@ async function saveOrderSyncUpdate(args: {
   onSaved?: (savedOrder: Order, saveResult: { becamePaid: boolean }) => void
 }): Promise<Order> {
   try {
-    const { order: savedOrder, becamePaid } =
-      await ordersDB.updateOrderWithPaidTransition(
-        args.paymentId,
-        args.updateData,
-      )
+    const { order: savedOrder, becamePaid } = await ordersDB.updateOrder(
+      args.paymentId,
+      args.updateData,
+    )
 
     if (!savedOrder) {
       args.onSaveFailure('returned_null')

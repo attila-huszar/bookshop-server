@@ -460,9 +460,8 @@ export async function updateOrderFromWebhook(
     lastStripeEventCreated: eventCreated,
     lastStripeEventId: eventId,
   }
-  const justPaid = data.paymentStatus === 'succeeded' && !existingOrder.paidAt
 
-  if (justPaid) {
+  if (data.paymentStatus === 'succeeded') {
     updateData.paidAt = new Date()
   }
   const reportWebhookSaveFailure = (
@@ -491,14 +490,17 @@ export async function updateOrderFromWebhook(
   }
 
   try {
-    const updatedOrder = await ordersDB.updateOrder(paymentIntentId, updateData)
+    const { order: updatedOrder, becamePaid } = await ordersDB.updateOrder(
+      paymentIntentId,
+      updateData,
+    )
 
     if (!updatedOrder) {
       reportWebhookSaveFailure('returned_null')
       throw new Internal('Failed to save webhook order update')
     }
 
-    return { ...updatedOrder, justPaid }
+    return { ...updatedOrder, justPaid: becamePaid }
   } catch (saveError) {
     if (saveError instanceof Internal) {
       throw saveError

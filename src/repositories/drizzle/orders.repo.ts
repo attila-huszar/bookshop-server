@@ -25,14 +25,6 @@ export async function getOrder(paymentId: string): Promise<Order | null> {
 export async function updateOrder(
   paymentId: string,
   fields: OrderUpdate,
-): Promise<Order | null> {
-  const { order } = await updateOrderWithPaidTransition(paymentId, fields)
-  return order
-}
-
-export async function updateOrderWithPaidTransition(
-  paymentId: string,
-  fields: OrderUpdate,
 ): Promise<{ order: Order | null; becamePaid: boolean }> {
   const shouldAttemptPaidTransition = fields.paidAt instanceof Date
 

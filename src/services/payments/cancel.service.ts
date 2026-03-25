@@ -44,7 +44,7 @@ export async function cancelPaymentIntent(
   }
 
   try {
-    const updatedOrder = await ordersDB.updateOrder(validatedId, {
+    const { order: updatedOrder } = await ordersDB.updateOrder(validatedId, {
       paymentStatus: 'canceled',
     })
 

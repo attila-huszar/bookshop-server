@@ -191,7 +191,10 @@ describe('Webhooks Service', () => {
         lastStripeEventId: 'evt_prev',
       }),
     )
-    mockOrdersDB.updateOrder.mockResolvedValueOnce(updatedOrder)
+    mockOrdersDB.updateOrder.mockResolvedValueOnce({
+      order: updatedOrder,
+      becamePaid: false,
+    })
 
     const result = await updateOrderFromWebhook(
       'pi_test_123',
@@ -232,7 +235,10 @@ describe('Webhooks Service', () => {
         lastStripeEventId: 'evt_prev',
       }),
     )
-    mockOrdersDB.updateOrder.mockResolvedValueOnce(updatedOrder)
+    mockOrdersDB.updateOrder.mockResolvedValueOnce({
+      order: updatedOrder,
+      becamePaid: true,
+    })
 
     const result = await updateOrderFromWebhook(
       'pi_test_123',
@@ -354,7 +360,10 @@ describe('Webhooks Service', () => {
         paymentStatus: 'processing',
       }),
     )
-    mockOrdersDB.updateOrder.mockResolvedValueOnce(null)
+    mockOrdersDB.updateOrder.mockResolvedValueOnce({
+      order: null,
+      becamePaid: false,
+    })
     mockExtractPaymentIntentFields.mockReturnValue({
       email: 'buyer@example.com',
     })
@@ -424,7 +433,10 @@ describe('Webhooks Service', () => {
         paidAt: null,
       }),
     )
-    mockOrdersDB.updateOrder.mockResolvedValueOnce(updatedOrder)
+    mockOrdersDB.updateOrder.mockResolvedValueOnce({
+      order: updatedOrder,
+      becamePaid: true,
+    })
     mockStripe.webhooks.constructEventAsync.mockResolvedValueOnce(
       createPaymentIntentEvent({
         eventId: 'evt_webhook_paid',
@@ -474,7 +486,10 @@ describe('Webhooks Service', () => {
     })
 
     mockOrdersDB.getOrder.mockResolvedValueOnce(existingOrder)
-    mockOrdersDB.updateOrder.mockResolvedValueOnce(updatedOrder)
+    mockOrdersDB.updateOrder.mockResolvedValueOnce({
+      order: updatedOrder,
+      becamePaid: false,
+    })
     mockStripe.webhooks.constructEventAsync.mockResolvedValueOnce(
       createPaymentIntentEvent({
         eventId: 'evt_repeat_success',

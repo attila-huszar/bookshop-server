@@ -49,7 +49,6 @@ describe('Payments Service', () => {
     mockOrdersDB.getOrder.mockReset()
     mockOrdersDB.createOrder.mockReset()
     mockOrdersDB.updateOrder.mockReset()
-    mockOrdersDB.updateOrderWithPaidTransition.mockReset()
     mockStripe.paymentIntents.create.mockReset()
     mockStripe.paymentIntents.retrieve.mockReset()
     mockStripe.paymentIntents.cancel.mockReset()
@@ -194,7 +193,7 @@ describe('Payments Service', () => {
       mockStripe.paymentIntents.retrieve.mockResolvedValueOnce({
         status: 'processing',
       })
-      mockOrdersDB.updateOrderWithPaidTransition.mockResolvedValueOnce({
+      mockOrdersDB.updateOrder.mockResolvedValueOnce({
         order: syncedOrder,
         becamePaid: false,
       })
@@ -205,7 +204,7 @@ describe('Payments Service', () => {
 
       expect(result.paymentStatus).toBe('processing')
       expect(mockStripe.paymentIntents.retrieve).toHaveBeenCalledTimes(1)
-      expect(mockOrdersDB.updateOrderWithPaidTransition).toHaveBeenCalledWith(
+      expect(mockOrdersDB.updateOrder).toHaveBeenCalledWith(
         'pi_test_123',
         expect.objectContaining({
           lastStripeSyncCheckedAt: expect.any(Date) as Date,
@@ -233,7 +232,7 @@ describe('Payments Service', () => {
       mockStripe.paymentIntents.retrieve.mockResolvedValue({
         status: 'processing',
       })
-      mockOrdersDB.updateOrderWithPaidTransition.mockResolvedValueOnce({
+      mockOrdersDB.updateOrder.mockResolvedValueOnce({
         order: recentlyCheckedOrder,
         becamePaid: false,
       })
@@ -266,7 +265,7 @@ describe('Payments Service', () => {
       mockStripe.paymentIntents.retrieve.mockRejectedValueOnce(
         new Error('Stripe unavailable'),
       )
-      mockOrdersDB.updateOrderWithPaidTransition.mockResolvedValueOnce({
+      mockOrdersDB.updateOrder.mockResolvedValueOnce({
         order: recentlyCheckedOrder,
         becamePaid: false,
       })
@@ -278,10 +277,8 @@ describe('Payments Service', () => {
         paymentSessionId: 'pi_test_123',
       })
 
-      expect(mockOrdersDB.updateOrderWithPaidTransition).toHaveBeenCalledTimes(
-        1,
-      )
-      expect(mockOrdersDB.updateOrderWithPaidTransition).toHaveBeenCalledWith(
+      expect(mockOrdersDB.updateOrder).toHaveBeenCalledTimes(1)
+      expect(mockOrdersDB.updateOrder).toHaveBeenCalledWith(
         'pi_test_123',
         expect.objectContaining({
           lastStripeSyncCheckedAt: expect.any(Date) as Date,
@@ -307,7 +304,7 @@ describe('Payments Service', () => {
       mockStripe.paymentIntents.retrieve.mockResolvedValueOnce({
         status: 'succeeded',
       })
-      mockOrdersDB.updateOrderWithPaidTransition.mockResolvedValueOnce({
+      mockOrdersDB.updateOrder.mockResolvedValueOnce({
         order: syncedOrder,
         becamePaid: true,
       })
@@ -316,7 +313,7 @@ describe('Payments Service', () => {
         paymentSessionId: 'pi_test_123',
       })
 
-      expect(mockOrdersDB.updateOrderWithPaidTransition).toHaveBeenCalledWith(
+      expect(mockOrdersDB.updateOrder).toHaveBeenCalledWith(
         'pi_test_123',
         expect.objectContaining({
           paymentStatus: 'succeeded',
@@ -354,7 +351,7 @@ describe('Payments Service', () => {
       mockStripe.paymentIntents.retrieve.mockResolvedValueOnce({
         status: 'canceled',
       })
-      mockOrdersDB.updateOrderWithPaidTransition.mockResolvedValueOnce({
+      mockOrdersDB.updateOrder.mockResolvedValueOnce({
         order: syncedOrder,
         becamePaid: false,
       })
@@ -391,7 +388,7 @@ describe('Payments Service', () => {
         receipt_email: 'stripe@example.com',
         shipping: stripeShipping,
       })
-      mockOrdersDB.updateOrderWithPaidTransition.mockResolvedValueOnce({
+      mockOrdersDB.updateOrder.mockResolvedValueOnce({
         order: null,
         becamePaid: false,
       })
@@ -457,7 +454,7 @@ describe('Payments Service', () => {
         receipt_email: 'stripe-cancel@example.com',
         shipping: stripeShipping,
       })
-      mockOrdersDB.updateOrderWithPaidTransition.mockRejectedValueOnce(
+      mockOrdersDB.updateOrder.mockRejectedValueOnce(
         new Error('DB write failed'),
       )
 
@@ -511,7 +508,7 @@ describe('Payments Service', () => {
 
       expect(result.paymentStatus).toBe('canceled')
       expect(mockStripe.paymentIntents.retrieve).not.toHaveBeenCalled()
-      expect(mockOrdersDB.updateOrderWithPaidTransition).not.toHaveBeenCalled()
+      expect(mockOrdersDB.updateOrder).not.toHaveBeenCalled()
     })
   })
 
@@ -587,9 +584,10 @@ describe('Payments Service', () => {
         id: 'pi_test_123',
         status: 'canceled',
       })
-      mockOrdersDB.updateOrder.mockResolvedValueOnce(
-        createOrder({ paymentStatus: 'canceled' }),
-      )
+      mockOrdersDB.updateOrder.mockResolvedValueOnce({
+        order: createOrder({ paymentStatus: 'canceled' }),
+        becamePaid: false,
+      })
 
       const result = await cancelPaymentIntent('pi_test_123', {
         paymentSessionId: 'pi_test_123',
@@ -659,7 +657,10 @@ describe('Payments Service', () => {
         id: 'pi_test_123',
         status: 'canceled',
       })
-      mockOrdersDB.updateOrder.mockResolvedValueOnce(null)
+      mockOrdersDB.updateOrder.mockResolvedValueOnce({
+        order: null,
+        becamePaid: false,
+      })
 
       let resultError: unknown = null
 
