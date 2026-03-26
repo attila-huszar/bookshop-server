@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it } from 'bun:test'
-import { NotFound } from '@/errors'
 import { type Order } from '@/types'
 import { mockOrdersDB, mockUsersDB } from './test-setup'
 
@@ -27,8 +26,8 @@ const createOrder = (overrides: Partial<Order> = {}): Order => ({
 
 describe('Orders Service', () => {
   beforeEach(() => {
-    mockUsersDB.getUserBy.mockClear()
-    mockOrdersDB.getOrdersByEmail.mockClear()
+    mockUsersDB.getUserBy.mockReset()
+    mockOrdersDB.getOrdersByEmail.mockReset()
   })
 
   it('returns orders for the authenticated user', async () => {
@@ -62,7 +61,7 @@ describe('Orders Service', () => {
       resultError = error
     }
 
-    expect(resultError).toBeInstanceOf(NotFound)
+    expect(resultError).toMatchObject({ status: 404, name: 'NotFound' })
     expect(mockOrdersDB.getOrdersByEmail).not.toHaveBeenCalled()
   })
 })

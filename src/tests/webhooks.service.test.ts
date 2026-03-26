@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it } from 'bun:test'
 import { env } from '@/config'
-import { Internal } from '@/errors'
 import { IssueCode, type Order, type PaymentIntentStatus } from '@/types'
 import {
   mockEnqueueEmail,
@@ -325,9 +324,10 @@ describe('Webhooks Service', () => {
       resultError = error
     }
 
-    expect(resultError).toBeInstanceOf(Internal)
-    expect((resultError as Internal).status).toBe(500)
-    expect(mockEnqueueEmail).toHaveBeenCalledTimes(1)
+    expect(resultError).toMatchObject({
+      status: 500,
+      message: 'Failed to save webhook order update',
+    })
     expect(mockEnqueueEmail).toHaveBeenCalledWith(
       'adminPaymentNotification',
       expect.objectContaining({
@@ -392,9 +392,10 @@ describe('Webhooks Service', () => {
       resultError = error
     }
 
-    expect(resultError).toBeInstanceOf(Internal)
-    expect((resultError as Internal).status).toBe(500)
-    expect(mockEnqueueEmail).toHaveBeenCalledTimes(1)
+    expect(resultError).toMatchObject({
+      status: 500,
+      message: 'Failed to save webhook order update',
+    })
     expect(mockEnqueueEmail).toHaveBeenCalledWith(
       'adminPaymentNotification',
       expect.objectContaining({

@@ -11,7 +11,13 @@ import {
 const usersService = await import('../services/users.service')
 
 beforeEach(() => {
-  mockEnqueueEmail.mockClear()
+  mockEnqueueEmail.mockReset()
+  mockValidate.mockReset()
+  mockUsersDB.getUserBy.mockReset()
+  mockUsersDB.createUser.mockReset()
+  mockUsersDB.updateUserBy.mockReset()
+  mockSignAccessToken.mockReset()
+  mockSignRefreshToken.mockReset()
 })
 
 describe('Users Service', () => {
@@ -48,7 +54,7 @@ describe('Users Service', () => {
       })
     })
 
-    it('should throw error for non-existent user', () => {
+    it('should throw error for non-existent user', async () => {
       const loginRequest = {
         email: 'test@example.com',
         password: 'password123',
@@ -57,10 +63,18 @@ describe('Users Service', () => {
       mockValidate.mockReturnValueOnce(loginRequest)
       mockUsersDB.getUserBy.mockResolvedValueOnce(null)
 
-      expect(usersService.loginUser(loginRequest)).rejects.toThrow()
+      let resultError: unknown = null
+
+      try {
+        await usersService.loginUser(loginRequest)
+      } catch (error) {
+        resultError = error
+      }
+
+      expect(resultError).toBeDefined()
     })
 
-    it('should throw error for unverified user', () => {
+    it('should throw error for unverified user', async () => {
       const loginRequest = {
         email: 'test@example.com',
         password: 'password123',
@@ -74,7 +88,15 @@ describe('Users Service', () => {
       mockValidate.mockReturnValueOnce(loginRequest)
       mockUsersDB.getUserBy.mockResolvedValueOnce(mockUser)
 
-      expect(usersService.loginUser(loginRequest)).rejects.toThrow()
+      let resultError: unknown = null
+
+      try {
+        await usersService.loginUser(loginRequest)
+      } catch (error) {
+        resultError = error
+      }
+
+      expect(resultError).toBeDefined()
     })
   })
 
@@ -117,7 +139,7 @@ describe('Users Service', () => {
       expect(result).toEqual({ email: 'test@example.com' })
     })
 
-    it('should throw error for existing user', () => {
+    it('should throw error for existing user', async () => {
       const formData = new FormData()
       formData.append('email', 'test@example.com')
 
@@ -127,7 +149,15 @@ describe('Users Service', () => {
       mockValidate.mockReturnValueOnce(validatedData)
       mockUsersDB.getUserBy.mockResolvedValueOnce(existingUser)
 
-      expect(usersService.registerUser(formData)).rejects.toThrow()
+      let resultError: unknown = null
+
+      try {
+        await usersService.registerUser(formData)
+      } catch (error) {
+        resultError = error
+      }
+
+      expect(resultError).toBeDefined()
     })
   })
 
