@@ -64,10 +64,9 @@ payments.get(API.payments.byId, async (c) => {
 payments.post(API.payments.root, async (c) => {
   try {
     const paymentIntentRequest = await c.req.json<PaymentIntentRequest>()
-    const requestId =
-      c.req.header('Idempotency-Key') ??
-      c.req.header('X-Request-Id') ??
-      randomUUID()
+    const idempotencyKey = c.req.header('Idempotency-Key')?.trim()
+    const requestHeaderId = c.req.header('X-Request-Id')?.trim()
+    const requestId = idempotencyKey ?? requestHeaderId ?? randomUUID()
 
     const jwtPayload = c.get('jwtPayload')
     let publicUser: PublicUser | null = null

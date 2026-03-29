@@ -23,7 +23,7 @@ const baseOrderSnapshot: Pick<
   shipping: null,
 }
 
-describe('Persistence Utils', () => {
+describe('Payment Utils', () => {
   beforeEach(() => {
     mockLogger.error.mockClear()
     mockEnqueueEmail.mockClear()
@@ -40,8 +40,32 @@ describe('Persistence Utils', () => {
       order: baseOrderSnapshot,
     })
 
-    expect(mockLogger.error).toHaveBeenCalledTimes(1)
-    expect(mockEnqueueEmail).toHaveBeenCalledTimes(1)
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      '[CRITICAL] Webhook order update save failed',
+      expect.objectContaining({
+        issueCode: IssueCode.WEBHOOK_ORDER_SAVE_FAILED,
+        entity: 'order',
+        operation: 'update',
+        paymentId: 'pi_test_123',
+        saveFailureReason: 'threw',
+        error: expect.any(Error) as Error,
+      }),
+    )
+    expect(mockEnqueueEmail).toHaveBeenCalledWith(
+      'adminPaymentNotification',
+      expect.objectContaining({
+        notificationType: 'error',
+        order: expect.objectContaining({
+          paymentId: 'pi_test_123',
+          paymentStatus: 'processing',
+          total: 25.99,
+          currency: 'USD',
+          email: 'buyer@example.com',
+          shipping: null,
+          items: [],
+        }) as Order,
+      }),
+    )
   })
 
   it('supports report-only mode without admin notification', () => {
@@ -54,7 +78,16 @@ describe('Persistence Utils', () => {
       notifyAdmin: false,
     })
 
-    expect(mockLogger.error).toHaveBeenCalledTimes(1)
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      '[CRITICAL] Order save failed',
+      expect.objectContaining({
+        issueCode: IssueCode.ORDER_SYNC_MARKER_SAVE_FAILED,
+        entity: 'order',
+        operation: 'update',
+        paymentId: 'pi_test_123',
+        saveFailureReason: 'returned_null',
+      }),
+    )
     expect(mockEnqueueEmail).not.toHaveBeenCalled()
   })
 })

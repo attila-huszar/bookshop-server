@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { booksDB, ordersDB } from '@/repositories'
 import {
   orderInsertSchema,
@@ -15,6 +16,7 @@ import type {
   PaymentIntentRequest,
   PaymentSession,
   PublicUser,
+  StripePaymentIntent,
 } from '@/types'
 import { type PaymentAccess, resolveAuthorizedPayment } from '../shared'
 
@@ -77,6 +79,58 @@ function buildUserOrderIdentity(user: PublicUser | null) {
   }
 }
 
+async function createStripePaymentIntentWithRecovery({
+  amountInCents,
+  requestId,
+  user,
+}: {
+  amountInCents: number
+  requestId: string
+  user: PublicUser | null
+}): Promise<StripePaymentIntent> {
+  const createParams = {
+    amount: amountInCents,
+    currency: defaultCurrency.toLowerCase(),
+    metadata: {
+      requestId,
+      ...(user && {
+        userEmail: user.email,
+        userName: `${user.firstName} ${user.lastName}`.trim(),
+      }),
+    },
+  } as const
+
+  const paymentIntent = await stripe.paymentIntents.create(createParams, {
+    idempotencyKey: requestId,
+  })
+
+  if (paymentIntent.status !== 'canceled') {
+    return paymentIntent
+  }
+
+  const recoveryIdempotencyKey = `${requestId}:${randomUUID()}`
+  void log.warn(
+    'Received canceled idempotent payment intent replay, creating fresh Stripe intent',
+    {
+      requestId,
+      paymentId: paymentIntent.id,
+    },
+  )
+
+  const recoveredPaymentIntent = await stripe.paymentIntents.create(
+    createParams,
+    {
+      idempotencyKey: recoveryIdempotencyKey,
+    },
+  )
+
+  if (recoveredPaymentIntent.status === 'canceled') {
+    throw new Internal('Failed to create a usable payment intent')
+  }
+
+  return recoveredPaymentIntent
+}
+
 export async function retrievePaymentIntent(
   paymentId: string,
   access: PaymentAccess,
@@ -105,22 +159,11 @@ export async function createPaymentIntent(
   }
 
   const amountInCents = Math.round(total * 100)
-  const paymentIntent = await stripe.paymentIntents.create(
-    {
-      amount: amountInCents,
-      currency: defaultCurrency.toLowerCase(),
-      metadata: {
-        requestId,
-        ...(user && {
-          userEmail: user.email,
-          userName: `${user.firstName} ${user.lastName}`.trim(),
-        }),
-      },
-    },
-    {
-      idempotencyKey: requestId,
-    },
-  )
+  const paymentIntent = await createStripePaymentIntentWithRecovery({
+    amountInCents,
+    requestId,
+    user,
+  })
 
   if (!paymentIntent?.client_secret) {
     throw new Internal('Failed to create payment intent: missing client secret')

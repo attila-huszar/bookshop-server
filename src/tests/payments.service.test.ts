@@ -42,6 +42,14 @@ const createOrder = (overrides: Partial<Order> = {}): Order => ({
   ...overrides,
 })
 
+const hasStringIdempotencyKey = (
+  value: unknown,
+): value is { idempotencyKey: string } =>
+  typeof value === 'object' &&
+  value !== null &&
+  'idempotencyKey' in value &&
+  typeof (value as { idempotencyKey?: unknown }).idempotencyKey === 'string'
+
 describe('Payments Service', () => {
   beforeEach(() => {
     mockValidate.mockReset()
@@ -149,6 +157,90 @@ describe('Payments Service', () => {
       expect(mockStripe.paymentIntents.cancel).toHaveBeenCalledWith(
         'pi_test_123',
       )
+    })
+
+    it('creates a fresh Stripe intent when idempotent replay returns canceled', async () => {
+      mockValidate
+        .mockReturnValueOnce({
+          items: [{ id: 1, quantity: 1 }],
+          expectedTotal: 12.34,
+        })
+        .mockReturnValueOnce({})
+      mockBooksDB.getBookById.mockResolvedValueOnce({
+        id: 1,
+        title: 'Sample Book',
+        author: 'Sample Author',
+        imgUrl: '',
+        price: 12.34,
+        discount: 0,
+      })
+      mockStripe.paymentIntents.create
+        .mockResolvedValueOnce({
+          id: 'pi_canceled_replay',
+          status: 'canceled',
+          client_secret: 'pi_canceled_secret',
+        })
+        .mockResolvedValueOnce({
+          id: 'pi_fresh_123',
+          status: 'requires_payment_method',
+          client_secret: 'pi_fresh_secret',
+        })
+      mockOrdersDB.getOrder.mockResolvedValueOnce(null)
+      mockOrdersDB.createOrder.mockResolvedValueOnce(
+        createOrder({
+          paymentId: 'pi_fresh_123',
+          paymentStatus: 'requires_payment_method',
+        }),
+      )
+
+      const result = await createPaymentIntent(
+        {
+          items: [{ id: 1, quantity: 1 }],
+          expectedTotal: 12.34,
+        },
+        null,
+        'req_test_123',
+      )
+
+      expect(mockStripe.paymentIntents.create).toHaveBeenCalledTimes(2)
+      expect(mockStripe.paymentIntents.create).toHaveBeenNthCalledWith(
+        1,
+        {
+          amount: 1234,
+          currency: 'usd',
+          metadata: {
+            requestId: 'req_test_123',
+          },
+        },
+        {
+          idempotencyKey: 'req_test_123',
+        },
+      )
+      expect(mockStripe.paymentIntents.create).toHaveBeenNthCalledWith(
+        2,
+        {
+          amount: 1234,
+          currency: 'usd',
+          metadata: {
+            requestId: 'req_test_123',
+          },
+        },
+        expect.anything(),
+      )
+
+      const secondCreateOptions: unknown =
+        mockStripe.paymentIntents.create.mock.calls[1]?.[1]
+      expect(hasStringIdempotencyKey(secondCreateOptions)).toBe(true)
+      if (!hasStringIdempotencyKey(secondCreateOptions)) {
+        throw new Error('Expected Stripe options with string idempotencyKey')
+      }
+      const secondIdempotencyKey = secondCreateOptions.idempotencyKey
+      expect(secondIdempotencyKey.startsWith('req_test_123:')).toBe(true)
+      expect(result).toEqual({
+        paymentId: 'pi_fresh_123',
+        paymentToken: 'pi_fresh_secret',
+        amount: 1234,
+      })
     })
   })
 
