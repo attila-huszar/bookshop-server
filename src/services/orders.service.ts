@@ -1,6 +1,6 @@
 import { ordersDB, usersDB } from '@/repositories'
 import { userMessage } from '@/constants'
-import { NotFound } from '@/errors'
+import { NotFound } from '@/errors/NotFound'
 import type { Order } from '@/types'
 
 export async function getUserOrders(uuid: string): Promise<Order[]> {

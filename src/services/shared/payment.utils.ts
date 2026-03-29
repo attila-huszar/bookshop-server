@@ -2,7 +2,7 @@ import { ordersDB } from '@/repositories'
 import { paymentIdSchema, validate } from '@/validation'
 import { log } from '@/libs'
 import { enqueueEmail } from '@/queues'
-import { Unauthorized } from '@/errors'
+import { Unauthorized } from '@/errors/Unauthorized'
 import {
   AdminNotification,
   type AdminPaymentNotificationOrder,

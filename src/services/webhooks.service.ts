@@ -4,7 +4,8 @@ import { extractPaymentIntentFields, getPaymentIntentId } from '@/utils'
 import { log, stripe } from '@/libs'
 import { enqueueEmail } from '@/queues'
 import { terminalStatuses } from '@/constants'
-import { BadRequest, Internal } from '@/errors'
+import { BadRequest } from '@/errors/BadRequest'
+import { Internal } from '@/errors/Internal'
 import {
   AdminNotification,
   isChargeEvent,
