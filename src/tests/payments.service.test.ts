@@ -1,10 +1,8 @@
 import { beforeEach, describe, expect, it } from 'bun:test'
-import {
-  BadRequest,
-  Internal,
-  ServiceUnavailable,
-  Unauthorized,
-} from '@/errors'
+import { BadRequest } from '@/errors/BadRequest'
+import { Internal } from '@/errors/Internal'
+import { ServiceUnavailable } from '@/errors/ServiceUnavailable'
+import { Unauthorized } from '@/errors/Unauthorized'
 import { IssueCode, type Order } from '@/types'
 import {
   mockBooksDB,
