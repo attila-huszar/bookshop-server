@@ -1,14 +1,12 @@
 import { ordersDB } from '@/repositories'
 import { extractPaymentIntentFields, toIsoString } from '@/utils'
 import { log, stripe } from '@/libs'
-import { enqueueEmail } from '@/queues'
 import {
   orderSyncStripeFallbackThresholdMs,
   retryableStatuses,
 } from '@/constants'
 import { ServiceUnavailable } from '@/errors'
 import {
-  AdminNotification,
   IssueCode,
   type Order,
   type OrderUpdate,
@@ -16,8 +14,9 @@ import {
   type StripePaymentIntent,
 } from '@/types'
 import {
+  notifyOrderConfirmed,
   type PaymentAccess,
-  reportOrderSaveError,
+  reportOrderError,
   resolveAuthorizedPayment,
 } from '../shared'
 
@@ -114,7 +113,7 @@ async function saveStripeFallbackSync(args: {
     updateData,
     onSaveFailure: (saveFailureReason, saveError) => {
       if (statusChanged) {
-        reportOrderSaveError({
+        reportOrderError({
           issueCode: IssueCode.ORDER_SYNC_DRIFT_SAVE_FAILED,
           message:
             '[CRITICAL] Stripe fallback detected status drift but DB save failed',
@@ -148,13 +147,7 @@ async function saveStripeFallbackSync(args: {
         return
       }
 
-      enqueueEmail('orderConfirmation', {
-        order: savedOrder,
-      })
-      enqueueEmail('adminPaymentNotification', {
-        order: savedOrder,
-        notificationType: AdminNotification.Confirmed,
-      })
+      notifyOrderConfirmed(savedOrder)
     },
   })
 }

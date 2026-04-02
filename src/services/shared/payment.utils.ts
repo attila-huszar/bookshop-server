@@ -19,7 +19,7 @@ export type PaymentAccess = {
 type SaveOperation = 'create' | 'update'
 type SaveFailureReason = 'threw' | 'returned_null'
 
-type ReportOrderSaveErrorParams = {
+type ReportOrderErrorParams = {
   issueCode: IssueCode
   operation: SaveOperation
   paymentId: string
@@ -56,7 +56,17 @@ export async function resolveAuthorizedPayment(
   return { validatedId, order }
 }
 
-export function reportOrderSaveError({
+export function notifyOrderConfirmed(order: Order): void {
+  enqueueEmail('orderConfirmation', {
+    order,
+  })
+  enqueueEmail('adminPaymentNotification', {
+    order,
+    notificationType: AdminNotification.Confirmed,
+  })
+}
+
+export function reportOrderError({
   issueCode,
   operation,
   paymentId,
@@ -68,7 +78,7 @@ export function reportOrderSaveError({
   message = '[CRITICAL] Order save failed',
   notifyAdmin = true,
   additionalContext,
-}: ReportOrderSaveErrorParams): void {
+}: ReportOrderErrorParams): void {
   void log.error(message, {
     issueCode,
     entity: 'order',

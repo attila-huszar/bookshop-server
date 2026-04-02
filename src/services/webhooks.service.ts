@@ -18,7 +18,7 @@ import {
   type StripeEvent,
   type StripePaymentIntent,
 } from '@/types'
-import { reportOrderSaveError } from './shared'
+import { notifyOrderConfirmed, reportOrderError } from './shared'
 
 type WebhookEventMeta = {
   eventType: string
@@ -161,14 +161,7 @@ export async function processStripeWebhook(
           break
         }
 
-        enqueueEmail('orderConfirmation', {
-          order: updatedOrder,
-        })
-
-        enqueueEmail('adminPaymentNotification', {
-          order: updatedOrder,
-          notificationType: AdminNotification.Confirmed,
-        })
+        notifyOrderConfirmed(updatedOrder)
 
         void log.info('[STRIPE] Payment succeeded via webhook', {
           paymentId: paymentIntent.id,
@@ -477,7 +470,7 @@ export async function updateOrderFromWebhook(
     saveFailureReason: 'threw' | 'returned_null',
     saveError?: unknown,
   ) => {
-    reportOrderSaveError({
+    reportOrderError({
       issueCode: IssueCode.WEBHOOK_ORDER_SAVE_FAILED,
       message: '[CRITICAL] Webhook order update save failed',
       operation: 'update',

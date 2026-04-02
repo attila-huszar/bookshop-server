@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'bun:test'
 import { IssueCode, type Order } from '@/types'
 import { mockEnqueueEmail, mockLogger } from './test-setup'
 
-const { reportOrderSaveError } = await import('@/services/shared')
+const { reportOrderError } = await import('@/services/shared')
 
 const baseOrderSnapshot: Pick<
   Order,
@@ -30,7 +30,7 @@ describe('Payment Utils', () => {
   })
 
   it('reports critical save failure and notifies admin by default', () => {
-    reportOrderSaveError({
+    reportOrderError({
       issueCode: IssueCode.WEBHOOK_ORDER_SAVE_FAILED,
       message: '[CRITICAL] Webhook order update save failed',
       operation: 'update',
@@ -69,7 +69,7 @@ describe('Payment Utils', () => {
   })
 
   it('supports report-only mode without admin notification', () => {
-    reportOrderSaveError({
+    reportOrderError({
       issueCode: IssueCode.ORDER_SYNC_MARKER_SAVE_FAILED,
       operation: 'update',
       paymentId: 'pi_test_123',

@@ -5,7 +5,7 @@ import { BadRequest, Internal } from '@/errors'
 import { IssueCode, type StripePaymentIntent } from '@/types'
 import {
   type PaymentAccess,
-  reportOrderSaveError,
+  reportOrderError,
   resolveAuthorizedPayment,
 } from '../shared'
 
@@ -30,7 +30,7 @@ export async function cancelPaymentIntent(
     saveFailureReason: 'threw' | 'returned_null',
     saveError?: unknown,
   ) => {
-    reportOrderSaveError({
+    reportOrderError({
       issueCode: IssueCode.PAYMENT_CANCEL_SAVE_FAILED,
       message: '[CRITICAL] Stripe payment canceled but order save failed',
       operation: 'update',

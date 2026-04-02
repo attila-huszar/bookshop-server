@@ -8,7 +8,7 @@ import { log, stripe } from '@/libs'
 import { enqueueEmail } from '@/queues'
 import { defaultCurrency, paymentMessage } from '@/constants'
 import { BadRequest, Internal, NotFound } from '@/errors'
-import { AdminNotification } from '@/types'
+import { AdminNotification, IssueCode } from '@/types'
 import type {
   OrderInsert,
   OrderItem,
@@ -17,64 +17,55 @@ import type {
   PublicUser,
   StripePaymentIntent,
 } from '@/types'
-import { type PaymentAccess, resolveAuthorizedPayment } from '../shared'
+import {
+  type PaymentAccess,
+  reportOrderError,
+  resolveAuthorizedPayment,
+} from '../shared'
 
 async function buildOrderItemsAndTotal(
   paymentIntentRequest: PaymentIntentRequest,
 ): Promise<{ items: OrderItem[]; total: number }> {
-  const items: OrderItem[] = []
-  let totalCents = 0
+  const pricedItems = await Promise.all(
+    paymentIntentRequest.items.map(async (item) => {
+      const book = await booksDB.getBookById(item.id)
 
-  const books = await Promise.all(
-    paymentIntentRequest.items.map((item) => booksDB.getBookById(item.id)),
+      if (!book) {
+        throw new NotFound(
+          `Book not found during payment intent creation: ID ${item.id}`,
+        )
+      }
+
+      const priceCents = Math.round(book.price * 100)
+      const itemTotalCents = Math.round(
+        item.quantity * priceCents * (1 - (book.discount ?? 0) / 100),
+      )
+      const orderItem: OrderItem = {
+        id: book.id,
+        title: book.title,
+        author: book.author,
+        imgUrl: book.imgUrl ?? '',
+        price: book.price,
+        discount: book.discount ?? 0,
+        quantity: item.quantity,
+      }
+
+      return {
+        itemTotalCents,
+        item: orderItem,
+      }
+    }),
   )
 
-  for (let index = 0; index < paymentIntentRequest.items.length; index++) {
-    const item = paymentIntentRequest.items[index]!
-    const book = books[index]
-
-    if (!book) {
-      throw new NotFound(
-        `Book not found during payment intent creation: ID ${item.id}`,
-      )
-    }
-
-    const priceCents = Math.round(book.price * 100)
-    const itemTotalCents = Math.round(
-      item.quantity * priceCents * (1 - (book.discount ?? 0) / 100),
-    )
-    totalCents += itemTotalCents
-
-    items.push({
-      id: book.id,
-      title: book.title,
-      author: book.author,
-      imgUrl: book.imgUrl ?? '',
-      price: book.price,
-      discount: book.discount ?? 0,
-      quantity: item.quantity,
-    })
-  }
+  const totalCents = pricedItems.reduce(
+    (sum, pricedItem) => sum + pricedItem.itemTotalCents,
+    0,
+  )
+  const items = pricedItems.map((pricedItem) => pricedItem.item)
 
   return {
     items,
     total: totalCents / 100,
-  }
-}
-
-function buildUserOrderIdentity(user: PublicUser | null) {
-  if (!user) return {}
-
-  return {
-    email: user.email,
-    firstName: user.firstName,
-    lastName: user.lastName,
-    phone: user.phone,
-    shipping: {
-      name: `${user.firstName} ${user.lastName}`,
-      address: user.address ?? undefined,
-      phone: user.phone ?? undefined,
-    },
   }
 }
 
@@ -184,14 +175,26 @@ export async function createPaymentIntent(
     currency: defaultCurrency,
     items,
     total,
-    ...buildUserOrderIdentity(user),
+    ...(user && {
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      shipping: {
+        name: `${user.firstName} ${user.lastName}`,
+        address: user.address ?? undefined,
+        phone: user.phone ?? undefined,
+      },
+    }),
   }
+
+  let saveFailureReason: 'threw' | 'returned_null' = 'threw'
 
   try {
     const validatedOrderData = validate(orderInsertSchema, orderData)
     const createdOrder = await ordersDB.createOrder(validatedOrderData)
 
     if (!createdOrder) {
+      saveFailureReason = 'returned_null'
       throw new Internal('Failed to create order in database')
     }
 
@@ -218,8 +221,14 @@ export async function createPaymentIntent(
       }
     }
 
-    enqueueEmail('adminPaymentNotification', {
-      notificationType: AdminNotification.Error,
+    reportOrderError({
+      issueCode: IssueCode.ORDER_CREATE_SAVE_FAILED,
+      message: '[CRITICAL] Order create after payment intent save failed',
+      operation: 'create',
+      paymentId: paymentIntent.id,
+      saveFailureReason,
+      saveError: error,
+      stripeStatus: paymentIntent.status,
       order: {
         paymentId: paymentIntent.id,
         items,
