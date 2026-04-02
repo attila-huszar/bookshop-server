@@ -40,6 +40,38 @@ const createOrder = (overrides: Partial<Order> = {}): Order => ({
   ...overrides,
 })
 
+const defaultPaymentIntentRequest = {
+  items: [{ id: 1, quantity: 1 }],
+  expectedTotal: 12.34,
+}
+
+const defaultBook = {
+  id: 1,
+  title: 'Sample Book',
+  author: 'Sample Author',
+  imgUrl: '',
+  price: 12.34,
+  discount: 0,
+}
+
+function setupPaymentIntentMocks({
+  stripeIntents,
+}: {
+  stripeIntents: {
+    id: string
+    status: string
+    client_secret: string
+  }[]
+}) {
+  mockValidate
+    .mockReturnValueOnce(defaultPaymentIntentRequest)
+    .mockReturnValueOnce({})
+  mockBooksDB.getBookById.mockResolvedValueOnce(defaultBook)
+  stripeIntents.forEach((intent) => {
+    mockStripe.paymentIntents.create.mockResolvedValueOnce(intent)
+  })
+}
+
 const hasStringIdempotencyKey = (
   value: unknown,
 ): value is { idempotencyKey: string } =>
@@ -102,24 +134,14 @@ describe('Payments Service', () => {
 
   describe('createPaymentIntent', () => {
     it('uses Stripe payment intent status in admin notification when order creation fails', async () => {
-      mockValidate
-        .mockReturnValueOnce({
-          items: [{ id: 1, quantity: 1 }],
-          expectedTotal: 12.34,
-        })
-        .mockReturnValueOnce({})
-      mockBooksDB.getBookById.mockResolvedValueOnce({
-        id: 1,
-        title: 'Sample Book',
-        author: 'Sample Author',
-        imgUrl: '',
-        price: 12.34,
-        discount: 0,
-      })
-      mockStripe.paymentIntents.create.mockResolvedValueOnce({
-        id: 'pi_test_123',
-        status: 'processing',
-        client_secret: 'pi_test_secret',
+      setupPaymentIntentMocks({
+        stripeIntents: [
+          {
+            id: 'pi_test_123',
+            status: 'processing',
+            client_secret: 'pi_test_secret',
+          },
+        ],
       })
       mockOrdersDB.createOrder.mockResolvedValueOnce(null)
 
@@ -158,31 +180,20 @@ describe('Payments Service', () => {
     })
 
     it('creates a fresh Stripe intent when idempotent replay returns canceled', async () => {
-      mockValidate
-        .mockReturnValueOnce({
-          items: [{ id: 1, quantity: 1 }],
-          expectedTotal: 12.34,
-        })
-        .mockReturnValueOnce({})
-      mockBooksDB.getBookById.mockResolvedValueOnce({
-        id: 1,
-        title: 'Sample Book',
-        author: 'Sample Author',
-        imgUrl: '',
-        price: 12.34,
-        discount: 0,
+      setupPaymentIntentMocks({
+        stripeIntents: [
+          {
+            id: 'pi_canceled_replay',
+            status: 'canceled',
+            client_secret: 'pi_canceled_secret',
+          },
+          {
+            id: 'pi_fresh_123',
+            status: 'requires_payment_method',
+            client_secret: 'pi_fresh_secret',
+          },
+        ],
       })
-      mockStripe.paymentIntents.create
-        .mockResolvedValueOnce({
-          id: 'pi_canceled_replay',
-          status: 'canceled',
-          client_secret: 'pi_canceled_secret',
-        })
-        .mockResolvedValueOnce({
-          id: 'pi_fresh_123',
-          status: 'requires_payment_method',
-          client_secret: 'pi_fresh_secret',
-        })
       mockOrdersDB.getOrder.mockResolvedValueOnce(null)
       mockOrdersDB.createOrder.mockResolvedValueOnce(
         createOrder({
@@ -233,7 +244,7 @@ describe('Payments Service', () => {
         throw new Error('Expected Stripe options with string idempotencyKey')
       }
       const secondIdempotencyKey = secondCreateOptions.idempotencyKey
-      expect(secondIdempotencyKey.startsWith('req_test_123:')).toBe(true)
+      expect(secondIdempotencyKey).toBe('req_test_123:recovery')
       expect(result).toEqual({
         paymentId: 'pi_fresh_123',
         paymentToken: 'pi_fresh_secret',

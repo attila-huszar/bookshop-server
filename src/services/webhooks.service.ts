@@ -465,6 +465,14 @@ export async function updateOrderFromWebhook(
   if (data.paymentStatus === 'succeeded') {
     updateData.paidAt = new Date()
   }
+  const mergedOrderSnapshot = {
+    ...existingOrder,
+    ...data,
+    paymentStatus: data.paymentStatus ?? existingOrder.paymentStatus,
+    email: data.email ?? existingOrder.email ?? null,
+    shipping: data.shipping ?? existingOrder.shipping ?? null,
+  }
+
   const reportWebhookSaveFailure = (
     saveFailureReason: 'threw' | 'returned_null',
     saveError?: unknown,
@@ -483,10 +491,7 @@ export async function updateOrderFromWebhook(
         eventId,
         eventCreated,
       },
-      order: {
-        ...existingOrder,
-        paymentStatus: data.paymentStatus ?? existingOrder.paymentStatus,
-      },
+      order: mergedOrderSnapshot,
     })
   }
 

@@ -335,6 +335,7 @@ describe('Webhooks Service', () => {
         order: expect.objectContaining({
           paymentId: 'pi_test_123',
           paymentStatus: 'succeeded',
+          email: 'buyer@example.com',
         }) as Order,
       }),
     )
@@ -403,6 +404,7 @@ describe('Webhooks Service', () => {
         order: expect.objectContaining({
           paymentId: 'pi_test_123',
           paymentStatus: 'succeeded',
+          email: 'buyer@example.com',
         }) as Order,
       }),
     )

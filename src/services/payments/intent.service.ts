@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import { booksDB, ordersDB } from '@/repositories'
 import {
   orderInsertSchema,
@@ -108,7 +107,7 @@ async function createStripePaymentIntentWithRecovery({
     return paymentIntent
   }
 
-  const recoveryIdempotencyKey = `${requestId}:${randomUUID()}`
+  const recoveryIdempotencyKey = `${requestId}:recovery`
   void log.warn(
     'Received canceled idempotent payment intent replay, creating fresh Stripe intent',
     {

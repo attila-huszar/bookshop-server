@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it } from 'bun:test'
+import { authMessage, userMessage } from '@/constants'
+import { BadRequest, Forbidden, Unauthorized } from '@/errors'
 import { type UserInsert, UserRole } from '@/types'
 import {
   mockEnqueueEmail,
@@ -71,7 +73,10 @@ describe('Users Service', () => {
         resultError = error
       }
 
-      expect(resultError).toBeDefined()
+      expect(resultError).toBeInstanceOf(Unauthorized)
+      expect((resultError as Error).message).toBe(
+        authMessage.credentialsInvalid,
+      )
     })
 
     it('should throw error for unverified user', async () => {
@@ -96,7 +101,8 @@ describe('Users Service', () => {
         resultError = error
       }
 
-      expect(resultError).toBeDefined()
+      expect(resultError).toBeInstanceOf(Forbidden)
+      expect((resultError as Error).message).toBe(userMessage.verifyFirst)
     })
   })
 
@@ -157,7 +163,8 @@ describe('Users Service', () => {
         resultError = error
       }
 
-      expect(resultError).toBeDefined()
+      expect(resultError).toBeInstanceOf(BadRequest)
+      expect((resultError as Error).message).toBe(userMessage.emailTaken)
     })
   })
 
