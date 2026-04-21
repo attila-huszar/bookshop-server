@@ -2,6 +2,7 @@ import { ordersDB } from '@/repositories'
 import { paymentIdSchema, validate } from '@/validation'
 import { log } from '@/libs'
 import { enqueueEmail } from '@/queues'
+import { Internal } from '@/errors/Internal'
 import { Unauthorized } from '@/errors/Unauthorized'
 import {
   AdminNotification,
@@ -38,7 +39,17 @@ export async function resolveAuthorizedPayment(
   access: PaymentAccess,
 ): Promise<{ validatedId: string; order: Order }> {
   const validatedId = validate(paymentIdSchema, paymentId)
-  const order = await ordersDB.getOrder(validatedId)
+
+  let order: Order | null
+  try {
+    order = await ordersDB.getOrder(validatedId)
+  } catch (lookupErr) {
+    void log.error('ordersDB.getOrder failed in resolveAuthorizedPayment', {
+      paymentId: validatedId,
+      lookupErr,
+    })
+    throw new Internal('Failed to read order')
+  }
 
   if (!order) {
     throw new Unauthorized('Unauthorized payment access')

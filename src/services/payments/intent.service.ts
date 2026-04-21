@@ -203,22 +203,32 @@ export async function createPaymentIntent(
       notificationType: AdminNotification.Created,
     })
   } catch (error) {
-    const existingOrderAfterFailure = await ordersDB.getOrder(paymentIntent.id)
-
-    if (existingOrderAfterFailure) {
-      void log.warn(
-        'Recovered idempotent payment intent after order create conflict',
-        {
-          paymentId: paymentIntent.id,
-          requestId,
-        },
+    try {
+      const existingOrderAfterFailure = await ordersDB.getOrder(
+        paymentIntent.id,
       )
 
-      return {
-        paymentId: paymentIntent.id,
-        paymentToken: paymentIntent.client_secret,
-        amount: amountInCents,
+      if (existingOrderAfterFailure) {
+        void log.warn(
+          'Recovered idempotent payment intent after order create conflict',
+          {
+            paymentId: paymentIntent.id,
+            requestId,
+          },
+        )
+
+        return {
+          paymentId: paymentIntent.id,
+          paymentToken: paymentIntent.client_secret,
+          amount: amountInCents,
+        }
       }
+    } catch (lookupErr) {
+      void log.warn('ordersDB.getOrder failed after order create error', {
+        paymentId: paymentIntent.id,
+        requestId,
+        lookupErr,
+      })
     }
 
     reportOrderError({
