@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { Hono } from 'hono'
 import { deleteCookie, setSignedCookie } from 'hono/cookie'
 import { env, PAYMENT_SESSION, paymentCookieOptions } from '@/config'
@@ -63,6 +64,9 @@ payments.get(API.payments.byId, async (c) => {
 payments.post(API.payments.root, async (c) => {
   try {
     const paymentIntentRequest = await c.req.json<PaymentIntentRequest>()
+    const idempotencyKey = c.req.header('Idempotency-Key')?.trim()
+    const requestHeaderId = c.req.header('X-Request-Id')?.trim()
+    const requestId = idempotencyKey ?? requestHeaderId ?? randomUUID()
 
     const jwtPayload = c.get('jwtPayload')
     let publicUser: PublicUser | null = null
@@ -74,6 +78,7 @@ payments.post(API.payments.root, async (c) => {
     const { paymentId, paymentToken, amount } = await createPaymentIntent(
       paymentIntentRequest,
       publicUser,
+      requestId,
     )
 
     await setSignedCookie(

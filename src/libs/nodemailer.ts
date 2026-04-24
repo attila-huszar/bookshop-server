@@ -1,7 +1,7 @@
 import nodemailer, { type SendMailOptions, type Transporter } from 'nodemailer'
 import type SMTPPool from 'nodemailer/lib/smtp-pool'
 import { env } from '@/config'
-import { getEmailHtml, getEmailSubject } from '@/utils'
+import { getEmailHtml, getEmailSubject } from '@/utils/email.utils'
 import {
   emailLogoContentId,
   emailLogoFilename,

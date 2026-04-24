@@ -1,0 +1,111 @@
+import { ordersDB } from '@/repositories'
+import { paymentIdSchema, validate } from '@/validation'
+import { log } from '@/libs'
+import { enqueueEmail } from '@/queues'
+import { Internal } from '@/errors/Internal'
+import { Unauthorized } from '@/errors/Unauthorized'
+import {
+  AdminNotification,
+  type AdminPaymentNotificationOrder,
+  IssueCode,
+  type Order,
+  type PaymentIntentStatus,
+} from '@/types'
+
+export type PaymentAccess = {
+  paymentSessionId?: string
+  userEmail?: string
+}
+
+type SaveOperation = 'create' | 'update'
+type SaveFailureReason = 'threw' | 'returned_null'
+
+type ReportOrderErrorParams = {
+  issueCode: IssueCode
+  operation: SaveOperation
+  paymentId: string
+  order: AdminPaymentNotificationOrder
+  saveFailureReason: SaveFailureReason
+  saveError?: unknown
+  dbStatus?: PaymentIntentStatus
+  stripeStatus?: PaymentIntentStatus
+  message?: string
+  notifyAdmin?: boolean
+  additionalContext?: Record<string, unknown>
+}
+
+export async function resolveAuthorizedPayment(
+  paymentId: string,
+  access: PaymentAccess,
+): Promise<{ validatedId: string; order: Order }> {
+  const validatedId = validate(paymentIdSchema, paymentId)
+
+  let order: Order | null
+  try {
+    order = await ordersDB.getOrder(validatedId)
+  } catch (lookupErr) {
+    void log.error('ordersDB.getOrder failed in resolveAuthorizedPayment', {
+      paymentId: validatedId,
+      lookupErr,
+    })
+    throw new Internal('Failed to read order')
+  }
+
+  if (!order) {
+    throw new Unauthorized('Unauthorized payment access')
+  }
+
+  const accessEmail = access?.userEmail?.toLowerCase()
+  const hasSessionAccess = access?.paymentSessionId === validatedId
+  const hasEmailAccess =
+    Boolean(accessEmail) && order.email?.toLowerCase() === accessEmail
+
+  if (!hasSessionAccess && !hasEmailAccess) {
+    throw new Unauthorized('Unauthorized payment access')
+  }
+
+  return { validatedId, order }
+}
+
+export function notifyOrderConfirmed(order: Order): void {
+  enqueueEmail('orderConfirmation', {
+    order,
+  })
+  enqueueEmail('adminPaymentNotification', {
+    order,
+    notificationType: AdminNotification.Confirmed,
+  })
+}
+
+export function reportOrderError({
+  issueCode,
+  operation,
+  paymentId,
+  order,
+  saveFailureReason,
+  saveError,
+  dbStatus,
+  stripeStatus,
+  message = '[CRITICAL] Order save failed',
+  notifyAdmin = true,
+  additionalContext,
+}: ReportOrderErrorParams): void {
+  void log.error(message, {
+    issueCode,
+    entity: 'order',
+    operation,
+    paymentId,
+    saveFailureReason,
+    dbStatus,
+    stripeStatus,
+    error: saveError,
+    ...additionalContext,
+  })
+
+  if (notifyAdmin) {
+    enqueueEmail('adminPaymentNotification', {
+      notificationType: AdminNotification.Error,
+      order,
+    })
+  }
+}

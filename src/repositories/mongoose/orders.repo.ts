@@ -15,16 +15,61 @@ export async function createOrder(
 export async function updateOrder(
   paymentId: string,
   fields: OrderUpdate,
-): Promise<Order | null> {
-  const updatedOrder = await OrderModel.findOneAndUpdate(
-    { paymentId },
+): Promise<{ order: Order | null; becamePaid: boolean }> {
+  const shouldAttemptPaidTransition = fields.paidAt instanceof Date
+
+  if (!shouldAttemptPaidTransition) {
+    const updatedOrder = await OrderModel.findOneAndUpdate(
+      { paymentId },
+      fields,
+      { new: true },
+    )
+      .lean()
+      .exec()
+
+    return {
+      order: updatedOrder ?? null,
+      becamePaid: false,
+    }
+  }
+
+  const paidTransitionOrder = await OrderModel.findOneAndUpdate(
+    { paymentId, paidAt: null },
     fields,
     { new: true },
   )
     .lean()
     .exec()
-  if (!updatedOrder) return null
-  return updatedOrder
+
+  if (paidTransitionOrder) {
+    return {
+      order: paidTransitionOrder,
+      becamePaid: true,
+    }
+  }
+
+  const fieldsWithoutPaidAt: OrderUpdate = { ...fields }
+  delete fieldsWithoutPaidAt.paidAt
+
+  if (Object.keys(fieldsWithoutPaidAt).length === 0) {
+    return {
+      order: await getOrder(paymentId),
+      becamePaid: false,
+    }
+  }
+
+  const updatedOrder = await OrderModel.findOneAndUpdate(
+    { paymentId },
+    fieldsWithoutPaidAt,
+    { new: true },
+  )
+    .lean()
+    .exec()
+
+  return {
+    order: updatedOrder ?? null,
+    becamePaid: false,
+  }
 }
 
 export async function getOrder(paymentId: string): Promise<Order | null> {

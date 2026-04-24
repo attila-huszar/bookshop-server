@@ -43,6 +43,8 @@ All services are built from one multi-target Dockerfile (`server`, `worker`, `cr
 
 `sqlite` is the default Docker Compose profile, so `docker compose up` runs the SQLite stack by default.
 
+`COMPOSE_PROJECT_NAME` (default in `.env.template`: `bookshop`) namespaces Compose resources per repo/clone, so container, network, and volume names do not collide when multiple projects run at once. You can override it in your local `.env` if you want a different prefix on your machine.
+
 Use `SETUP=true` only for first boot (or when you intentionally want to reseed).
 
 Initial setup commands:
