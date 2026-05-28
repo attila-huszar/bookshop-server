@@ -514,6 +514,13 @@ describe('Webhooks Service', () => {
 
     expect(result).toEqual({ received: true })
     expect(mockEnqueueEmail).not.toHaveBeenCalled()
+    expect(mockOrdersDB.updateOrder).toHaveBeenCalledTimes(1)
+    expect(mockOrdersDB.updateOrder).toHaveBeenCalledWith(
+      'pi_test_123',
+      expect.not.objectContaining({
+        paidAt: expect.any(Date) as Date,
+      }),
+    )
   })
 
   it('logs and alerts on missing order for payment_intent.succeeded', async () => {

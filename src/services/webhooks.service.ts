@@ -455,9 +455,10 @@ export async function updateOrderFromWebhook(
     lastStripeEventId: eventId,
   }
 
-  if (data.paymentStatus === 'succeeded') {
+  if (data.paymentStatus === 'succeeded' && existingOrder.paidAt == null) {
     updateData.paidAt = new Date()
   }
+
   const mergedOrderSnapshot = {
     ...existingOrder,
     ...data,
