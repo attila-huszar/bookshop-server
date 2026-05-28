@@ -100,7 +100,7 @@ export async function sendMail(
       from: `${env.mailerName} <${env.mailerUser}>`,
       to: props.toAddress,
       subject: getEmailSubject(props),
-      html: getEmailHtml(props),
+      html: await getEmailHtml(props),
       attachments,
     }
 

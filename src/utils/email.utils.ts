@@ -36,7 +36,7 @@ const renderOrderItems = (items: AdminPaymentNotificationEmailItem[]) =>
     })
     .join('')
 
-export function getEmailHtml(props: SendEmailProps): string {
+export async function getEmailHtml(props: SendEmailProps): Promise<string> {
   switch (props.type) {
     case 'orderConfirmation': {
       try {
@@ -60,7 +60,9 @@ export function getEmailHtml(props: SendEmailProps): string {
           baseLink,
           cid: emailLogoContentId,
         })
-        return mjml2html(mjmlString).html
+
+        const parsed = await mjml2html(mjmlString)
+        return parsed.html
       } catch (error) {
         log.error('Error generating order confirmation email HTML', { error })
         throw error
@@ -75,7 +77,9 @@ export function getEmailHtml(props: SendEmailProps): string {
           baseLink,
           cid: emailLogoContentId,
         })
-        return mjml2html(mjmlString).html
+
+        const parsed = await mjml2html(mjmlString)
+        return parsed.html
       } catch (error) {
         log.error('Error generating verification email HTML', { error })
         throw error
@@ -90,7 +94,9 @@ export function getEmailHtml(props: SendEmailProps): string {
           baseLink,
           cid: emailLogoContentId,
         })
-        return mjml2html(mjmlString).html
+
+        const parsed = await mjml2html(mjmlString)
+        return parsed.html
       } catch (error) {
         log.error('Error generating password reset email HTML', { error })
         throw error
@@ -122,7 +128,9 @@ export function getEmailHtml(props: SendEmailProps): string {
           baseLink,
           cid: emailLogoContentId,
         })
-        return mjml2html(mjmlString).html
+
+        const parsed = await mjml2html(mjmlString)
+        return parsed.html
       } catch (error) {
         log.error('Error generating admin payment notification email HTML', {
           error,
