@@ -22,6 +22,49 @@ export async function getOrder(paymentId: string): Promise<Order | null> {
   return orderRecords[0] ?? null
 }
 
+export async function getOrderById(id: number): Promise<Order | null> {
+  const orderRecords = await sqlite
+    .select()
+    .from(ordersTable)
+    .where(eq(ordersTable.id, id))
+    .limit(1)
+  return orderRecords[0] ?? null
+}
+
+export async function linkPaymentIntent(
+  orderId: number,
+  paymentId: string,
+  paymentStatus: Order['paymentStatus'],
+): Promise<{ order: Order | null; linked: boolean }> {
+  const existingOrder = await getOrderById(orderId)
+
+  if (!existingOrder) return { order: null, linked: false }
+  if (existingOrder.paymentId === paymentId) {
+    return { order: existingOrder, linked: false }
+  }
+  if (existingOrder.paymentId !== null) {
+    return { order: null, linked: false }
+  }
+
+  const [linkedOrder] = await sqlite
+    .update(ordersTable)
+    .set({ paymentId, paymentStatus })
+    .where(and(eq(ordersTable.id, orderId), isNull(ordersTable.paymentId)))
+    .returning()
+
+  if (linkedOrder) return { order: linkedOrder, linked: true }
+
+  const currentOrder = await getOrderById(orderId)
+  return {
+    order: currentOrder?.paymentId === paymentId ? currentOrder : null,
+    linked: false,
+  }
+}
+
+export async function deleteOrderById(id: number): Promise<void> {
+  await sqlite.delete(ordersTable).where(eq(ordersTable.id, id))
+}
+
 export async function updateOrder(
   paymentId: string,
   fields: OrderUpdate,

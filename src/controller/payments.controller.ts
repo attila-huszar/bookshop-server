@@ -6,11 +6,10 @@ import {
   cancelPaymentIntent,
   createPaymentIntent,
   getUserProfile,
-  retrieveOrderSyncStatus,
   retrievePaymentIntent,
 } from '@/services'
 import { getPaymentIdempotencyKey } from '@/utils/payment.utils'
-import { API, retryableStatuses } from '@/constants'
+import { API } from '@/constants'
 import { errorHandler } from '@/errors'
 import type { PaymentIntentRequest, PublicUser } from '@/types'
 
@@ -25,26 +24,6 @@ type Variables = {
 }
 
 export const payments = new Hono<{ Variables: Variables }>()
-
-payments.get(API.payments.orderSync, async (c) => {
-  try {
-    const paymentId = c.req.param('paymentId')
-    const { paymentSessionId, userEmail } = c.get('paymentAccess') ?? {}
-
-    const orderSyncStatus = await retrieveOrderSyncStatus(paymentId, {
-      userEmail,
-      paymentSessionId,
-    })
-
-    if (retryableStatuses.includes(orderSyncStatus.paymentStatus)) {
-      return c.json(orderSyncStatus, 202)
-    }
-
-    return c.json(orderSyncStatus)
-  } catch (error) {
-    return errorHandler(c, error)
-  }
-})
 
 payments.get(API.payments.byId, async (c) => {
   try {

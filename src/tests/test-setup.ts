@@ -22,9 +22,12 @@ export const mockBooksDB = {
 
 export const mockOrdersDB = {
   getOrder: mock(),
+  getOrderById: mock(),
   getOrdersByEmail: mock(),
   createOrder: mock(),
+  linkPaymentIntent: mock(),
   updateOrder: mock(),
+  deleteOrderById: mock(),
 }
 
 export const mockStripe = {

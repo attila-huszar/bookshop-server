@@ -88,6 +88,30 @@ function reportMissingOrderForPaymentIntentWebhook({
   })
 }
 
+async function resolveOrderForWebhook(paymentIntent: StripePaymentIntent) {
+  const existingOrder = await ordersDB.getOrder(paymentIntent.id)
+
+  if (existingOrder) return existingOrder
+
+  const orderId = Number(paymentIntent.metadata?.orderId)
+  if (!Number.isSafeInteger(orderId) || orderId <= 0) return null
+
+  const { order, linked } = await ordersDB.linkPaymentIntent(
+    orderId,
+    paymentIntent.id,
+    paymentIntent.status,
+  )
+
+  if (order && linked) {
+    enqueueEmail('adminPaymentNotification', {
+      order,
+      notificationType: AdminNotification.Created,
+    })
+  }
+
+  return order
+}
+
 export async function processStripeWebhook(
   payload: string,
   signature: string,
@@ -121,27 +145,19 @@ export async function processStripeWebhook(
       eventId,
       eventCreated,
     }
+    const updateOrder = (data: OrderUpdate) =>
+      updateOrderFromWebhook(paymentIntent, data, eventMeta)
 
     switch (type) {
       case 'payment_intent.created': {
-        await updateOrderFromWebhook(
-          paymentIntent.id,
-          {
-            paymentStatus: paymentIntent.status,
-          },
-          eventMeta,
-        )
+        await updateOrder({ paymentStatus: paymentIntent.status })
         break
       }
       case 'payment_intent.succeeded': {
-        const result = await updateOrderFromWebhook(
-          paymentIntent.id,
-          {
-            ...extractPaymentIntentFields(paymentIntent),
-            paymentStatus: paymentIntent.status,
-          },
-          eventMeta,
-        )
+        const result = await updateOrder({
+          ...extractPaymentIntentFields(paymentIntent),
+          paymentStatus: paymentIntent.status,
+        })
 
         if (!result) {
           reportMissingOrderForPaymentIntentWebhook({
@@ -169,14 +185,10 @@ export async function processStripeWebhook(
         break
       }
       case 'payment_intent.amount_capturable_updated': {
-        await updateOrderFromWebhook(
-          paymentIntent.id,
-          {
-            ...extractPaymentIntentFields(paymentIntent),
-            paymentStatus: paymentIntent.status,
-          },
-          eventMeta,
-        )
+        await updateOrder({
+          ...extractPaymentIntentFields(paymentIntent),
+          paymentStatus: paymentIntent.status,
+        })
 
         void log.info('[STRIPE] Payment capturable via webhook', {
           paymentId: paymentIntent.id,
@@ -184,23 +196,11 @@ export async function processStripeWebhook(
         break
       }
       case 'payment_intent.partially_funded': {
-        await updateOrderFromWebhook(
-          paymentIntent.id,
-          {
-            paymentStatus: paymentIntent.status,
-          },
-          eventMeta,
-        )
+        await updateOrder({ paymentStatus: paymentIntent.status })
         break
       }
       case 'payment_intent.payment_failed': {
-        await updateOrderFromWebhook(
-          paymentIntent.id,
-          {
-            paymentStatus: paymentIntent.status,
-          },
-          eventMeta,
-        )
+        await updateOrder({ paymentStatus: paymentIntent.status })
 
         void log.warn('[STRIPE] Payment failed via webhook', {
           paymentId: paymentIntent.id,
@@ -209,34 +209,18 @@ export async function processStripeWebhook(
         break
       }
       case 'payment_intent.requires_action': {
-        await updateOrderFromWebhook(
-          paymentIntent.id,
-          {
-            paymentStatus: paymentIntent.status,
-          },
-          eventMeta,
-        )
+        await updateOrder({ paymentStatus: paymentIntent.status })
         break
       }
       case 'payment_intent.processing': {
-        await updateOrderFromWebhook(
-          paymentIntent.id,
-          {
-            paymentStatus: paymentIntent.status,
-          },
-          eventMeta,
-        )
+        await updateOrder({ paymentStatus: paymentIntent.status })
         break
       }
       case 'payment_intent.canceled': {
-        const result = await updateOrderFromWebhook(
-          paymentIntent.id,
-          {
-            ...extractPaymentIntentFields(paymentIntent),
-            paymentStatus: 'canceled',
-          },
-          eventMeta,
-        )
+        const result = await updateOrder({
+          ...extractPaymentIntentFields(paymentIntent),
+          paymentStatus: 'canceled',
+        })
 
         if (!result) {
           reportMissingOrderForPaymentIntentWebhook({
@@ -345,12 +329,13 @@ export async function processStripeWebhook(
 }
 
 export async function updateOrderFromWebhook(
-  paymentIntentId: string,
+  paymentIntent: StripePaymentIntent,
   data: OrderUpdate,
   eventMeta: WebhookEventMeta,
 ) {
+  const { id: paymentIntentId } = paymentIntent
   const { eventType, eventId, eventCreated } = eventMeta
-  const existingOrder = await ordersDB.getOrder(paymentIntentId)
+  const existingOrder = await resolveOrderForWebhook(paymentIntent)
 
   if (!existingOrder) {
     if (!isCriticalMissingOrderEventType(eventType)) {

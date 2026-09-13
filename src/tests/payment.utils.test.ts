@@ -95,7 +95,7 @@ describe('Payment Utils', () => {
 
   it('supports report-only mode without admin notification', () => {
     reportOrderError({
-      issueCode: IssueCode.ORDER_SYNC_MARKER_SAVE_FAILED,
+      issueCode: IssueCode.WEBHOOK_ORDER_SAVE_FAILED,
       operation: 'update',
       paymentId: 'pi_test_123',
       saveFailureReason: 'returned_null',
@@ -106,7 +106,7 @@ describe('Payment Utils', () => {
     expect(mockLogger.error).toHaveBeenCalledWith(
       '[CRITICAL] Order save failed',
       expect.objectContaining({
-        issueCode: IssueCode.ORDER_SYNC_MARKER_SAVE_FAILED,
+        issueCode: IssueCode.WEBHOOK_ORDER_SAVE_FAILED,
         entity: 'order',
         operation: 'update',
         paymentId: 'pi_test_123',

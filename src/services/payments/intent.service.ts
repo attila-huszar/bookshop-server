@@ -8,7 +8,7 @@ import { log, stripe } from '@/libs'
 import { enqueueEmail } from '@/queues'
 import { defaultCurrency, paymentMessage } from '@/constants'
 import { BadRequest, Internal, NotFound } from '@/errors'
-import { AdminNotification, IssueCode } from '@/types'
+import { AdminNotification } from '@/types'
 import type {
   OrderInsert,
   OrderItem,
@@ -17,11 +17,7 @@ import type {
   PublicUser,
   StripePaymentIntent,
 } from '@/types'
-import {
-  type PaymentAccess,
-  reportOrderError,
-  resolveAuthorizedPayment,
-} from '../shared'
+import { type PaymentAccess, resolveAuthorizedPayment } from '../shared'
 
 async function buildOrderItemsAndTotal(
   paymentIntentRequest: PaymentIntentRequest,
@@ -71,10 +67,12 @@ async function buildOrderItemsAndTotal(
 
 async function createStripePaymentIntentWithRecovery({
   amountInCents,
+  orderId,
   requestId,
   user,
 }: {
   amountInCents: number
+  orderId: number
   requestId: string
   user: PublicUser | null
 }): Promise<StripePaymentIntent> {
@@ -82,6 +80,7 @@ async function createStripePaymentIntentWithRecovery({
     amount: amountInCents,
     currency: defaultCurrency.toLowerCase(),
     metadata: {
+      orderId: String(orderId),
       requestId,
       ...(user && {
         userEmail: user.email,
@@ -149,29 +148,9 @@ export async function createPaymentIntent(
   }
 
   const amountInCents = Math.round(total * 100)
-  const paymentIntent = await createStripePaymentIntentWithRecovery({
-    amountInCents,
-    requestId,
-    user,
-  })
-
-  if (!paymentIntent?.client_secret) {
-    throw new Internal('Failed to create payment intent: missing client secret')
-  }
-
-  const existingOrder = await ordersDB.getOrder(paymentIntent.id)
-
-  if (existingOrder) {
-    return {
-      paymentId: paymentIntent.id,
-      paymentToken: paymentIntent.client_secret,
-      amount: amountInCents,
-    }
-  }
-
   const orderData: OrderInsert = {
-    paymentId: paymentIntent.id,
-    paymentStatus: paymentIntent.status,
+    paymentId: null,
+    paymentStatus: 'processing',
     currency: defaultCurrency,
     items,
     total,
@@ -187,83 +166,69 @@ export async function createPaymentIntent(
     }),
   }
 
-  let saveFailureReason: 'threw' | 'returned_null' = 'threw'
+  const validatedOrderData = validate(orderInsertSchema, orderData)
+  const draftOrder = await ordersDB.createOrder(validatedOrderData)
 
+  if (draftOrder?.id === undefined) {
+    throw new Internal('Failed to create order in database')
+  }
+
+  let paymentIntent: StripePaymentIntent
   try {
-    const validatedOrderData = validate(orderInsertSchema, orderData)
-    const createdOrder = await ordersDB.createOrder(validatedOrderData)
-
-    if (!createdOrder) {
-      saveFailureReason = 'returned_null'
-      throw new Internal('Failed to create order in database')
-    }
-
-    enqueueEmail('adminPaymentNotification', {
-      order: createdOrder,
-      notificationType: AdminNotification.Created,
+    paymentIntent = await createStripePaymentIntentWithRecovery({
+      amountInCents,
+      orderId: draftOrder.id,
+      requestId,
+      user,
     })
   } catch (error) {
-    try {
-      const existingOrderAfterFailure = await ordersDB.getOrder(
-        paymentIntent.id,
-      )
-
-      if (existingOrderAfterFailure) {
-        void log.warn(
-          'Recovered idempotent payment intent after order create conflict',
-          {
-            paymentId: paymentIntent.id,
-            requestId,
-          },
-        )
-
-        return {
-          paymentId: paymentIntent.id,
-          paymentToken: paymentIntent.client_secret,
-          amount: amountInCents,
-        }
-      }
-    } catch (lookupErr) {
-      void log.warn('ordersDB.getOrder failed after order create error', {
-        paymentId: paymentIntent.id,
-        requestId,
-        lookupErr,
-      })
-    }
-
-    reportOrderError({
-      issueCode: IssueCode.ORDER_CREATE_SAVE_FAILED,
-      message: '[CRITICAL] Order create after payment intent save failed',
-      operation: 'create',
-      paymentId: paymentIntent.id,
-      saveFailureReason,
-      saveError: error,
-      stripeStatus: paymentIntent.status,
-      order: {
-        paymentId: paymentIntent.id,
-        items,
-        total,
-        currency: defaultCurrency,
-        paymentStatus: paymentIntent.status,
-      },
+    void log.error('Stripe payment intent creation failed for draft order', {
+      orderId: draftOrder.id,
+      requestId,
+      error,
     })
-
-    try {
-      await stripe.paymentIntents.cancel(paymentIntent.id)
-      void log.warn(
-        'Rolled back Stripe payment intent after order creation failed',
-        {
-          paymentId: paymentIntent.id,
-        },
-      )
-    } catch (rollbackError) {
-      void log.error('Failed to rollback Stripe payment intent', {
-        paymentId: paymentIntent.id,
-        rollbackError,
-      })
-    }
-
     throw error
+  }
+
+  if (!paymentIntent.client_secret) {
+    throw new Internal('Failed to create payment intent: missing client secret')
+  }
+
+  const metadataOrderId = Number(paymentIntent.metadata?.orderId)
+  const linkedOrderId =
+    Number.isSafeInteger(metadataOrderId) && metadataOrderId > 0
+      ? metadataOrderId
+      : draftOrder.id
+  const targetOrder = await ordersDB.getOrderById(linkedOrderId)
+
+  if (!targetOrder) {
+    throw new Internal('Failed to find order for payment intent')
+  }
+
+  if (targetOrder.id !== draftOrder.id) {
+    await ordersDB.deleteOrderById(draftOrder.id)
+  }
+
+  const { order: linkedOrder, linked } = await ordersDB.linkPaymentIntent(
+    targetOrder.id,
+    paymentIntent.id,
+    paymentIntent.status,
+  )
+
+  if (!linkedOrder) {
+    void log.error('Failed to link payment intent to draft order', {
+      orderId: targetOrder.id,
+      paymentId: paymentIntent.id,
+      requestId,
+    })
+    throw new Internal('Failed to link payment intent to order')
+  }
+
+  if (linked) {
+    enqueueEmail('adminPaymentNotification', {
+      order: linkedOrder,
+      notificationType: AdminNotification.Created,
+    })
   }
 
   return {

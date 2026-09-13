@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it } from 'bun:test'
 import { env } from '@/config'
-import { IssueCode, type Order, type PaymentIntentStatus } from '@/types'
+import {
+  IssueCode,
+  type Order,
+  type PaymentIntentStatus,
+  type StripePaymentIntent,
+} from '@/types'
 import {
   mockEnqueueEmail,
   mockExtractPaymentIntentFields,
@@ -21,7 +26,6 @@ const createOrder = (overrides: Partial<Order> = {}): Order => ({
   paymentStatus: 'processing',
   lastStripeEventCreated: null,
   lastStripeEventId: null,
-  lastStripeSyncCheckedAt: null,
   paidAt: null,
   total: 25.99,
   currency: 'USD',
@@ -34,6 +38,13 @@ const createOrder = (overrides: Partial<Order> = {}): Order => ({
   updatedAt: new Date('2026-02-24T10:05:00.000Z'),
   ...overrides,
 })
+
+const createStripePaymentIntent = (orderId?: string): StripePaymentIntent =>
+  ({
+    id: 'pi_test_123',
+    status: 'processing',
+    metadata: orderId ? { orderId } : {},
+  }) as unknown as StripePaymentIntent
 
 function createPaymentIntentEvent({
   eventId,
@@ -94,7 +105,10 @@ async function createSignedWebhookRequest(event: unknown): Promise<{
 describe('Webhooks Service', () => {
   beforeEach(() => {
     mockOrdersDB.getOrder.mockReset()
+    mockOrdersDB.getOrderById.mockReset()
+    mockOrdersDB.linkPaymentIntent.mockReset()
     mockOrdersDB.updateOrder.mockReset()
+    mockOrdersDB.deleteOrderById.mockReset()
     mockStripe.webhooks.constructEventAsync.mockReset()
     mockLogger.info.mockReset()
     mockLogger.warn.mockReset()
@@ -114,7 +128,7 @@ describe('Webhooks Service', () => {
     )
 
     const result = await updateOrderFromWebhook(
-      'pi_test_123',
+      createStripePaymentIntent(),
       { paymentStatus: 'processing' },
       {
         eventType: 'payment_intent.processing',
@@ -128,6 +142,47 @@ describe('Webhooks Service', () => {
     expect(result?.justPaid).toBe(false)
   })
 
+  it('links a draft order using the Stripe metadata before applying the webhook', async () => {
+    const linkedOrder = createOrder({ paymentId: 'pi_test_123' })
+    mockOrdersDB.getOrder.mockResolvedValueOnce(null)
+    mockOrdersDB.linkPaymentIntent.mockResolvedValueOnce({
+      order: linkedOrder,
+      linked: true,
+    })
+    mockOrdersDB.updateOrder.mockResolvedValueOnce({
+      order: linkedOrder,
+      becamePaid: false,
+    })
+
+    await updateOrderFromWebhook(
+      createStripePaymentIntent('1'),
+      { paymentStatus: 'processing' },
+      {
+        eventType: 'payment_intent.processing',
+        eventId: 'evt_draft',
+        eventCreated: 100,
+      },
+    )
+
+    expect(mockOrdersDB.linkPaymentIntent).toHaveBeenCalledWith(
+      1,
+      'pi_test_123',
+      'processing',
+    )
+    expect(mockOrdersDB.updateOrder).toHaveBeenCalledWith(
+      'pi_test_123',
+      expect.objectContaining({
+        paymentStatus: 'processing',
+        lastStripeEventCreated: 100,
+        lastStripeEventId: 'evt_draft',
+      }),
+    )
+    expect(mockEnqueueEmail).toHaveBeenCalledWith('adminPaymentNotification', {
+      order: linkedOrder,
+      notificationType: 'created',
+    })
+  })
+
   it('ignores duplicate webhook events in the same second', async () => {
     mockOrdersDB.getOrder.mockResolvedValueOnce(
       createOrder({
@@ -138,7 +193,7 @@ describe('Webhooks Service', () => {
     )
 
     const result = await updateOrderFromWebhook(
-      'pi_test_123',
+      createStripePaymentIntent(),
       { paymentStatus: 'processing' },
       {
         eventType: 'payment_intent.processing',
@@ -162,7 +217,7 @@ describe('Webhooks Service', () => {
     )
 
     const result = await updateOrderFromWebhook(
-      'pi_test_123',
+      createStripePaymentIntent(),
       { paymentStatus: 'requires_action' },
       {
         eventType: 'payment_intent.requires_action',
@@ -196,7 +251,7 @@ describe('Webhooks Service', () => {
     })
 
     const result = await updateOrderFromWebhook(
-      'pi_test_123',
+      createStripePaymentIntent(),
       { paymentStatus: 'processing' },
       {
         eventType: 'payment_intent.processing',
@@ -240,7 +295,7 @@ describe('Webhooks Service', () => {
     })
 
     const result = await updateOrderFromWebhook(
-      'pi_test_123',
+      createStripePaymentIntent(),
       { paymentStatus: 'succeeded' },
       {
         eventType: 'payment_intent.succeeded',
@@ -273,7 +328,7 @@ describe('Webhooks Service', () => {
     )
 
     const result = await updateOrderFromWebhook(
-      'pi_test_123',
+      createStripePaymentIntent(),
       { paymentStatus: 'processing' },
       {
         eventType: 'payment_intent.processing',

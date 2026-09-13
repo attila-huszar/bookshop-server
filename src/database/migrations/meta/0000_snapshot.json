@@ -274,7 +274,7 @@
           "name": "payment_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "payment_status": {
@@ -295,13 +295,6 @@
         "last_stripe_event_id": {
           "name": "last_stripe_event_id",
           "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "last_stripe_sync_checked_at": {
-          "name": "last_stripe_sync_checked_at",
-          "type": "integer",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false

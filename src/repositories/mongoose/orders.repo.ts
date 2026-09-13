@@ -78,6 +78,47 @@ export async function getOrder(paymentId: string): Promise<Order | null> {
   return order
 }
 
+export async function getOrderById(id: number): Promise<Order | null> {
+  const order = await OrderModel.findOne({ id }).lean().exec()
+  return order ?? null
+}
+
+export async function linkPaymentIntent(
+  orderId: number,
+  paymentId: string,
+  paymentStatus: Order['paymentStatus'],
+): Promise<{ order: Order | null; linked: boolean }> {
+  const existingOrder = await getOrderById(orderId)
+
+  if (!existingOrder) return { order: null, linked: false }
+  if (existingOrder.paymentId === paymentId) {
+    return { order: existingOrder, linked: false }
+  }
+  if (existingOrder.paymentId !== null) {
+    return { order: null, linked: false }
+  }
+
+  const linkedOrder = await OrderModel.findOneAndUpdate(
+    { id: orderId, paymentId: null },
+    { paymentId, paymentStatus },
+    { new: true },
+  )
+    .lean()
+    .exec()
+
+  if (linkedOrder) return { order: linkedOrder, linked: true }
+
+  const currentOrder = await getOrderById(orderId)
+  return {
+    order: currentOrder?.paymentId === paymentId ? currentOrder : null,
+    linked: false,
+  }
+}
+
+export async function deleteOrderById(id: number): Promise<void> {
+  await OrderModel.deleteOne({ id }).exec()
+}
+
 export async function getAllOrders(): Promise<Order[]> {
   const orders = await OrderModel.find().lean().exec()
   return orders

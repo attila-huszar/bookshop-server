@@ -43,7 +43,7 @@ export async function getEmailHtml(props: SendEmailProps): Promise<string> {
         const { toName, order } = props
         const mjmlString = interpolate(orderConfirmation, {
           toName: Bun.escapeHTML(toName),
-          orderNumber: getOrderRef(order.paymentId),
+          orderNumber: getOrderRef(order.paymentId ?? 'PENDING'),
           eachItems: renderOrderItems(order.items),
           total: order.total.toFixed(2),
           currency: order.currency,
@@ -117,7 +117,7 @@ export async function getEmailHtml(props: SendEmailProps): Promise<string> {
         } = props
         const mjmlString = interpolate(adminPaymentNotification, {
           emailTitle: Bun.escapeHTML(emailTitle),
-          paymentId: getOrderRef(paymentId),
+          paymentId: getOrderRef(paymentId ?? 'PENDING'),
           customerName: Bun.escapeHTML(customerName),
           customerEmail: Bun.escapeHTML(customerEmail),
           eachItems: renderOrderItems(items),
@@ -160,7 +160,7 @@ const adminPhaseLabelMap: Record<AdminNotification, string> = {
 export const getEmailSubject = (props: SendEmailProps): string => {
   switch (props.type) {
     case 'adminPaymentNotification':
-      return `Order #${getOrderRef(props.paymentId)} | ${adminPhaseLabelMap[props.notificationType]}`
+      return `Order #${getOrderRef(props.paymentId ?? 'PENDING')} | ${adminPhaseLabelMap[props.notificationType]}`
     case 'verification':
     case 'passwordReset':
     case 'orderConfirmation':

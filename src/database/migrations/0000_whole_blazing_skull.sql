@@ -40,11 +40,10 @@ CREATE TABLE `news` (
 --> statement-breakpoint
 CREATE TABLE `orders` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
-	`payment_id` text NOT NULL,
+	`payment_id` text,
 	`payment_status` text DEFAULT 'processing' NOT NULL,
 	`last_stripe_event_created` integer,
 	`last_stripe_event_id` text,
-	`last_stripe_sync_checked_at` integer,
 	`paid_at` integer,
 	`total` real NOT NULL,
 	`currency` text NOT NULL,
