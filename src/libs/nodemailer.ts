@@ -1,5 +1,8 @@
-import nodemailer, { type SendMailOptions, type Transporter } from 'nodemailer'
-import type SMTPPool from 'nodemailer/lib/smtp-pool'
+import nodemailer, {
+  type SendMailOptions,
+  type SMTPPoolSentMessageInfo,
+  type Transporter,
+} from 'nodemailer'
 import { env } from '@/config'
 import { getEmailHtml, getEmailSubject } from '@/utils/email.utils'
 import {
@@ -12,8 +15,7 @@ import {
 import type { SendEmailProps } from '@/types'
 import { log } from './logger'
 
-type MailTransporter = Transporter<SMTPPool.SentMessageInfo, SMTPPool.Options>
-type SentMessageInfo = SMTPPool.SentMessageInfo
+type MailTransporter = Transporter<SMTPPoolSentMessageInfo>
 
 let transporter: MailTransporter | null = null
 
@@ -73,7 +75,7 @@ export function closeMailer(): void {
 
 export async function sendMail(
   props: SendEmailProps,
-): Promise<SentMessageInfo> {
+): Promise<SMTPPoolSentMessageInfo> {
   try {
     if (!env.mailerUser || !env.mailerPass) {
       throw new Error(
