@@ -9,6 +9,7 @@ import {
   retrieveOrderSyncStatus,
   retrievePaymentIntent,
 } from '@/services'
+import { getPaymentIdempotencyKey } from '@/utils/payment.utils'
 import { API, retryableStatuses } from '@/constants'
 import { errorHandler } from '@/errors'
 import type { PaymentIntentRequest, PublicUser } from '@/types'
@@ -64,9 +65,8 @@ payments.get(API.payments.byId, async (c) => {
 payments.post(API.payments.root, async (c) => {
   try {
     const paymentIntentRequest = await c.req.json<PaymentIntentRequest>()
-    const idempotencyKey = c.req.header('Idempotency-Key')?.trim()
-    const requestHeaderId = c.req.header('X-Request-Id')?.trim()
-    const requestId = idempotencyKey ?? requestHeaderId ?? randomUUID()
+    const clientRequestId =
+      c.req.header('Idempotency-Key')?.trim() ?? randomUUID()
 
     const jwtPayload = c.get('jwtPayload')
     let publicUser: PublicUser | null = null
@@ -74,6 +74,12 @@ payments.post(API.payments.root, async (c) => {
     if (jwtPayload?.uuid) {
       publicUser = await getUserProfile(jwtPayload.uuid, { optional: true })
     }
+
+    const requestId = getPaymentIdempotencyKey(
+      clientRequestId,
+      paymentIntentRequest,
+      publicUser,
+    )
 
     const { paymentId, paymentToken, amount } = await createPaymentIntent(
       paymentIntentRequest,

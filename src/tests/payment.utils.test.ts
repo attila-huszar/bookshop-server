@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it } from 'bun:test'
-import { IssueCode, type Order } from '@/types'
+import { IssueCode, type Order, type PublicUser } from '@/types'
 import { mockEnqueueEmail, mockLogger } from './test-setup'
 
 const { reportOrderError } = await import('@/services/shared')
+const { getPaymentIdempotencyKey } = await import('@/utils/payment.utils')
 
 const baseOrderSnapshot: Pick<
   Order,
@@ -27,6 +28,30 @@ describe('Payment Utils', () => {
   beforeEach(() => {
     mockLogger.error.mockClear()
     mockEnqueueEmail.mockClear()
+  })
+
+  it('binds payment idempotency to the user and cart request', () => {
+    const request = {
+      items: [{ id: 1, quantity: 1 }],
+      expectedTotal: 25.99,
+    }
+    const user = { uuid: 'user-1' } as PublicUser
+
+    expect(getPaymentIdempotencyKey('client-key', request, user)).toBe(
+      getPaymentIdempotencyKey('client-key', request, user),
+    )
+    expect(
+      getPaymentIdempotencyKey(
+        'client-key',
+        { ...request, items: [{ id: 2, quantity: 1 }] },
+        user,
+      ),
+    ).not.toBe(getPaymentIdempotencyKey('client-key', request, user))
+    expect(
+      getPaymentIdempotencyKey('client-key', request, {
+        uuid: 'user-2',
+      } as PublicUser),
+    ).not.toBe(getPaymentIdempotencyKey('client-key', request, user))
   })
 
   it('reports critical save failure and notifies admin by default', () => {
