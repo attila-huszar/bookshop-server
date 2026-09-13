@@ -36,6 +36,7 @@ export type AdminPaymentNotificationEmailItem = Pick<
 export type AdminPaymentNotificationEmailProps = {
   type: 'adminPaymentNotification'
   notificationType: AdminNotification
+  source?: string
   toAddress: string
   emailTitle: string
   customerName: string
@@ -73,5 +74,6 @@ export type SendEmailInputMap = {
   [QUEUE.EMAIL.JOB.ADMIN_PAYMENT_NOTIFICATION]: {
     order: AdminPaymentNotificationOrder
     notificationType: AdminNotification
+    source?: string
   }
 }

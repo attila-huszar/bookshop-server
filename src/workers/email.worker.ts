@@ -21,14 +21,27 @@ export const emailWorker = new Worker(
 )
 
 emailWorker.on('completed', (job) => {
+  const adminNotificationMeta =
+    job.data.type === QUEUE.EMAIL.JOB.ADMIN_PAYMENT_NOTIFICATION
+      ? {
+          notificationType: job.data.notificationType,
+          source: job.data.source,
+          paymentId: job.data.paymentId,
+          paymentStatus: job.data.paymentStatus,
+        }
+      : {}
+
   log.info('Email sent successfully', {
+    jobId: job.id,
     type: job.name,
     email: job.data.toAddress,
+    ...adminNotificationMeta,
   })
 })
 
 emailWorker.on('failed', (job, error) => {
   log.error('Email sending failed', {
+    jobId: job?.id,
     type: job?.name,
     email: job?.data.toAddress,
     error,

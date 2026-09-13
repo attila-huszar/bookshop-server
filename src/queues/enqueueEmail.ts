@@ -77,7 +77,7 @@ export function enqueueEmail(...args: SendEmailArgs): void {
       return
     }
     case QUEUE.EMAIL.JOB.ADMIN_PAYMENT_NOTIFICATION: {
-      const { notificationType, order } = data
+      const { notificationType, order, source } = data
 
       const emailTitleMap: Record<AdminNotification, string> = {
         [AdminNotification.Created]: 'Order Created',
@@ -119,6 +119,7 @@ export function enqueueEmail(...args: SendEmailArgs): void {
       const payload: AdminPaymentNotificationEmailProps = {
         type,
         notificationType,
+        source,
         toAddress: env.adminEmail!,
         emailTitle,
         paymentId: order.paymentId,
@@ -134,16 +135,28 @@ export function enqueueEmail(...args: SendEmailArgs): void {
         shippingAddress,
       }
 
-      void emailQueue.add(type, payload, jobOpts).catch((error: Error) => {
-        void log.error(
-          '[QUEUE] Admin payment notification email queueing failed',
-          {
-            error,
-            paymentId: order.paymentId,
+      void emailQueue
+        .add(type, payload, jobOpts)
+        .then((job) => {
+          void log.info('[QUEUE] Admin payment notification queued', {
+            jobId: job.id,
             notificationType,
-          },
-        )
-      })
+            source,
+            paymentId: order.paymentId,
+            paymentStatus: order.paymentStatus,
+          })
+        })
+        .catch((error: Error) => {
+          void log.error(
+            '[QUEUE] Admin payment notification email queueing failed',
+            {
+              error,
+              paymentId: order.paymentId,
+              notificationType,
+              source,
+            },
+          )
+        })
       return
     }
     default: {

@@ -106,6 +106,7 @@ export function reportOrderError({
     enqueueEmail('adminPaymentNotification', {
       notificationType: AdminNotification.Error,
       order,
+      source: issueCode,
     })
   }
 }

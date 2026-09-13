@@ -77,6 +77,7 @@ function reportMissingOrderForPaymentIntentWebhook({
 
   enqueueEmail('adminPaymentNotification', {
     notificationType: AdminNotification.Error,
+    source: IssueCode.WEBHOOK_MISSING_ORDER,
     order: {
       paymentId: paymentIntent.id,
       items: [],
