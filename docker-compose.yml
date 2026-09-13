@@ -31,7 +31,7 @@ services:
     logging:
       driver: loki
       options:
-        loki-url: 'http://loki:3100/loki/api/v1/push'
+        loki-url: 'http://127.0.0.1:3100/loki/api/v1/push'
         loki-external-labels: 'job=server'
         loki-pipeline-stages: |
           - json:
@@ -83,7 +83,7 @@ services:
     logging:
       driver: loki
       options:
-        loki-url: 'http://loki:3100/loki/api/v1/push'
+        loki-url: 'http://127.0.0.1:3100/loki/api/v1/push'
         loki-external-labels: 'job=server-with-mongo'
         loki-pipeline-stages: |
           - json:
@@ -108,7 +108,7 @@ services:
     logging:
       driver: loki
       options:
-        loki-url: 'http://loki:3100/loki/api/v1/push'
+        loki-url: 'http://127.0.0.1:3100/loki/api/v1/push'
         loki-external-labels: 'job=mongodb'
     volumes:
       - mongodb_data:/data/db
@@ -157,7 +157,7 @@ services:
     logging:
       driver: loki
       options:
-        loki-url: 'http://loki:3100/loki/api/v1/push'
+        loki-url: 'http://127.0.0.1:3100/loki/api/v1/push'
         loki-external-labels: 'job=worker'
         loki-pipeline-stages: |
           - json:
