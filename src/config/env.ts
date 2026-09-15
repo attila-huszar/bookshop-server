@@ -3,34 +3,44 @@ import { DB_REPO } from '@/types/enums'
 export const env = {
   adminEmail: Bun.env.ADMIN_EMAIL,
   adminPassword: Bun.env.ADMIN_PASSWORD,
+
   mailerService: Bun.env.MAILER_SERVICE ?? 'gmail',
   mailerHost: Bun.env.MAILER_HOST ?? 'smtp.gmail.com',
   mailerPort: Bun.env.MAILER_PORT ?? '465',
   mailerSecure: Bun.env.MAILER_SECURE ?? 'true',
-  serverBaseUrl: Bun.env.SERVER_BASE_URL ?? 'http://localhost',
-  port: Bun.env.PORT ?? '5000',
-  cookieSecret: Bun.env.COOKIE_SECRET,
-  cookieMaxAge: Bun.env.COOKIE_MAX_AGE ?? '1209600',
-  clientBaseUrl: Bun.env.CLIENT_BASE_URL,
-  dbRepo: Bun.env.DB_REPO === DB_REPO.MONGO ? DB_REPO.MONGO : DB_REPO.SQLITE,
-  dbSqliteFile: Bun.env.DB_SQLITE_FILE ?? 'data/db.sqlite',
-  dbMongoUrl: Bun.env.DB_MONGO_URL ?? 'mongodb://mongodb:27017/bookshop',
-  backupDir: Bun.env.BACKUP_DIR ?? 'data/backups',
-  backupRetentionDays: Bun.env.BACKUP_RETENTION_DAYS ?? '7',
   mailerName: Bun.env.MAILER_NAME ?? 'Bookshop',
   mailerUser: Bun.env.MAILER_USER,
   mailerPass: Bun.env.MAILER_PASS,
+
+  serverBaseUrl: Bun.env.SERVER_BASE_URL ?? 'http://localhost',
+  clientBaseUrl: Bun.env.CLIENT_BASE_URL,
+  port: Bun.env.PORT ?? '5000',
+
+  cookieSecret: Bun.env.COOKIE_SECRET,
+  cookieMaxAge: Bun.env.COOKIE_MAX_AGE ?? '1209600',
+
+  dbRepo: Bun.env.DB_REPO === DB_REPO.MONGO ? DB_REPO.MONGO : DB_REPO.SQLITE,
+  dbSqliteFile: Bun.env.DB_SQLITE_FILE ?? 'data/db.sqlite',
+  dbMongoUrl: Bun.env.DB_MONGO_URL ?? 'mongodb://mongodb:27017/bookshop',
+
+  backupDir: Bun.env.BACKUP_DIR ?? 'data/backups',
+  backupRetentionDays: Bun.env.BACKUP_RETENTION_DAYS ?? '7',
+
   jwtAccessSecret: Bun.env.ACCESS_TOKEN_SECRET,
   jwtRefreshSecret: Bun.env.REFRESH_TOKEN_SECRET,
   jwtAccessExpiration: Bun.env.ACCESS_TOKEN_EXPIRATION ?? '900',
   jwtRefreshExpiration: Bun.env.REFRESH_TOKEN_EXPIRATION ?? '1209600',
+
   ngrokAuthToken: Bun.env.NGROK_AUTHTOKEN ?? '',
   ngrokDomain: Bun.env.NGROK_DOMAIN ?? '',
+
   stripeSecret: Bun.env.STRIPE_SECRET,
   stripeWebhookSecret: Bun.env.STRIPE_WEBHOOK_SECRET,
+
   awsAccessKeyId: Bun.env.AWS_ACCESS_KEY_ID,
   awsSecretAccessKey: Bun.env.AWS_SECRET_ACCESS_KEY,
   awsRegion: Bun.env.AWS_REGION,
   awsBucket: Bun.env.AWS_BUCKET,
-  redisUrl: Bun.env.REDIS_URL ?? 'redis://localhost:6379',
+
+  redisUrl: Bun.env.REDIS_URL,
 }

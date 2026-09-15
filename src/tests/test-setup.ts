@@ -1,10 +1,14 @@
 import { mock } from 'bun:test'
-import { throwCriticalOrderPersistFailure } from '@/utils/persistence.utils'
+import { env } from '@/config'
+import { toIsoString } from '@/utils/date.utils'
 import { getOrderRef } from '@/utils/string.utils'
 import {
   stripSensitiveUserFields,
   stripTimestamps,
 } from '@/utils/transform.utils'
+
+env.stripeSecret ??= 'sk_test_123'
+env.stripeWebhookSecret ??= 'whsec_test'
 
 export const mockUsersDB = {
   getUserBy: mock(),
@@ -18,9 +22,12 @@ export const mockBooksDB = {
 
 export const mockOrdersDB = {
   getOrder: mock(),
+  getOrderById: mock(),
   getOrdersByEmail: mock(),
   createOrder: mock(),
+  linkPaymentIntent: mock(),
   updateOrder: mock(),
+  deleteOrderById: mock(),
 }
 
 export const mockStripe = {
@@ -39,7 +46,10 @@ export const mockSignAccessToken = mock()
 export const mockSignRefreshToken = mock()
 export const mockUploadFile = mock()
 export const mockSendMail = mock()
-export const mockSendEmail = mock()
+export const mockEnqueueEmail = mock()
+export const mockCancelAdminPaymentErrorAlert = mock(() =>
+  Promise.resolve(false),
+)
 export const mockExtractPaymentIntentFields = mock(() => ({}))
 export const mockGetPaymentIntentId = mock(
   (source: { payment_intent?: unknown }) =>
@@ -94,35 +104,34 @@ await mock.module('@/validation', () => ({
   userUpdateSchema: {},
 }))
 
-await mock.module('@/utils', () => ({
-  sendEmail: mockSendEmail,
-  extractPaymentIntentFields: mockExtractPaymentIntentFields,
-  getPaymentIntentId: mockGetPaymentIntentId,
-  signAccessToken: mockSignAccessToken,
-  signRefreshToken: mockSignRefreshToken,
-  uploadFile: mockUploadFile,
-  throwCriticalOrderPersistFailure,
-  stripSensitiveUserFields,
-  stripTimestamps,
-  getOrderRef,
-  Folder: {
-    Avatars: 'avatars',
-    ProductImages: 'product-images',
-  },
-}))
-
-await mock.module('@/utils/email.utils', () => ({
-  sendEmail: mockSendEmail,
-}))
-
 await mock.module('@/queues', () => ({
   emailQueue: mockEmailQueue,
+  enqueueEmail: mockEnqueueEmail,
+  cancelAdminPaymentErrorAlert: mockCancelAdminPaymentErrorAlert,
 }))
 
 await mock.module('@/libs', () => ({
   log: mockLogger,
   logWorker: mockLogger,
-  sendEmail: mock(),
+  stripe: mockStripe,
+  sendMail: mockSendMail,
+  closeMailer: mock(),
+}))
+
+await mock.module('@/utils', () => ({
+  extractPaymentIntentFields: mockExtractPaymentIntentFields,
+  getPaymentIntentId: mockGetPaymentIntentId,
+  signAccessToken: mockSignAccessToken,
+  signRefreshToken: mockSignRefreshToken,
+  uploadFile: mockUploadFile,
+  stripSensitiveUserFields,
+  stripTimestamps,
+  toIsoString,
+  getOrderRef,
+  Folder: {
+    Avatars: 'avatars',
+    ProductImages: 'product-images',
+  },
 }))
 
 await mock.module('ioredis', () => ({

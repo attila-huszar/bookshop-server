@@ -1,18 +1,22 @@
 import { beforeEach, describe, expect, it } from 'bun:test'
 import { env } from '@/config'
 import {
-  processStripeWebhook,
-  updateOrderFromWebhook,
-} from '@/services/webhooks.service'
-import { Internal } from '@/errors'
-import { IssueCode, type Order, type PaymentIntentStatus } from '@/types'
+  IssueCode,
+  type Order,
+  type PaymentIntentStatus,
+  type StripePaymentIntent,
+} from '@/types'
 import {
+  mockCancelAdminPaymentErrorAlert,
+  mockEnqueueEmail,
   mockExtractPaymentIntentFields,
   mockLogger,
   mockOrdersDB,
-  mockSendEmail,
   mockStripe,
 } from './test-setup'
+
+const { processStripeWebhook, updateOrderFromWebhook } =
+  await import('@/services/webhooks.service')
 
 const TEST_WEBHOOK_SECRET = env.stripeWebhookSecret ?? 'whsec_test'
 env.stripeWebhookSecret ??= TEST_WEBHOOK_SECRET
@@ -23,7 +27,6 @@ const createOrder = (overrides: Partial<Order> = {}): Order => ({
   paymentStatus: 'processing',
   lastStripeEventCreated: null,
   lastStripeEventId: null,
-  lastStripeSyncCheckedAt: null,
   paidAt: null,
   total: 25.99,
   currency: 'USD',
@@ -36,6 +39,13 @@ const createOrder = (overrides: Partial<Order> = {}): Order => ({
   updatedAt: new Date('2026-02-24T10:05:00.000Z'),
   ...overrides,
 })
+
+const createStripePaymentIntent = (orderId?: string): StripePaymentIntent =>
+  ({
+    id: 'pi_test_123',
+    status: 'processing',
+    metadata: orderId ? { orderId } : {},
+  }) as unknown as StripePaymentIntent
 
 function createPaymentIntentEvent({
   eventId,
@@ -95,14 +105,19 @@ async function createSignedWebhookRequest(event: unknown): Promise<{
 
 describe('Webhooks Service', () => {
   beforeEach(() => {
-    mockOrdersDB.getOrder.mockClear()
-    mockOrdersDB.updateOrder.mockClear()
-    mockStripe.webhooks.constructEventAsync.mockClear()
-    mockLogger.info.mockClear()
-    mockLogger.warn.mockClear()
-    mockLogger.error.mockClear()
-    mockExtractPaymentIntentFields.mockClear()
-    mockSendEmail.mockClear()
+    mockOrdersDB.getOrder.mockReset()
+    mockOrdersDB.getOrderById.mockReset()
+    mockOrdersDB.linkPaymentIntent.mockReset()
+    mockOrdersDB.updateOrder.mockReset()
+    mockOrdersDB.deleteOrderById.mockReset()
+    mockStripe.webhooks.constructEventAsync.mockReset()
+    mockLogger.info.mockReset()
+    mockLogger.warn.mockReset()
+    mockLogger.error.mockReset()
+    mockExtractPaymentIntentFields.mockReset()
+    mockEnqueueEmail.mockReset()
+    mockCancelAdminPaymentErrorAlert.mockReset()
+    mockCancelAdminPaymentErrorAlert.mockResolvedValue(false)
     mockExtractPaymentIntentFields.mockReturnValue({})
   })
 
@@ -116,7 +131,7 @@ describe('Webhooks Service', () => {
     )
 
     const result = await updateOrderFromWebhook(
-      'pi_test_123',
+      createStripePaymentIntent(),
       { paymentStatus: 'processing' },
       {
         eventType: 'payment_intent.processing',
@@ -130,6 +145,47 @@ describe('Webhooks Service', () => {
     expect(result?.justPaid).toBe(false)
   })
 
+  it('links a draft order using the Stripe metadata before applying the webhook', async () => {
+    const linkedOrder = createOrder({ paymentId: 'pi_test_123' })
+    mockOrdersDB.getOrder.mockResolvedValueOnce(null)
+    mockOrdersDB.linkPaymentIntent.mockResolvedValueOnce({
+      order: linkedOrder,
+      linked: true,
+    })
+    mockOrdersDB.updateOrder.mockResolvedValueOnce({
+      order: linkedOrder,
+      becamePaid: false,
+    })
+
+    await updateOrderFromWebhook(
+      createStripePaymentIntent('1'),
+      { paymentStatus: 'processing' },
+      {
+        eventType: 'payment_intent.processing',
+        eventId: 'evt_draft',
+        eventCreated: 100,
+      },
+    )
+
+    expect(mockOrdersDB.linkPaymentIntent).toHaveBeenCalledWith(
+      1,
+      'pi_test_123',
+      'processing',
+    )
+    expect(mockOrdersDB.updateOrder).toHaveBeenCalledWith(
+      'pi_test_123',
+      expect.objectContaining({
+        paymentStatus: 'processing',
+        lastStripeEventCreated: 100,
+        lastStripeEventId: 'evt_draft',
+      }),
+    )
+    expect(mockEnqueueEmail).toHaveBeenCalledWith('adminPaymentNotification', {
+      order: linkedOrder,
+      notificationType: 'created',
+    })
+  })
+
   it('ignores duplicate webhook events in the same second', async () => {
     mockOrdersDB.getOrder.mockResolvedValueOnce(
       createOrder({
@@ -140,7 +196,7 @@ describe('Webhooks Service', () => {
     )
 
     const result = await updateOrderFromWebhook(
-      'pi_test_123',
+      createStripePaymentIntent(),
       { paymentStatus: 'processing' },
       {
         eventType: 'payment_intent.processing',
@@ -164,7 +220,7 @@ describe('Webhooks Service', () => {
     )
 
     const result = await updateOrderFromWebhook(
-      'pi_test_123',
+      createStripePaymentIntent(),
       { paymentStatus: 'requires_action' },
       {
         eventType: 'payment_intent.requires_action',
@@ -192,10 +248,13 @@ describe('Webhooks Service', () => {
         lastStripeEventId: 'evt_prev',
       }),
     )
-    mockOrdersDB.updateOrder.mockResolvedValueOnce(updatedOrder)
+    mockOrdersDB.updateOrder.mockResolvedValueOnce({
+      order: updatedOrder,
+      becamePaid: false,
+    })
 
     const result = await updateOrderFromWebhook(
-      'pi_test_123',
+      createStripePaymentIntent(),
       { paymentStatus: 'processing' },
       {
         eventType: 'payment_intent.processing',
@@ -233,10 +292,13 @@ describe('Webhooks Service', () => {
         lastStripeEventId: 'evt_prev',
       }),
     )
-    mockOrdersDB.updateOrder.mockResolvedValueOnce(updatedOrder)
+    mockOrdersDB.updateOrder.mockResolvedValueOnce({
+      order: updatedOrder,
+      becamePaid: true,
+    })
 
     const result = await updateOrderFromWebhook(
-      'pi_test_123',
+      createStripePaymentIntent(),
       { paymentStatus: 'succeeded' },
       {
         eventType: 'payment_intent.succeeded',
@@ -269,7 +331,7 @@ describe('Webhooks Service', () => {
     )
 
     const result = await updateOrderFromWebhook(
-      'pi_test_123',
+      createStripePaymentIntent(),
       { paymentStatus: 'processing' },
       {
         eventType: 'payment_intent.processing',
@@ -283,7 +345,7 @@ describe('Webhooks Service', () => {
     expect(result?.justPaid).toBe(false)
   })
 
-  it('throws 500 and alerts admin when webhook order update persistence throws', async () => {
+  it('throws 500 and alerts admin when webhook order update save throws', async () => {
     mockOrdersDB.getOrder.mockResolvedValueOnce(
       createOrder({
         paymentStatus: 'processing',
@@ -297,7 +359,7 @@ describe('Webhooks Service', () => {
     })
     mockStripe.webhooks.constructEventAsync.mockResolvedValueOnce(
       createPaymentIntentEvent({
-        eventId: 'evt_persist_failed',
+        eventId: 'evt_save_failed',
         eventCreated: 401,
         type: 'payment_intent.succeeded',
         status: 'succeeded',
@@ -305,7 +367,7 @@ describe('Webhooks Service', () => {
     )
 
     const event = createPaymentIntentEvent({
-      eventId: 'evt_persist_failed',
+      eventId: 'evt_save_failed',
       eventCreated: 401,
       type: 'payment_intent.succeeded',
       status: 'succeeded',
@@ -320,31 +382,102 @@ describe('Webhooks Service', () => {
       resultError = error
     }
 
-    expect(resultError).toBeInstanceOf(Internal)
-    expect((resultError as Internal).status).toBe(500)
-    expect(mockSendEmail).toHaveBeenCalledTimes(1)
-    expect(mockSendEmail).toHaveBeenCalledWith(
+    expect(resultError).toMatchObject({
+      status: 500,
+      message: 'Failed to save webhook order update',
+    })
+    expect(mockEnqueueEmail).toHaveBeenCalledWith(
       'adminPaymentNotification',
       expect.objectContaining({
         notificationType: 'error',
         order: expect.objectContaining({
           paymentId: 'pi_test_123',
           paymentStatus: 'succeeded',
+          email: 'buyer@example.com',
         }) as Order,
       }),
     )
     expect(mockLogger.error).toHaveBeenCalledWith(
-      '[CRITICAL] Webhook order update persistence failed',
+      '[CRITICAL] Webhook order update save failed',
       expect.objectContaining({
-        issueCode: IssueCode.WEBHOOK_ORDER_PERSIST_FAILED,
-        persistFailureReason: 'threw',
+        issueCode: IssueCode.WEBHOOK_ORDER_SAVE_FAILED,
+        saveFailureReason: 'threw',
         entity: 'order',
         operation: 'update',
         paymentId: 'pi_test_123',
         stripeStatus: 'succeeded',
         eventType: 'payment_intent.succeeded',
-        eventId: 'evt_persist_failed',
+        eventId: 'evt_save_failed',
         eventCreated: 401,
+      }),
+    )
+  })
+
+  it('throws 500 and alerts admin when webhook order update returns null', async () => {
+    mockOrdersDB.getOrder.mockResolvedValueOnce(
+      createOrder({
+        paymentStatus: 'processing',
+      }),
+    )
+    mockOrdersDB.updateOrder.mockResolvedValueOnce({
+      order: null,
+      becamePaid: false,
+    })
+    mockExtractPaymentIntentFields.mockReturnValue({
+      email: 'buyer@example.com',
+    })
+    mockStripe.webhooks.constructEventAsync.mockResolvedValueOnce(
+      createPaymentIntentEvent({
+        eventId: 'evt_save_returned_null',
+        eventCreated: 402,
+        type: 'payment_intent.succeeded',
+        status: 'succeeded',
+      }),
+    )
+
+    const event = createPaymentIntentEvent({
+      eventId: 'evt_save_returned_null',
+      eventCreated: 402,
+      type: 'payment_intent.succeeded',
+      status: 'succeeded',
+    })
+    const { payload, signature } = await createSignedWebhookRequest(event)
+
+    let resultError: unknown = null
+
+    try {
+      await processStripeWebhook(payload, signature)
+    } catch (error) {
+      resultError = error
+    }
+
+    expect(resultError).toMatchObject({
+      status: 500,
+      message: 'Failed to save webhook order update',
+    })
+    expect(mockEnqueueEmail).toHaveBeenCalledWith(
+      'adminPaymentNotification',
+      expect.objectContaining({
+        notificationType: 'error',
+        order: expect.objectContaining({
+          paymentId: 'pi_test_123',
+          paymentStatus: 'succeeded',
+          email: 'buyer@example.com',
+        }) as Order,
+      }),
+    )
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      '[CRITICAL] Webhook order update save failed',
+      expect.objectContaining({
+        issueCode: IssueCode.WEBHOOK_ORDER_SAVE_FAILED,
+        saveFailureReason: 'returned_null',
+        entity: 'order',
+        operation: 'update',
+        paymentId: 'pi_test_123',
+        stripeStatus: 'succeeded',
+        eventType: 'payment_intent.succeeded',
+        eventId: 'evt_save_returned_null',
+        eventCreated: 402,
       }),
     )
   })
@@ -361,7 +494,10 @@ describe('Webhooks Service', () => {
         paidAt: null,
       }),
     )
-    mockOrdersDB.updateOrder.mockResolvedValueOnce(updatedOrder)
+    mockOrdersDB.updateOrder.mockResolvedValueOnce({
+      order: updatedOrder,
+      becamePaid: true,
+    })
     mockStripe.webhooks.constructEventAsync.mockResolvedValueOnce(
       createPaymentIntentEvent({
         eventId: 'evt_webhook_paid',
@@ -382,15 +518,19 @@ describe('Webhooks Service', () => {
     const result = await processStripeWebhook(payload, signature)
 
     expect(result).toEqual({ received: true })
-    expect(mockSendEmail).toHaveBeenCalledTimes(2)
-    expect(mockSendEmail).toHaveBeenCalledWith('orderConfirmation', {
+    expect(mockCancelAdminPaymentErrorAlert).toHaveBeenCalledWith('pi_test_123')
+    expect(mockEnqueueEmail).toHaveBeenCalledTimes(2)
+    expect(mockEnqueueEmail).toHaveBeenNthCalledWith(1, 'orderConfirmation', {
       order: updatedOrder,
-      source: 'webhook',
     })
-    expect(mockSendEmail).toHaveBeenCalledWith('adminPaymentNotification', {
-      order: updatedOrder,
-      notificationType: 'confirmed',
-    })
+    expect(mockEnqueueEmail).toHaveBeenNthCalledWith(
+      2,
+      'adminPaymentNotification',
+      {
+        order: updatedOrder,
+        notificationType: 'confirmed',
+      },
+    )
   })
 
   it('does not send confirmed notifications for succeeded webhook when order is already paid', async () => {
@@ -408,7 +548,10 @@ describe('Webhooks Service', () => {
     })
 
     mockOrdersDB.getOrder.mockResolvedValueOnce(existingOrder)
-    mockOrdersDB.updateOrder.mockResolvedValueOnce(updatedOrder)
+    mockOrdersDB.updateOrder.mockResolvedValueOnce({
+      order: updatedOrder,
+      becamePaid: false,
+    })
     mockStripe.webhooks.constructEventAsync.mockResolvedValueOnce(
       createPaymentIntentEvent({
         eventId: 'evt_repeat_success',
@@ -429,10 +572,17 @@ describe('Webhooks Service', () => {
     const result = await processStripeWebhook(payload, signature)
 
     expect(result).toEqual({ received: true })
-    expect(mockSendEmail).not.toHaveBeenCalled()
+    expect(mockEnqueueEmail).not.toHaveBeenCalled()
+    expect(mockOrdersDB.updateOrder).toHaveBeenCalledTimes(1)
+    expect(mockOrdersDB.updateOrder).toHaveBeenCalledWith(
+      'pi_test_123',
+      expect.not.objectContaining({
+        paidAt: expect.any(Date) as Date,
+      }),
+    )
   })
 
-  it('logs and alerts on missing order for payment_intent.succeeded', async () => {
+  it('throws 500, logs, and alerts on missing order for payment_intent.succeeded', async () => {
     mockOrdersDB.getOrder.mockResolvedValueOnce(null)
     mockExtractPaymentIntentFields.mockReturnValue({
       email: 'buyer@example.com',
@@ -455,10 +605,19 @@ describe('Webhooks Service', () => {
     })
     const { payload, signature } = await createSignedWebhookRequest(event)
 
-    const result = await processStripeWebhook(payload, signature)
+    let resultError: unknown = null
 
-    expect(result).toEqual({ received: true })
-    expect(mockSendEmail).toHaveBeenCalledWith(
+    try {
+      await processStripeWebhook(payload, signature)
+    } catch (error) {
+      resultError = error
+    }
+
+    expect(resultError).toMatchObject({
+      status: 500,
+      message: 'Missing order for Stripe payment intent: pi_test_123',
+    })
+    expect(mockEnqueueEmail).toHaveBeenCalledWith(
       'adminPaymentNotification',
       expect.objectContaining({
         notificationType: 'error',
@@ -492,7 +651,7 @@ describe('Webhooks Service', () => {
     })
   })
 
-  it('logs and alerts on missing order for payment_intent.canceled', async () => {
+  it('throws 500, logs, and alerts on missing order for payment_intent.canceled', async () => {
     mockOrdersDB.getOrder.mockResolvedValueOnce(null)
     mockExtractPaymentIntentFields.mockReturnValue({
       email: 'buyer@example.com',
@@ -513,10 +672,19 @@ describe('Webhooks Service', () => {
     })
     const { payload, signature } = await createSignedWebhookRequest(event)
 
-    const result = await processStripeWebhook(payload, signature)
+    let resultError: unknown = null
 
-    expect(result).toEqual({ received: true })
-    expect(mockSendEmail).toHaveBeenCalledWith(
+    try {
+      await processStripeWebhook(payload, signature)
+    } catch (error) {
+      resultError = error
+    }
+
+    expect(resultError).toMatchObject({
+      status: 500,
+      message: 'Missing order for Stripe payment intent: pi_test_123',
+    })
+    expect(mockEnqueueEmail).toHaveBeenCalledWith(
       'adminPaymentNotification',
       expect.objectContaining({
         notificationType: 'error',

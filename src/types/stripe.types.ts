@@ -41,8 +41,7 @@ export type ChargeEventType =
   | Stripe.ChargeRefundedEvent
 
 export type DisputeEventType =
-  | Stripe.ChargeDisputeCreatedEvent
-  | Stripe.ChargeDisputeClosedEvent
+  Stripe.ChargeDisputeCreatedEvent | Stripe.ChargeDisputeClosedEvent
 
 export type RefundEventType = Stripe.ChargeRefundUpdatedEvent
 
