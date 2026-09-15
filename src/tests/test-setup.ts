@@ -47,6 +47,9 @@ export const mockSignRefreshToken = mock()
 export const mockUploadFile = mock()
 export const mockSendMail = mock()
 export const mockEnqueueEmail = mock()
+export const mockCancelAdminPaymentErrorAlert = mock(() =>
+  Promise.resolve(false),
+)
 export const mockExtractPaymentIntentFields = mock(() => ({}))
 export const mockGetPaymentIntentId = mock(
   (source: { payment_intent?: unknown }) =>
@@ -104,6 +107,7 @@ await mock.module('@/validation', () => ({
 await mock.module('@/queues', () => ({
   emailQueue: mockEmailQueue,
   enqueueEmail: mockEnqueueEmail,
+  cancelAdminPaymentErrorAlert: mockCancelAdminPaymentErrorAlert,
 }))
 
 await mock.module('@/libs', () => ({

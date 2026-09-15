@@ -16,7 +16,7 @@ type SendEmailArgs = {
 }[keyof SendEmailInputMap]
 
 export function getAdminPaymentErrorJobId(paymentId: string): string {
-  return `admin_alert_error:${paymentId}`
+  return `admin_alert_error-${paymentId}`
 }
 
 export async function cancelAdminPaymentErrorAlert(

@@ -7,6 +7,7 @@ import {
   type StripePaymentIntent,
 } from '@/types'
 import {
+  mockCancelAdminPaymentErrorAlert,
   mockEnqueueEmail,
   mockExtractPaymentIntentFields,
   mockLogger,
@@ -115,6 +116,8 @@ describe('Webhooks Service', () => {
     mockLogger.error.mockReset()
     mockExtractPaymentIntentFields.mockReset()
     mockEnqueueEmail.mockReset()
+    mockCancelAdminPaymentErrorAlert.mockReset()
+    mockCancelAdminPaymentErrorAlert.mockResolvedValue(false)
     mockExtractPaymentIntentFields.mockReturnValue({})
   })
 
@@ -515,6 +518,7 @@ describe('Webhooks Service', () => {
     const result = await processStripeWebhook(payload, signature)
 
     expect(result).toEqual({ received: true })
+    expect(mockCancelAdminPaymentErrorAlert).toHaveBeenCalledWith('pi_test_123')
     expect(mockEnqueueEmail).toHaveBeenCalledTimes(2)
     expect(mockEnqueueEmail).toHaveBeenNthCalledWith(1, 'orderConfirmation', {
       order: updatedOrder,

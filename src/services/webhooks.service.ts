@@ -173,7 +173,17 @@ export async function processStripeWebhook(
 
         const { justPaid, ...updatedOrder } = result
 
-        void cancelAdminPaymentErrorAlert(paymentIntent.id)
+        void cancelAdminPaymentErrorAlert(paymentIntent.id).catch(
+          (error: unknown) => {
+            void log.warn(
+              '[QUEUE] Failed to cancel pending admin error alert',
+              {
+                error,
+                paymentId: paymentIntent.id,
+              },
+            )
+          },
+        )
 
         if (!justPaid) {
           void log.info('[STRIPE] Payment succeeded via webhook', {
