@@ -1,6 +1,6 @@
 import { env } from '@/config'
 import { log } from '@/libs'
-import { jobOpts, QUEUE } from '@/constants'
+import { adminErrorAlertDelayMs, jobOpts, QUEUE } from '@/constants'
 import { AdminNotification } from '@/types'
 import type {
   AdminPaymentNotificationEmailProps,
@@ -14,6 +14,26 @@ import { emailQueue } from './emailQueue'
 type SendEmailArgs = {
   [K in keyof SendEmailInputMap]: [type: K, data: SendEmailInputMap[K]]
 }[keyof SendEmailInputMap]
+
+export function getAdminPaymentErrorJobId(paymentId: string): string {
+  return `admin_alert_error:${paymentId}`
+}
+
+export async function cancelAdminPaymentErrorAlert(
+  paymentId: string,
+): Promise<boolean> {
+  const jobId = getAdminPaymentErrorJobId(paymentId)
+  const job = await emailQueue.getJob(jobId)
+
+  if (!job) return false
+
+  await job.remove()
+  void log.info('[QUEUE] Canceled pending admin error alert', {
+    jobId,
+    paymentId,
+  })
+  return true
+}
 
 export function enqueueEmail(...args: SendEmailArgs): void {
   const [type, data] = args
@@ -135,8 +155,19 @@ export function enqueueEmail(...args: SendEmailArgs): void {
         shippingAddress,
       }
 
+      const isErrorAlert = notificationType === AdminNotification.Error
+
+      const alertJobOpts =
+        isErrorAlert && order.paymentId
+          ? {
+              ...jobOpts,
+              delay: adminErrorAlertDelayMs,
+              jobId: getAdminPaymentErrorJobId(order.paymentId),
+            }
+          : jobOpts
+
       void emailQueue
-        .add(type, payload, jobOpts)
+        .add(type, payload, alertJobOpts)
         .then((job) => {
           void log.info('[QUEUE] Admin payment notification queued', {
             jobId: job.id,
@@ -144,6 +175,10 @@ export function enqueueEmail(...args: SendEmailArgs): void {
             source,
             paymentId: order.paymentId,
             paymentStatus: order.paymentStatus,
+            ...(isErrorAlert && {
+              delayed: true,
+              delayMs: adminErrorAlertDelayMs,
+            }),
           })
         })
         .catch((error: Error) => {

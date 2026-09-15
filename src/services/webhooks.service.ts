@@ -2,7 +2,7 @@ import { env } from '@/config'
 import { ordersDB } from '@/repositories'
 import { extractPaymentIntentFields, getPaymentIntentId } from '@/utils'
 import { log, stripe } from '@/libs'
-import { enqueueEmail } from '@/queues'
+import { cancelAdminPaymentErrorAlert, enqueueEmail } from '@/queues'
 import { terminalStatuses } from '@/constants'
 import { BadRequest } from '@/errors/BadRequest'
 import { Internal } from '@/errors/Internal'
@@ -166,10 +166,14 @@ export async function processStripeWebhook(
             paymentStatus: paymentIntent.status,
             eventMeta,
           })
-          return { received: true }
+          throw new Internal(
+            `Missing order for Stripe payment intent: ${paymentIntent.id}`,
+          )
         }
 
         const { justPaid, ...updatedOrder } = result
+
+        void cancelAdminPaymentErrorAlert(paymentIntent.id)
 
         if (!justPaid) {
           void log.info('[STRIPE] Payment succeeded via webhook', {
@@ -229,7 +233,9 @@ export async function processStripeWebhook(
             paymentStatus: 'canceled',
             eventMeta,
           })
-          return { received: true }
+          throw new Internal(
+            `Missing order for Stripe payment intent: ${paymentIntent.id}`,
+          )
         }
 
         void log.info('[STRIPE] Payment canceled via webhook', {

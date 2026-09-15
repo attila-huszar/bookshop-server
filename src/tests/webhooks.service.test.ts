@@ -578,7 +578,7 @@ describe('Webhooks Service', () => {
     )
   })
 
-  it('logs and alerts on missing order for payment_intent.succeeded', async () => {
+  it('throws 500, logs, and alerts on missing order for payment_intent.succeeded', async () => {
     mockOrdersDB.getOrder.mockResolvedValueOnce(null)
     mockExtractPaymentIntentFields.mockReturnValue({
       email: 'buyer@example.com',
@@ -601,9 +601,18 @@ describe('Webhooks Service', () => {
     })
     const { payload, signature } = await createSignedWebhookRequest(event)
 
-    const result = await processStripeWebhook(payload, signature)
+    let resultError: unknown = null
 
-    expect(result).toEqual({ received: true })
+    try {
+      await processStripeWebhook(payload, signature)
+    } catch (error) {
+      resultError = error
+    }
+
+    expect(resultError).toMatchObject({
+      status: 500,
+      message: 'Missing order for Stripe payment intent: pi_test_123',
+    })
     expect(mockEnqueueEmail).toHaveBeenCalledWith(
       'adminPaymentNotification',
       expect.objectContaining({
@@ -638,7 +647,7 @@ describe('Webhooks Service', () => {
     })
   })
 
-  it('logs and alerts on missing order for payment_intent.canceled', async () => {
+  it('throws 500, logs, and alerts on missing order for payment_intent.canceled', async () => {
     mockOrdersDB.getOrder.mockResolvedValueOnce(null)
     mockExtractPaymentIntentFields.mockReturnValue({
       email: 'buyer@example.com',
@@ -659,9 +668,18 @@ describe('Webhooks Service', () => {
     })
     const { payload, signature } = await createSignedWebhookRequest(event)
 
-    const result = await processStripeWebhook(payload, signature)
+    let resultError: unknown = null
 
-    expect(result).toEqual({ received: true })
+    try {
+      await processStripeWebhook(payload, signature)
+    } catch (error) {
+      resultError = error
+    }
+
+    expect(resultError).toMatchObject({
+      status: 500,
+      message: 'Missing order for Stripe payment intent: pi_test_123',
+    })
     expect(mockEnqueueEmail).toHaveBeenCalledWith(
       'adminPaymentNotification',
       expect.objectContaining({

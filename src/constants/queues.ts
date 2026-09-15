@@ -18,4 +18,6 @@ export const jobOpts = {
   },
 }
 
+export const adminErrorAlertDelayMs = 5 * 60 * 1000
+
 export const concurrency = 1
