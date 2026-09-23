@@ -8,16 +8,13 @@ import { timestamps } from './column.helpers'
 
 export const ordersTable = sqliteTable('orders', {
   id: int().primaryKey({ autoIncrement: true }),
-  paymentId: text('payment_id').unique().notNull(),
+  paymentId: text('payment_id').unique(),
   paymentStatus: text('payment_status')
     .$type<PaymentIntentStatus>()
     .default('processing')
     .notNull(),
   lastStripeEventCreated: int('last_stripe_event_created').$type<number>(),
   lastStripeEventId: text('last_stripe_event_id'),
-  lastStripeSyncCheckedAt: int('last_stripe_sync_checked_at', {
-    mode: 'timestamp',
-  }).$type<Date>(),
   paidAt: int('paid_at', { mode: 'timestamp' }).$type<Date>(),
   total: real().notNull(),
   currency: text().notNull(),

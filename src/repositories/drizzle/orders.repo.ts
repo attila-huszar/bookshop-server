@@ -1,4 +1,4 @@
-import { desc, eq, inArray } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm'
 import { sqlite } from '@/db'
 import model from '@/models'
 import type { Order, OrderInsert, OrderUpdate } from '@/types'
@@ -22,16 +22,140 @@ export async function getOrder(paymentId: string): Promise<Order | null> {
   return orderRecords[0] ?? null
 }
 
+export async function getOrderById(id: number): Promise<Order | null> {
+  const orderRecords = await sqlite
+    .select()
+    .from(ordersTable)
+    .where(eq(ordersTable.id, id))
+    .limit(1)
+  return orderRecords[0] ?? null
+}
+
+export async function linkPaymentIntent(
+  orderId: number,
+  paymentId: string,
+  paymentStatus: Order['paymentStatus'],
+): Promise<{ order: Order | null; linked: boolean }> {
+  const existingOrder = await getOrderById(orderId)
+
+  if (!existingOrder) return { order: null, linked: false }
+  if (existingOrder.paymentId === paymentId) {
+    return { order: existingOrder, linked: false }
+  }
+  if (existingOrder.paymentId !== null) {
+    return { order: null, linked: false }
+  }
+
+  const [linkedOrder] = await sqlite
+    .update(ordersTable)
+    .set({ paymentId, paymentStatus })
+    .where(and(eq(ordersTable.id, orderId), isNull(ordersTable.paymentId)))
+    .returning()
+
+  if (linkedOrder) return { order: linkedOrder, linked: true }
+
+  const currentOrder = await getOrderById(orderId)
+  return {
+    order: currentOrder?.paymentId === paymentId ? currentOrder : null,
+    linked: false,
+  }
+}
+
+export async function deleteOrderById(id: number): Promise<void> {
+  await sqlite.delete(ordersTable).where(eq(ordersTable.id, id))
+}
+
 export async function updateOrder(
   paymentId: string,
   fields: OrderUpdate,
-): Promise<Order | null> {
+): Promise<{ order: Order | null; becamePaid: boolean }> {
+  const shouldAttemptPaidTransition = fields.paidAt instanceof Date
+
+  if (!shouldAttemptPaidTransition) {
+    const [updatedOrder] = await sqlite
+      .update(ordersTable)
+      .set(fields)
+      .where(eq(ordersTable.paymentId, paymentId))
+      .returning()
+
+    return {
+      order: updatedOrder ?? null,
+      becamePaid: false,
+    }
+  }
+
+  const [paidTransitionOrder] = await sqlite
+    .update(ordersTable)
+    .set(fields)
+    .where(
+      and(eq(ordersTable.paymentId, paymentId), isNull(ordersTable.paidAt)),
+    )
+    .returning()
+
+  if (paidTransitionOrder) {
+    return {
+      order: paidTransitionOrder,
+      becamePaid: true,
+    }
+  }
+
+  const fieldsWithoutPaidAt: OrderUpdate = { ...fields }
+  delete fieldsWithoutPaidAt.paidAt
+
+  if (Object.keys(fieldsWithoutPaidAt).length === 0) {
+    return {
+      order: await getOrder(paymentId),
+      becamePaid: false,
+    }
+  }
+
+  const [updatedOrder] = await sqlite
+    .update(ordersTable)
+    .set(fieldsWithoutPaidAt)
+    .where(eq(ordersTable.paymentId, paymentId))
+    .returning()
+
+  return {
+    order: updatedOrder ?? null,
+    becamePaid: false,
+  }
+}
+
+export async function updateOrderIfUnchanged(
+  paymentId: string,
+  expected: Pick<
+    Order,
+    'paymentStatus' | 'lastStripeEventCreated' | 'lastStripeEventId' | 'paidAt'
+  >,
+  fields: OrderUpdate,
+): Promise<{ order: Order | null; becamePaid: boolean }> {
   const [updatedOrder] = await sqlite
     .update(ordersTable)
     .set(fields)
-    .where(eq(ordersTable.paymentId, paymentId))
+    .where(
+      and(
+        eq(ordersTable.paymentId, paymentId),
+        eq(ordersTable.paymentStatus, expected.paymentStatus),
+        expected.lastStripeEventCreated === null
+          ? isNull(ordersTable.lastStripeEventCreated)
+          : eq(
+              ordersTable.lastStripeEventCreated,
+              expected.lastStripeEventCreated,
+            ),
+        expected.lastStripeEventId === null
+          ? isNull(ordersTable.lastStripeEventId)
+          : eq(ordersTable.lastStripeEventId, expected.lastStripeEventId),
+        expected.paidAt === null
+          ? isNull(ordersTable.paidAt)
+          : eq(ordersTable.paidAt, expected.paidAt),
+      ),
+    )
     .returning()
-  return updatedOrder ?? null
+
+  return {
+    order: updatedOrder ?? null,
+    becamePaid: Boolean(updatedOrder && fields.paidAt instanceof Date),
+  }
 }
 
 export async function getAllOrders(): Promise<Order[]> {

@@ -1,6 +1,12 @@
 import { Hono } from 'hono'
 import { deleteCookie, getSignedCookie, setSignedCookie } from 'hono/cookie'
-import { cookieOptions, env, REFRESH_TOKEN } from '@/config'
+import {
+  cookieOptions,
+  env,
+  PAYMENT_SESSION,
+  paymentCookieOptions,
+  REFRESH_TOKEN,
+} from '@/config'
 import {
   getUserProfile,
   loginUser,
@@ -138,6 +144,7 @@ users.patch(API.users.profile, async (c) => {
 users.post(API.users.logout, (c) => {
   try {
     deleteCookie(c, REFRESH_TOKEN, cookieOptions)
+    deleteCookie(c, PAYMENT_SESSION, paymentCookieOptions)
 
     return c.json({ success: true })
   } catch (error) {

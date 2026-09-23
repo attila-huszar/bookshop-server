@@ -1,5 +1,3 @@
-import { Stripe } from 'stripe'
-import { env } from '@/config'
 import { booksDB, ordersDB } from '@/repositories'
 import {
   orderInsertSchema,
@@ -7,520 +5,303 @@ import {
   paymentIntentRequestSchema,
   validate,
 } from '@/validation'
-import {
-  extractPaymentIntentFields,
-  reportCriticalOrderPersistFailure,
-  sendEmail,
-  SendEmailPreconditionError,
-  throwCriticalOrderPersistFailure,
-  toIsoString,
-} from '@/utils'
-import { log } from '@/libs'
-import {
-  defaultCurrency,
-  orderSyncStripeFallbackThresholdMs,
-  retryableStatuses,
-} from '@/constants'
-import { BadRequest, Internal, NotFound, Unauthorized } from '@/errors'
-import { AdminNotification, IssueCode } from '@/types'
+import { log, stripe } from '@/libs'
+import { enqueueEmail } from '@/queues'
+import { defaultCurrency, paymentMessage } from '@/constants'
+import { BadRequest, Internal, NotFound } from '@/errors'
+import { Unauthorized } from '@/errors/Unauthorized'
+import { AdminNotification } from '@/types'
 import type {
   Order,
   OrderInsert,
   OrderItem,
-  OrderUpdate,
+  PaymentAccess,
   PaymentIntentRequest,
   PaymentSession,
-  PaymentSyncStatus,
   PublicUser,
+  StripePaymentIntent,
 } from '@/types'
 
-const stripe = new Stripe(env.stripeSecret!)
-
-type PaymentAccess = {
-  paymentSessionId?: string
-  userEmail?: string
-}
-
-async function authorizePaymentAccess(
+async function resolveAuthorizedPayment(
   paymentId: string,
-  access?: PaymentAccess,
-): Promise<Order> {
-  const order = await ordersDB.getOrder(paymentId)
+  access: PaymentAccess,
+): Promise<{ validatedId: string; order: Order }> {
+  const validatedId = validate(paymentIdSchema, paymentId)
+
+  let order: Order | null
+  try {
+    order = await ordersDB.getOrder(validatedId)
+  } catch (lookupErr) {
+    void log.error('ordersDB.getOrder failed in resolveAuthorizedPayment', {
+      paymentId: validatedId,
+      lookupErr,
+    })
+    throw new Internal('Failed to read order')
+  }
 
   if (!order) {
     throw new Unauthorized('Unauthorized payment access')
   }
 
-  const paymentSessionId = access?.paymentSessionId
-  const userEmail = access?.userEmail
-  const orderEmail = order.email
+  const accessEmail = access.userEmail?.toLowerCase()
+  const hasSessionAccess = access.paymentSessionId === validatedId
+  const hasEmailAccess =
+    Boolean(accessEmail) && order.email?.toLowerCase() === accessEmail
 
-  if (paymentSessionId === paymentId) return order
-
-  if (userEmail && orderEmail?.toLowerCase() === userEmail.toLowerCase()) {
-    return order
+  if (!hasSessionAccess && !hasEmailAccess) {
+    throw new Unauthorized('Unauthorized payment access')
   }
 
-  throw new Unauthorized('Unauthorized payment access')
+  return { validatedId, order }
+}
+
+async function buildOrderItemsAndTotal(
+  paymentIntentRequest: PaymentIntentRequest,
+): Promise<{ items: OrderItem[]; total: number }> {
+  const pricedItems = await Promise.all(
+    paymentIntentRequest.items.map(async (item) => {
+      const book = await booksDB.getBookById(item.id)
+
+      if (!book) {
+        throw new NotFound(
+          `Book not found during payment intent creation: ID ${item.id}`,
+        )
+      }
+
+      const priceCents = Math.round(book.price * 100)
+      const itemTotalCents = Math.round(
+        item.quantity * priceCents * (1 - (book.discount ?? 0) / 100),
+      )
+      const orderItem: OrderItem = {
+        id: book.id,
+        title: book.title,
+        author: book.author,
+        imgUrl: book.imgUrl ?? '',
+        price: book.price,
+        discount: book.discount ?? 0,
+        quantity: item.quantity,
+      }
+
+      return {
+        itemTotalCents,
+        item: orderItem,
+      }
+    }),
+  )
+
+  const totalCents = pricedItems.reduce(
+    (sum, pricedItem) => sum + pricedItem.itemTotalCents,
+    0,
+  )
+  const items = pricedItems.map((pricedItem) => pricedItem.item)
+
+  return {
+    items,
+    total: totalCents / 100,
+  }
+}
+
+async function createPaymentIntent({
+  amountInCents,
+  orderId,
+  requestId,
+  user,
+}: {
+  amountInCents: number
+  orderId: number
+  requestId: string
+  user: PublicUser | null
+}): Promise<StripePaymentIntent> {
+  const createParams = {
+    amount: amountInCents,
+    currency: defaultCurrency.toLowerCase(),
+    metadata: {
+      orderId: String(orderId),
+      requestId,
+      ...(user && {
+        userEmail: user.email,
+        userName: `${user.firstName} ${user.lastName}`.trim(),
+      }),
+    },
+  } as const
+
+  const paymentIntent = await stripe.paymentIntents.create(createParams, {
+    idempotencyKey: requestId,
+  })
+
+  if (paymentIntent.status !== 'canceled') {
+    return paymentIntent
+  }
+
+  const recoveryIdempotencyKey = `${requestId}:recovery`
+  void log.warn(
+    'Received canceled idempotent payment intent replay, creating fresh Stripe intent',
+    {
+      requestId,
+      paymentId: paymentIntent.id,
+    },
+  )
+
+  const recoveredPaymentIntent = await stripe.paymentIntents.create(
+    createParams,
+    {
+      idempotencyKey: recoveryIdempotencyKey,
+    },
+  )
+
+  if (recoveredPaymentIntent.status === 'canceled') {
+    throw new Internal('Failed to create a usable payment intent')
+  }
+
+  return recoveredPaymentIntent
 }
 
 export async function retrievePaymentIntent(
   paymentId: string,
-  access?: PaymentAccess,
+  access: PaymentAccess,
 ) {
-  const validatedId = validate(paymentIdSchema, paymentId)
-  await authorizePaymentAccess(validatedId, access)
+  const { validatedId } = await resolveAuthorizedPayment(paymentId, access)
   return await stripe.paymentIntents.retrieve(validatedId)
 }
 
-export async function retrieveOrderSyncStatus(
-  paymentId: string,
-  access?: PaymentAccess,
-): Promise<PaymentSyncStatus> {
-  const validatedId = validate(paymentIdSchema, paymentId)
-  let order = await authorizePaymentAccess(validatedId, access)
-
-  const fallbackReference = order.lastStripeSyncCheckedAt ?? order.updatedAt
-  const orderAgeMs = Date.now() - fallbackReference.getTime()
-  const shouldFallbackToStripe =
-    retryableStatuses.includes(order.paymentStatus) &&
-    orderAgeMs >= orderSyncStripeFallbackThresholdMs
-
-  if (shouldFallbackToStripe) {
-    const stripeSyncCheckedAt = new Date()
-
-    try {
-      const paymentIntent = await stripe.paymentIntents.retrieve(validatedId)
-      const statusChanged = paymentIntent.status !== order.paymentStatus
-      const justPaid =
-        statusChanged && paymentIntent.status === 'succeeded' && !order.paidAt
-      const updateData: OrderUpdate = {
-        lastStripeSyncCheckedAt: stripeSyncCheckedAt,
-        ...(statusChanged
-          ? {
-              ...extractPaymentIntentFields(paymentIntent),
-              paymentStatus: paymentIntent.status,
-              ...(justPaid ? { paidAt: new Date() } : {}),
-            }
-          : {}),
-      }
-
-      try {
-        const syncedOrder = await ordersDB.updateOrder(validatedId, updateData)
-
-        if (syncedOrder) {
-          order = syncedOrder
-
-          if (justPaid) {
-            try {
-              sendEmail('orderConfirmation', {
-                order: syncedOrder,
-                source: 'fallback',
-              })
-            } catch (error) {
-              if (error instanceof SendEmailPreconditionError) {
-                void log.warn(
-                  '[QUEUE] Skipped order confirmation email due to missing recipient data',
-                  {
-                    paymentId: syncedOrder.paymentId,
-                    source: 'fallback',
-                  },
-                )
-              } else {
-                throw error
-              }
-            }
-
-            sendEmail('adminPaymentNotification', {
-              order: syncedOrder,
-              notificationType: AdminNotification.Confirmed,
-            })
-          }
-        } else if (statusChanged) {
-          throwCriticalOrderPersistFailure({
-            issueCode: IssueCode.ORDER_SYNC_DRIFT_PERSIST_FAILED,
-            message:
-              '[CRITICAL] Stripe fallback detected status drift but DB update failed',
-            throwMessage:
-              'Order status sync is temporarily unavailable. Manual verification is required.',
-            errorName: 'ServiceUnavailable',
-            statusCode: 503,
-            operation: 'update',
-            paymentId: validatedId,
-            persistFailureReason: 'returned_null',
-            dbStatus: order.paymentStatus,
-            stripeStatus: paymentIntent.status,
-            order: {
-              paymentId: order.paymentId,
-              paymentStatus: paymentIntent.status,
-              items: order.items,
-              total: order.total,
-              currency: order.currency,
-              firstName: order.firstName,
-              lastName: order.lastName,
-              email: paymentIntent.receipt_email ?? order.email ?? null,
-              shipping: paymentIntent.shipping ?? order.shipping ?? null,
-            },
-          })
-        } else {
-          reportCriticalOrderPersistFailure({
-            issueCode: IssueCode.ORDER_SYNC_MARKER_PERSIST_FAILED,
-            message:
-              '[CRITICAL] Stripe fallback sync check timestamp persistence failed',
-            operation: 'update',
-            paymentId: validatedId,
-            persistFailureReason: 'returned_null',
-            dbStatus: order.paymentStatus,
-            notifyAdmin: false,
-            order: {
-              paymentId: order.paymentId,
-              paymentStatus: order.paymentStatus,
-              items: order.items,
-              total: order.total,
-              currency: order.currency,
-              firstName: order.firstName,
-              lastName: order.lastName,
-              email: order.email,
-              shipping: order.shipping,
-            },
-          })
-        }
-      } catch (persistError) {
-        if (
-          persistError instanceof Internal &&
-          persistError.name === 'ServiceUnavailable' &&
-          persistError.status === 503
-        ) {
-          throw persistError
-        }
-
-        if (statusChanged) {
-          throwCriticalOrderPersistFailure({
-            issueCode: IssueCode.ORDER_SYNC_DRIFT_PERSIST_FAILED,
-            message:
-              '[CRITICAL] Stripe fallback detected status drift but DB update failed',
-            throwMessage:
-              'Order status sync is temporarily unavailable. Manual verification is required.',
-            errorName: 'ServiceUnavailable',
-            statusCode: 503,
-            operation: 'update',
-            paymentId: validatedId,
-            persistFailureReason: 'threw',
-            persistError,
-            dbStatus: order.paymentStatus,
-            stripeStatus: paymentIntent.status,
-            order: {
-              paymentId: order.paymentId,
-              paymentStatus: paymentIntent.status,
-              items: order.items,
-              total: order.total,
-              currency: order.currency,
-              firstName: order.firstName,
-              lastName: order.lastName,
-              email: paymentIntent.receipt_email ?? order.email ?? null,
-              shipping: paymentIntent.shipping ?? order.shipping ?? null,
-            },
-          })
-        } else {
-          reportCriticalOrderPersistFailure({
-            issueCode: IssueCode.ORDER_SYNC_MARKER_PERSIST_FAILED,
-            message:
-              '[CRITICAL] Stripe fallback sync check timestamp persistence failed',
-            operation: 'update',
-            paymentId: validatedId,
-            persistFailureReason: 'threw',
-            persistError,
-            dbStatus: order.paymentStatus,
-            notifyAdmin: false,
-            order: {
-              paymentId: order.paymentId,
-              paymentStatus: order.paymentStatus,
-              items: order.items,
-              total: order.total,
-              currency: order.currency,
-              firstName: order.firstName,
-              lastName: order.lastName,
-              email: order.email,
-              shipping: order.shipping,
-            },
-          })
-        }
-      }
-    } catch (error) {
-      if (
-        error instanceof Internal &&
-        error.name === 'ServiceUnavailable' &&
-        error.status === 503
-      ) {
-        throw error
-      }
-
-      void log.warn('Stripe fallback sync failed for order status', {
-        paymentId: validatedId,
-        dbStatus: order.paymentStatus,
-        error,
-      })
-
-      try {
-        const syncMarkerOrder = await ordersDB.updateOrder(validatedId, {
-          lastStripeSyncCheckedAt: stripeSyncCheckedAt,
-        })
-
-        if (syncMarkerOrder) {
-          order = syncMarkerOrder
-        } else {
-          reportCriticalOrderPersistFailure({
-            issueCode: IssueCode.ORDER_SYNC_MARKER_PERSIST_FAILED,
-            message:
-              '[CRITICAL] Stripe fallback sync check timestamp persistence failed',
-            operation: 'update',
-            paymentId: validatedId,
-            persistFailureReason: 'returned_null',
-            dbStatus: order.paymentStatus,
-            notifyAdmin: false,
-            order: {
-              paymentId: order.paymentId,
-              paymentStatus: order.paymentStatus,
-              items: order.items,
-              total: order.total,
-              currency: order.currency,
-              firstName: order.firstName,
-              lastName: order.lastName,
-              email: order.email,
-              shipping: order.shipping,
-            },
-          })
-        }
-      } catch (persistError) {
-        reportCriticalOrderPersistFailure({
-          issueCode: IssueCode.ORDER_SYNC_MARKER_PERSIST_FAILED,
-          message:
-            '[CRITICAL] Stripe fallback sync check timestamp persistence failed',
-          operation: 'update',
-          paymentId: validatedId,
-          persistFailureReason: 'threw',
-          persistError,
-          dbStatus: order.paymentStatus,
-          notifyAdmin: false,
-          order: {
-            paymentId: order.paymentId,
-            paymentStatus: order.paymentStatus,
-            items: order.items,
-            total: order.total,
-            currency: order.currency,
-            firstName: order.firstName,
-            lastName: order.lastName,
-            email: order.email,
-            shipping: order.shipping,
-          },
-        })
-      }
-    }
-  }
-
-  return {
-    paymentId: order.paymentId,
-    paymentStatus: order.paymentStatus,
-    amount: Math.round(order.total * 100),
-    currency: order.currency,
-    receiptEmail: order.email ?? null,
-    shipping: order.shipping ?? null,
-    finalizedAt: toIsoString(order.paidAt),
-    webhookUpdatedAt: toIsoString(order.updatedAt),
-  }
-}
-
-export async function createPaymentIntent(
+export async function startCheckoutPayment(
   paymentIntentRequest: PaymentIntentRequest,
   user: PublicUser | null,
+  requestId: string,
 ): Promise<PaymentSession> {
   const validatedRequest = validate(
     paymentIntentRequestSchema,
     paymentIntentRequest,
   )
-
-  const items: OrderItem[] = []
-  let total = 0
-
-  const books = await Promise.all(
-    validatedRequest.items.map((item) => booksDB.getBookById(item.id)),
-  )
-
-  for (let index = 0; index < validatedRequest.items.length; index++) {
-    const item = validatedRequest.items[index]!
-    const book = books[index]
-
-    if (!book) {
-      throw new NotFound(
-        `Book not found during payment intent creation: ID ${item.id}`,
-      )
-    }
-
-    const itemTotal =
-      item.quantity * book.price * (1 - (book.discount ?? 0) / 100)
-    total += itemTotal
-
-    items.push({
-      id: book.id,
-      title: book.title,
-      author: book.author,
-      imgUrl: book.imgUrl ?? '',
-      price: book.price,
-      discount: book.discount ?? 0,
-      quantity: item.quantity,
-    })
-  }
-
-  total = Number(total.toFixed(2))
+  const { items, total } = await buildOrderItemsAndTotal(validatedRequest)
 
   if (Math.abs(total - validatedRequest.expectedTotal) > 0.05) {
     throw new BadRequest(
-      'Prices have been updated in your cart. Please review before checkout.',
+      paymentMessage.priceUpdatedInCart,
       'PriceConflict',
       409,
     )
   }
 
   const amountInCents = Math.round(total * 100)
+  const orderData: OrderInsert = {
+    paymentId: null,
+    paymentStatus: 'processing',
+    currency: defaultCurrency,
+    items,
+    total,
+    ...(user && {
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      shipping: {
+        name: `${user.firstName} ${user.lastName}`,
+        address: user.address ?? undefined,
+        phone: user.phone ?? undefined,
+      },
+    }),
+  }
 
-  let stripePaymentId: string | null = null
+  const validatedOrderData = validate(orderInsertSchema, orderData)
+  const draftOrder = await ordersDB.createOrder(validatedOrderData)
 
+  if (draftOrder?.id === undefined) {
+    throw new Internal('Failed to create order in database')
+  }
+
+  let paymentIntent: StripePaymentIntent
   try {
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: amountInCents,
-      currency: defaultCurrency.toLowerCase(),
-      ...(user && {
-        metadata: {
-          userEmail: user.email,
-          userName: `${user.firstName} ${user.lastName}`.trim(),
-        },
-      }),
+    paymentIntent = await createPaymentIntent({
+      amountInCents,
+      orderId: draftOrder.id,
+      requestId,
+      user,
     })
-
-    if (!paymentIntent?.client_secret) {
-      throw new Internal(
-        'Failed to create payment intent: missing client secret',
-      )
-    }
-
-    stripePaymentId = paymentIntent.id
-
-    const userWithShipping = user
-      ? {
-          email: user.email,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          phone: user.phone,
-          shipping: {
-            name: `${user.firstName} ${user.lastName}`,
-            address: user.address ?? undefined,
-            phone: user.phone ?? undefined,
+  } catch (error) {
+    void log.error('Stripe payment intent creation failed for draft order', {
+      orderId: draftOrder.id,
+      requestId,
+      error,
+    })
+    await ordersDB
+      .deleteOrderById(draftOrder.id)
+      .catch((cleanupError: unknown) => {
+        void log.error(
+          'Failed to remove draft order after Stripe creation failed',
+          {
+            orderId: draftOrder.id,
+            requestId,
+            error: cleanupError,
           },
-        }
-      : {}
+        )
+      })
+    throw error
+  }
 
-    const orderData: OrderInsert = {
-      paymentId: stripePaymentId,
-      paymentStatus: paymentIntent.status,
-      currency: defaultCurrency,
-      items,
-      total,
-      ...userWithShipping,
-    }
+  if (!paymentIntent.client_secret) {
+    throw new Internal('Failed to create payment intent: missing client secret')
+  }
 
-    const validatedOrderData = validate(orderInsertSchema, orderData)
-    const createdOrder = await ordersDB.createOrder(validatedOrderData)
+  const metadataOrderId = Number(paymentIntent.metadata?.orderId)
+  const linkedOrderId =
+    Number.isSafeInteger(metadataOrderId) && metadataOrderId > 0
+      ? metadataOrderId
+      : draftOrder.id
+  const targetOrder = await ordersDB.getOrderById(linkedOrderId)
 
-    if (!createdOrder) {
-      throw new Internal('Failed to create order in database')
-    }
+  if (!targetOrder) {
+    throw new Internal('Failed to find order for payment intent')
+  }
 
-    sendEmail('adminPaymentNotification', {
-      order: createdOrder,
+  if (targetOrder.id !== draftOrder.id) {
+    await ordersDB.deleteOrderById(draftOrder.id)
+  }
+
+  const { order: linkedOrder, linked } = await ordersDB.linkPaymentIntent(
+    targetOrder.id,
+    paymentIntent.id,
+    paymentIntent.status,
+  )
+
+  if (!linkedOrder) {
+    void log.error('Failed to link payment intent to draft order', {
+      orderId: targetOrder.id,
+      paymentId: paymentIntent.id,
+      requestId,
+    })
+    throw new Internal('Failed to link payment intent to order')
+  }
+
+  if (linked) {
+    enqueueEmail('adminPaymentNotification', {
+      order: linkedOrder,
       notificationType: AdminNotification.Created,
     })
+  }
 
-    return {
-      paymentId: stripePaymentId,
-      paymentToken: paymentIntent.client_secret,
-      amount: amountInCents,
-    }
-  } catch (error) {
-    if (stripePaymentId) {
-      sendEmail('adminPaymentNotification', {
-        notificationType: AdminNotification.Error,
-        order: {
-          paymentId: stripePaymentId,
-          items,
-          total,
-          currency: defaultCurrency,
-          paymentStatus: 'requires_action',
-        },
-      })
-
-      try {
-        await stripe.paymentIntents.cancel(stripePaymentId)
-        void log.warn(
-          'Rolled back Stripe payment intent after order creation failed',
-          { paymentId: stripePaymentId },
-        )
-      } catch (rollbackError) {
-        void log.error('Failed to rollback Stripe payment intent', {
-          paymentId: stripePaymentId,
-          rollbackError,
-        })
-      }
-    }
-    throw error
+  return {
+    paymentId: paymentIntent.id,
+    paymentToken: paymentIntent.client_secret,
+    amount: amountInCents,
   }
 }
 
 export async function cancelPaymentIntent(
   paymentId: string,
-  access?: PaymentAccess,
-) {
-  const validatedId = validate(paymentIdSchema, paymentId)
-  const order = await authorizePaymentAccess(validatedId, access)
+  access: PaymentAccess,
+): Promise<StripePaymentIntent> {
+  const { validatedId, order } = await resolveAuthorizedPayment(
+    paymentId,
+    access,
+  )
 
   if (order.paymentStatus === 'canceled') {
-    throw new BadRequest('Payment already canceled')
+    throw new BadRequest(paymentMessage.paymentAlreadyCanceled)
   }
 
   if (order.paymentStatus === 'succeeded') {
-    throw new BadRequest('Cannot cancel succeeded payment')
+    throw new BadRequest(paymentMessage.paymentCannotCancelSucceeded)
   }
 
-  const cancelledIntent = await stripe.paymentIntents.cancel(validatedId)
-
-  try {
-    await ordersDB.updateOrder(validatedId, {
-      paymentStatus: 'canceled',
-    })
-  } catch (error) {
-    throwCriticalOrderPersistFailure({
-      issueCode: IssueCode.PAYMENT_CANCEL_PERSIST_FAILED,
-      message:
-        '[CRITICAL] Stripe payment canceled but order status update failed',
-      throwMessage: 'Failed to persist canceled payment status',
-      operation: 'update',
-      paymentId: validatedId,
-      persistFailureReason: 'threw',
-      persistError: error,
-      dbStatus: order.paymentStatus,
-      stripeStatus: 'canceled',
-      order: {
-        paymentId: order.paymentId,
-        paymentStatus: order.paymentStatus,
-        items: order.items,
-        total: order.total,
-        currency: order.currency,
-        firstName: order.firstName,
-        lastName: order.lastName,
-        email: order.email,
-        shipping: order.shipping,
-      },
-    })
-  }
-
-  return cancelledIntent
+  return await stripe.paymentIntents.cancel(validatedId)
 }

@@ -1,2 +1,2 @@
-export { env } from './env'
+export * from './env'
 export * from './cookieOptions'

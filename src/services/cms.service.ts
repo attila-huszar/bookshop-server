@@ -143,7 +143,10 @@ export async function updateOrder(
 ): Promise<Order> {
   const validatedId = validate(paymentIdSchema, paymentId)
   const validatedFields = validate(orderUpdateSchema, fields)
-  const updatedOrder = await ordersDB.updateOrder(validatedId, validatedFields)
+  const { order: updatedOrder } = await ordersDB.updateOrder(
+    validatedId,
+    validatedFields,
+  )
 
   if (!updatedOrder) {
     throw new Error(`Order with paymentId ${paymentId} not found`)

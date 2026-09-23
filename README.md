@@ -43,6 +43,8 @@ All services are built from one multi-target Dockerfile (`server`, `worker`, `cr
 
 `sqlite` is the default Docker Compose profile, so `docker compose up` runs the SQLite stack by default.
 
+`COMPOSE_PROJECT_NAME` (default in `.env.template`: `bookshop`) namespaces Compose resources per repo/clone, so container, network, and volume names do not collide when multiple projects run at once. You can override it in your local `.env` if you want a different prefix on your machine.
+
 Use `SETUP=true` only for first boot (or when you intentionally want to reseed).
 
 Initial setup commands:
@@ -102,6 +104,62 @@ Use these paths on that base URL:
 ## Logs in Grafana
 
 Container logs are shipped to Loki through Docker's Loki log driver.
+
+### Install Docker Loki log driver
+
+If you want to send container logs to Loki using Docker's Loki log driver, install the Grafana Loki Docker plugin and configure your containers or Compose stack. Replace the `loki` URL below with the address of your Loki instance (for example `http://loki:3100` when Loki runs in the same Compose network).
+
+Install the plugin (example: Loki at `http://loki:3100`):
+
+```bash
+docker plugin install grafana/loki-docker-driver:latest \
+  --alias loki --grant-all-permissions
+```
+
+Verify the plugin is installed:
+
+```bash
+docker plugin ls
+```
+
+Quick test (push a test log to a localhost Loki):
+
+```bash
+docker run --rm --log-driver=loki \
+  --log-opt loki-url="http://localhost:3100/loki/api/v1/push" \
+  busybox echo "hello loki"
+```
+
+Use the `loki` driver in `docker-compose.yml`:
+
+```yaml
+services:
+  server:
+    image: your-image
+    logging:
+      driver: loki
+      options:
+        loki-url: 'http://loki:3100/loki/api/v1/push'
+        loki-retries: '3'
+```
+
+Or set the Docker daemon default logger (`/etc/docker/daemon.json`):
+
+```json
+{
+  "log-driver": "loki",
+  "log-opts": {
+    "loki-url": "http://loki:3100/loki/api/v1/push"
+  }
+}
+```
+
+After changing `daemon.json` restart Docker (Docker Desktop: restart from UI).
+
+Notes:
+
+- If Loki runs as part of this Compose setup, use the internal service name `http://loki:3100/loki/api/v1/push`.
+- On Docker Desktop for Windows, run the `docker plugin install` command from PowerShell or WSL with the Docker context set to Docker Desktop.
 
 - Open Grafana at `http://localhost/grafana/` (or `https://<your-ngrok-domain>/grafana/`)
 - Default credentials: `admin` / `admin`
