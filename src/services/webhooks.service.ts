@@ -416,9 +416,9 @@ export async function updateOrderFromWebhook(
 ) {
   const { id: paymentIntentId } = paymentIntent
   const { eventType, eventId, eventCreated } = eventMeta
-  const existingOrder = await resolveOrderForWebhook(paymentIntent)
+  const resolvedOrder = await resolveOrderForWebhook(paymentIntent)
 
-  if (!existingOrder) {
+  if (!resolvedOrder) {
     if (!isCriticalMissingOrderEventType(eventType)) {
       void log.warn('Failed to find order for payment intent', {
         paymentId: paymentIntentId,
@@ -430,153 +430,183 @@ export async function updateOrderFromWebhook(
     return null
   }
 
-  const lastEventCreated = existingOrder.lastStripeEventCreated ?? null
-  const lastEventId = existingOrder.lastStripeEventId ?? null
+  let existingOrder = resolvedOrder
+  let updateAttempt = 0
+  while (updateAttempt < 5) {
+    const lastEventCreated = existingOrder.lastStripeEventCreated ?? null
+    const lastEventId = existingOrder.lastStripeEventId ?? null
 
-  if (lastEventCreated !== null && eventCreated < lastEventCreated) {
-    void log.warn(
-      '[STRIPE] Ignoring stale webhook event by created timestamp',
-      {
+    if (lastEventCreated !== null && eventCreated < lastEventCreated) {
+      void log.warn(
+        '[STRIPE] Ignoring stale webhook event by created timestamp',
+        {
+          paymentId: paymentIntentId,
+          eventType,
+          eventId,
+          eventCreated,
+          lastStripeEventCreated: lastEventCreated,
+          lastStripeEventId: lastEventId,
+        },
+      )
+      return { ...existingOrder, justPaid: false }
+    }
+
+    if (
+      lastEventCreated !== null &&
+      eventCreated === lastEventCreated &&
+      lastEventId === eventId
+    ) {
+      void log.warn('[STRIPE] Ignoring duplicate webhook event', {
         paymentId: paymentIntentId,
         eventType,
         eventId,
         eventCreated,
         lastStripeEventCreated: lastEventCreated,
         lastStripeEventId: lastEventId,
-      },
+      })
+      return { ...existingOrder, justPaid: false }
+    }
+
+    const nextStatus = data.paymentStatus
+    const hasTerminalStatus = terminalStatuses.includes(
+      existingOrder.paymentStatus,
     )
-    return { ...existingOrder, justPaid: false }
-  }
 
-  if (
-    lastEventCreated !== null &&
-    eventCreated === lastEventCreated &&
-    lastEventId === eventId
-  ) {
-    void log.warn('[STRIPE] Ignoring duplicate webhook event', {
-      paymentId: paymentIntentId,
-      eventType,
-      eventId,
-      eventCreated,
-      lastStripeEventCreated: lastEventCreated,
-      lastStripeEventId: lastEventId,
-    })
-    return { ...existingOrder, justPaid: false }
-  }
+    if (
+      nextStatus &&
+      hasTerminalStatus &&
+      existingOrder.paymentStatus !== nextStatus
+    ) {
+      void log.warn(
+        '[STRIPE] Ignoring out-of-order terminal status transition',
+        {
+          paymentId: paymentIntentId,
+          eventType,
+          eventId,
+          eventCreated,
+          fromStatus: existingOrder.paymentStatus,
+          toStatus: nextStatus,
+          lastStripeEventCreated: lastEventCreated,
+          lastStripeEventId: lastEventId,
+        },
+      )
+      return { ...existingOrder, justPaid: false }
+    }
 
-  const nextStatus = data.paymentStatus
-  const hasTerminalStatus = terminalStatuses.includes(
-    existingOrder.paymentStatus,
-  )
+    const nextStatusRank = getPaymentStatusRank(nextStatus)
+    const currentStatusRank = getPaymentStatusRank(existingOrder.paymentStatus)
 
-  if (
-    nextStatus &&
-    hasTerminalStatus &&
-    existingOrder.paymentStatus !== nextStatus
-  ) {
-    void log.warn('[STRIPE] Ignoring out-of-order terminal status transition', {
-      paymentId: paymentIntentId,
-      eventType,
-      eventId,
-      eventCreated,
-      fromStatus: existingOrder.paymentStatus,
-      toStatus: nextStatus,
-      lastStripeEventCreated: lastEventCreated,
-      lastStripeEventId: lastEventId,
-    })
-    return { ...existingOrder, justPaid: false }
-  }
+    if (
+      nextStatus &&
+      lastEventCreated !== null &&
+      eventCreated === lastEventCreated &&
+      lastEventId !== eventId &&
+      nextStatusRank !== null &&
+      currentStatusRank !== null &&
+      nextStatusRank < currentStatusRank
+    ) {
+      void log.warn(
+        '[STRIPE] Ignoring same-second regressive status transition',
+        {
+          paymentId: paymentIntentId,
+          eventType,
+          eventId,
+          eventCreated,
+          fromStatus: existingOrder.paymentStatus,
+          toStatus: nextStatus,
+          lastStripeEventCreated: lastEventCreated,
+          lastStripeEventId: lastEventId,
+        },
+      )
+      return { ...existingOrder, justPaid: false }
+    }
 
-  const nextStatusRank = getPaymentStatusRank(nextStatus)
-  const currentStatusRank = getPaymentStatusRank(existingOrder.paymentStatus)
+    const updateData: OrderUpdate = {
+      ...data,
+      lastStripeEventCreated: eventCreated,
+      lastStripeEventId: eventId,
+    }
 
-  if (
-    nextStatus &&
-    lastEventCreated !== null &&
-    eventCreated === lastEventCreated &&
-    lastEventId !== eventId &&
-    nextStatusRank !== null &&
-    currentStatusRank !== null &&
-    nextStatusRank < currentStatusRank
-  ) {
-    void log.warn(
-      '[STRIPE] Ignoring same-second regressive status transition',
-      {
+    const existingEmail = existingOrder.email?.trim()
+    const orderEmail = existingEmail ? existingOrder.email : data.email
+    if (orderEmail !== undefined) updateData.email = orderEmail
+
+    if (data.paymentStatus === 'succeeded' && existingOrder.paidAt == null) {
+      updateData.paidAt = new Date()
+    }
+
+    const mergedOrderSnapshot = {
+      ...existingOrder,
+      ...data,
+      paymentStatus: data.paymentStatus ?? existingOrder.paymentStatus,
+      email: orderEmail ?? null,
+      shipping: data.shipping ?? existingOrder.shipping ?? null,
+    }
+
+    const reportWebhookSaveFailure = (
+      saveFailureReason: 'threw' | 'returned_null',
+      saveError?: unknown,
+    ) => {
+      reportOrderError({
+        issueCode: IssueCode.WEBHOOK_ORDER_SAVE_FAILED,
+        message: '[CRITICAL] Webhook order update save failed',
+        operation: 'update',
         paymentId: paymentIntentId,
-        eventType,
-        eventId,
-        eventCreated,
-        fromStatus: existingOrder.paymentStatus,
-        toStatus: nextStatus,
-        lastStripeEventCreated: lastEventCreated,
-        lastStripeEventId: lastEventId,
-      },
-    )
-    return { ...existingOrder, justPaid: false }
-  }
+        saveFailureReason,
+        saveError,
+        dbStatus: existingOrder.paymentStatus,
+        stripeStatus: data.paymentStatus,
+        additionalContext: {
+          eventType,
+          eventId,
+          eventCreated,
+        },
+        order: mergedOrderSnapshot,
+      })
+    }
 
-  const updateData: OrderUpdate = {
-    ...data,
-    lastStripeEventCreated: eventCreated,
-    lastStripeEventId: eventId,
-  }
+    try {
+      const { order: updatedOrder, becamePaid } =
+        await ordersDB.updateOrderIfUnchanged(
+          paymentIntentId,
+          {
+            paymentStatus: existingOrder.paymentStatus,
+            lastStripeEventCreated:
+              existingOrder.lastStripeEventCreated ?? null,
+            lastStripeEventId: existingOrder.lastStripeEventId ?? null,
+            paidAt: existingOrder.paidAt ?? null,
+          },
+          updateData,
+        )
 
-  const existingEmail = existingOrder.email?.trim()
-  const orderEmail = existingEmail ? existingOrder.email : data.email
-  if (orderEmail !== undefined) updateData.email = orderEmail
+      if (!updatedOrder) {
+        const latestOrder = await ordersDB.getOrder(paymentIntentId)
+        if (!latestOrder) {
+          reportWebhookSaveFailure('returned_null')
+          throw new Internal('Failed to save webhook order update')
+        }
 
-  if (data.paymentStatus === 'succeeded' && existingOrder.paidAt == null) {
-    updateData.paidAt = new Date()
-  }
+        existingOrder = latestOrder
+        updateAttempt += 1
+        continue
+      }
 
-  const mergedOrderSnapshot = {
-    ...existingOrder,
-    ...data,
-    paymentStatus: data.paymentStatus ?? existingOrder.paymentStatus,
-    email: orderEmail ?? null,
-    shipping: data.shipping ?? existingOrder.shipping ?? null,
-  }
+      return { ...updatedOrder, justPaid: becamePaid }
+    } catch (saveError) {
+      if (saveError instanceof Internal) {
+        throw saveError
+      }
 
-  const reportWebhookSaveFailure = (
-    saveFailureReason: 'threw' | 'returned_null',
-    saveError?: unknown,
-  ) => {
-    reportOrderError({
-      issueCode: IssueCode.WEBHOOK_ORDER_SAVE_FAILED,
-      message: '[CRITICAL] Webhook order update save failed',
-      operation: 'update',
-      paymentId: paymentIntentId,
-      saveFailureReason,
-      saveError,
-      dbStatus: existingOrder.paymentStatus,
-      stripeStatus: data.paymentStatus,
-      additionalContext: {
-        eventType,
-        eventId,
-        eventCreated,
-      },
-      order: mergedOrderSnapshot,
-    })
-  }
-
-  try {
-    const { order: updatedOrder, becamePaid } = await ordersDB.updateOrder(
-      paymentIntentId,
-      updateData,
-    )
-
-    if (!updatedOrder) {
-      reportWebhookSaveFailure('returned_null')
+      reportWebhookSaveFailure('threw', saveError)
       throw new Internal('Failed to save webhook order update')
     }
-
-    return { ...updatedOrder, justPaid: becamePaid }
-  } catch (saveError) {
-    if (saveError instanceof Internal) {
-      throw saveError
-    }
-
-    reportWebhookSaveFailure('threw', saveError)
-    throw new Internal('Failed to save webhook order update')
   }
+
+  void log.warn('[STRIPE] Could not apply webhook after concurrent updates', {
+    paymentId: paymentIntentId,
+    eventType,
+    eventId,
+    eventCreated,
+  })
+  throw new Internal('Concurrent webhook updates prevented order update')
 }

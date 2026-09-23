@@ -72,6 +72,34 @@ export async function updateOrder(
   }
 }
 
+export async function updateOrderIfUnchanged(
+  paymentId: string,
+  expected: Pick<
+    Order,
+    'paymentStatus' | 'lastStripeEventCreated' | 'lastStripeEventId' | 'paidAt'
+  >,
+  fields: OrderUpdate,
+): Promise<{ order: Order | null; becamePaid: boolean }> {
+  const updatedOrder = await OrderModel.findOneAndUpdate(
+    {
+      paymentId,
+      paymentStatus: expected.paymentStatus,
+      lastStripeEventCreated: expected.lastStripeEventCreated,
+      lastStripeEventId: expected.lastStripeEventId,
+      paidAt: expected.paidAt,
+    },
+    fields,
+    { new: true },
+  )
+    .lean()
+    .exec()
+
+  return {
+    order: updatedOrder ?? null,
+    becamePaid: Boolean(updatedOrder && fields.paidAt instanceof Date),
+  }
+}
+
 export async function getOrder(paymentId: string): Promise<Order | null> {
   const order = await OrderModel.findOne({ paymentId }).lean().exec()
   if (!order) return null

@@ -6,6 +6,7 @@ import {
   stripSensitiveUserFields,
   stripTimestamps,
 } from '@/utils/transform.utils'
+import type { Order, OrderUpdate } from '@/types'
 
 env.stripeSecret ??= 'sk_test_123'
 env.stripeWebhookSecret ??= 'whsec_test'
@@ -27,6 +28,12 @@ export const mockOrdersDB = {
   createOrder: mock(),
   linkPaymentIntent: mock(),
   updateOrder: mock(),
+  updateOrderIfUnchanged: mock(
+    async (paymentId: string, _expected: unknown, fields: OrderUpdate) => {
+      const result: unknown = await mockOrdersDB.updateOrder(paymentId, fields)
+      return result as { order: Order | null; becamePaid: boolean }
+    },
+  ),
   deleteOrderById: mock(),
 }
 

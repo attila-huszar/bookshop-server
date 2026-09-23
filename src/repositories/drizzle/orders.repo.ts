@@ -121,6 +121,43 @@ export async function updateOrder(
   }
 }
 
+export async function updateOrderIfUnchanged(
+  paymentId: string,
+  expected: Pick<
+    Order,
+    'paymentStatus' | 'lastStripeEventCreated' | 'lastStripeEventId' | 'paidAt'
+  >,
+  fields: OrderUpdate,
+): Promise<{ order: Order | null; becamePaid: boolean }> {
+  const [updatedOrder] = await sqlite
+    .update(ordersTable)
+    .set(fields)
+    .where(
+      and(
+        eq(ordersTable.paymentId, paymentId),
+        eq(ordersTable.paymentStatus, expected.paymentStatus),
+        expected.lastStripeEventCreated === null
+          ? isNull(ordersTable.lastStripeEventCreated)
+          : eq(
+              ordersTable.lastStripeEventCreated,
+              expected.lastStripeEventCreated,
+            ),
+        expected.lastStripeEventId === null
+          ? isNull(ordersTable.lastStripeEventId)
+          : eq(ordersTable.lastStripeEventId, expected.lastStripeEventId),
+        expected.paidAt === null
+          ? isNull(ordersTable.paidAt)
+          : eq(ordersTable.paidAt, expected.paidAt),
+      ),
+    )
+    .returning()
+
+  return {
+    order: updatedOrder ?? null,
+    becamePaid: Boolean(updatedOrder && fields.paidAt instanceof Date),
+  }
+}
+
 export async function getAllOrders(): Promise<Order[]> {
   const orderRecords = await sqlite.select().from(ordersTable)
   return orderRecords
