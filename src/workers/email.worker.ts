@@ -34,7 +34,6 @@ emailWorker.on('completed', (job) => {
   log.info('Email sent successfully', {
     jobId: job.id,
     type: job.name,
-    email: job.data.toAddress,
     ...adminNotificationMeta,
   })
 })
@@ -43,7 +42,6 @@ emailWorker.on('failed', (job, error) => {
   log.error('Email sending failed', {
     jobId: job?.id,
     type: job?.name,
-    email: job?.data.toAddress,
     error,
   })
 })
@@ -55,7 +53,7 @@ emailWorker.on('error', (error) => {
     if (redisConnectionErrorShown) return
     redisConnectionErrorShown = true
 
-    log.warn('🚫 Redis is not reachable for email worker', { hint })
+    log.warn('⚠️ Redis is not reachable for email worker', { hint })
     return
   }
 
@@ -65,7 +63,7 @@ emailWorker.on('error', (error) => {
 
 emailWorker.on('ready', () => {
   redisConnectionErrorShown = false
-  log.info('🟢 Email worker started', {
+  log.info('✅ Email worker ready', {
     queue: QUEUE.EMAIL.NAME,
     concurrency,
   })
@@ -77,23 +75,32 @@ export async function shutdownEmailWorker(
   if (shuttingDown) return
   shuttingDown = true
 
-  log.info('🟡 Email worker shutting down...', { signal })
+  log.info('🛑 Email worker shutting down...', { signal })
+
+  let hasShutdownError = false
 
   try {
     await emailWorker.close()
-    closeMailer()
-    log.info('🔴 Email worker closed', { signal })
-    process.exit(0)
+    log.info('✅ Email worker closed', { signal })
   } catch (error) {
-    log.error('⚠️ Email worker shutdown failed', { signal, error })
-    process.exit(1)
+    hasShutdownError = true
+    log.error('❌ Email worker shutdown failed', { signal, error })
   }
+
+  try {
+    closeMailer()
+  } catch (error) {
+    hasShutdownError = true
+    log.error('❌ Email transporter shutdown failed', { signal, error })
+  }
+
+  process.exit(hasShutdownError ? 1 : 0)
 }
 
 if (import.meta.main) {
   for (const signal of SHUTDOWN_SIGNALS) {
     process.once(signal, () => {
-      log.info('Email worker received shutdown signal', { signal })
+      log.info('🛑 Email worker received shutdown signal', { signal })
       void shutdownEmailWorker(signal)
     })
   }

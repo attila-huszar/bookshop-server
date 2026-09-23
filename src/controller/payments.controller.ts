@@ -4,23 +4,20 @@ import { deleteCookie, setSignedCookie } from 'hono/cookie'
 import { env, PAYMENT_SESSION, paymentCookieOptions } from '@/config'
 import {
   cancelPaymentIntent,
-  createPaymentIntent,
   getUserProfile,
   retrievePaymentIntent,
+  startCheckoutPayment,
 } from '@/services'
-import { getPaymentIdempotencyKey } from '@/utils/payment.utils'
+import { getPaymentIdempotencyKey } from '@/utils/stripe.utils'
 import { API } from '@/constants'
 import { errorHandler } from '@/errors'
-import type { PaymentIntentRequest, PublicUser } from '@/types'
+import type { PaymentAccess, PaymentIntentRequest, PublicUser } from '@/types'
 
 type Variables = {
   jwtPayload?: {
     uuid: string
   }
-  paymentAccess?: {
-    paymentSessionId?: string
-    userEmail?: string
-  }
+  paymentAccess?: PaymentAccess
 }
 
 export const payments = new Hono<{ Variables: Variables }>()
@@ -60,7 +57,7 @@ payments.post(API.payments.root, async (c) => {
       publicUser,
     )
 
-    const { paymentId, paymentToken, amount } = await createPaymentIntent(
+    const { paymentId, paymentToken, amount } = await startCheckoutPayment(
       paymentIntentRequest,
       publicUser,
       requestId,

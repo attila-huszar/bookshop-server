@@ -67,6 +67,9 @@ export const mockLogger = {
 
 export const mockEmailQueue = {
   add: mock(),
+  on: mock(),
+  close: mock(() => Promise.resolve()),
+  getJob: mock(),
 }
 
 export const mockWorker = {
@@ -92,6 +95,11 @@ await mock.module('stripe', () => {
 
 await mock.module('@/validation', () => ({
   validate: mockValidate,
+  safeValidate: mock(() => null),
+  LogLevel: {
+    enum: { debug: 'debug', info: 'info', warn: 'warn', error: 'error' },
+  },
+  logSchema: {},
   orderInsertSchema: {},
   paymentIdSchema: {},
   paymentIntentRequestSchema: {},
@@ -139,5 +147,6 @@ await mock.module('ioredis', () => ({
 }))
 
 await mock.module('bullmq', () => ({
+  Queue: mock(() => mockEmailQueue),
   Worker: mock(() => mockWorker),
 }))

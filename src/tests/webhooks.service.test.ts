@@ -320,6 +320,49 @@ describe('Webhooks Service', () => {
     expect(result?.justPaid).toBe(true)
   })
 
+  it('preserves an existing order email when Stripe supplies a different receipt email', async () => {
+    const existingOrder = createOrder({ email: 'account@example.com' })
+    mockOrdersDB.getOrder.mockResolvedValueOnce(existingOrder)
+    mockOrdersDB.updateOrder.mockRejectedValueOnce(new Error('save failed'))
+
+    let resultError: unknown = null
+
+    try {
+      await updateOrderFromWebhook(
+        createStripePaymentIntent(),
+        { email: 'link-receipt@example.com', paymentStatus: 'processing' },
+        {
+          eventType: 'payment_intent.processing',
+          eventId: 'evt_email_preserve',
+          eventCreated: 205,
+        },
+      )
+    } catch (error) {
+      resultError = error
+    }
+
+    expect(resultError).toMatchObject({
+      status: 500,
+      message: 'Failed to save webhook order update',
+    })
+
+    expect(mockOrdersDB.updateOrder).toHaveBeenCalledWith(
+      'pi_test_123',
+      expect.objectContaining({
+        email: 'account@example.com',
+      }),
+    )
+    expect(mockEnqueueEmail).toHaveBeenCalledWith(
+      'adminPaymentNotification',
+      expect.objectContaining({
+        notificationType: 'error',
+        order: expect.objectContaining({
+          email: 'account@example.com',
+        }) as Order,
+      }),
+    )
+  })
+
   it('ignores terminal status downgrade even for newer events', async () => {
     mockOrdersDB.getOrder.mockResolvedValueOnce(
       createOrder({
@@ -349,6 +392,7 @@ describe('Webhooks Service', () => {
     mockOrdersDB.getOrder.mockResolvedValueOnce(
       createOrder({
         paymentStatus: 'processing',
+        email: null,
       }),
     )
     mockOrdersDB.updateOrder.mockRejectedValueOnce(
@@ -417,6 +461,7 @@ describe('Webhooks Service', () => {
     mockOrdersDB.getOrder.mockResolvedValueOnce(
       createOrder({
         paymentStatus: 'processing',
+        email: null,
       }),
     )
     mockOrdersDB.updateOrder.mockResolvedValueOnce({

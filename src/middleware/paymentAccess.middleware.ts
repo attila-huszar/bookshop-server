@@ -3,15 +3,13 @@ import { deleteCookie, getSignedCookie } from 'hono/cookie'
 import { env, PAYMENT_SESSION, paymentCookieOptions } from '@/config'
 import { getUserProfile } from '@/services'
 import { errorHandler } from '@/errors'
+import type { PaymentAccess } from '@/types'
 
 type Variables = {
   jwtPayload?: {
     uuid: string
   }
-  paymentAccess?: {
-    paymentSessionId?: string
-    userEmail?: string
-  }
+  paymentAccess?: PaymentAccess
 }
 
 export const paymentAccessMiddleware: MiddlewareHandler<{

@@ -52,6 +52,7 @@ export async function getEmailHtml(props: SendEmailProps): Promise<string> {
             order.shipping?.address?.line2,
             order.shipping?.address?.city,
             order.shipping?.address?.state,
+            order.shipping?.address?.postal_code,
             order.shipping?.address?.country,
           ]
             .filter((part): part is string => Boolean(part))

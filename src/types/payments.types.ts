@@ -8,3 +8,8 @@ export type PaymentSession = {
   paymentToken: string
   amount: number
 }
+
+export type PaymentAccess = {
+  paymentSessionId?: string
+  userEmail?: string
+}

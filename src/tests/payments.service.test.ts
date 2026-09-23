@@ -12,8 +12,8 @@ import {
   mockValidate,
 } from './test-setup'
 
-const { cancelPaymentIntent, createPaymentIntent, retrievePaymentIntent } =
-  await import('@/services/payments')
+const { cancelPaymentIntent, retrievePaymentIntent, startCheckoutPayment } =
+  await import('@/services/payments.service')
 
 const createOrder = (overrides: Partial<Order> = {}): Order => ({
   id: 1,
@@ -82,7 +82,7 @@ describe('Payments Service', () => {
       linked: true,
     })
 
-    const result = await createPaymentIntent(
+    const result = await startCheckoutPayment(
       { items: [{ id: 1, quantity: 1 }], expectedTotal: 12.34 },
       null,
       'req_test_123',
@@ -125,7 +125,7 @@ describe('Payments Service', () => {
 
     let error: unknown
     try {
-      await createPaymentIntent(
+      await startCheckoutPayment(
         { items: [{ id: 1, quantity: 1 }], expectedTotal: 12.34 },
         null,
         'req_test_123',
@@ -136,6 +136,42 @@ describe('Payments Service', () => {
 
     expect(error).toBeInstanceOf(Internal)
     expect(mockStripe.paymentIntents.create).not.toHaveBeenCalled()
+  })
+
+  it('deletes a draft order when Stripe payment intent creation fails', async () => {
+    const draftOrder = createOrder({ paymentId: null })
+    mockValidate
+      .mockReturnValueOnce({
+        items: [{ id: 1, quantity: 1 }],
+        expectedTotal: 12.34,
+      })
+      .mockReturnValueOnce({})
+    mockBooksDB.getBookById.mockResolvedValueOnce({
+      id: 1,
+      title: 'Sample Book',
+      author: 'Sample Author',
+      imgUrl: '',
+      price: 12.34,
+      discount: 0,
+    })
+    mockOrdersDB.createOrder.mockResolvedValueOnce(draftOrder)
+    mockOrdersDB.deleteOrderById.mockResolvedValueOnce(draftOrder)
+    const stripeError = new Error('Stripe unavailable')
+    mockStripe.paymentIntents.create.mockRejectedValueOnce(stripeError)
+
+    let error: unknown
+    try {
+      await startCheckoutPayment(
+        { items: [{ id: 1, quantity: 1 }], expectedTotal: 12.34 },
+        null,
+        'req_test_123',
+      )
+    } catch (caughtError) {
+      error = caughtError
+    }
+
+    expect(error).toBe(stripeError)
+    expect(mockOrdersDB.deleteOrderById).toHaveBeenCalledWith(draftOrder.id)
   })
 
   it('creates a replacement intent when an idempotent replay is canceled', async () => {
@@ -174,7 +210,7 @@ describe('Payments Service', () => {
       linked: true,
     })
 
-    const result = await createPaymentIntent(
+    const result = await startCheckoutPayment(
       { items: [{ id: 1, quantity: 1 }], expectedTotal: 12.34 },
       null,
       'req_test_123',

@@ -1,6 +1,7 @@
 import { booksDB, ordersDB } from '@/repositories'
 import {
   orderInsertSchema,
+  paymentIdSchema,
   paymentIntentRequestSchema,
   validate,
 } from '@/validation'
@@ -8,16 +9,51 @@ import { log, stripe } from '@/libs'
 import { enqueueEmail } from '@/queues'
 import { defaultCurrency, paymentMessage } from '@/constants'
 import { BadRequest, Internal, NotFound } from '@/errors'
+import { Unauthorized } from '@/errors/Unauthorized'
 import { AdminNotification } from '@/types'
 import type {
+  Order,
   OrderInsert,
   OrderItem,
+  PaymentAccess,
   PaymentIntentRequest,
   PaymentSession,
   PublicUser,
   StripePaymentIntent,
 } from '@/types'
-import { type PaymentAccess, resolveAuthorizedPayment } from '../shared'
+
+async function resolveAuthorizedPayment(
+  paymentId: string,
+  access: PaymentAccess,
+): Promise<{ validatedId: string; order: Order }> {
+  const validatedId = validate(paymentIdSchema, paymentId)
+
+  let order: Order | null
+  try {
+    order = await ordersDB.getOrder(validatedId)
+  } catch (lookupErr) {
+    void log.error('ordersDB.getOrder failed in resolveAuthorizedPayment', {
+      paymentId: validatedId,
+      lookupErr,
+    })
+    throw new Internal('Failed to read order')
+  }
+
+  if (!order) {
+    throw new Unauthorized('Unauthorized payment access')
+  }
+
+  const accessEmail = access.userEmail?.toLowerCase()
+  const hasSessionAccess = access.paymentSessionId === validatedId
+  const hasEmailAccess =
+    Boolean(accessEmail) && order.email?.toLowerCase() === accessEmail
+
+  if (!hasSessionAccess && !hasEmailAccess) {
+    throw new Unauthorized('Unauthorized payment access')
+  }
+
+  return { validatedId, order }
+}
 
 async function buildOrderItemsAndTotal(
   paymentIntentRequest: PaymentIntentRequest,
@@ -65,7 +101,7 @@ async function buildOrderItemsAndTotal(
   }
 }
 
-async function createStripePaymentIntentWithRecovery({
+async function createPaymentIntent({
   amountInCents,
   orderId,
   requestId,
@@ -128,7 +164,7 @@ export async function retrievePaymentIntent(
   return await stripe.paymentIntents.retrieve(validatedId)
 }
 
-export async function createPaymentIntent(
+export async function startCheckoutPayment(
   paymentIntentRequest: PaymentIntentRequest,
   user: PublicUser | null,
   requestId: string,
@@ -175,7 +211,7 @@ export async function createPaymentIntent(
 
   let paymentIntent: StripePaymentIntent
   try {
-    paymentIntent = await createStripePaymentIntentWithRecovery({
+    paymentIntent = await createPaymentIntent({
       amountInCents,
       orderId: draftOrder.id,
       requestId,
@@ -187,6 +223,18 @@ export async function createPaymentIntent(
       requestId,
       error,
     })
+    await ordersDB
+      .deleteOrderById(draftOrder.id)
+      .catch((cleanupError: unknown) => {
+        void log.error(
+          'Failed to remove draft order after Stripe creation failed',
+          {
+            orderId: draftOrder.id,
+            requestId,
+            error: cleanupError,
+          },
+        )
+      })
     throw error
   }
 
@@ -236,4 +284,24 @@ export async function createPaymentIntent(
     paymentToken: paymentIntent.client_secret,
     amount: amountInCents,
   }
+}
+
+export async function cancelPaymentIntent(
+  paymentId: string,
+  access: PaymentAccess,
+): Promise<StripePaymentIntent> {
+  const { validatedId, order } = await resolveAuthorizedPayment(
+    paymentId,
+    access,
+  )
+
+  if (order.paymentStatus === 'canceled') {
+    throw new BadRequest(paymentMessage.paymentAlreadyCanceled)
+  }
+
+  if (order.paymentStatus === 'succeeded') {
+    throw new BadRequest(paymentMessage.paymentCannotCancelSucceeded)
+  }
+
+  return await stripe.paymentIntents.cancel(validatedId)
 }

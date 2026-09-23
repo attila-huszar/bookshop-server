@@ -73,18 +73,21 @@ export function enqueueEmail(...args: SendEmailArgs): void {
     case QUEUE.EMAIL.JOB.ORDER_CONFIRMATION: {
       const { order } = data
 
-      if (!order.email || !order.firstName) {
-        void log.warn(
-          'Order missing email or first name for confirmation email',
-          { paymentId: order.paymentId },
-        )
+      if (!order.email) {
+        void log.warn('Order missing email for confirmation email', {
+          paymentId: order.paymentId,
+        })
         return
       }
+
+      const toName =
+        [order.firstName?.trim(), order.lastName?.trim()].find(Boolean) ??
+        'Valued Customer'
 
       const payload: SendEmailProps = {
         type,
         toAddress: order.email,
-        toName: order.firstName,
+        toName,
         order,
       }
 

@@ -8,17 +8,35 @@ import { BadRequest } from '@/errors/BadRequest'
 import { Internal } from '@/errors/Internal'
 import {
   AdminNotification,
+  type AdminPaymentNotificationOrder,
   isChargeEvent,
   isDisputeEvent,
   isPaymentIntentEvent,
   isRefundEvent,
   IssueCode,
+  type Order,
   type OrderUpdate,
   type PaymentIntentStatus,
   type StripeEvent,
   type StripePaymentIntent,
 } from '@/types'
-import { notifyOrderConfirmed, reportOrderError } from './shared'
+
+type SaveOperation = 'create' | 'update'
+type SaveFailureReason = 'threw' | 'returned_null'
+
+type ReportOrderErrorParams = {
+  issueCode: IssueCode
+  operation: SaveOperation
+  paymentId: string
+  order: AdminPaymentNotificationOrder
+  saveFailureReason: SaveFailureReason
+  saveError?: unknown
+  dbStatus?: PaymentIntentStatus
+  stripeStatus?: PaymentIntentStatus
+  message?: string
+  notifyAdmin?: boolean
+  additionalContext?: Record<string, unknown>
+}
 
 type WebhookEventMeta = {
   eventType: string
@@ -50,6 +68,48 @@ const getPaymentStatusRank = (status?: PaymentIntentStatus): number | null => {
 const isCriticalMissingOrderEventType = (eventType: string): boolean =>
   eventType === 'payment_intent.succeeded' ||
   eventType === 'payment_intent.canceled'
+
+function notifyOrderConfirmed(order: Order): void {
+  enqueueEmail('orderConfirmation', { order })
+  enqueueEmail('adminPaymentNotification', {
+    order,
+    notificationType: AdminNotification.Confirmed,
+  })
+}
+
+function reportOrderError({
+  issueCode,
+  operation,
+  paymentId,
+  order,
+  saveFailureReason,
+  saveError,
+  dbStatus,
+  stripeStatus,
+  message = '[CRITICAL] Order save failed',
+  notifyAdmin = true,
+  additionalContext,
+}: ReportOrderErrorParams): void {
+  void log.error(message, {
+    issueCode,
+    entity: 'order',
+    operation,
+    paymentId,
+    saveFailureReason,
+    dbStatus,
+    stripeStatus,
+    error: saveError,
+    ...additionalContext,
+  })
+
+  if (notifyAdmin) {
+    enqueueEmail('adminPaymentNotification', {
+      notificationType: AdminNotification.Error,
+      order,
+      source: issueCode,
+    })
+  }
+}
 
 function reportMissingOrderForPaymentIntentWebhook({
   paymentIntent,
@@ -172,6 +232,10 @@ export async function processStripeWebhook(
         }
 
         const { justPaid, ...updatedOrder } = result
+
+        if (result.paymentStatus !== 'succeeded') {
+          break
+        }
 
         void cancelAdminPaymentErrorAlert(paymentIntent.id).catch(
           (error: unknown) => {
@@ -457,6 +521,10 @@ export async function updateOrderFromWebhook(
     lastStripeEventId: eventId,
   }
 
+  const existingEmail = existingOrder.email?.trim()
+  const orderEmail = existingEmail ? existingOrder.email : data.email
+  if (orderEmail !== undefined) updateData.email = orderEmail
+
   if (data.paymentStatus === 'succeeded' && existingOrder.paidAt == null) {
     updateData.paidAt = new Date()
   }
@@ -465,7 +533,7 @@ export async function updateOrderFromWebhook(
     ...existingOrder,
     ...data,
     paymentStatus: data.paymentStatus ?? existingOrder.paymentStatus,
-    email: data.email ?? existingOrder.email ?? null,
+    email: orderEmail ?? null,
     shipping: data.shipping ?? existingOrder.shipping ?? null,
   }
 
