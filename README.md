@@ -73,6 +73,10 @@ docker compose --profile mongo up
 
 `DB_REPO` is selected automatically by Compose based on the service profile (`SQLITE` for sqlite services, `MONGO` for mongo services).
 
+Run one database profile at a time. Both API services use the `api` network alias and publish the same host port.
+
+Inside Compose, the API always listens on `5000`. `PORT` selects the host port (default `5000`), so changing it does not affect Nginx or health checks. Outside Docker, `PORT` remains the application's listening port.
+
 <details>
 <summary>Windows cmd / PowerShell</summary>
 
@@ -90,7 +94,7 @@ $env:SETUP = "true"; docker compose up
 
 Nginx is the ingress entrypoint on port `80`:
 
-- `/` -> backend app (`server:5000`)
+- `/` -> backend app (`api:5000`, shared alias for either database profile)
 - `/grafana/` -> Grafana UI (`grafana:3000`)
 
 When ngrok is enabled (`NGROK_AUTHTOKEN` set), it forwards to `nginx:80`, so your HTTPS base URL is the ngrok URL logged at startup (`Ingress established at: <url>`).
@@ -107,9 +111,9 @@ Container logs are shipped to Loki through Docker's Loki log driver.
 
 ### Install Docker Loki log driver
 
-If you want to send container logs to Loki using Docker's Loki log driver, install the Grafana Loki Docker plugin and configure your containers or Compose stack. Replace the `loki` URL below with the address of your Loki instance (for example `http://loki:3100` when Loki runs in the same Compose network).
+Install the Grafana Loki Docker plugin before starting this stack. The driver runs on the Docker host, so it uses Loki's published port at `http://127.0.0.1:3100`; Compose service DNS names are for containers on the Compose network.
 
-Install the plugin (example: Loki at `http://loki:3100`):
+Install the plugin:
 
 ```bash
 docker plugin install grafana/loki-docker-driver:latest \
@@ -139,7 +143,7 @@ services:
     logging:
       driver: loki
       options:
-        loki-url: 'http://loki:3100/loki/api/v1/push'
+        loki-url: 'http://127.0.0.1:3100/loki/api/v1/push'
         loki-retries: '3'
 ```
 
@@ -149,7 +153,7 @@ Or set the Docker daemon default logger (`/etc/docker/daemon.json`):
 {
   "log-driver": "loki",
   "log-opts": {
-    "loki-url": "http://loki:3100/loki/api/v1/push"
+    "loki-url": "http://127.0.0.1:3100/loki/api/v1/push"
   }
 }
 ```
@@ -158,7 +162,7 @@ After changing `daemon.json` restart Docker (Docker Desktop: restart from UI).
 
 Notes:
 
-- If Loki runs as part of this Compose setup, use the internal service name `http://loki:3100/loki/api/v1/push`.
+- Loki stores its logs and indexes under `/loki` in the `loki-data` volume.
 - On Docker Desktop for Windows, run the `docker plugin install` command from PowerShell or WSL with the Docker context set to Docker Desktop.
 
 - Open Grafana at `http://localhost/grafana/` (or `https://<your-ngrok-domain>/grafana/`)
@@ -168,6 +172,8 @@ Notes:
 ## Scheduled Jobs (Cron)
 
 `cron` and `cron-with-mongo` run dedicated crontab files from `docker/cron`.
+
+The cron container runs BusyBox `crond` as root with root-owned crontabs. Its timezone is UTC, and scheduler/job output goes to container logs.
 
 - SQLite profile (`docker/cron/sqlite.crontab`)
   - every 30 min: cleanup reset tokens / unverified users
@@ -200,3 +206,9 @@ Defaults are defined in `src/config/env.ts` (via `Bun.env.BACKUP_DIR` and `Bun.e
 
 - `BACKUP_DIR` defaults to `data/backups`
 - `BACKUP_RETENTION_DAYS` defaults to `7`
+
+## Email Queue Persistence
+
+Redis stores BullMQ email jobs in the `redis_data` volume with AOF persistence and `appendfsync everysec`. Jobs survive container replacement; an abrupt host failure can lose roughly the last second of writes. The API and workers wait for Redis to become healthy, and workers wait for API initialization to finish.
+
+When upgrading an existing deployment, migrate any Redis data from its previous `/data` volume into `redis_data` before replacing Redis. Keep the existing container/volume until that migration is complete. Previously stored Loki files under `/tmp/loki` likewise need copying to `/loki` before replacing the old Loki container if you want to retain them.

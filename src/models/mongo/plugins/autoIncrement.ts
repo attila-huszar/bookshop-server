@@ -51,7 +51,8 @@ export async function getHighestId<T>(model: Model<T>): Promise<number> {
 }
 
 export function autoIncrementPlugin(schema: Schema): void {
-  schema.pre('save', async function (this: AutoIncrementDoc) {
+  // Required IDs must exist before Mongoose validates a new document.
+  schema.pre('validate', async function (this: AutoIncrementDoc) {
     if (this.isNew && this.id == null) {
       this.id = await getNextSequence(this.$model())
     }
