@@ -5,12 +5,26 @@ import type { Order, OrderInsert, OrderUpdate } from '@/types'
 
 const { ordersTable } = model as SQLiteModel
 
-export async function createOrder(order: OrderInsert): Promise<Order | null> {
+export async function getOrderByCheckoutRequestId(
+  checkoutRequestId: string,
+): Promise<Order | null> {
+  const [order] = await sqlite
+    .select()
+    .from(ordersTable)
+    .where(eq(ordersTable.checkoutRequestId, checkoutRequestId))
+    .limit(1)
+  return order ?? null
+}
+
+export async function createCheckoutOrder(
+  order: OrderInsert,
+): Promise<Order | null> {
   const [createdOrder] = await sqlite
     .insert(ordersTable)
     .values(order)
+    .onConflictDoNothing({ target: ordersTable.checkoutRequestId })
     .returning()
-  return createdOrder ?? null
+  return createdOrder ?? getOrderByCheckoutRequestId(order.checkoutRequestId)
 }
 
 export async function getOrder(paymentId: string): Promise<Order | null> {
@@ -59,10 +73,6 @@ export async function linkPaymentIntent(
     order: currentOrder?.paymentId === paymentId ? currentOrder : null,
     linked: false,
   }
-}
-
-export async function deleteOrderById(id: number): Promise<void> {
-  await sqlite.delete(ordersTable).where(eq(ordersTable.id, id))
 }
 
 export async function updateOrder(
@@ -171,14 +181,6 @@ export async function getOrdersByEmail(email: string): Promise<Order[]> {
     .orderBy(desc(ordersTable.createdAt))
 
   return orderRecords
-}
-
-export async function insertOrder(order: OrderInsert): Promise<Order | null> {
-  const [createdOrder] = await sqlite
-    .insert(ordersTable)
-    .values(order)
-    .returning()
-  return createdOrder ?? null
 }
 
 export async function deleteOrdersByIds(

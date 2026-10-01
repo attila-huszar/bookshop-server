@@ -5,6 +5,7 @@ import { mockOrdersDB, mockUsersDB } from './test-setup'
 const { getUserOrders } = await import('@/services/orders.service')
 
 const createOrder = (overrides: Partial<Order> = {}): Order => ({
+  checkoutRequestId: 'checkout-order-test',
   id: 1,
   paymentId: 'pi_test_123',
   paymentStatus: 'succeeded',

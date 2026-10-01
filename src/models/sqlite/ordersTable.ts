@@ -9,6 +9,7 @@ import { timestamps } from './column.helpers'
 export const ordersTable = sqliteTable('orders', {
   id: int().primaryKey({ autoIncrement: true }),
   paymentId: text('payment_id').unique(),
+  checkoutRequestId: text('checkout_request_id').notNull().unique(),
   paymentStatus: text('payment_status')
     .$type<PaymentIntentStatus>()
     .default('processing')

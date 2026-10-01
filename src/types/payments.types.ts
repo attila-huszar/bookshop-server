@@ -10,6 +10,6 @@ export type PaymentSession = {
 }
 
 export type PaymentAccess = {
-  paymentSessionId?: string
+  cookiePaymentId?: string
   userEmail?: string
 }

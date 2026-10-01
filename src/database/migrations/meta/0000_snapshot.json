@@ -277,6 +277,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "checkout_request_id": {
+          "name": "checkout_request_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
         "payment_status": {
           "name": "payment_status",
           "type": "text",
@@ -376,6 +383,11 @@
         "orders_payment_id_unique": {
           "name": "orders_payment_id_unique",
           "columns": ["payment_id"],
+          "isUnique": true
+        },
+        "orders_checkout_request_id_unique": {
+          "name": "orders_checkout_request_id_unique",
+          "columns": ["checkout_request_id"],
           "isUnique": true
         }
       },

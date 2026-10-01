@@ -25,11 +25,11 @@ export const payments = new Hono<{ Variables: Variables }>()
 payments.get(API.payments.byId, async (c) => {
   try {
     const paymentId = c.req.param('paymentId')
-    const { paymentSessionId, userEmail } = c.get('paymentAccess') ?? {}
+    const { cookiePaymentId, userEmail } = c.get('paymentAccess') ?? {}
 
     const paymentIntent = await retrievePaymentIntent(paymentId, {
       userEmail,
-      paymentSessionId,
+      cookiePaymentId,
     })
 
     return c.json(paymentIntent)
@@ -41,8 +41,11 @@ payments.get(API.payments.byId, async (c) => {
 payments.post(API.payments.root, async (c) => {
   try {
     const paymentIntentRequest = await c.req.json<PaymentIntentRequest>()
-    const clientRequestId =
-      c.req.header('Idempotency-Key')?.trim() ?? randomUUID()
+    const suppliedIdempotencyKey = c.req.header('Idempotency-Key')?.trim()
+    const clientIdempotencyKey =
+      suppliedIdempotencyKey !== undefined && suppliedIdempotencyKey.length > 0
+        ? suppliedIdempotencyKey
+        : randomUUID()
 
     const jwtPayload = c.get('jwtPayload')
     let publicUser: PublicUser | null = null
@@ -51,8 +54,8 @@ payments.post(API.payments.root, async (c) => {
       publicUser = await getUserProfile(jwtPayload.uuid, { optional: true })
     }
 
-    const requestId = getPaymentIdempotencyKey(
-      clientRequestId,
+    const checkoutRequestId = getPaymentIdempotencyKey(
+      clientIdempotencyKey,
       paymentIntentRequest,
       publicUser,
     )
@@ -60,7 +63,7 @@ payments.post(API.payments.root, async (c) => {
     const { paymentId, paymentToken, amount } = await startCheckoutPayment(
       paymentIntentRequest,
       publicUser,
-      requestId,
+      checkoutRequestId,
     )
 
     await setSignedCookie(
@@ -80,11 +83,11 @@ payments.post(API.payments.root, async (c) => {
 payments.delete(API.payments.byId, async (c) => {
   try {
     const paymentId = c.req.param('paymentId')
-    const { paymentSessionId, userEmail } = c.get('paymentAccess') ?? {}
+    const { cookiePaymentId, userEmail } = c.get('paymentAccess') ?? {}
 
     const paymentIntent = await cancelPaymentIntent(paymentId, {
       userEmail,
-      paymentSessionId,
+      cookiePaymentId,
     })
 
     deleteCookie(c, PAYMENT_SESSION, paymentCookieOptions)

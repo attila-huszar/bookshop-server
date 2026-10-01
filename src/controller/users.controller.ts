@@ -27,8 +27,8 @@ import type {
   PasswordResetRequest,
   PasswordResetSubmit,
   PasswordResetToken,
+  ProfileUpdate,
   PublicUser,
-  UserUpdate,
   VerificationRequest,
 } from '@/types'
 
@@ -129,7 +129,7 @@ users.get(API.users.profile, async (c) => {
 users.patch(API.users.profile, async (c) => {
   try {
     const jwtPayload = c.get('jwtPayload')
-    const updateFields = await c.req.json<UserUpdate>()
+    const updateFields = await c.req.json<ProfileUpdate>()
     const user: PublicUser = await updateUserProfile(
       jwtPayload.uuid,
       updateFields,

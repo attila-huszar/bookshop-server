@@ -44,7 +44,7 @@ async function resolveAuthorizedPayment(
   }
 
   const accessEmail = access.userEmail?.toLowerCase()
-  const hasSessionAccess = access.paymentSessionId === validatedId
+  const hasSessionAccess = access.cookiePaymentId === validatedId
   const hasEmailAccess =
     Boolean(accessEmail) && order.email?.toLowerCase() === accessEmail
 
@@ -101,61 +101,6 @@ async function buildOrderItemsAndTotal(
   }
 }
 
-async function createPaymentIntent({
-  amountInCents,
-  orderId,
-  requestId,
-  user,
-}: {
-  amountInCents: number
-  orderId: number
-  requestId: string
-  user: PublicUser | null
-}): Promise<StripePaymentIntent> {
-  const createParams = {
-    amount: amountInCents,
-    currency: defaultCurrency.toLowerCase(),
-    metadata: {
-      orderId: String(orderId),
-      requestId,
-      ...(user && {
-        userEmail: user.email,
-        userName: `${user.firstName} ${user.lastName}`.trim(),
-      }),
-    },
-  } as const
-
-  const paymentIntent = await stripe.paymentIntents.create(createParams, {
-    idempotencyKey: requestId,
-  })
-
-  if (paymentIntent.status !== 'canceled') {
-    return paymentIntent
-  }
-
-  const recoveryIdempotencyKey = `${requestId}:recovery`
-  void log.warn(
-    'Received canceled idempotent payment intent replay, creating fresh Stripe intent',
-    {
-      requestId,
-      paymentId: paymentIntent.id,
-    },
-  )
-
-  const recoveredPaymentIntent = await stripe.paymentIntents.create(
-    createParams,
-    {
-      idempotencyKey: recoveryIdempotencyKey,
-    },
-  )
-
-  if (recoveredPaymentIntent.status === 'canceled') {
-    throw new Internal('Failed to create a usable payment intent')
-  }
-
-  return recoveredPaymentIntent
-}
-
 export async function retrievePaymentIntent(
   paymentId: string,
   access: PaymentAccess,
@@ -164,15 +109,19 @@ export async function retrievePaymentIntent(
   return await stripe.paymentIntents.retrieve(validatedId)
 }
 
-export async function startCheckoutPayment(
+async function getOrCreateCheckoutOrder(
   paymentIntentRequest: PaymentIntentRequest,
   user: PublicUser | null,
-  requestId: string,
-): Promise<PaymentSession> {
+  checkoutRequestId: string,
+): Promise<Order> {
   const validatedRequest = validate(
     paymentIntentRequestSchema,
     paymentIntentRequest,
   )
+  const existingOrder =
+    await ordersDB.getOrderByCheckoutRequestId(checkoutRequestId)
+  if (existingOrder) return existingOrder
+
   const { items, total } = await buildOrderItemsAndTotal(validatedRequest)
 
   if (Math.abs(total - validatedRequest.expectedTotal) > 0.05) {
@@ -183,8 +132,8 @@ export async function startCheckoutPayment(
     )
   }
 
-  const amountInCents = Math.round(total * 100)
   const orderData: OrderInsert = {
+    checkoutRequestId,
     paymentId: null,
     paymentStatus: 'processing',
     currency: defaultCurrency,
@@ -203,71 +152,73 @@ export async function startCheckoutPayment(
   }
 
   const validatedOrderData = validate(orderInsertSchema, orderData)
-  const draftOrder = await ordersDB.createOrder(validatedOrderData)
+  const draftOrder = await ordersDB.createCheckoutOrder(validatedOrderData)
 
   if (draftOrder?.id === undefined) {
     throw new Internal('Failed to create order in database')
   }
 
+  return draftOrder
+}
+
+export async function startCheckoutPayment(
+  paymentIntentRequest: PaymentIntentRequest,
+  user: PublicUser | null,
+  checkoutRequestId: string,
+): Promise<PaymentSession> {
+  const order = await getOrCreateCheckoutOrder(
+    paymentIntentRequest,
+    user,
+    checkoutRequestId,
+  )
+
   let paymentIntent: StripePaymentIntent
   try {
-    paymentIntent = await createPaymentIntent({
-      amountInCents,
-      orderId: draftOrder.id,
-      requestId,
-      user,
-    })
+    // Use the persisted snapshot on retries, not current prices or user details.
+    paymentIntent = order.paymentId
+      ? await stripe.paymentIntents.retrieve(order.paymentId)
+      : await stripe.paymentIntents.create(
+          {
+            amount: Math.round(order.total * 100),
+            currency: order.currency.toLowerCase(),
+            metadata: { orderId: String(order.id) },
+          },
+          { idempotencyKey: checkoutRequestId },
+        )
   } catch (error) {
-    void log.error('Stripe payment intent creation failed for draft order', {
-      orderId: draftOrder.id,
-      requestId,
+    // A timeout does not prove Stripe failed. Keep the order for retries and
+    // webhooks, which may already have linked the intent while we were waiting.
+    void log.error('Failed to resolve Stripe payment for checkout order', {
+      orderId: order.id,
+      checkoutRequestId,
       error,
     })
-    await ordersDB
-      .deleteOrderById(draftOrder.id)
-      .catch((cleanupError: unknown) => {
-        void log.error(
-          'Failed to remove draft order after Stripe creation failed',
-          {
-            orderId: draftOrder.id,
-            requestId,
-            error: cleanupError,
-          },
-        )
-      })
     throw error
+  }
+
+  if (paymentIntent.status === 'canceled') {
+    throw new BadRequest(
+      'This checkout was canceled. Please start a new checkout.',
+      'CheckoutCanceled',
+      410,
+    )
   }
 
   if (!paymentIntent.client_secret) {
     throw new Internal('Failed to create payment intent: missing client secret')
   }
 
-  const metadataOrderId = Number(paymentIntent.metadata?.orderId)
-  const linkedOrderId =
-    Number.isSafeInteger(metadataOrderId) && metadataOrderId > 0
-      ? metadataOrderId
-      : draftOrder.id
-  const targetOrder = await ordersDB.getOrderById(linkedOrderId)
-
-  if (!targetOrder) {
-    throw new Internal('Failed to find order for payment intent')
-  }
-
-  if (targetOrder.id !== draftOrder.id) {
-    await ordersDB.deleteOrderById(draftOrder.id)
-  }
-
   const { order: linkedOrder, linked } = await ordersDB.linkPaymentIntent(
-    targetOrder.id,
+    order.id,
     paymentIntent.id,
     paymentIntent.status,
   )
 
   if (!linkedOrder) {
     void log.error('Failed to link payment intent to draft order', {
-      orderId: targetOrder.id,
+      orderId: order.id,
       paymentId: paymentIntent.id,
-      requestId,
+      checkoutRequestId,
     })
     throw new Internal('Failed to link payment intent to order')
   }
@@ -282,7 +233,7 @@ export async function startCheckoutPayment(
   return {
     paymentId: paymentIntent.id,
     paymentToken: paymentIntent.client_secret,
-    amount: amountInCents,
+    amount: paymentIntent.amount,
   }
 }
 

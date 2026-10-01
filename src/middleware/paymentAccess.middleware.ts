@@ -26,7 +26,7 @@ export const paymentAccessMiddleware: MiddlewareHandler<{
       deleteCookie(c, PAYMENT_SESSION, paymentCookieOptions)
     }
 
-    const paymentSessionId =
+    const cookiePaymentId =
       typeof paymentSessionCookie === 'string'
         ? paymentSessionCookie
         : undefined
@@ -39,7 +39,7 @@ export const paymentAccessMiddleware: MiddlewareHandler<{
       userEmail = user?.email
     }
 
-    c.set('paymentAccess', { paymentSessionId, userEmail })
+    c.set('paymentAccess', { cookiePaymentId, userEmail })
 
     await next()
   } catch (error) {

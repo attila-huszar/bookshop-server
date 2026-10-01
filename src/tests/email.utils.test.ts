@@ -4,6 +4,7 @@ import type { Order } from '@/types'
 const { getEmailHtml } = await import('@/utils/email.utils')
 
 const order: Order = {
+  checkoutRequestId: 'checkout-email-test',
   id: 1,
   paymentId: 'pi_test_123',
   paymentStatus: 'succeeded',

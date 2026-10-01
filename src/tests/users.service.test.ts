@@ -1,4 +1,7 @@
 import { beforeEach, describe, expect, it } from 'bun:test'
+import { rejects } from 'node:assert/strict'
+import { loginSchema } from '@/validation/authSchemas'
+import { profileUpdateSchema } from '@/validation/userSchemas'
 import { authMessage, userMessage } from '@/constants'
 import { BadRequest, Forbidden, Unauthorized } from '@/errors'
 import { type UserInsert, UserRole } from '@/types'
@@ -23,6 +26,66 @@ beforeEach(() => {
 })
 
 describe('Users Service', () => {
+  describe('updateUserProfile', () => {
+    beforeEach(() => {
+      mockValidate.mockImplementation((_schema: unknown, value: unknown) =>
+        profileUpdateSchema.parse(value),
+      )
+    })
+
+    it('rejects privileged fields before accessing the database', async () => {
+      const fields = { firstName: 'Jane', role: UserRole.Admin }
+      await rejects(usersService.updateUserProfile('user-uuid', fields))
+      expect(mockUsersDB.getUserBy).not.toHaveBeenCalled()
+      expect(mockUsersDB.updateUserBy).not.toHaveBeenCalled()
+    })
+
+    it('rejects weak passwords and missing current passwords', async () => {
+      for (const fields of [
+        { password: 'weak', currentPassword: 'old123' },
+        { password: 'new123' },
+      ]) {
+        await rejects(usersService.updateUserProfile('user-uuid', fields))
+      }
+      expect(mockUsersDB.updateUserBy).not.toHaveBeenCalled()
+    })
+
+    it('rejects an incorrect current password', async () => {
+      mockUsersDB.getUserBy.mockResolvedValueOnce({
+        email: 'user@example.com',
+        password: Bun.password.hashSync('old123'),
+      })
+      await rejects(
+        usersService.updateUserProfile('user-uuid', {
+          password: 'new123',
+          currentPassword: 'wrong123',
+        }),
+        /Current password is incorrect/,
+      )
+      expect(mockUsersDB.updateUserBy).not.toHaveBeenCalled()
+    })
+
+    it('hashes the new password without persisting the current password', async () => {
+      const user = {
+        email: 'user@example.com',
+        password: Bun.password.hashSync('old123'),
+      }
+      mockUsersDB.getUserBy.mockResolvedValueOnce(user)
+      mockUsersDB.updateUserBy.mockResolvedValueOnce(user)
+      await usersService.updateUserProfile('user-uuid', {
+        password: 'new123',
+        currentPassword: 'old123',
+      })
+      const [, , fields] = mockUsersDB.updateUserBy.mock.calls[0] as [
+        string,
+        string,
+        { password: string },
+      ]
+      expect(await Bun.password.verify('new123', fields.password)).toBe(true)
+      expect(fields).not.toHaveProperty('currentPassword')
+    })
+  })
+
   describe('loginUser', () => {
     it('should login user successfully', async () => {
       const loginRequest = {
@@ -44,7 +107,7 @@ describe('Users Service', () => {
 
       const result = await usersService.loginUser(loginRequest)
 
-      expect(mockValidate).toHaveBeenCalledWith({}, loginRequest)
+      expect(mockValidate).toHaveBeenCalledWith(loginSchema, loginRequest)
       expect(mockUsersDB.getUserBy).toHaveBeenCalledWith(
         'email',
         'test@example.com',

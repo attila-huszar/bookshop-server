@@ -1,3 +1,5 @@
+import { getErrorCode } from './error.utils'
+
 const DEFAULT_REDIS_TARGET = {
   host: 'localhost',
   port: '6379',
@@ -48,10 +50,7 @@ function isRedisConnectionError(error: unknown): boolean {
   if (!(error instanceof Error)) return false
 
   const message = error.message.toLowerCase()
-  const code =
-    'code' in error
-      ? String((error as Error & { code?: unknown }).code).toLowerCase()
-      : ''
+  const code = String(getErrorCode(error) ?? '').toLowerCase()
 
   return (
     knownRedisCodes.has(code) ||

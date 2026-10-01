@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it } from 'bun:test'
+import { rejects } from 'node:assert/strict'
 import { BadRequest } from '@/errors/BadRequest'
 import { Internal } from '@/errors/Internal'
 import { Unauthorized } from '@/errors/Unauthorized'
-import type { Order } from '@/types'
+import type { Order, OrderInsert, PublicUser } from '@/types'
 import {
   mockBooksDB,
   mockEnqueueEmail,
-  mockLogger,
   mockOrdersDB,
   mockStripe,
   mockValidate,
@@ -15,9 +15,12 @@ import {
 const { cancelPaymentIntent, retrievePaymentIntent, startCheckoutPayment } =
   await import('@/services/payments.service')
 
+const request = { items: [{ id: 1, quantity: 1 }], expectedTotal: 12.34 }
+const checkoutRequestId = 'req_test_123'
 const createOrder = (overrides: Partial<Order> = {}): Order => ({
   id: 1,
-  paymentId: 'pi_test_123',
+  checkoutRequestId,
+  paymentId: null,
   paymentStatus: 'processing',
   lastStripeEventCreated: null,
   lastStripeEventId: null,
@@ -25,43 +28,28 @@ const createOrder = (overrides: Partial<Order> = {}): Order => ({
   total: 12.34,
   currency: 'USD',
   items: [],
-  firstName: 'Guest',
-  lastName: 'User',
-  email: 'guest@example.com',
+  firstName: null,
+  lastName: null,
+  email: null,
   shipping: null,
-  createdAt: new Date('2026-02-24T10:00:00.000Z'),
-  updatedAt: new Date('2026-02-24T10:05:00.000Z'),
+  createdAt: new Date(),
+  updatedAt: new Date(),
   ...overrides,
 })
+const paymentIntent = {
+  id: 'pi_test_123',
+  status: 'requires_payment_method',
+  amount: 1234,
+  client_secret: 'pi_test_secret',
+  metadata: { orderId: '1' },
+}
 
 describe('Payments Service', () => {
   beforeEach(() => {
-    mockValidate.mockReset()
-    mockBooksDB.getBookById.mockReset()
-    mockOrdersDB.getOrder.mockReset()
-    mockOrdersDB.getOrderById.mockReset()
-    mockOrdersDB.createOrder.mockReset()
-    mockOrdersDB.linkPaymentIntent.mockReset()
-    mockOrdersDB.updateOrder.mockReset()
-    mockOrdersDB.deleteOrderById.mockReset()
-    mockStripe.paymentIntents.create.mockReset()
-    mockStripe.paymentIntents.retrieve.mockReset()
-    mockStripe.paymentIntents.cancel.mockReset()
-    mockEnqueueEmail.mockReset()
-    mockLogger.error.mockReset()
-    mockValidate.mockReturnValue('pi_test_123')
-  })
-
-  it('creates and links a draft order before returning a payment intent', async () => {
-    const draftOrder = createOrder({ paymentId: null })
-    const linkedOrder = createOrder()
     mockValidate
-      .mockReturnValueOnce({
-        items: [{ id: 1, quantity: 1 }],
-        expectedTotal: 12.34,
-      })
-      .mockReturnValueOnce({})
-    mockBooksDB.getBookById.mockResolvedValueOnce({
+      .mockReset()
+      .mockImplementation((_schema: unknown, value: unknown) => value)
+    mockBooksDB.getBookById.mockReset().mockResolvedValue({
       id: 1,
       title: 'Sample Book',
       author: 'Sample Author',
@@ -69,187 +57,203 @@ describe('Payments Service', () => {
       price: 12.34,
       discount: 0,
     })
-    mockOrdersDB.createOrder.mockResolvedValueOnce(draftOrder)
-    mockStripe.paymentIntents.create.mockResolvedValueOnce({
-      id: 'pi_test_123',
-      status: 'requires_payment_method',
-      client_secret: 'pi_test_secret',
-      metadata: { orderId: '1' },
-    })
-    mockOrdersDB.getOrderById.mockResolvedValueOnce(draftOrder)
-    mockOrdersDB.linkPaymentIntent.mockResolvedValueOnce({
-      order: linkedOrder,
+    mockOrdersDB.getOrder.mockReset()
+    mockOrdersDB.getOrderByCheckoutRequestId.mockReset().mockResolvedValue(null)
+    mockOrdersDB.createCheckoutOrder
+      .mockReset()
+      .mockResolvedValue(createOrder())
+    mockOrdersDB.linkPaymentIntent.mockReset().mockResolvedValue({
+      order: createOrder({ paymentId: paymentIntent.id }),
       linked: true,
     })
+    mockOrdersDB.updateOrder.mockReset()
+    mockStripe.paymentIntents.create
+      .mockReset()
+      .mockResolvedValue(paymentIntent)
+    mockStripe.paymentIntents.retrieve
+      .mockReset()
+      .mockResolvedValue(paymentIntent)
+    mockStripe.paymentIntents.cancel.mockReset()
+    mockEnqueueEmail.mockReset()
+  })
 
-    const result = await startCheckoutPayment(
-      { items: [{ id: 1, quantity: 1 }], expectedTotal: 12.34 },
-      null,
-      'req_test_123',
+  it('creates and links a guest draft without requiring an account or email', async () => {
+    const result = await startCheckoutPayment(request, null, checkoutRequestId)
+    expect(mockValidate.mock.calls[1]?.[1]).toEqual(
+      expect.objectContaining({ checkoutRequestId }),
     )
-
-    expect(mockStripe.paymentIntents.create).toHaveBeenCalledWith(
+    expect(mockOrdersDB.createCheckoutOrder).toHaveBeenCalledWith(
       expect.objectContaining({
-        metadata: { orderId: '1', requestId: 'req_test_123' },
+        checkoutRequestId,
+        paymentId: null,
+        total: 12.34,
       }),
-      { idempotencyKey: 'req_test_123' },
+    )
+    const createdDraft = mockOrdersDB.createCheckoutOrder.mock
+      .calls[0]?.[0] as OrderInsert
+    expect(createdDraft.email).toBeUndefined()
+    expect(mockStripe.paymentIntents.create).toHaveBeenCalledWith(
+      {
+        amount: 1234,
+        currency: 'usd',
+        metadata: { orderId: '1' },
+      },
+      { idempotencyKey: checkoutRequestId },
     )
     expect(mockOrdersDB.linkPaymentIntent).toHaveBeenCalledWith(
       1,
-      'pi_test_123',
+      paymentIntent.id,
       'requires_payment_method',
     )
     expect(result).toEqual({
-      paymentId: 'pi_test_123',
+      paymentId: paymentIntent.id,
       paymentToken: 'pi_test_secret',
       amount: 1234,
     })
   })
 
-  it('does not create a Stripe intent if it cannot create the draft order', async () => {
-    mockValidate
-      .mockReturnValueOnce({
-        items: [{ id: 1, quantity: 1 }],
-        expectedTotal: 12.34,
-      })
-      .mockReturnValueOnce({})
-    mockBooksDB.getBookById.mockResolvedValueOnce({
-      id: 1,
-      title: 'Sample Book',
-      author: 'Sample Author',
-      imgUrl: '',
-      price: 12.34,
-      discount: 0,
-    })
-    mockOrdersDB.createOrder.mockResolvedValueOnce(null)
+  it('preserves account details without making Stripe parameters depend on them', async () => {
+    const user = {
+      email: 'account@example.com',
+      firstName: 'Account',
+      lastName: 'User',
+    } as PublicUser
+    await startCheckoutPayment(request, user, checkoutRequestId)
+    expect(mockOrdersDB.createCheckoutOrder).toHaveBeenCalledWith(
+      expect.objectContaining({ email: user.email }),
+    )
+    expect(mockStripe.paymentIntents.create).toHaveBeenCalledWith(
+      expect.objectContaining({ metadata: { orderId: '1' } }),
+      expect.anything(),
+    )
+  })
 
-    let error: unknown
-    try {
-      await startCheckoutPayment(
-        { items: [{ id: 1, quantity: 1 }], expectedTotal: 12.34 },
-        null,
-        'req_test_123',
-      )
-    } catch (caughtError) {
-      error = caughtError
-    }
-
-    expect(error).toBeInstanceOf(Internal)
+  it('does not contact Stripe if draft creation fails', async () => {
+    mockOrdersDB.createCheckoutOrder.mockResolvedValueOnce(null)
+    await rejects(
+      startCheckoutPayment(request, null, checkoutRequestId),
+      Internal,
+    )
     expect(mockStripe.paymentIntents.create).not.toHaveBeenCalled()
   })
 
-  it('deletes a draft order when Stripe payment intent creation fails', async () => {
-    const draftOrder = createOrder({ paymentId: null })
-    mockValidate
-      .mockReturnValueOnce({
-        items: [{ id: 1, quantity: 1 }],
-        expectedTotal: 12.34,
-      })
-      .mockReturnValueOnce({})
+  it('rejects a price conflict before storing a new draft', async () => {
     mockBooksDB.getBookById.mockResolvedValueOnce({
       id: 1,
-      title: 'Sample Book',
-      author: 'Sample Author',
-      imgUrl: '',
-      price: 12.34,
-      discount: 0,
+      title: 'Book',
+      price: 20,
     })
-    mockOrdersDB.createOrder.mockResolvedValueOnce(draftOrder)
-    mockOrdersDB.deleteOrderById.mockResolvedValueOnce(draftOrder)
-    const stripeError = new Error('Stripe unavailable')
-    mockStripe.paymentIntents.create.mockRejectedValueOnce(stripeError)
+    await rejects(
+      startCheckoutPayment(request, null, checkoutRequestId),
+      BadRequest,
+    )
+    expect(mockOrdersDB.createCheckoutOrder).not.toHaveBeenCalled()
+  })
 
-    let error: unknown
-    try {
-      await startCheckoutPayment(
-        { items: [{ id: 1, quantity: 1 }], expectedTotal: 12.34 },
-        null,
-        'req_test_123',
+  it('retries a lost Stripe response with exactly the same draft and parameters', async () => {
+    const error = new Error('Connection lost after Stripe created the intent')
+    mockStripe.paymentIntents.create.mockRejectedValueOnce(error)
+    await rejects(startCheckoutPayment(request, null, checkoutRequestId), error)
+    const firstCall = mockStripe.paymentIntents.create.mock.calls[0]
+    mockOrdersDB.getOrderByCheckoutRequestId.mockResolvedValueOnce(
+      createOrder(),
+    )
+    mockBooksDB.getBookById.mockClear()
+    const result = await startCheckoutPayment(request, null, checkoutRequestId)
+    expect(mockStripe.paymentIntents.create.mock.calls[1]).toEqual(firstCall)
+    expect(mockOrdersDB.createCheckoutOrder).toHaveBeenCalledTimes(1)
+    expect(mockBooksDB.getBookById).not.toHaveBeenCalled()
+    expect(result.paymentId).toBe(paymentIntent.id)
+  })
+
+  it('recovers a response failure after the webhook has linked the order', async () => {
+    mockStripe.paymentIntents.create.mockImplementationOnce(() => {
+      mockOrdersDB.getOrderByCheckoutRequestId.mockResolvedValue(
+        createOrder({ paymentId: paymentIntent.id }),
       )
-    } catch (caughtError) {
-      error = caughtError
-    }
-
-    expect(error).toBe(stripeError)
-    expect(mockOrdersDB.deleteOrderById).toHaveBeenCalledWith(draftOrder.id)
-  })
-
-  it('creates a replacement intent when an idempotent replay is canceled', async () => {
-    const draftOrder = createOrder({ paymentId: null })
-    mockValidate
-      .mockReturnValueOnce({
-        items: [{ id: 1, quantity: 1 }],
-        expectedTotal: 12.34,
-      })
-      .mockReturnValueOnce({})
-    mockBooksDB.getBookById.mockResolvedValueOnce({
-      id: 1,
-      title: 'Sample Book',
-      author: 'Sample Author',
-      imgUrl: '',
-      price: 12.34,
-      discount: 0,
+      return Promise.reject(new Error('Response lost'))
     })
-    mockOrdersDB.createOrder.mockResolvedValueOnce(draftOrder)
-    mockStripe.paymentIntents.create
-      .mockResolvedValueOnce({
-        id: 'pi_canceled',
-        status: 'canceled',
-        client_secret: 'pi_canceled_secret',
-        metadata: { orderId: '1' },
-      })
-      .mockResolvedValueOnce({
-        id: 'pi_replacement',
-        status: 'requires_payment_method',
-        client_secret: 'pi_replacement_secret',
-        metadata: { orderId: '1' },
-      })
-    mockOrdersDB.getOrderById.mockResolvedValueOnce(draftOrder)
+    await rejects(startCheckoutPayment(request, null, checkoutRequestId), {
+      message: 'Response lost',
+    })
     mockOrdersDB.linkPaymentIntent.mockResolvedValueOnce({
-      order: createOrder({ paymentId: 'pi_replacement' }),
-      linked: true,
+      order: createOrder({ paymentId: paymentIntent.id }),
+      linked: false,
     })
-
-    const result = await startCheckoutPayment(
-      { items: [{ id: 1, quantity: 1 }], expectedTotal: 12.34 },
-      null,
-      'req_test_123',
+    await startCheckoutPayment(request, null, checkoutRequestId)
+    expect(mockStripe.paymentIntents.create).toHaveBeenCalledTimes(1)
+    expect(mockStripe.paymentIntents.retrieve).toHaveBeenCalledWith(
+      paymentIntent.id,
     )
-
-    expect(mockStripe.paymentIntents.create).toHaveBeenCalledTimes(2)
-    expect(mockStripe.paymentIntents.create).toHaveBeenLastCalledWith(
-      expect.anything(),
-      { idempotencyKey: 'req_test_123:recovery' },
-    )
-    expect(result.paymentId).toBe('pi_replacement')
+    expect(mockOrdersDB.createCheckoutOrder).toHaveBeenCalledTimes(1)
+    expect(mockEnqueueEmail).not.toHaveBeenCalled()
   })
 
-  it('rejects unauthorized payment retrieval before contacting Stripe', async () => {
-    mockOrdersDB.getOrder.mockResolvedValueOnce(createOrder())
+  it('uses the winning draft snapshot when concurrent creates share a request key', async () => {
+    mockOrdersDB.createCheckoutOrder.mockResolvedValueOnce(
+      createOrder({ id: 42, total: 11 }),
+    )
+    await startCheckoutPayment(request, null, checkoutRequestId)
+    expect(mockStripe.paymentIntents.create).toHaveBeenCalledWith(
+      {
+        amount: 1100,
+        currency: 'usd',
+        metadata: { orderId: '42' },
+      },
+      { idempotencyKey: checkoutRequestId },
+    )
+  })
 
-    let error: unknown
-    try {
-      await retrievePaymentIntent('pi_test_123', {
+  it('requires a new checkout for a canceled intent instead of replacing the linked intent', async () => {
+    mockOrdersDB.getOrderByCheckoutRequestId.mockResolvedValueOnce(
+      createOrder({ paymentId: paymentIntent.id }),
+    )
+    mockStripe.paymentIntents.retrieve.mockResolvedValueOnce({
+      ...paymentIntent,
+      status: 'canceled',
+    })
+    await rejects(startCheckoutPayment(request, null, checkoutRequestId), {
+      status: 410,
+    })
+    expect(mockStripe.paymentIntents.create).not.toHaveBeenCalled()
+  })
+
+  it('rejects unauthorized retrieval before contacting Stripe', async () => {
+    mockOrdersDB.getOrder.mockResolvedValueOnce(
+      createOrder({ email: 'owner@example.com' }),
+    )
+    await rejects(
+      retrievePaymentIntent(paymentIntent.id, {
         userEmail: 'other@example.com',
-      })
-    } catch (caughtError) {
-      error = caughtError
-    }
-
-    expect(error).toBeInstanceOf(Unauthorized)
+      }),
+      Unauthorized,
+    )
     expect(mockStripe.paymentIntents.retrieve).not.toHaveBeenCalled()
   })
 
-  it('delegates cancellation to Stripe without changing the persisted order', async () => {
-    mockOrdersDB.getOrder.mockResolvedValueOnce(createOrder())
+  it('allows a guest to retrieve their payment using only the signed session', async () => {
+    mockOrdersDB.getOrder.mockResolvedValueOnce(
+      createOrder({ paymentId: paymentIntent.id }),
+    )
+    await retrievePaymentIntent(paymentIntent.id, {
+      cookiePaymentId: paymentIntent.id,
+    })
+    expect(mockStripe.paymentIntents.retrieve).toHaveBeenCalledWith(
+      paymentIntent.id,
+    )
+  })
+
+  it('delegates guest cancellation to Stripe without changing the persisted order', async () => {
+    mockOrdersDB.getOrder.mockResolvedValueOnce(
+      createOrder({ paymentId: paymentIntent.id }),
+    )
     mockStripe.paymentIntents.cancel.mockResolvedValueOnce({
-      id: 'pi_test_123',
+      id: paymentIntent.id,
       status: 'canceled',
     })
-    const result = await cancelPaymentIntent('pi_test_123', {
-      paymentSessionId: 'pi_test_123',
+    const result = await cancelPaymentIntent(paymentIntent.id, {
+      cookiePaymentId: paymentIntent.id,
     })
-
     expect(result.status).toBe('canceled')
     expect(mockOrdersDB.updateOrder).not.toHaveBeenCalled()
   })
@@ -258,17 +262,12 @@ describe('Payments Service', () => {
     mockOrdersDB.getOrder.mockResolvedValueOnce(
       createOrder({ paymentStatus: 'succeeded' }),
     )
-
-    let error: unknown
-    try {
-      await cancelPaymentIntent('pi_test_123', {
-        paymentSessionId: 'pi_test_123',
-      })
-    } catch (caughtError) {
-      error = caughtError
-    }
-
-    expect(error).toBeInstanceOf(BadRequest)
+    await rejects(
+      cancelPaymentIntent(paymentIntent.id, {
+        cookiePaymentId: paymentIntent.id,
+      }),
+      BadRequest,
+    )
     expect(mockStripe.paymentIntents.cancel).not.toHaveBeenCalled()
   })
 })

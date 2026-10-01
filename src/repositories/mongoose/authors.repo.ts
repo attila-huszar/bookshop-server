@@ -50,8 +50,7 @@ export async function getAuthorsBySearch(
 }
 
 export async function insertAuthor(author: AuthorInsert): Promise<Author> {
-  const { id, createdAt, updatedAt, ...authorData } = author
-  const created = await AuthorModel.create(authorData)
+  const created = await AuthorModel.create(author)
   const authorObj = created.toObject()
   return authorObj
 }

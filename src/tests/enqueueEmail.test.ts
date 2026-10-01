@@ -5,6 +5,7 @@ import { mockEmailQueue } from './test-setup'
 const { enqueueEmail } = await import('@/queues/enqueueEmail')
 
 const createOrder = (overrides: Partial<Order> = {}): Order => ({
+  checkoutRequestId: 'checkout-enqueue-test',
   id: 1,
   paymentId: 'pi_test_123',
   paymentStatus: 'succeeded',

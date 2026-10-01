@@ -1,15 +1,34 @@
 import model from '@/models'
+import { getErrorCode } from '@/utils/error.utils'
 import type { Order, OrderInsert, OrderUpdate } from '@/types'
 
 const { OrderModel } = model as MongoModel
+const MONGO_DUPLICATE_KEY_CODE = 11000
 
-export async function createOrder(
+export async function getOrderByCheckoutRequestId(
+  checkoutRequestId: string,
+): Promise<Order | null> {
+  return await OrderModel.findOne({ checkoutRequestId }).lean().exec()
+}
+
+export async function createCheckoutOrder(
   order: OrderInsert,
-): Promise<OrderInsert | null> {
-  const { id, createdAt, updatedAt, ...orderData } = order
-  const created = await OrderModel.create(orderData)
-  const orderObj = created.toObject()
-  return orderObj
+): Promise<Order | null> {
+  try {
+    const { id, createdAt, updatedAt, ...orderData } = order
+    const created = await OrderModel.create(orderData)
+    return created.toObject()
+  } catch (error) {
+    // Concurrent requests can race to insert the same checkout. Only recover
+    // a uniqueness conflict when the winning order actually exists.
+    if (getErrorCode(error) === MONGO_DUPLICATE_KEY_CODE) {
+      const existing = await getOrderByCheckoutRequestId(
+        order.checkoutRequestId,
+      )
+      if (existing) return existing
+    }
+    throw error
+  }
 }
 
 export async function updateOrder(
@@ -143,10 +162,6 @@ export async function linkPaymentIntent(
   }
 }
 
-export async function deleteOrderById(id: number): Promise<void> {
-  await OrderModel.deleteOne({ id }).exec()
-}
-
 export async function getAllOrders(): Promise<Order[]> {
   const orders = await OrderModel.find().lean().exec()
   return orders
@@ -159,13 +174,6 @@ export async function getOrdersByEmail(email: string): Promise<Order[]> {
     .exec()
 
   return orders
-}
-
-export async function insertOrder(order: OrderInsert): Promise<Order> {
-  const { id, createdAt, updatedAt, ...orderData } = order
-  const created = await OrderModel.create(orderData)
-  const orderObj = created.toObject()
-  return orderObj
 }
 
 export async function deleteOrdersByIds(

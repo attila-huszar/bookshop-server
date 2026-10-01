@@ -21,7 +21,7 @@ const [{ optionalAuthMiddleware }, { paymentAccessMiddleware }] =
 const app = new Hono<{
   Variables: {
     paymentAccess?: {
-      paymentSessionId?: string
+      cookiePaymentId?: string
       userEmail?: string
     }
   }
@@ -62,7 +62,7 @@ describe('paymentAccessMiddleware', () => {
 
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({
-      paymentSessionId: 'pi_session_123',
+      cookiePaymentId: 'pi_session_123',
       userEmail: 'account@example.com',
     })
     expect(mockGetUserProfile).toHaveBeenCalledWith('user_123', {

@@ -1,5 +1,6 @@
 import { mock } from 'bun:test'
 import { env } from '@/config'
+import * as validation from '@/validation'
 import { toIsoString } from '@/utils/date.utils'
 import { getOrderRef } from '@/utils/string.utils'
 import {
@@ -25,7 +26,8 @@ export const mockOrdersDB = {
   getOrder: mock(),
   getOrderById: mock(),
   getOrdersByEmail: mock(),
-  createOrder: mock(),
+  getOrderByCheckoutRequestId: mock(),
+  createCheckoutOrder: mock(),
   linkPaymentIntent: mock(),
   updateOrder: mock(),
   updateOrderIfUnchanged: mock(
@@ -34,7 +36,6 @@ export const mockOrdersDB = {
       return result as { order: Order | null; becamePaid: boolean }
     },
   ),
-  deleteOrderById: mock(),
 }
 
 export const mockStripe = {
@@ -58,14 +59,6 @@ export const mockCancelAdminPaymentErrorAlert = mock(() =>
   Promise.resolve(false),
 )
 export const mockExtractPaymentIntentFields = mock(() => ({}))
-export const mockGetPaymentIntentId = mock(
-  (source: { payment_intent?: unknown }) =>
-    typeof source.payment_intent === 'string'
-      ? source.payment_intent
-      : ((source.payment_intent as { id?: string } | undefined)?.id ??
-        undefined),
-)
-
 export const mockLogger = {
   info: mock(),
   warn: mock(),
@@ -101,22 +94,9 @@ await mock.module('stripe', () => {
 })
 
 await mock.module('@/validation', () => ({
+  ...validation,
   validate: mockValidate,
   safeValidate: mock(() => null),
-  LogLevel: {
-    enum: { debug: 'debug', info: 'info', warn: 'warn', error: 'error' },
-  },
-  logSchema: {},
-  orderInsertSchema: {},
-  paymentIdSchema: {},
-  paymentIntentRequestSchema: {},
-  loginSchema: {},
-  registerSchema: {},
-  emailSchema: {},
-  tokenSchema: {},
-  passwordResetSchema: {},
-  imageSchema: {},
-  userUpdateSchema: {},
 }))
 
 await mock.module('@/queues', () => ({
@@ -135,7 +115,6 @@ await mock.module('@/libs', () => ({
 
 await mock.module('@/utils', () => ({
   extractPaymentIntentFields: mockExtractPaymentIntentFields,
-  getPaymentIntentId: mockGetPaymentIntentId,
   signAccessToken: mockSignAccessToken,
   signRefreshToken: mockSignRefreshToken,
   uploadFile: mockUploadFile,

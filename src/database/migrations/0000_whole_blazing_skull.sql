@@ -41,6 +41,7 @@ CREATE TABLE `news` (
 CREATE TABLE `orders` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
 	`payment_id` text,
+	`checkout_request_id` text NOT NULL,
 	`payment_status` text DEFAULT 'processing' NOT NULL,
 	`last_stripe_event_created` integer,
 	`last_stripe_event_id` text,
@@ -57,6 +58,7 @@ CREATE TABLE `orders` (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `orders_payment_id_unique` ON `orders` (`payment_id`);--> statement-breakpoint
+CREATE UNIQUE INDEX `orders_checkout_request_id_unique` ON `orders` (`checkout_request_id`);--> statement-breakpoint
 CREATE TABLE `users` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
 	`uuid` text NOT NULL,
