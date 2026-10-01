@@ -2,7 +2,6 @@ import { Hono } from 'hono'
 import {
   addAuthor,
   addBook,
-  addOrder,
   addUser,
   deleteAuthors,
   deleteBooks,
@@ -25,10 +24,9 @@ import type {
   AuthorUpdate,
   BookInsert,
   BookUpdate,
-  OrderInsert,
+  CmsUserInsert,
+  CmsUserUpdate,
   OrderUpdate,
-  UserInsert,
-  UserUpdate,
 } from '@/types'
 
 export const cms = new Hono()
@@ -91,19 +89,9 @@ cms.post(API.cms.authors, async (c) => {
   }
 })
 
-cms.post(API.cms.orders, async (c) => {
-  try {
-    const order = await c.req.json<OrderInsert>()
-    const newOrder = await addOrder(order)
-    return c.json(newOrder, 201)
-  } catch (error) {
-    return errorHandler(c, error)
-  }
-})
-
 cms.post(API.cms.users, async (c) => {
   try {
-    const user = await c.req.json<UserInsert>()
+    const user = await c.req.json<CmsUserInsert>()
     const newUser = await addUser(user)
     return c.json(newUser, 201)
   } catch (error) {
@@ -147,7 +135,7 @@ cms.patch(API.cms.orders, async (c) => {
 cms.patch(API.cms.users, async (c) => {
   try {
     const { uuid, ...fields } = await c.req.json<
-      UserUpdate & { uuid: string }
+      CmsUserUpdate & { uuid: string }
     >()
     const updatedUser = await updateUser(uuid, fields)
     return c.json(updatedUser)

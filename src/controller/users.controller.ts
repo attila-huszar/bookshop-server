@@ -1,6 +1,12 @@
 import { Hono } from 'hono'
 import { deleteCookie, getSignedCookie, setSignedCookie } from 'hono/cookie'
-import { cookieOptions, env, REFRESH_TOKEN } from '@/config'
+import {
+  cookieOptions,
+  env,
+  PAYMENT_SESSION,
+  paymentCookieOptions,
+  REFRESH_TOKEN,
+} from '@/config'
 import {
   getUserProfile,
   loginUser,
@@ -21,8 +27,8 @@ import type {
   PasswordResetRequest,
   PasswordResetSubmit,
   PasswordResetToken,
+  ProfileUpdate,
   PublicUser,
-  UserUpdate,
   VerificationRequest,
 } from '@/types'
 
@@ -123,7 +129,7 @@ users.get(API.users.profile, async (c) => {
 users.patch(API.users.profile, async (c) => {
   try {
     const jwtPayload = c.get('jwtPayload')
-    const updateFields = await c.req.json<UserUpdate>()
+    const updateFields = await c.req.json<ProfileUpdate>()
     const user: PublicUser = await updateUserProfile(
       jwtPayload.uuid,
       updateFields,
@@ -138,6 +144,7 @@ users.patch(API.users.profile, async (c) => {
 users.post(API.users.logout, (c) => {
   try {
     deleteCookie(c, REFRESH_TOKEN, cookieOptions)
+    deleteCookie(c, PAYMENT_SESSION, paymentCookieOptions)
 
     return c.json({ success: true })
   } catch (error) {

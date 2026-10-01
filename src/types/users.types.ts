@@ -1,9 +1,12 @@
 import type { z } from 'zod'
 import type {
   authJWTPayloadSchema,
+  cmsUserInsertSchema,
+  cmsUserUpdateSchema,
   emailSchema,
   loginSchema,
   passwordResetSchema,
+  profileUpdateSchema,
   registerSchema,
   tokenSchema,
   userInsertSchema,
@@ -14,6 +17,9 @@ import type {
 export type User = z.infer<typeof userSelectSchema>
 export type UserInsert = z.infer<typeof userInsertSchema>
 export type UserUpdate = z.infer<typeof userUpdateSchema>
+export type ProfileUpdate = z.infer<typeof profileUpdateSchema>
+export type CmsUserInsert = z.infer<typeof cmsUserInsertSchema>
+export type CmsUserUpdate = z.infer<typeof cmsUserUpdateSchema>
 
 export type LoginRequest = z.infer<typeof loginSchema>
 export type RegisterRequest = z.infer<typeof registerSchema>

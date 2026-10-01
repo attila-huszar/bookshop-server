@@ -149,9 +149,7 @@ export async function insertBook(book: BookInsert): Promise<Book> {
     authorId: authorObjectId,
   }
 
-  const { id, createdAt, updatedAt, ...bookData } = bookWithAuthor
-
-  const created = await BookModel.create(bookData)
+  const created = await BookModel.create(bookWithAuthor)
   const bookObj = created.toObject()
   return {
     ...bookObj,

@@ -42,7 +42,6 @@ export const API = {
     root: '/payments',
     byId: '/payments/:paymentId',
     byIdWildcard: '/payments/:paymentId/*',
-    orderSync: '/payments/:paymentId/order-sync',
   },
   cms: {
     root: '/cms',

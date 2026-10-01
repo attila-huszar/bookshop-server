@@ -4,12 +4,12 @@ server:
   http_listen_port: 3100
 
 common:
-  path_prefix: /tmp/loki
+  path_prefix: /loki
   instance_addr: 127.0.0.1
   storage:
     filesystem:
-      chunks_directory: /tmp/loki/chunks
-      rules_directory: /tmp/loki/rules
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
   replication_factor: 1
   ring:
     kvstore:
@@ -42,7 +42,7 @@ limits_config:
   retention_period: 30d
 
 compactor:
-  working_directory: /tmp/loki/retention
+  working_directory: /loki/retention
   delete_request_store: filesystem
   retention_enabled: true
   retention_delete_delay: 2h

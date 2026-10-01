@@ -1,17 +1,16 @@
 import { beforeEach, describe, expect, it } from 'bun:test'
-import { NotFound } from '@/errors'
 import { type Order } from '@/types'
 import { mockOrdersDB, mockUsersDB } from './test-setup'
 
 const { getUserOrders } = await import('@/services/orders.service')
 
 const createOrder = (overrides: Partial<Order> = {}): Order => ({
+  checkoutRequestId: 'checkout-order-test',
   id: 1,
   paymentId: 'pi_test_123',
   paymentStatus: 'succeeded',
   lastStripeEventCreated: null,
   lastStripeEventId: null,
-  lastStripeSyncCheckedAt: null,
   paidAt: new Date('2026-02-24T10:03:00.000Z'),
   total: 12.34,
   currency: 'USD',
@@ -27,8 +26,8 @@ const createOrder = (overrides: Partial<Order> = {}): Order => ({
 
 describe('Orders Service', () => {
   beforeEach(() => {
-    mockUsersDB.getUserBy.mockClear()
-    mockOrdersDB.getOrdersByEmail.mockClear()
+    mockUsersDB.getUserBy.mockReset()
+    mockOrdersDB.getOrdersByEmail.mockReset()
   })
 
   it('returns orders for the authenticated user', async () => {
@@ -62,7 +61,7 @@ describe('Orders Service', () => {
       resultError = error
     }
 
-    expect(resultError).toBeInstanceOf(NotFound)
+    expect(resultError).toMatchObject({ status: 404, name: 'NotFound' })
     expect(mockOrdersDB.getOrdersByEmail).not.toHaveBeenCalled()
   })
 })

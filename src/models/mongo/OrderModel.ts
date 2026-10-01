@@ -5,11 +5,11 @@ import { autoIncrementPlugin } from './'
 const orderSchema = new mongo.Schema<Order>(
   {
     id: { type: Number, unique: true, index: true },
-    paymentId: { type: String, unique: true, required: true },
+    paymentId: { type: String, default: null },
+    checkoutRequestId: { type: String, required: true },
     paymentStatus: { type: String, default: 'processing', required: true },
     lastStripeEventCreated: { type: Number, default: null },
     lastStripeEventId: { type: String, default: null },
-    lastStripeSyncCheckedAt: { type: Date, default: null },
     paidAt: { type: Date },
     total: { type: Number, required: true },
     currency: { type: String, required: true },
@@ -21,6 +21,12 @@ const orderSchema = new mongo.Schema<Order>(
   },
   { timestamps: true },
 )
+
+orderSchema.index(
+  { paymentId: 1 },
+  { unique: true, partialFilterExpression: { paymentId: { $type: 'string' } } },
+)
+orderSchema.index({ checkoutRequestId: 1 }, { unique: true })
 
 orderSchema.plugin(autoIncrementPlugin)
 

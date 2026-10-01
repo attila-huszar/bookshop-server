@@ -71,7 +71,12 @@ const limiter = rateLimiter({
 
 const corsMiddleware = cors({
   origin: env.clientBaseUrl!,
-  allowHeaders: ['authorization', 'content-type', 'ngrok-skip-browser-warning'],
+  allowHeaders: [
+    'authorization',
+    'content-type',
+    'idempotency-key',
+    'ngrok-skip-browser-warning',
+  ],
   allowMethods: ['GET', 'OPTIONS', 'POST', 'PUT', 'PATCH', 'DELETE'],
   credentials: true,
 })
@@ -80,7 +85,7 @@ app.use('*', async (c, next) => {
   try {
     await next()
   } catch (error: unknown) {
-    log.error(`${c.req.method} ${c.req.url}`, { error })
+    log.error(`${c.req.method} ${c.req.path}`, { error })
     throw error
   }
 })
@@ -98,16 +103,25 @@ if (Bun.env.NODE_ENV === 'production') {
   })
 
   app.use('*', async (c: Context<Env, string, object>, next: Next) => {
-    if (c.req.path.startsWith(API.webhooks.root)) return next()
+    if (
+      c.req.path === API.webhooks.root ||
+      c.req.path.startsWith(`${API.webhooks.root}/`)
+    ) {
+      return next()
+    }
     return csrfMiddleware(c, next)
   })
 }
 
 app.get(API.root, (c) => {
+  const clientIp = Bun.escapeHTML(
+    c.req.header('X-Forwarded-For') ?? c.req.header('X-Real-Ip') ?? 'unknown',
+  )
+
   return c.html(
     `<h2>Bookshop Backend</h2>
     <p>Uptime: ${formatUptime(Bun.nanoseconds())}</p>
-    <p>Your IP: ${c.req.header('X-Forwarded-For') ?? c.req.header('X-Real-Ip') ?? 'unknown'}</p>`,
+    <p>Your IP: ${clientIp}</p>`,
   )
 })
 
@@ -118,6 +132,8 @@ api.use(API.users.logout, authMiddleware)
 api.use(API.users.avatar, authMiddleware)
 api.use(API.orders.root, authMiddleware)
 api.use(API.payments.root, optionalAuthMiddleware)
+api.use(API.payments.byId, optionalAuthMiddleware)
+api.use(API.payments.byIdWildcard, optionalAuthMiddleware)
 api.use(API.payments.byId, paymentAccessMiddleware)
 api.use(API.payments.byIdWildcard, paymentAccessMiddleware)
 api.use(API.cms.wildcard, authAdminMiddleware)
@@ -148,14 +164,18 @@ if (import.meta.main) {
     hostname: '0.0.0.0',
   })
 
-  log.info('🟢 Server started', {
+  log.info('🚀 Server started', {
     hostname: httpServer.hostname,
     port: httpServer.port,
   })
 
   void initMailer()
 
-  if (env.ngrokAuthToken) void ngrokForward()
+  if (env.ngrokAuthToken) {
+    void ngrokForward().catch((error: unknown) => {
+      log.error('❌ Failed to establish ngrok tunnel', { error })
+    })
+  }
 
   for (const signal of SHUTDOWN_SIGNALS) {
     process.once(signal, () => {
@@ -168,27 +188,25 @@ async function shutdownApp(signal: NodeJS.Signals): Promise<void> {
   if (shuttingDown) return
   shuttingDown = true
 
-  log.info('🟡 Server shutting down...', { signal })
+  log.info('🛑 Server shutting down...', { signal })
 
   let hasShutdownError = false
   let shutdownTimeoutId: ReturnType<typeof setTimeout> | undefined
 
   const shutdownRoutine = async (): Promise<void> => {
     if (httpServer) {
-      await httpServer
-        .stop(true)
-        .catch((error: unknown) => {
-          hasShutdownError = true
-          log.error('⚠️ Failed to stop HTTP server', { signal, error })
-        })
-        .finally(() => {
-          log.info('🔴 HTTP server stopped', { signal })
-        })
+      try {
+        await httpServer.stop(true)
+        log.info('✅ HTTP server stopped', { signal })
+      } catch (error: unknown) {
+        hasShutdownError = true
+        log.error('❌ Failed to stop HTTP server', { signal, error })
+      }
     }
 
     await emailQueue.close().catch((error: unknown) => {
       hasShutdownError = true
-      log.error('⚠️ Failed to close email queue', { signal, error })
+      log.error('❌ Failed to close email queue', { signal, error })
     })
 
     if (env.dbRepo === DB_REPO.SQLITE) {
@@ -196,7 +214,7 @@ async function shutdownApp(signal: NodeJS.Signals): Promise<void> {
         sqliteClient?.close()
       } catch (error: unknown) {
         hasShutdownError = true
-        log.error('⚠️ SQLite client close threw unexpectedly', {
+        log.error('❌ SQLite client close threw unexpectedly', {
           signal,
           error,
         })
@@ -204,27 +222,27 @@ async function shutdownApp(signal: NodeJS.Signals): Promise<void> {
     } else if (env.dbRepo === DB_REPO.MONGO) {
       await mongo.connection.close().catch((error: unknown) => {
         hasShutdownError = true
-        log.error('⚠️ Failed to close Mongo connection', { signal, error })
+        log.error('❌ Failed to close Mongo connection', { signal, error })
       })
     }
 
     await closeNgrokTunnel().catch((error: unknown) => {
       hasShutdownError = true
-      log.error('⚠️ Failed to close ngrok tunnel', { signal, error })
+      log.error('❌ Failed to close ngrok tunnel', { signal, error })
     })
 
     try {
       closeMailer()
     } catch (error: unknown) {
       hasShutdownError = true
-      log.error('⚠️ Failed to close mailer transporter', { signal, error })
+      log.error('❌ Failed to close mailer transporter', { signal, error })
     }
   }
 
   const shutdownTimeout = new Promise<'timed-out'>((resolve) => {
     shutdownTimeoutId = setTimeout(() => {
       hasShutdownError = true
-      log.error('⚠️ Shutdown timeout reached; forcing process exit', {
+      log.error('⏱️ Shutdown timeout reached; forcing process exit', {
         signal,
         timeoutMs: SHUTDOWN_TIMEOUT_MS,
       })
@@ -236,7 +254,7 @@ async function shutdownApp(signal: NodeJS.Signals): Promise<void> {
     await Promise.race([shutdownRoutine(), shutdownTimeout])
   } catch (error: unknown) {
     hasShutdownError = true
-    log.error('⚠️ Unexpected shutdown error', { signal, error })
+    log.error('❌ Unexpected shutdown error', { signal, error })
   } finally {
     if (shutdownTimeoutId) clearTimeout(shutdownTimeoutId)
     process.exit(hasShutdownError ? 1 : 0)

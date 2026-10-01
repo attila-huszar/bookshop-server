@@ -5,9 +5,6 @@ import type { Stripe } from 'stripe'
 // ============================================================================
 
 export type StripePaymentIntent = Stripe.PaymentIntent
-export type StripeCharge = Stripe.Charge
-export type StripeRefund = Stripe.Refund
-export type StripeDispute = Stripe.Dispute
 export type StripeEvent = Stripe.Event
 
 // ============================================================================
@@ -16,16 +13,13 @@ export type StripeEvent = Stripe.Event
 
 export type PaymentIntentStatus = Stripe.PaymentIntent.Status
 export type PaymentIntentShipping = Stripe.PaymentIntent.Shipping
-export type ChargeStatus = Stripe.Charge.Status
-export type ChargeShipping = Stripe.Charge.Shipping
-export type BillingDetails = Stripe.Charge.BillingDetails
 export type Address = Stripe.Address
 
 // ============================================================================
 // Stripe Event Types - Webhook Handlers
 // ============================================================================
 
-export type PaymentIntentEventType =
+export type StripePaymentIntentEvent =
   | Stripe.PaymentIntentCreatedEvent
   | Stripe.PaymentIntentSucceededEvent
   | Stripe.PaymentIntentAmountCapturableUpdatedEvent
@@ -35,16 +29,11 @@ export type PaymentIntentEventType =
   | Stripe.PaymentIntentProcessingEvent
   | Stripe.PaymentIntentCanceledEvent
 
-export type ChargeEventType =
-  | Stripe.ChargeSucceededEvent
-  | Stripe.ChargeUpdatedEvent
-  | Stripe.ChargeRefundedEvent
-
-export type DisputeEventType =
-  | Stripe.ChargeDisputeCreatedEvent
-  | Stripe.ChargeDisputeClosedEvent
-
-export type RefundEventType = Stripe.ChargeRefundUpdatedEvent
+export type PaymentIntentEventMeta = {
+  eventType: StripePaymentIntentEvent['type']
+  eventId: string
+  eventCreated: number
+}
 
 // ============================================================================
 // Type Guards - Event Narrowing
@@ -52,16 +41,18 @@ export type RefundEventType = Stripe.ChargeRefundUpdatedEvent
 
 export const isPaymentIntentEvent = (
   event: StripeEvent,
-): event is PaymentIntentEventType => event.type.startsWith('payment_intent.')
-
-export const isChargeEvent = (event: StripeEvent): event is ChargeEventType =>
-  event.type === 'charge.succeeded' ||
-  event.type === 'charge.updated' ||
-  event.type === 'charge.refunded'
-
-export const isRefundEvent = (event: StripeEvent): event is RefundEventType =>
-  event.type === 'charge.refund.updated'
-
-export const isDisputeEvent = (event: StripeEvent): event is DisputeEventType =>
-  event.type === 'charge.dispute.created' ||
-  event.type === 'charge.dispute.closed'
+): event is StripePaymentIntentEvent => {
+  switch (event.type) {
+    case 'payment_intent.created':
+    case 'payment_intent.succeeded':
+    case 'payment_intent.amount_capturable_updated':
+    case 'payment_intent.partially_funded':
+    case 'payment_intent.payment_failed':
+    case 'payment_intent.requires_action':
+    case 'payment_intent.processing':
+    case 'payment_intent.canceled':
+      return true
+    default:
+      return false
+  }
+}

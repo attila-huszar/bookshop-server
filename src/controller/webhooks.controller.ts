@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { processStripeWebhook } from '@/services'
+import { verifyAndHandleStripeWebhook } from '@/services'
 import { API } from '@/constants'
 import { errorHandler } from '@/errors'
 
@@ -14,7 +14,7 @@ webhooks.post(API.webhooks.stripe, async (c) => {
     }
 
     const payload = await c.req.text()
-    const result = await processStripeWebhook(payload, signature)
+    const result = await verifyAndHandleStripeWebhook(payload, signature)
 
     return c.json(result)
   } catch (error) {

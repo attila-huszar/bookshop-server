@@ -36,6 +36,7 @@ export type AdminPaymentNotificationEmailItem = Pick<
 export type AdminPaymentNotificationEmailProps = {
   type: 'adminPaymentNotification'
   notificationType: AdminNotification
+  source?: string
   toAddress: string
   emailTitle: string
   customerName: string
@@ -50,7 +51,7 @@ export type SendEmailProps =
   | OrderConfirmationEmailProps
   | AdminPaymentNotificationEmailProps
 
-type OrderForAdminEmail = Pick<
+export type AdminPaymentNotificationOrder = Pick<
   Order,
   'paymentId' | 'items' | 'total' | 'currency' | 'paymentStatus'
 > &
@@ -69,10 +70,10 @@ export type SendEmailInputMap = {
   }
   [QUEUE.EMAIL.JOB.ORDER_CONFIRMATION]: {
     order: Order
-    source: 'webhook' | 'fallback'
   }
   [QUEUE.EMAIL.JOB.ADMIN_PAYMENT_NOTIFICATION]: {
-    order: OrderForAdminEmail
+    order: AdminPaymentNotificationOrder
     notificationType: AdminNotification
+    source?: string
   }
 }

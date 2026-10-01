@@ -1,1 +1,2 @@
-export { emailQueue } from './emailQueue'
+export * from './emailQueue'
+export * from './enqueueEmail'

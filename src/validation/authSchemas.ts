@@ -1,10 +1,11 @@
 import { z } from 'zod'
-import { imageSchema } from './commonSchemas'
+import { countrySchema, imageSchema, nameSchema } from './commonSchemas'
 
 export const emailSchema = z.object({
   email: z
-    .email('Invalid email')
+    .string()
     .trim()
+    .pipe(z.email('Invalid email'))
     .transform((email) => email.toLowerCase()),
 })
 
@@ -28,18 +29,11 @@ export const loginSchema = z.strictObject({
 })
 
 export const registerSchema = z.object({
-  firstName: z
-    .string('First name is required')
-    .max(100, 'First name must be less than 100 characters'),
-  lastName: z
-    .string('Last name is required')
-    .max(100, 'Last name must be less than 100 characters'),
+  firstName: nameSchema,
+  lastName: nameSchema,
   ...emailSchema.shape,
   ...passwordSchema.shape,
-  country: z
-    .string('Country is required')
-    .length(2, 'Country code must be 2 characters (ISO 3166-1 alpha-2)')
-    .toLowerCase(),
+  country: countrySchema,
   avatar: imageSchema.nullable(),
 })
 

@@ -5,18 +5,18 @@ import {
   imageSchema,
   loginSchema,
   passwordResetSchema,
+  profileUpdateSchema,
   registerSchema,
   tokenSchema,
-  userUpdateSchema,
   validate,
 } from '@/validation'
 import {
-  sendEmail,
   signAccessToken,
   signRefreshToken,
   stripSensitiveUserFields,
   uploadFile,
 } from '@/utils'
+import { enqueueEmail } from '@/queues'
 import { authMessage, DUMMY_PASSWORD_HASH, userMessage } from '@/constants'
 import {
   BadRequest,
@@ -31,10 +31,10 @@ import {
   type PasswordResetRequest,
   type PasswordResetSubmit,
   type PasswordResetToken,
+  type ProfileUpdate,
   type PublicUser,
   type UserInsert,
   UserRole,
-  type UserUpdate,
   type VerificationRequest,
 } from '@/types'
 
@@ -126,7 +126,7 @@ export async function registerUser(formData: FormData) {
     throw new Internal(userMessage.createFailed)
   }
 
-  sendEmail('verification', {
+  enqueueEmail('verification', {
     toAddress: email,
     toName: firstName,
     tokenLink,
@@ -187,7 +187,7 @@ export async function passwordResetRequest(
     throw new Internal(userMessage.updateFailed)
   }
 
-  sendEmail('passwordReset', {
+  enqueueEmail('passwordReset', {
     toAddress: user.email,
     toName: user.firstName,
     tokenLink,
@@ -262,9 +262,12 @@ export async function getUserProfile(
 
 export async function updateUserProfile(
   uuid: string,
-  updateFields: UserUpdate,
+  updateFields: ProfileUpdate,
 ): Promise<PublicUser> {
-  const validatedFields = validate(userUpdateSchema, updateFields)
+  const { currentPassword, ...validatedFields } = validate(
+    profileUpdateSchema,
+    updateFields,
+  )
 
   const user = await usersDB.getUserBy('uuid', uuid)
 
@@ -273,6 +276,18 @@ export async function updateUserProfile(
   }
 
   if (validatedFields.password) {
+    let isPasswordCorrect = false
+    try {
+      isPasswordCorrect = await Bun.password.verify(
+        currentPassword!,
+        user.password,
+      )
+    } catch {
+      // Treat malformed hashes as invalid credentials.
+    }
+    if (!isPasswordCorrect) {
+      throw new BadRequest('Current password is incorrect')
+    }
     validatedFields.password = await Bun.password.hash(validatedFields.password)
   }
 

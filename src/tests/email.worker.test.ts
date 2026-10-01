@@ -22,7 +22,7 @@ describe('Email Worker', () => {
     expect(mockWorker.on).toHaveBeenCalledWith('failed', expect.any(Function))
   })
 
-  it('should call sendEmail when processing a job', async () => {
+  it('should call sendMail when processing a job', async () => {
     const jobData: SendEmailProps = {
       type: 'verification',
       toAddress: 'test@example.com',

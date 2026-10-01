@@ -4,14 +4,13 @@ import {
   authorUpdateSchema,
   bookInsertSchema,
   bookUpdateSchema,
+  cmsOrderUpdateSchema,
+  cmsUserInsertSchema,
+  cmsUserUpdateSchema,
   idSchema,
   idsSchema,
   imageSchema,
-  orderInsertSchema,
-  orderUpdateSchema,
   paymentIdSchema,
-  userInsertSchema,
-  userUpdateSchema,
   uuidSchema,
   validate,
 } from '@/validation'
@@ -24,12 +23,11 @@ import type {
   Book,
   BookInsert,
   BookUpdate,
+  CmsUserInsert,
+  CmsUserUpdate,
   Order,
-  OrderInsert,
   OrderUpdate,
   User,
-  UserInsert,
-  UserUpdate,
 } from '@/types'
 import { Folder, UserRole } from '@/types'
 
@@ -67,36 +65,19 @@ export async function addAuthor(author: AuthorInsert): Promise<Author> {
   return newAuthor
 }
 
-export async function addOrder(order: OrderInsert): Promise<Order> {
-  const validatedOrder = validate(orderInsertSchema, order)
-  const itemsWithAuthors = await Promise.all(
-    validatedOrder.items.map(async (item) => {
-      if (item.author) return item
-      const book = await booksDB.getBookById(item.id)
-
-      return {
-        ...item,
-        author: book?.author ?? null,
-      }
-    }),
-  )
-
-  const newOrder = await ordersDB.insertOrder({
-    ...validatedOrder,
-    items: itemsWithAuthors,
-  })
-
-  if (!newOrder) {
-    throw new Error('Failed to create order')
-  }
-  return newOrder
-}
-
 export async function addUser(
-  user: UserInsert,
+  user: CmsUserInsert,
 ): Promise<Omit<User, 'password'>> {
-  const validatedUser = validate(userInsertSchema, user)
-  const newUser = await usersDB.createUser(validatedUser)
+  const validatedUser = validate(cmsUserInsertSchema, user)
+  const newUser = await usersDB.createUser({
+    ...validatedUser,
+    uuid: crypto.randomUUID(),
+    password: await Bun.password.hash(validatedUser.password),
+    verificationToken: null,
+    verificationExpires: null,
+    passwordResetToken: null,
+    passwordResetExpires: null,
+  })
 
   if (!newUser) {
     throw new Error('Failed to create user')
@@ -142,8 +123,11 @@ export async function updateOrder(
   fields: OrderUpdate,
 ): Promise<Order> {
   const validatedId = validate(paymentIdSchema, paymentId)
-  const validatedFields = validate(orderUpdateSchema, fields)
-  const updatedOrder = await ordersDB.updateOrder(validatedId, validatedFields)
+  const validatedFields = validate(cmsOrderUpdateSchema, fields)
+  const { order: updatedOrder } = await ordersDB.updateOrder(
+    validatedId,
+    validatedFields,
+  )
 
   if (!updatedOrder) {
     throw new Error(`Order with paymentId ${paymentId} not found`)
@@ -153,10 +137,10 @@ export async function updateOrder(
 
 export async function updateUser(
   userUuid: string,
-  user: UserUpdate,
+  user: CmsUserUpdate,
 ): Promise<Omit<User, 'password'>> {
   const validatedUuid = validate(uuidSchema, userUuid)
-  const validatedUser = validate(userUpdateSchema, user)
+  const validatedUser = validate(cmsUserUpdateSchema, user)
 
   const updatedUser = await usersDB.updateUserBy(
     'uuid',
