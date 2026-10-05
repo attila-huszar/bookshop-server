@@ -11,6 +11,37 @@ import type {
 } from '@/types'
 import { emailQueue } from './emailQueue'
 
+const pendingEmailJobs = new Set<Promise<unknown>>()
+let enqueueFailures = 0
+
+function addEmailJob(...args: Parameters<typeof emailQueue.add>) {
+  const pending = emailQueue.add(...args)
+  pendingEmailJobs.add(pending)
+  void pending.then(
+    () => {
+      // Successfully queued in Redis; shutdown no longer needs to wait for it.
+      pendingEmailJobs.delete(pending)
+    },
+    () => {
+      // Finished unsuccessfully; remember the failure for flushQueuedEmails(),
+      // even if this promise settles before shutdown starts.
+      pendingEmailJobs.delete(pending)
+      enqueueFailures++
+    },
+  )
+  return pending
+}
+
+/** Short-lived maintenance processes must finish enqueueing before closing Redis. */
+export async function flushQueuedEmails(): Promise<void> {
+  while (pendingEmailJobs.size > 0) {
+    await Promise.allSettled([...pendingEmailJobs])
+  }
+  const failures = enqueueFailures
+  enqueueFailures = 0
+  if (failures > 0) throw new Error(`Failed to enqueue ${failures} email(s)`)
+}
+
 type SendEmailArgs = {
   [K in keyof SendEmailInputMap]: [type: K, data: SendEmailInputMap[K]]
 }[keyof SendEmailInputMap]
@@ -45,7 +76,7 @@ export function enqueueEmail(...args: SendEmailArgs): void {
         ...data,
       }
 
-      void emailQueue.add(type, payload, jobOpts).catch((error: Error) => {
+      void addEmailJob(type, payload, jobOpts).catch((error: Error) => {
         void log.error(
           '[QUEUE] Failed to queue registration verification email',
           {
@@ -62,7 +93,7 @@ export function enqueueEmail(...args: SendEmailArgs): void {
         ...data,
       }
 
-      void emailQueue.add(type, payload, jobOpts).catch((error: Error) => {
+      void addEmailJob(type, payload, jobOpts).catch((error: Error) => {
         void log.error('[QUEUE] Failed to queue password reset email', {
           error,
           toAddress: payload.toAddress,
@@ -91,7 +122,7 @@ export function enqueueEmail(...args: SendEmailArgs): void {
         order,
       }
 
-      void emailQueue.add(type, payload, jobOpts).catch((error: Error) => {
+      void addEmailJob(type, payload, jobOpts).catch((error: Error) => {
         void log.error('[QUEUE] Order confirmation email queueing failed', {
           error,
           paymentId: order.paymentId,
@@ -169,8 +200,7 @@ export function enqueueEmail(...args: SendEmailArgs): void {
             }
           : jobOpts
 
-      void emailQueue
-        .add(type, payload, alertJobOpts)
+      void addEmailJob(type, payload, alertJobOpts)
         .then((job) => {
           void log.info('[QUEUE] Admin payment notification queued', {
             jobId: job.id,

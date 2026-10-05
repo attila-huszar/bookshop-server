@@ -26,6 +26,8 @@ const createOrder = (overrides: Partial<Order> = {}): Order => ({
   paymentStatus: 'processing',
   lastStripeEventCreated: null,
   lastStripeEventId: null,
+  lastReconciledAt: null,
+  lastReconciliationAttemptAt: null,
   paidAt: null,
   total: 25.99,
   currency: 'USD',
@@ -108,6 +110,56 @@ describe('Webhooks Service', () => {
     mockCancelAdminPaymentErrorAlert.mockReset()
     mockCancelAdminPaymentErrorAlert.mockResolvedValue(false)
     mockExtractPaymentIntentFields.mockReturnValue({})
+  })
+
+  it('checks a delayed pre-reconciliation transition against Stripe before saving', async () => {
+    mockOrdersDB.getOrder.mockResolvedValueOnce(
+      createOrder({
+        paymentStatus: 'requires_payment_method',
+        lastStripeEventCreated: 100,
+        lastReconciledAt: new Date(250_000),
+      }),
+    )
+    mockStripe.paymentIntents.retrieve.mockResolvedValueOnce({
+      status: 'requires_payment_method',
+    })
+    const result = await applyPaymentIntentWebhookToOrder(
+      createStripePaymentIntent(undefined, 'processing'),
+      { paymentStatus: 'processing' },
+      {
+        eventType: 'payment_intent.processing',
+        eventCreated: 200,
+        eventId: 'evt_delayed',
+      },
+    )
+    expect(result?.order.paymentStatus).toBe('requires_payment_method')
+    expect(mockStripe.paymentIntents.retrieve).toHaveBeenCalledWith(
+      'pi_test_123',
+    )
+    expect(mockOrdersDB.updateOrder).not.toHaveBeenCalled()
+  })
+
+  it('still accepts a genuinely newer event after reconciliation', async () => {
+    const order = createOrder({
+      paymentStatus: 'requires_payment_method',
+      lastReconciledAt: new Date(250_000),
+    })
+    mockOrdersDB.getOrder.mockResolvedValueOnce(order)
+    mockOrdersDB.updateOrder.mockResolvedValueOnce({
+      order: { ...order, paymentStatus: 'processing' },
+      becamePaid: false,
+    })
+    await applyPaymentIntentWebhookToOrder(
+      createStripePaymentIntent(),
+      { paymentStatus: 'processing' },
+      {
+        eventType: 'payment_intent.processing',
+        eventCreated: 300,
+        eventId: 'evt_new',
+      },
+    )
+    expect(mockOrdersDB.updateOrder).toHaveBeenCalledTimes(1)
+    expect(mockStripe.paymentIntents.retrieve).not.toHaveBeenCalled()
   })
 
   it('acknowledges charge events without handling or updating orders', async () => {

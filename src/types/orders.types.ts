@@ -10,3 +10,24 @@ export type Order = z.infer<typeof orderSelectSchema>
 export type OrderInsert = z.infer<typeof orderInsertSchema>
 export type OrderUpdate = z.infer<typeof orderUpdateSchema>
 export type OrderItem = z.infer<typeof orderItemSchema>
+
+export type OrderPaymentSnapshot = Pick<
+  Order,
+  | 'id'
+  | 'paymentStatus'
+  | 'lastStripeEventCreated'
+  | 'lastStripeEventId'
+  | 'lastReconciledAt'
+  | 'paidAt'
+  | 'updatedAt'
+  | 'total'
+  | 'currency'
+  | 'email'
+>
+
+export type OrderReconciliationQuery = {
+  staleBefore: Date
+  checkedBefore: Date
+  terminalCheckedBefore: Date
+  limit: number
+}

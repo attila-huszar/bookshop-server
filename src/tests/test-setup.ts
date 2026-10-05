@@ -16,6 +16,8 @@ export const mockUsersDB = {
   getUserBy: mock(),
   createUser: mock(),
   updateUserBy: mock(),
+  cleanupExpiredPasswordResetTokens: mock(),
+  cleanupUnverifiedUsers: mock(),
 }
 
 export const mockBooksDB = {
@@ -30,6 +32,9 @@ export const mockOrdersDB = {
   createCheckoutOrder: mock(),
   linkPaymentIntent: mock(),
   updateOrder: mock(),
+  getOrdersForReconciliation: mock(),
+  markUnlinkedOrderReconciled: mock(),
+  markOrderReconciliationAttempted: mock(),
   updateOrderIfUnchanged: mock(
     async (paymentId: string, _expected: unknown, fields: OrderUpdate) => {
       const result: unknown = await mockOrdersDB.updateOrder(paymentId, fields)
@@ -45,6 +50,7 @@ export const mockStripe = {
   paymentIntents: {
     create: mock(),
     retrieve: mock(),
+    search: mock(),
     cancel: mock(),
   },
 }

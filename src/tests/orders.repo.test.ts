@@ -1,5 +1,6 @@
 import { Database } from 'bun:sqlite'
 import { afterAll, beforeEach, describe, expect, it, mock } from 'bun:test'
+import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/bun-sqlite'
 import { migrate } from 'drizzle-orm/bun-sqlite/migrator'
 import { ordersTable } from '@/models/sqlite/ordersTable'
@@ -100,5 +101,188 @@ describe('SQLite checkout orders', () => {
     const replay = await orders.createCheckoutOrder(draft)
     expect(replay?.paymentId).toBe('pi_test')
     expect(replay?.id).toBe(created.id)
+  })
+})
+
+describe('SQLite reconciliation updates', () => {
+  it('selects stale pending orders and daily terminal audits, with missing paid markers treated as pending', async () => {
+    const now = Date.now()
+    const old = new Date(now - 2 * 60 * 60_000)
+    const recent = new Date(now - 60_000)
+    const checkedRecently = new Date(now - 10 * 60_000)
+    const checkedEarlier = new Date(now - 40 * 60_000)
+    const checkedYesterday = new Date(now - 25 * 60 * 60_000)
+    const paidAt = old
+    const states = [
+      { checkoutRequestId: 'pending-never-checked', updatedAt: old },
+      {
+        checkoutRequestId: 'pending-due',
+        updatedAt: old,
+        lastReconciledAt: checkedEarlier,
+      },
+      {
+        checkoutRequestId: 'pending-recently-checked',
+        updatedAt: old,
+        lastReconciledAt: checkedRecently,
+      },
+      { checkoutRequestId: 'recently-updated', updatedAt: recent },
+      {
+        checkoutRequestId: 'paid-due',
+        updatedAt: old,
+        paymentStatus: 'succeeded' as const,
+        paidAt,
+        lastReconciledAt: checkedYesterday,
+      },
+      {
+        checkoutRequestId: 'paid-not-due',
+        updatedAt: old,
+        paymentStatus: 'succeeded' as const,
+        paidAt,
+        lastReconciledAt: checkedEarlier,
+      },
+      {
+        checkoutRequestId: 'missing-paid-marker',
+        updatedAt: old,
+        paymentStatus: 'succeeded' as const,
+        lastReconciledAt: checkedEarlier,
+      },
+      {
+        checkoutRequestId: 'canceled-due',
+        updatedAt: old,
+        paymentStatus: 'canceled' as const,
+        lastReconciledAt: checkedYesterday,
+      },
+    ]
+    for (const state of states)
+      await orders.createCheckoutOrder({
+        ...draft,
+        ...state,
+        lastReconciliationAttemptAt: state.lastReconciledAt ?? null,
+      })
+
+    const query = {
+      staleBefore: new Date(now - 5 * 60_000),
+      checkedBefore: new Date(now - 30 * 60_000),
+      terminalCheckedBefore: new Date(now - 24 * 60 * 60_000),
+      limit: 100,
+    }
+    const candidates = await orders.getOrdersForReconciliation(query)
+    expect(candidates.map((order) => order.checkoutRequestId)).toEqual([
+      'pending-never-checked',
+      'paid-due',
+      'canceled-due',
+      'pending-due',
+      'missing-paid-marker',
+    ])
+    expect(
+      await orders.getOrdersForReconciliation({ ...query, limit: 2 }),
+    ).toHaveLength(2)
+  })
+
+  it('preserves millisecond check timestamps and throttles unmatched drafts', async () => {
+    const created = await orders.createCheckoutOrder(draft)
+    if (!created) throw new Error('Expected draft')
+    const checkedAt = new Date('2026-10-05T12:34:56.789Z')
+    await orders.markUnlinkedOrderReconciled(created.id, checkedAt)
+    expect((await orders.getOrderById(created.id))?.lastReconciledAt).toEqual(
+      checkedAt,
+    )
+    await orders.linkPaymentIntent(created.id, 'pi_test', 'processing')
+    await orders.markUnlinkedOrderReconciled(created.id, new Date('2026-10-06'))
+    expect((await orders.getOrder('pi_test'))?.lastReconciledAt).toEqual(
+      checkedAt,
+    )
+  })
+
+  it('paces failed attempts without marking them as successfully reconciled', async () => {
+    const now = Date.now()
+    const created = await orders.createCheckoutOrder({
+      ...draft,
+      updatedAt: new Date(now - 60 * 60_000),
+    })
+    if (!created) throw new Error('Expected draft')
+    const attemptedAt = new Date(now)
+    await orders.markOrderReconciliationAttempted(created.id, attemptedAt)
+    const current = await orders.getOrderById(created.id)
+    expect(current?.lastReconciliationAttemptAt).toEqual(attemptedAt)
+    expect(current?.lastReconciledAt).toBeNull()
+    // Ignore updatedAt here to exercise the separate retry-pacing predicate.
+    const query = {
+      staleBefore: new Date(now + 60_000),
+      checkedBefore: new Date(now - 30 * 60_000),
+      terminalCheckedBefore: new Date(now - 24 * 60 * 60_000),
+      limit: 100,
+    }
+    expect(await orders.getOrdersForReconciliation(query)).toHaveLength(0)
+    expect(
+      await orders.getOrdersForReconciliation({
+        ...query,
+        checkedBefore: new Date(now + 1),
+      }),
+    ).toHaveLength(1)
+  })
+
+  it('rejects stale payment snapshots after a reconciliation or webhook wins', async () => {
+    const created = await orders.createCheckoutOrder(draft)
+    if (!created) throw new Error('Expected draft')
+    const { order: initial } = await orders.linkPaymentIntent(
+      created.id,
+      'pi_test',
+      'processing',
+    )
+    if (!initial) throw new Error('Expected linked order')
+    const repaired = await orders.updateOrderIfUnchanged('pi_test', initial, {
+      paymentStatus: 'requires_payment_method',
+      lastReconciledAt: new Date(),
+    })
+    expect(repaired.order?.paymentStatus).toBe('requires_payment_method')
+    expect(
+      await orders.updateOrderIfUnchanged('pi_test', initial, {
+        paymentStatus: 'requires_action',
+        lastStripeEventCreated: 100,
+        lastStripeEventId: 'evt_stale',
+      }),
+    ).toEqual({ order: null, becamePaid: false })
+
+    if (!repaired.order) throw new Error('Expected reconciled order')
+    const paid = await orders.updateOrderIfUnchanged(
+      'pi_test',
+      repaired.order,
+      {
+        paymentStatus: 'succeeded',
+        paidAt: new Date(),
+        lastStripeEventCreated: 101,
+        lastStripeEventId: 'evt_paid',
+      },
+    )
+    expect(paid.becamePaid).toBe(true)
+    expect(
+      await orders.updateOrderIfUnchanged('pi_test', repaired.order, {
+        paymentStatus: 'succeeded',
+        paidAt: new Date(),
+        lastReconciledAt: new Date(),
+      }),
+    ).toEqual({ order: null, becamePaid: false })
+  })
+
+  it('guards same-second edits to the total and email, not just updatedAt', async () => {
+    const created = await orders.createCheckoutOrder(draft)
+    if (!created) throw new Error('Expected draft')
+    const { order } = await orders.linkPaymentIntent(
+      created.id,
+      'pi_test',
+      'processing',
+    )
+    if (!order) throw new Error('Expected linked order')
+    await sqlite
+      .update(ordersTable)
+      .set({ total: 99, email: 'new@example.com', updatedAt: order.updatedAt })
+      .where(eq(ordersTable.id, order.id))
+    expect(
+      await orders.updateOrderIfUnchanged('pi_test', order, {
+        paymentStatus: 'succeeded',
+        paidAt: new Date(),
+      }),
+    ).toEqual({ order: null, becamePaid: false })
   })
 })

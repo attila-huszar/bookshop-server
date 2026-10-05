@@ -1,6 +1,13 @@
 import model from '@/models'
 import { getErrorCode } from '@/utils/error.utils'
-import type { Order, OrderInsert, OrderUpdate } from '@/types'
+import { terminalStatuses } from '@/constants/payment'
+import type {
+  Order,
+  OrderInsert,
+  OrderPaymentSnapshot,
+  OrderReconciliationQuery,
+  OrderUpdate,
+} from '@/types'
 
 const { OrderModel } = model as MongoModel
 const MONGO_DUPLICATE_KEY_CODE = 11000
@@ -93,18 +100,21 @@ export async function updateOrder(
 
 export async function updateOrderIfUnchanged(
   paymentId: string,
-  expected: Pick<
-    Order,
-    'paymentStatus' | 'lastStripeEventCreated' | 'lastStripeEventId' | 'paidAt'
-  >,
+  expected: OrderPaymentSnapshot,
   fields: OrderUpdate,
 ): Promise<{ order: Order | null; becamePaid: boolean }> {
   const updatedOrder = await OrderModel.findOneAndUpdate(
     {
       paymentId,
+      id: expected.id,
+      total: expected.total,
+      currency: expected.currency,
+      email: expected.email,
+      updatedAt: expected.updatedAt,
       paymentStatus: expected.paymentStatus,
       lastStripeEventCreated: expected.lastStripeEventCreated,
       lastStripeEventId: expected.lastStripeEventId,
+      lastReconciledAt: expected.lastReconciledAt,
       paidAt: expected.paidAt,
     },
     fields,
@@ -165,6 +175,60 @@ export async function linkPaymentIntent(
 export async function getAllOrders(): Promise<Order[]> {
   const orders = await OrderModel.find().lean().exec()
   return orders
+}
+
+export async function getOrdersForReconciliation({
+  staleBefore,
+  checkedBefore,
+  terminalCheckedBefore,
+  limit,
+}: OrderReconciliationQuery): Promise<Order[]> {
+  return await OrderModel.find({
+    updatedAt: { $lt: staleBefore },
+    $and: [
+      {
+        $or: [
+          { lastReconciliationAttemptAt: null },
+          { lastReconciliationAttemptAt: { $lt: checkedBefore } },
+        ],
+      },
+    ],
+    $or: [
+      { lastReconciledAt: null },
+      { lastReconciledAt: { $lt: terminalCheckedBefore } },
+      {
+        lastReconciledAt: { $lt: checkedBefore },
+        $or: [
+          { paymentStatus: { $nin: terminalStatuses } },
+          { paymentStatus: 'succeeded', paidAt: null },
+        ],
+      },
+    ],
+  })
+    .sort({ lastReconciliationAttemptAt: 1, id: 1 })
+    .limit(limit)
+    .lean()
+    .exec()
+}
+
+export async function markOrderReconciliationAttempted(
+  orderId: number,
+  attemptedAt: Date,
+): Promise<void> {
+  await OrderModel.updateOne(
+    { id: orderId },
+    { lastReconciliationAttemptAt: attemptedAt },
+  ).exec()
+}
+
+export async function markUnlinkedOrderReconciled(
+  orderId: number,
+  checkedAt: Date,
+): Promise<void> {
+  await OrderModel.updateOne(
+    { id: orderId, paymentId: null },
+    { lastReconciledAt: checkedAt },
+  ).exec()
 }
 
 export async function getOrdersByEmail(email: string): Promise<Order[]> {

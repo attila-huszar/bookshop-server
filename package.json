@@ -15,7 +15,7 @@
     "migrate": "bun src/database/migrate.ts",
     "seed": "bun src/database/seed.ts",
     "worker:email": "bun src/workers/email.worker.ts",
-    "cron:cleanup": "bun src/scripts/cleanupTokens.ts",
+    "cron:maintenance": "bun src/scripts/maintenance.ts",
     "backup:sqlite": "bun src/scripts/backupSqlite.ts",
     "backup:mongo": "bun src/scripts/backupMongo.ts"
   },

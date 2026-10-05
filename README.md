@@ -176,11 +176,23 @@ Notes:
 The cron container runs BusyBox `crond` as root with root-owned crontabs. Its timezone is UTC, and scheduler/job output goes to container logs.
 
 - SQLite profile (`docker/cron/sqlite.crontab`)
-  - every 30 min: cleanup reset tokens / unverified users
+  - every 10 min: order reconciliation and reset-token / unverified-user cleanup
   - daily at 02:00: SQLite backup
 - Mongo profile (`docker/cron/mongo.crontab`)
-  - every 30 min: cleanup reset tokens / unverified users
+  - every 10 min: order reconciliation and reset-token / unverified-user cleanup
   - daily at 02:30: Mongo backup
+
+Run the same tasks manually with `bun run cron:maintenance`. Each task is isolated: cleanup failures do not prevent reconciliation, and a failed task or order makes the process exit nonzero.
+
+Reconciliation checks at most 100 stale orders per run, oldest-attempt first. Orders modified in the last five minutes are left alone; pending orders are checked at most every 30 minutes and terminal orders are audited daily. Failed attempts are also spaced 30 minutes apart so broken orders cannot monopolize a batch. The existing orders table stores `lastReconciliationAttemptAt` (retry pacing) and `lastReconciledAt` (successful checks); no separate job table is needed.
+
+Linked orders use Stripe's current PaymentIntent. Unlinked drafts are recovered by searching their `orderId` metadata and then retrieving the matching intent. Search is eventually consistent, so no match is retried later; multiple matches, amount/currency mismatches, and attempted downgrades of paid orders are logged for manual review. The job never creates, confirms, captures, cancels, or refunds payments.
+
+Webhooks and reconciliation share conditional order updates and first-payment notifications. Reconciliation preserves real webhook event markers, protects against concurrent/stale updates, and preserves existing account emails. `paidAt` is never cleared. Confirmation enqueueing is deduplicated by the atomic first-paid transition; email delivery is still handled by the existing queue, not a transactional outbox.
+
+The Docker wrapper uses a nonblocking file lock to prevent overlapping maintenance runs and a nine-minute timeout. Reconciliation stops starting new checks after eight minutes to leave time for shutdown; Stripe reads use a ten-second request timeout and one network retry. Shutdown drains pending email enqueues and closes queue/database connections. Keep a single cron scheduler per database; the file lock is local to that container.
+
+As this demo recreates its databases, the initial SQLite migration and Mongo schema are updated in place for the reconciliation timestamps. Recreate an existing demo database before running this version.
 
 ## Cronitor Integration
 
@@ -189,7 +201,7 @@ Cron jobs are wrapped with `cronitor exec` when `CRONITOR_API_KEY` is set.
 - install happens in the `cron` image build via installer script download from `https://cronitor.io/install-linux?sudo=0`
 - API key is loaded from env (`CRONITOR_API_KEY`)
 - monitor keys for job scripts:
-  - `cleanup`
+  - `maintenance`
   - `sqlite-backup`
   - `mongo-backup`
 

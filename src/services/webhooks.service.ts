@@ -1,28 +1,19 @@
 import { env } from '@/config'
 import { extractPaymentIntentFields } from '@/utils'
 import { log, stripe } from '@/libs'
-import { cancelAdminPaymentErrorAlert, enqueueEmail } from '@/queues'
+import { enqueueEmail } from '@/queues'
 import { BadRequest } from '@/errors/BadRequest'
 import { Internal } from '@/errors/Internal'
 import {
   AdminNotification,
   isPaymentIntentEvent,
   IssueCode,
-  type Order,
   type OrderUpdate,
   type PaymentIntentEventMeta,
   type StripeEvent,
   type StripePaymentIntent,
 } from '@/types'
 import { applyPaymentIntentWebhookToOrder } from './orders.service'
-
-function notifyOrderConfirmed(order: Order): void {
-  enqueueEmail('orderConfirmation', { order })
-  enqueueEmail('adminPaymentNotification', {
-    order,
-    notificationType: AdminNotification.Confirmed,
-  })
-}
 
 function reportMissingWebhookOrder(
   paymentIntent: StripePaymentIntent,
@@ -88,20 +79,11 @@ async function handlePaymentIntentWebhook(
     return
   }
 
-  const { order, becamePaid } = result
+  const { order } = result
   if (order.paymentStatus !== paymentIntent.status) return
 
   switch (eventType) {
     case 'payment_intent.succeeded':
-      void cancelAdminPaymentErrorAlert(paymentIntent.id).catch(
-        (error: unknown) => {
-          void log.warn('[QUEUE] Failed to cancel pending admin error alert', {
-            error,
-            paymentId: paymentIntent.id,
-          })
-        },
-      )
-      if (becamePaid) notifyOrderConfirmed(order)
       void log.info('[STRIPE] Payment succeeded via webhook', {
         paymentId: paymentIntent.id,
       })

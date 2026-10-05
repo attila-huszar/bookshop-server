@@ -244,6 +244,8 @@ describe('request validation', () => {
       'paidAt',
       'lastStripeEventId',
       'lastStripeEventCreated',
+      'lastReconciledAt',
+      'lastReconciliationAttemptAt',
       'createdAt',
       'updatedAt',
     ]) {

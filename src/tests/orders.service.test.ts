@@ -11,6 +11,8 @@ const createOrder = (overrides: Partial<Order> = {}): Order => ({
   paymentStatus: 'succeeded',
   lastStripeEventCreated: null,
   lastStripeEventId: null,
+  lastReconciledAt: null,
+  lastReconciliationAttemptAt: null,
   paidAt: new Date('2026-02-24T10:03:00.000Z'),
   total: 12.34,
   currency: 'USD',

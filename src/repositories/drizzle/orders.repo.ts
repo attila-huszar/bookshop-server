@@ -1,7 +1,24 @@
-import { and, desc, eq, inArray, isNull } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  inArray,
+  isNull,
+  lt,
+  notInArray,
+  or,
+} from 'drizzle-orm'
 import { sqlite } from '@/db'
 import model from '@/models'
-import type { Order, OrderInsert, OrderUpdate } from '@/types'
+import { terminalStatuses } from '@/constants/payment'
+import type {
+  Order,
+  OrderInsert,
+  OrderPaymentSnapshot,
+  OrderReconciliationQuery,
+  OrderUpdate,
+} from '@/types'
 
 const { ordersTable } = model as SQLiteModel
 
@@ -133,10 +150,7 @@ export async function updateOrder(
 
 export async function updateOrderIfUnchanged(
   paymentId: string,
-  expected: Pick<
-    Order,
-    'paymentStatus' | 'lastStripeEventCreated' | 'lastStripeEventId' | 'paidAt'
-  >,
+  expected: OrderPaymentSnapshot,
   fields: OrderUpdate,
 ): Promise<{ order: Order | null; becamePaid: boolean }> {
   const [updatedOrder] = await sqlite
@@ -145,6 +159,13 @@ export async function updateOrderIfUnchanged(
     .where(
       and(
         eq(ordersTable.paymentId, paymentId),
+        eq(ordersTable.id, expected.id),
+        eq(ordersTable.total, expected.total),
+        eq(ordersTable.currency, expected.currency),
+        expected.email === null
+          ? isNull(ordersTable.email)
+          : eq(ordersTable.email, expected.email),
+        eq(ordersTable.updatedAt, expected.updatedAt),
         eq(ordersTable.paymentStatus, expected.paymentStatus),
         expected.lastStripeEventCreated === null
           ? isNull(ordersTable.lastStripeEventCreated)
@@ -155,6 +176,9 @@ export async function updateOrderIfUnchanged(
         expected.lastStripeEventId === null
           ? isNull(ordersTable.lastStripeEventId)
           : eq(ordersTable.lastStripeEventId, expected.lastStripeEventId),
+        expected.lastReconciledAt === null
+          ? isNull(ordersTable.lastReconciledAt)
+          : eq(ordersTable.lastReconciledAt, expected.lastReconciledAt),
         expected.paidAt === null
           ? isNull(ordersTable.paidAt)
           : eq(ordersTable.paidAt, expected.paidAt),
@@ -171,6 +195,62 @@ export async function updateOrderIfUnchanged(
 export async function getAllOrders(): Promise<Order[]> {
   const orderRecords = await sqlite.select().from(ordersTable)
   return orderRecords
+}
+
+export async function getOrdersForReconciliation({
+  staleBefore,
+  checkedBefore,
+  terminalCheckedBefore,
+  limit,
+}: OrderReconciliationQuery): Promise<Order[]> {
+  return await sqlite
+    .select()
+    .from(ordersTable)
+    .where(
+      and(
+        lt(ordersTable.updatedAt, staleBefore),
+        or(
+          isNull(ordersTable.lastReconciliationAttemptAt),
+          lt(ordersTable.lastReconciliationAttemptAt, checkedBefore),
+        ),
+        or(
+          isNull(ordersTable.lastReconciledAt),
+          lt(ordersTable.lastReconciledAt, terminalCheckedBefore),
+          and(
+            or(
+              notInArray(ordersTable.paymentStatus, terminalStatuses),
+              and(
+                eq(ordersTable.paymentStatus, 'succeeded'),
+                isNull(ordersTable.paidAt),
+              ),
+            ),
+            lt(ordersTable.lastReconciledAt, checkedBefore),
+          ),
+        ),
+      ),
+    )
+    .orderBy(asc(ordersTable.lastReconciliationAttemptAt), asc(ordersTable.id))
+    .limit(limit)
+}
+
+export async function markOrderReconciliationAttempted(
+  orderId: number,
+  attemptedAt: Date,
+): Promise<void> {
+  await sqlite
+    .update(ordersTable)
+    .set({ lastReconciliationAttemptAt: attemptedAt })
+    .where(eq(ordersTable.id, orderId))
+}
+
+export async function markUnlinkedOrderReconciled(
+  orderId: number,
+  checkedAt: Date,
+): Promise<void> {
+  await sqlite
+    .update(ordersTable)
+    .set({ lastReconciledAt: checkedAt })
+    .where(and(eq(ordersTable.id, orderId), isNull(ordersTable.paymentId)))
 }
 
 export async function getOrdersByEmail(email: string): Promise<Order[]> {

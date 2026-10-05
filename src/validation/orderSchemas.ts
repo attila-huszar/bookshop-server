@@ -82,5 +82,11 @@ export const orderUpdateSchema = createUpdateSchema(ordersTable, {
 })
 
 export const cmsOrderUpdateSchema = orderUpdateSchema
-  .omit({ paidAt: true, lastStripeEventCreated: true, lastStripeEventId: true })
+  .omit({
+    paidAt: true,
+    lastStripeEventCreated: true,
+    lastStripeEventId: true,
+    lastReconciledAt: true,
+    lastReconciliationAttemptAt: true,
+  })
   .strict()

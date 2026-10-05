@@ -306,6 +306,20 @@
           "notNull": false,
           "autoincrement": false
         },
+        "last_reconciled_at": {
+          "name": "last_reconciled_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "last_reconciliation_attempt_at": {
+          "name": "last_reconciliation_attempt_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "paid_at": {
           "name": "paid_at",
           "type": "integer",

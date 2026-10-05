@@ -45,6 +45,8 @@ CREATE TABLE `orders` (
 	`payment_status` text DEFAULT 'processing' NOT NULL,
 	`last_stripe_event_created` integer,
 	`last_stripe_event_id` text,
+	`last_reconciled_at` integer,
+	`last_reconciliation_attempt_at` integer,
 	`paid_at` integer,
 	`total` real NOT NULL,
 	`currency` text NOT NULL,

@@ -21,7 +21,7 @@ USER bun
 CMD ["bun", "worker:email"]
 
 FROM base AS cron
-RUN apk add --no-cache bash mongodb-tools
+RUN apk add --no-cache bash mongodb-tools util-linux
 RUN curl -sSfL "https://cronitor.io/install-linux?sudo=0" \
   -o /tmp/cronitor-install.sh && \
   sh /tmp/cronitor-install.sh && \
