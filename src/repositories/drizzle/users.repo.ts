@@ -1,88 +1,156 @@
-import { and, eq, inArray, lt } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, isNull, lt } from 'drizzle-orm'
 import { sqlite } from '@/db'
-import model from '@/models'
-import type { GetUserBy, User, UserInsert, UserUpdate } from '@/types'
+import { usersTable } from '@/models/sqlite'
+import { emailOutboxTable } from '@/models/sqlite/emailOutboxTable'
+import { accountEmailIntent } from '@/utils/email-job.utils'
+import { EMAIL } from '@/constants/email'
+import type {
+  PasswordResetTokenUpdate,
+  User,
+  UserInsert,
+  UserLookupField,
+  UserRegistrationInsert,
+  UserUpdate,
+} from '@/types'
 
-const { usersTable } = model as SQLiteModel
-
-export async function getUserBy(
-  field: GetUserBy,
+export async function getActiveUserBy(
+  field: UserLookupField,
   value: string | number,
 ): Promise<User | null> {
   const [user] = await sqlite
     .select()
     .from(usersTable)
-    .where(eq(usersTable[field], value))
+    .where(and(eq(usersTable[field], value), isNull(usersTable.deletedAt)))
     .limit(1)
+
   return user ?? null
 }
 
+/** Soft-deleted accounts continue to reserve their email address. */
+export async function emailExists(email: string): Promise<boolean> {
+  const [user] = await sqlite
+    .select({ id: usersTable.id })
+    .from(usersTable)
+    .where(eq(usersTable.email, email))
+    .limit(1)
+
+  return Boolean(user)
+}
+
 export async function createUser(values: UserInsert): Promise<User | null> {
-  const [createdUser] = await sqlite
-    .insert(usersTable)
-    .values(values)
-    .returning()
-  return createdUser ?? null
+  const [user] = await sqlite.insert(usersTable).values(values).returning()
+
+  return user ?? null
+}
+
+export async function createUserWithVerification(
+  values: UserRegistrationInsert,
+): Promise<User | null> {
+  return sqlite.transaction((tx) => {
+    const [user] = tx.insert(usersTable).values(values).returning().all()
+
+    if (user) {
+      tx.insert(emailOutboxTable)
+        .values(accountEmailIntent(EMAIL.verification.type, user))
+        .run()
+    }
+
+    return user ?? null
+  })
 }
 
 export async function updateUserBy(
-  field: GetUserBy,
+  field: UserLookupField,
   value: string | number,
   fields: UserUpdate,
 ): Promise<User | null> {
-  const [updatedUser] = await sqlite
+  const [user] = await sqlite
     .update(usersTable)
     .set(fields)
-    .where(eq(usersTable[field], value))
+    .where(and(eq(usersTable[field], value), isNull(usersTable.deletedAt)))
     .returning()
-  return updatedUser ?? null
+
+  return user ?? null
+}
+
+export async function setPasswordResetToken(
+  uuid: string,
+  reset: PasswordResetTokenUpdate,
+): Promise<User | null> {
+  return sqlite.transaction((tx) => {
+    const [user] = tx
+      .update(usersTable)
+      .set({
+        passwordResetToken: reset.token,
+        passwordResetExpires: reset.expiresAt,
+      })
+      .where(and(eq(usersTable.uuid, uuid), isNull(usersTable.deletedAt)))
+      .returning()
+      .all()
+
+    if (user) {
+      tx.insert(emailOutboxTable)
+        .values(accountEmailIntent(EMAIL.passwordReset.type, user))
+        .run()
+    }
+
+    return user ?? null
+  })
 }
 
 export async function getAllUsers(): Promise<User[]> {
   const users = await sqlite.select().from(usersTable)
+
   return users
 }
 
-export async function deleteUserBy(
-  field: GetUserBy,
-  value: string | number,
-): Promise<User['email'] | null> {
-  const [deletedUser] = await sqlite
-    .delete(usersTable)
-    .where(eq(usersTable[field], value))
-    .limit(1)
-    .returning()
-  return deletedUser?.email ?? null
-}
-
-export async function deleteUsersByIds(
+export async function setUsersDeleted(
   userIds: number[],
-): Promise<User['id'][]> {
-  await sqlite.delete(usersTable).where(inArray(usersTable.id, userIds))
-  return userIds
+  deleted: boolean,
+): Promise<number> {
+  const rows = await sqlite
+    .update(usersTable)
+    .set({ deletedAt: deleted ? new Date() : null })
+    .where(
+      and(
+        inArray(usersTable.id, userIds),
+        deleted
+          ? isNull(usersTable.deletedAt)
+          : isNotNull(usersTable.deletedAt),
+      ),
+    )
+    .returning({ id: usersTable.id })
+
+  return rows.length
 }
 
-export async function cleanupExpiredPasswordResetTokens(): Promise<User[]> {
-  const updatedUsers = await sqlite
+export async function cleanupExpiredPasswordResetTokens(): Promise<number> {
+  const rows = sqlite
     .update(usersTable)
     .set({
       passwordResetToken: null,
       passwordResetExpires: null,
     })
     .where(lt(usersTable.passwordResetExpires, new Date()))
-    .returning()
-  return updatedUsers
+    .returning({ id: usersTable.id })
+    .all()
+
+  return rows.length
 }
 
-export async function cleanupUnverifiedUsers(): Promise<User[]> {
-  const deletedUsers = await sqlite
-    .delete(usersTable)
+export async function cleanupUnverifiedUsers(): Promise<number> {
+  const rows = sqlite
+    .update(usersTable)
+    .set({ deletedAt: new Date() })
     .where(
       and(
         eq(usersTable.verified, false),
+        isNull(usersTable.deletedAt),
         lt(usersTable.verificationExpires, new Date()),
       ),
     )
-    .returning()
-  return deletedUsers
+    .returning({ id: usersTable.id })
+    .all()
+
+  return rows.length
 }

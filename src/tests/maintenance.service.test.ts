@@ -6,9 +6,9 @@ const { runMaintenance } = await import('@/services/maintenance.service')
 describe('Maintenance tasks', () => {
   beforeEach(() => {
     mockUsersDB.cleanupExpiredPasswordResetTokens.mockReset()
-    mockUsersDB.cleanupExpiredPasswordResetTokens.mockResolvedValue([])
+    mockUsersDB.cleanupExpiredPasswordResetTokens.mockResolvedValue(0)
     mockUsersDB.cleanupUnverifiedUsers.mockReset()
-    mockUsersDB.cleanupUnverifiedUsers.mockResolvedValue([])
+    mockUsersDB.cleanupUnverifiedUsers.mockResolvedValue(0)
     mockOrdersDB.getOrdersForReconciliation.mockReset()
     mockOrdersDB.getOrdersForReconciliation.mockResolvedValue([])
     mockLogger.error.mockReset()
@@ -21,6 +21,21 @@ describe('Maintenance tasks', () => {
     )
     expect(mockUsersDB.cleanupUnverifiedUsers).toHaveBeenCalledTimes(1)
     expect(mockOrdersDB.getOrdersForReconciliation).toHaveBeenCalledTimes(1)
+  })
+
+  it('logs the counts returned by each cleanup', async () => {
+    mockUsersDB.cleanupExpiredPasswordResetTokens.mockResolvedValue(3)
+    mockUsersDB.cleanupUnverifiedUsers.mockResolvedValue(2)
+
+    expect(await runMaintenance()).toBe(true)
+    expect(mockLogger.info).toHaveBeenCalledWith(
+      'Expired password reset tokens cleaned up',
+      { totalUpdated: 3 },
+    )
+    expect(mockLogger.info).toHaveBeenCalledWith(
+      'Expired unverified users soft deleted',
+      { totalDeleted: 2 },
+    )
   })
 
   it('continues other tasks when one cleanup fails', async () => {

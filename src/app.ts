@@ -1,4 +1,4 @@
-import './config/validateEnv'
+import { serveStatic } from '@hono/bun'
 import {
   type Context,
   type Env,
@@ -7,12 +7,12 @@ import {
   type Next,
 } from 'hono'
 import { rateLimiter } from 'hono-rate-limiter'
-import { serveStatic } from 'hono/bun'
 import { cors } from 'hono/cors'
 import { csrf } from 'hono/csrf'
 import { timeout } from 'hono/timeout'
 import { trimTrailingSlash } from 'hono/trailing-slash'
 import { env } from './config/env'
+import { validateEnv } from './config/validateEnv'
 import { API, SHUTDOWN_SIGNALS } from './constants'
 import {
   authors,
@@ -26,8 +26,9 @@ import {
   users,
   webhooks,
 } from './controller'
-import { mongo, sqliteClient } from './db'
-import { closeMailer, initMailer, log } from './libs'
+import { closeDatabase, connectDatabase } from './db'
+import { errorHandler } from './errors/errorHandler'
+import { log } from './libs'
 import {
   authAdminMiddleware,
   authMiddleware,
@@ -35,8 +36,6 @@ import {
   payloadLimiter,
   paymentAccessMiddleware,
 } from './middleware'
-import { emailQueue } from './queues'
-import { DB_REPO } from './types/enums'
 import {
   closeNgrokTunnel,
   formatUptime,
@@ -44,8 +43,10 @@ import {
   shortHash,
 } from './utils'
 
-const app = new Hono()
+export const app = new Hono()
 const api = new Hono()
+
+app.onError((error, c) => errorHandler(c, error))
 
 const limiter = rateLimiter({
   windowMs: 15 * 60 * 1000,
@@ -81,15 +82,6 @@ const corsMiddleware = cors({
   credentials: true,
 })
 
-app.use('*', async (c, next) => {
-  try {
-    await next()
-  } catch (error: unknown) {
-    log.error(`${c.req.method} ${c.req.path}`, { error })
-    throw error
-  }
-})
-
 app.use(limiter)
 app.use(trimTrailingSlash())
 app.use('*', corsMiddleware)
@@ -109,6 +101,7 @@ if (Bun.env.NODE_ENV === 'production') {
     ) {
       return next()
     }
+
     return csrfMiddleware(c, next)
   })
 }
@@ -128,7 +121,6 @@ app.get(API.root, (c) => {
 app.get(API.health, (c) => c.text('OK', 200))
 
 api.use(API.users.profile, authMiddleware)
-api.use(API.users.logout, authMiddleware)
 api.use(API.users.avatar, authMiddleware)
 api.use(API.orders.root, authMiddleware)
 api.use(API.payments.root, optionalAuthMiddleware)
@@ -156,6 +148,8 @@ let shuttingDown = false
 const SHUTDOWN_TIMEOUT_MS = 10_000
 
 if (import.meta.main) {
+  validateEnv()
+  await connectDatabase()
   const port = Number(env.port)
 
   httpServer = Bun.serve({
@@ -168,8 +162,6 @@ if (import.meta.main) {
     hostname: httpServer.hostname,
     port: httpServer.port,
   })
-
-  void initMailer()
 
   if (env.ngrokAuthToken) {
     void ngrokForward().catch((error: unknown) => {
@@ -185,7 +177,10 @@ if (import.meta.main) {
 }
 
 async function shutdownApp(signal: NodeJS.Signals): Promise<void> {
-  if (shuttingDown) return
+  if (shuttingDown) {
+    return
+  }
+
   shuttingDown = true
 
   log.info('🛑 Server shutting down...', { signal })
@@ -204,39 +199,15 @@ async function shutdownApp(signal: NodeJS.Signals): Promise<void> {
       }
     }
 
-    await emailQueue.close().catch((error: unknown) => {
+    await closeDatabase().catch((error: unknown) => {
       hasShutdownError = true
-      log.error('❌ Failed to close email queue', { signal, error })
+      log.error('Failed to close database', { signal, error })
     })
-
-    if (env.dbRepo === DB_REPO.SQLITE) {
-      try {
-        sqliteClient?.close()
-      } catch (error: unknown) {
-        hasShutdownError = true
-        log.error('❌ SQLite client close threw unexpectedly', {
-          signal,
-          error,
-        })
-      }
-    } else if (env.dbRepo === DB_REPO.MONGO) {
-      await mongo.connection.close().catch((error: unknown) => {
-        hasShutdownError = true
-        log.error('❌ Failed to close Mongo connection', { signal, error })
-      })
-    }
 
     await closeNgrokTunnel().catch((error: unknown) => {
       hasShutdownError = true
       log.error('❌ Failed to close ngrok tunnel', { signal, error })
     })
-
-    try {
-      closeMailer()
-    } catch (error: unknown) {
-      hasShutdownError = true
-      log.error('❌ Failed to close mailer transporter', { signal, error })
-    }
   }
 
   const shutdownTimeout = new Promise<'timed-out'>((resolve) => {
@@ -256,7 +227,10 @@ async function shutdownApp(signal: NodeJS.Signals): Promise<void> {
     hasShutdownError = true
     log.error('❌ Unexpected shutdown error', { signal, error })
   } finally {
-    if (shutdownTimeoutId) clearTimeout(shutdownTimeoutId)
+    if (shutdownTimeoutId) {
+      clearTimeout(shutdownTimeoutId)
+    }
+
     process.exit(hasShutdownError ? 1 : 0)
   }
 }

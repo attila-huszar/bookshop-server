@@ -1,5 +1,7 @@
 import type { z } from 'zod'
 import type {
+  cmsOrderIdsSchema,
+  cmsOrderUpdateSchema,
   orderInsertSchema,
   orderItemSchema,
   orderSelectSchema,
@@ -28,6 +30,9 @@ export type OrderPaymentSnapshot = Pick<
 export type OrderReconciliationQuery = {
   staleBefore: Date
   checkedBefore: Date
+  failedCheckedBefore: Date
   terminalCheckedBefore: Date
   limit: number
 }
+export type CmsOrderUpdate = z.infer<typeof cmsOrderUpdateSchema>
+export type CmsOrderIds = z.infer<typeof cmsOrderIdsSchema>

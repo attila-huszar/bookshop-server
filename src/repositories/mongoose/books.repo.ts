@@ -1,4 +1,4 @@
-import model from '@/models'
+import { AuthorModel, BookModel } from '@/models/mongo'
 import type {
   BookDocPopulatedWithAuthorId,
   BookDocPopulatedWithAuthorName,
@@ -20,8 +20,6 @@ type AggregateResult = {
   minYear: number
   maxYear: number
 }
-
-const { BookModel, AuthorModel } = model as MongoModel
 
 export async function getBooks(query?: BookQuery): Promise<{
   booksRecords: BookWithAuthor[]
@@ -76,7 +74,10 @@ export async function getBookById(
     .lean<BookDocPopulatedWithAuthorName>()
     .exec()
 
-  if (!book) return null
+  if (!book) {
+    return null
+  }
+
   const author = book?.authorId?.name ?? null
 
   return {
@@ -103,6 +104,7 @@ export async function getBookSearchOptions(): Promise<{
   ])
   const genres = await BookModel.distinct('genre')
   const minMax = prices[0]
+
   return {
     price: [minMax?.minPrice ?? 0, minMax?.maxPrice ?? 500],
     publishYear: [
@@ -121,9 +123,11 @@ export async function getAllBooks(): Promise<Book[]> {
 
   return books.map((book) => {
     const authorId = book.authorId?.id
+
     if (authorId == null) {
       throw new Error(`Book ${book.id} has no authorId`)
     }
+
     return {
       ...book,
       authorId,
@@ -133,14 +137,17 @@ export async function getAllBooks(): Promise<Book[]> {
 
 export async function insertBook(book: BookInsert): Promise<Book> {
   let authorObjectId = null
+
   if (book.authorId) {
     const author = await AuthorModel.findOne({ id: book.authorId })
       .select('_id')
       .lean()
       .exec()
+
     if (!author) {
       throw new Error(`Author with id ${book.authorId} not found`)
     }
+
     authorObjectId = author._id
   }
 
@@ -151,6 +158,7 @@ export async function insertBook(book: BookInsert): Promise<Book> {
 
   const created = await BookModel.create(bookWithAuthor)
   const bookObj = created.toObject()
+
   return {
     ...bookObj,
     authorId: book.authorId,
@@ -162,6 +170,7 @@ export async function updateBook(
   book: BookUpdate,
 ): Promise<Book | null> {
   const updateData: Record<string, unknown> = { ...book }
+
   if (book.authorId !== undefined) {
     if (book.authorId === null) {
       updateData.authorId = null
@@ -169,23 +178,28 @@ export async function updateBook(
       const author = await AuthorModel.findOne({ id: book.authorId })
         .select('_id')
         .lean()
+
       if (!author) {
         throw new Error(`Author with id ${book.authorId} not found`)
       }
+
       updateData.authorId = author._id
     }
   }
 
   const updated = await BookModel.findOneAndUpdate({ id: bookId }, updateData, {
-    new: true,
+    returnDocument: 'after',
   })
     .populate('authorId', 'id')
     .lean<BookDocPopulatedWithAuthorId>()
     .exec()
 
-  if (!updated) return null
+  if (!updated) {
+    return null
+  }
 
   const authorId = updated.authorId?.id
+
   if (authorId == null) {
     throw new Error(`Book ${bookId} has no authorId`)
   }
@@ -196,7 +210,23 @@ export async function updateBook(
   }
 }
 
-export async function deleteBooks(bookIds: number[]): Promise<Book['id'][]> {
+export async function hardDeleteBooks(
+  bookIds: number[],
+): Promise<Book['id'][]> {
   await BookModel.deleteMany({ id: { $in: bookIds } }).exec()
+
   return bookIds
+}
+
+export async function getRecommendedBooks(): Promise<BookWithAuthor[]> {
+  const records = await BookModel.aggregate<BookDocPopulatedWithAuthorName>([
+    { $sample: { size: 4 } },
+  ])
+
+  await BookModel.populate(records, { path: 'authorId', select: 'name' })
+
+  return records.map((book) => ({
+    ...book,
+    author: book.authorId?.name ?? null,
+  }))
 }

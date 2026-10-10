@@ -1,29 +1,28 @@
-import { ordersDB, usersDB } from '@/repositories'
+import { ordersDB } from '@/repositories'
 import { extractPaymentIntentFields } from '@/utils'
-import { log, stripe } from '@/libs'
-import { cancelAdminPaymentErrorAlert, enqueueEmail } from '@/queues'
-import { terminalStatuses, userMessage } from '@/constants'
-import { Internal } from '@/errors/Internal'
-import { NotFound } from '@/errors/NotFound'
 import {
-  AdminNotification,
+  ReconciliationFailure,
+  reconciliationFailureReason,
+} from '@/utils/reconciliation.utils'
+import { log, stripe } from '@/libs'
+import { terminalStatuses } from '@/constants'
+import { reconciliationPolicy } from '@/constants/reconciliation'
+import { Internal } from '@/errors/Internal'
+import {
   IssueCode,
   type Order,
   type OrderPaymentSnapshot,
   type OrderUpdate,
   type PaymentIntentEventMeta,
   type StripePaymentIntent,
+  type User,
 } from '@/types'
 
 const reconciliationRequestOptions = { timeout: 10_000, maxNetworkRetries: 1 }
 
-export async function getUserOrders(uuid: string): Promise<Order[]> {
-  const user = await usersDB.getUserBy('uuid', uuid)
-
-  if (!user) {
-    throw new NotFound(userMessage.notFound)
-  }
-
+export async function getUserOrders(
+  user: Pick<User, 'email'>,
+): Promise<Order[]> {
   return await ordersDB.getOrdersByEmail(user.email)
 }
 
@@ -31,25 +30,33 @@ async function findOrLinkOrderForPaymentIntent(
   paymentIntent: StripePaymentIntent,
 ): Promise<Order | null> {
   const existingOrder = await ordersDB.getOrder(paymentIntent.id)
-  if (existingOrder) return existingOrder
+
+  if (existingOrder) {
+    return existingOrder
+  }
 
   const orderId = Number(paymentIntent.metadata?.orderId)
-  if (!Number.isSafeInteger(orderId) || orderId <= 0) return null
 
-  const { order, linked } = await ordersDB.linkPaymentIntent(
+  if (!Number.isSafeInteger(orderId) || orderId <= 0) {
+    return null
+  }
+
+  const draft = await ordersDB.getOrderById(orderId)
+
+  if (
+    !draft ||
+    draft.checkoutRequestId !== paymentIntent.metadata.checkoutRequestId ||
+    paymentIntent.amount !== Math.round(draft.total * 100) ||
+    paymentIntent.currency.toUpperCase() !== draft.currency.toUpperCase()
+  ) {
+    return null
+  }
+
+  return await ordersDB.linkPaymentIntent(
     orderId,
     paymentIntent.id,
     paymentIntent.status,
   )
-
-  if (order && linked) {
-    enqueueEmail('adminPaymentNotification', {
-      order,
-      notificationType: AdminNotification.Created,
-    })
-  }
-
-  return order
 }
 
 async function shouldIgnorePaymentIntentEvent(
@@ -77,6 +84,7 @@ async function shouldIgnorePaymentIntentEvent(
       '[STRIPE] Ignoring stale webhook event by created timestamp',
       context,
     )
+
     return true
   }
 
@@ -85,6 +93,7 @@ async function shouldIgnorePaymentIntentEvent(
     lastStripeEventId === eventId
   ) {
     void log.warn('[STRIPE] Ignoring duplicate webhook event', context)
+
     return true
   }
 
@@ -98,6 +107,7 @@ async function shouldIgnorePaymentIntentEvent(
       fromStatus: order.paymentStatus,
       toStatus: nextStatus,
     })
+
     return true
   }
 
@@ -111,6 +121,7 @@ async function shouldIgnorePaymentIntentEvent(
     // Stripe timestamps have second precision. Check conflicts from the same
     // second or from before the latest reconciliation against the live intent.
     const currentIntent = await stripe.paymentIntents.retrieve(paymentIntentId)
+
     if (currentIntent.status !== nextStatus) {
       void log.warn(
         '[STRIPE] Ignoring stale status after checking current intent',
@@ -121,6 +132,7 @@ async function shouldIgnorePaymentIntentEvent(
           stripeStatus: currentIntent.status,
         },
       )
+
       return true
     }
   }
@@ -145,56 +157,57 @@ function paymentSnapshot(order: Order): OrderPaymentSnapshot {
 
 function preparePaymentUpdate(order: Order, data: OrderUpdate): OrderUpdate {
   const updates = { ...data }
-  if (order.email?.trim()) updates.email = order.email
-  if (data.paymentStatus === 'succeeded' && order.paidAt == null)
+
+  if (order.email?.trim()) {
+    updates.email = order.email
+  }
+
+  if (data.paymentStatus === 'succeeded' && order.paidAt == null) {
     updates.paidAt = new Date()
+  }
+
+  if (updates.lastReconciledAt) {
+    updates.reconciliationFailures = 0
+    updates.reconciliationAlertId = null
+  }
+
   return updates
 }
 
-async function savePaymentUpdate(order: Order, updates: OrderUpdate) {
-  const result = await ordersDB.updateOrderIfUnchanged(
-    order.paymentId!,
-    paymentSnapshot(order),
-    updates,
-  )
-  if (result.order?.paymentStatus === 'succeeded') {
-    await cancelAdminPaymentErrorAlert(result.order.paymentId!).catch(
-      (error: unknown) => {
-        void log.warn('[QUEUE] Failed to cancel pending admin error alert', {
-          error,
-          paymentId: order.paymentId,
-        })
-      },
-    )
-    if (result.becamePaid) {
-      enqueueEmail('orderConfirmation', { order: result.order })
-      enqueueEmail('adminPaymentNotification', {
-        order: result.order,
-        notificationType: AdminNotification.Confirmed,
-      })
-    }
-  }
-  return result
-}
-
 /** Pull an authoritative Stripe snapshot without inventing a webhook event. */
-export async function reconcileOrderPayment(orderId: number): Promise<void> {
+export async function reconcileOrderPayment(
+  orderId: number,
+): Promise<Order | null> {
   for (let attempt = 0; attempt < 5; attempt++) {
     let order = await ordersDB.getOrderById(orderId)
-    if (!order) return
+
+    if (!order) {
+      return null
+    }
+
     let paymentId = order.paymentId
 
     if (!paymentId) {
       const matches = await stripe.paymentIntents.search(
-        { query: `metadata['orderId']:'${order.id}'`, limit: 2 },
+        {
+          query: `metadata['orderId']:'${order.id}' AND metadata['checkoutRequestId']:'${order.checkoutRequestId}'`,
+          limit: 2,
+        },
         reconciliationRequestOptions,
       )
-      if (matches.has_more || matches.data.length > 1)
-        throw new Error('Multiple Stripe payments match the same order')
+
+      if (matches.has_more || matches.data.length > 1) {
+        throw new ReconciliationFailure(
+          'Multiple Stripe payments match the same order. Manual review is required.',
+        )
+      }
+
       paymentId = matches.data[0]?.id ?? null
+
       if (!paymentId) {
         await ordersDB.markUnlinkedOrderReconciled(order.id, new Date())
-        return
+
+        return order
       }
     }
 
@@ -204,32 +217,41 @@ export async function reconcileOrderPayment(orderId: number): Promise<void> {
       {},
       reconciliationRequestOptions,
     )
+
     if (
       intent.id !== paymentId ||
-      (intent.metadata.orderId && intent.metadata.orderId !== String(order.id))
+      intent.metadata.orderId !== String(order.id) ||
+      intent.metadata.checkoutRequestId !== order.checkoutRequestId
     ) {
-      throw new Error('Stripe payment does not belong to this order')
+      throw new ReconciliationFailure(
+        'Stripe payment does not belong to this order. The checkout references differ.',
+      )
     }
+
     if (
       intent.amount !== Math.round(order.total * 100) ||
       intent.currency.toUpperCase() !== order.currency.toUpperCase()
     ) {
-      throw new Error(
+      throw new ReconciliationFailure(
         'Stripe payment amount or currency differs from the order',
       )
     }
+
     if (order.paidAt != null && intent.status !== 'succeeded') {
-      throw new Error(
+      throw new ReconciliationFailure(
         'Refusing to downgrade an already paid order; manual review required',
       )
     }
 
     if (!order.paymentId) {
-      if (intent.metadata.orderId !== String(order.id))
-        throw new Error('Missing order metadata on unlinked Stripe payment')
       order = await findOrLinkOrderForPaymentIntent(intent)
-      if (order?.id !== orderId)
-        throw new Error('Failed to link Stripe payment to its draft order')
+
+      if (order?.id !== orderId) {
+        throw new ReconciliationFailure(
+          'Failed to link Stripe payment to its draft order',
+        )
+      }
+
       continue
     }
 
@@ -238,7 +260,12 @@ export async function reconcileOrderPayment(orderId: number): Promise<void> {
       paymentStatus: intent.status,
       lastReconciledAt: new Date(),
     })
-    const { order: updatedOrder } = await savePaymentUpdate(order, updates)
+    const updatedOrder = await ordersDB.updateOrderIfUnchanged(
+      order.paymentId,
+      paymentSnapshot(order),
+      updates,
+    )
+
     if (updatedOrder) {
       if (
         order.paymentStatus !== updatedOrder.paymentStatus ||
@@ -251,10 +278,80 @@ export async function reconcileOrderPayment(orderId: number): Promise<void> {
           toStatus: updatedOrder.paymentStatus,
         })
       }
-      return
+
+      return updatedOrder
     }
   }
-  throw new Internal('Concurrent updates prevented order reconciliation')
+
+  throw new ReconciliationFailure(
+    'Concurrent updates prevented order reconciliation',
+  )
+}
+
+export async function reconcileStaleOrders(): Promise<{
+  checked: number
+  failed: number
+}> {
+  const startedAt = Date.now()
+  const orders = await ordersDB.getOrdersForReconciliation({
+    staleBefore: new Date(startedAt - reconciliationPolicy.minimumOrderAgeMs),
+    checkedBefore: new Date(
+      startedAt - reconciliationPolicy.pendingCheckIntervalMs,
+    ),
+    failedCheckedBefore: new Date(
+      startedAt - reconciliationPolicy.failureRetryIntervalMs,
+    ),
+    terminalCheckedBefore: new Date(
+      startedAt - reconciliationPolicy.terminalAuditIntervalMs,
+    ),
+    limit: reconciliationPolicy.batchSize,
+  })
+  let checked = 0
+  let failed = 0
+
+  for (const order of orders) {
+    if (
+      checked >= reconciliationPolicy.batchSize ||
+      Date.now() - startedAt >= reconciliationPolicy.runBudgetMs
+    ) {
+      break
+    }
+
+    checked++
+    const attemptedAt = new Date()
+
+    try {
+      // Pace failed checks too, so persistently broken orders cannot monopolize a batch.
+      await ordersDB.markOrderReconciliationAttempted(order.id, attemptedAt)
+      await reconcileOrderPayment(order.id)
+    } catch (error) {
+      failed++
+      void log.error('[STRIPE] Order reconciliation failed', {
+        error,
+        orderId: order.id,
+        paymentId: order.paymentId,
+      })
+
+      try {
+        await ordersDB.recordReconciliationFailure(
+          order,
+          reconciliationFailureReason(error),
+          attemptedAt,
+        )
+      } catch (recordError) {
+        void log.error(
+          '[STRIPE] Could not persist reconciliation failure or alert',
+          { error: recordError, orderId: order.id, paymentId: order.paymentId },
+        )
+      }
+    }
+  }
+
+  const result = { checked, failed }
+
+  void log.info('[STRIPE] Order reconciliation completed', result)
+
+  return result
 }
 
 function reportWebhookSaveFailure(
@@ -264,13 +361,6 @@ function reportWebhookSaveFailure(
   reason: 'threw' | 'returned_null',
   error?: unknown,
 ): void {
-  const orderSnapshot = {
-    ...order,
-    ...data,
-    paymentStatus: data.paymentStatus ?? order.paymentStatus,
-    shipping: data.shipping ?? order.shipping ?? null,
-  }
-
   void log.error('[CRITICAL] Webhook order update save failed', {
     issueCode: IssueCode.WEBHOOK_ORDER_SAVE_FAILED,
     entity: 'order',
@@ -282,23 +372,19 @@ function reportWebhookSaveFailure(
     error,
     ...eventMeta,
   })
-
-  enqueueEmail('adminPaymentNotification', {
-    notificationType: AdminNotification.Error,
-    order: orderSnapshot,
-    source: IssueCode.WEBHOOK_ORDER_SAVE_FAILED,
-  })
 }
 
 export async function applyPaymentIntentWebhookToOrder(
   paymentIntent: StripePaymentIntent,
   data: OrderUpdate,
   eventMeta: PaymentIntentEventMeta,
-): Promise<{ order: Order; becamePaid: boolean } | null> {
+): Promise<Order | null> {
   const paymentIntentId = paymentIntent.id
   let order = await findOrLinkOrderForPaymentIntent(paymentIntent)
 
-  if (!order) return null
+  if (!order) {
+    return null
+  }
 
   for (let attempt = 0; attempt < 5; attempt++) {
     if (
@@ -309,7 +395,7 @@ export async function applyPaymentIntentWebhookToOrder(
         eventMeta,
       )
     ) {
-      return { order, becamePaid: false }
+      return order
     }
 
     const updateData = preparePaymentUpdate(order, {
@@ -319,24 +405,32 @@ export async function applyPaymentIntentWebhookToOrder(
     })
 
     try {
-      const { order: updatedOrder, becamePaid } = await savePaymentUpdate(
-        order,
+      const updatedOrder = await ordersDB.updateOrderIfUnchanged(
+        paymentIntentId,
+        paymentSnapshot(order),
         updateData,
       )
 
-      if (updatedOrder) return { order: updatedOrder, becamePaid }
+      if (updatedOrder) {
+        return updatedOrder
+      }
 
       const latestOrder = await ordersDB.getOrder(paymentIntentId)
+
       if (!latestOrder) {
         reportWebhookSaveFailure(order, updateData, eventMeta, 'returned_null')
+
         throw new Internal('Failed to save webhook order update')
       }
 
       order = latestOrder
     } catch (error) {
-      if (error instanceof Internal) throw error
+      if (error instanceof Internal) {
+        throw error
+      }
 
       reportWebhookSaveFailure(order, updateData, eventMeta, 'threw', error)
+
       throw new Internal('Failed to save webhook order update')
     }
   }
@@ -345,5 +439,6 @@ export async function applyPaymentIntentWebhookToOrder(
     paymentId: paymentIntentId,
     ...eventMeta,
   })
+
   throw new Internal('Concurrent webhook updates prevented order update')
 }

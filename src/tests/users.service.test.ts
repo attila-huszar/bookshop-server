@@ -4,9 +4,13 @@ import { loginSchema } from '@/validation/authSchemas'
 import { profileUpdateSchema } from '@/validation/userSchemas'
 import { authMessage, userMessage } from '@/constants'
 import { BadRequest, Forbidden, Unauthorized } from '@/errors'
-import { type UserInsert, UserRole } from '@/types'
 import {
-  mockEnqueueEmail,
+  type PasswordResetTokenUpdate,
+  type User,
+  type UserRegistrationInsert,
+  UserRole,
+} from '@/types'
+import {
   mockSignAccessToken,
   mockSignRefreshToken,
   mockUsersDB,
@@ -16,10 +20,12 @@ import {
 const usersService = await import('../services/users.service')
 
 beforeEach(() => {
-  mockEnqueueEmail.mockReset()
   mockValidate.mockReset()
-  mockUsersDB.getUserBy.mockReset()
+  mockUsersDB.getActiveUserBy.mockReset()
+  mockUsersDB.emailExists.mockReset()
   mockUsersDB.createUser.mockReset()
+  mockUsersDB.createUserWithVerification.mockReset()
+  mockUsersDB.setPasswordResetToken.mockReset()
   mockUsersDB.updateUserBy.mockReset()
   mockSignAccessToken.mockReset()
   mockSignRefreshToken.mockReset()
@@ -27,6 +33,8 @@ beforeEach(() => {
 
 describe('Users Service', () => {
   describe('updateUserProfile', () => {
+    const profileUser = { uuid: 'user-uuid', password: 'unused-hash' }
+
     beforeEach(() => {
       mockValidate.mockImplementation((_schema: unknown, value: unknown) =>
         profileUpdateSchema.parse(value),
@@ -35,8 +43,9 @@ describe('Users Service', () => {
 
     it('rejects privileged fields before accessing the database', async () => {
       const fields = { firstName: 'Jane', role: UserRole.Admin }
-      await rejects(usersService.updateUserProfile('user-uuid', fields))
-      expect(mockUsersDB.getUserBy).not.toHaveBeenCalled()
+
+      await rejects(usersService.updateUserProfile(profileUser, fields))
+      expect(mockUsersDB.getActiveUserBy).not.toHaveBeenCalled()
       expect(mockUsersDB.updateUserBy).not.toHaveBeenCalled()
     })
 
@@ -45,18 +54,20 @@ describe('Users Service', () => {
         { password: 'weak', currentPassword: 'old123' },
         { password: 'new123' },
       ]) {
-        await rejects(usersService.updateUserProfile('user-uuid', fields))
+        await rejects(usersService.updateUserProfile(profileUser, fields))
       }
+
       expect(mockUsersDB.updateUserBy).not.toHaveBeenCalled()
     })
 
     it('rejects an incorrect current password', async () => {
-      mockUsersDB.getUserBy.mockResolvedValueOnce({
-        email: 'user@example.com',
+      const user = {
+        uuid: 'user-uuid',
         password: Bun.password.hashSync('old123'),
-      })
+      }
+
       await rejects(
-        usersService.updateUserProfile('user-uuid', {
+        usersService.updateUserProfile(user, {
           password: 'new123',
           currentPassword: 'wrong123',
         }),
@@ -67,12 +78,13 @@ describe('Users Service', () => {
 
     it('hashes the new password without persisting the current password', async () => {
       const user = {
+        uuid: 'user-uuid',
         email: 'user@example.com',
         password: Bun.password.hashSync('old123'),
       }
-      mockUsersDB.getUserBy.mockResolvedValueOnce(user)
+
       mockUsersDB.updateUserBy.mockResolvedValueOnce(user)
-      await usersService.updateUserProfile('user-uuid', {
+      await usersService.updateUserProfile(user, {
         password: 'new123',
         currentPassword: 'old123',
       })
@@ -81,8 +93,15 @@ describe('Users Service', () => {
         string,
         { password: string },
       ]
+
       expect(await Bun.password.verify('new123', fields.password)).toBe(true)
       expect(fields).not.toHaveProperty('currentPassword')
+      expect(mockUsersDB.getActiveUserBy).not.toHaveBeenCalled()
+      expect(mockUsersDB.updateUserBy).toHaveBeenCalledWith(
+        'uuid',
+        user.uuid,
+        fields,
+      )
     })
   })
 
@@ -101,14 +120,14 @@ describe('Users Service', () => {
       }
 
       mockValidate.mockReturnValueOnce(loginRequest)
-      mockUsersDB.getUserBy.mockResolvedValueOnce(mockUser)
+      mockUsersDB.getActiveUserBy.mockResolvedValueOnce(mockUser)
       mockSignAccessToken.mockResolvedValueOnce('access-token')
       mockSignRefreshToken.mockResolvedValueOnce('refresh-token')
 
       const result = await usersService.loginUser(loginRequest)
 
       expect(mockValidate).toHaveBeenCalledWith(loginSchema, loginRequest)
-      expect(mockUsersDB.getUserBy).toHaveBeenCalledWith(
+      expect(mockUsersDB.getActiveUserBy).toHaveBeenCalledWith(
         'email',
         'test@example.com',
       )
@@ -126,7 +145,7 @@ describe('Users Service', () => {
       }
 
       mockValidate.mockReturnValueOnce(loginRequest)
-      mockUsersDB.getUserBy.mockResolvedValueOnce(null)
+      mockUsersDB.getActiveUserBy.mockResolvedValueOnce(null)
 
       let resultError: unknown = null
 
@@ -154,7 +173,7 @@ describe('Users Service', () => {
       }
 
       mockValidate.mockReturnValueOnce(loginRequest)
-      mockUsersDB.getUserBy.mockResolvedValueOnce(mockUser)
+      mockUsersDB.getActiveUserBy.mockResolvedValueOnce(mockUser)
 
       let resultError: unknown = null
 
@@ -172,6 +191,7 @@ describe('Users Service', () => {
   describe('registerUser', () => {
     it('should register user successfully', async () => {
       const formData = new FormData()
+
       formData.append('firstName', 'John')
       formData.append('lastName', 'Doe')
       formData.append('email', 'test@example.com')
@@ -187,47 +207,46 @@ describe('Users Service', () => {
       const mockUser = { email: 'test@example.com' }
 
       mockValidate.mockReturnValueOnce(validatedData)
-      mockUsersDB.getUserBy.mockResolvedValueOnce(null)
-      mockUsersDB.createUser.mockResolvedValueOnce(mockUser)
+      mockUsersDB.emailExists.mockResolvedValueOnce(false)
+      mockUsersDB.createUserWithVerification.mockResolvedValueOnce(mockUser)
 
       const result = await usersService.registerUser(formData)
 
       expect(mockValidate).toHaveBeenCalled()
-      expect(mockUsersDB.getUserBy).toHaveBeenCalledWith(
-        'email',
-        'test@example.com',
-      )
-      expect(mockUsersDB.createUser).toHaveBeenCalled()
-      expect(mockEnqueueEmail).toHaveBeenCalledWith(
-        'verification',
-        expect.objectContaining({
-          toAddress: 'test@example.com',
-          toName: 'John',
-        }),
-      )
+      expect(mockUsersDB.emailExists).toHaveBeenCalledWith('test@example.com')
+      expect(mockUsersDB.getActiveUserBy).not.toHaveBeenCalled()
+      expect(mockUsersDB.createUserWithVerification).toHaveBeenCalledTimes(1)
+      const [createdUser] = mockUsersDB.createUserWithVerification.mock
+        .calls[0] as [UserRegistrationInsert]
+
+      expect(createdUser).toMatchObject({
+        email: 'test@example.com',
+        firstName: 'John',
+        verified: false,
+      })
+      expect(createdUser.verificationToken).toBeString()
+      expect(createdUser.verificationExpires).toBeInstanceOf(Date)
+      expect(mockUsersDB.createUser).not.toHaveBeenCalled()
       expect(result).toEqual({ email: 'test@example.com' })
     })
 
-    it('should throw error for existing user', async () => {
+    it('rejects an email that is already reserved', async () => {
       const formData = new FormData()
+
       formData.append('email', 'test@example.com')
 
       const validatedData = { email: 'test@example.com' }
-      const existingUser = { email: 'test@example.com' }
 
       mockValidate.mockReturnValueOnce(validatedData)
-      mockUsersDB.getUserBy.mockResolvedValueOnce(existingUser)
+      mockUsersDB.emailExists.mockResolvedValueOnce(true)
 
-      let resultError: unknown = null
-
-      try {
-        await usersService.registerUser(formData)
-      } catch (error) {
-        resultError = error
-      }
-
-      expect(resultError).toBeInstanceOf(BadRequest)
-      expect((resultError as Error).message).toBe(userMessage.emailTaken)
+      await rejects(usersService.registerUser(formData), {
+        name: BadRequest.name,
+        message: userMessage.emailTaken,
+      })
+      expect(mockUsersDB.emailExists).toHaveBeenCalledWith('test@example.com')
+      expect(mockUsersDB.getActiveUserBy).not.toHaveBeenCalled()
+      expect(mockUsersDB.createUserWithVerification).not.toHaveBeenCalled()
     })
   })
 
@@ -241,12 +260,12 @@ describe('Users Service', () => {
       const updatedUser = { email: 'test@example.com' }
 
       mockValidate.mockReturnValueOnce(verificationRequest)
-      mockUsersDB.getUserBy.mockResolvedValueOnce(mockUser)
+      mockUsersDB.getActiveUserBy.mockResolvedValueOnce(mockUser)
       mockUsersDB.updateUserBy.mockResolvedValueOnce(updatedUser)
 
       const result = await usersService.verifyUser(verificationRequest)
 
-      expect(mockUsersDB.getUserBy).toHaveBeenCalledWith(
+      expect(mockUsersDB.getActiveUserBy).toHaveBeenCalledWith(
         'verificationToken',
         'verification-token',
       )
@@ -267,25 +286,28 @@ describe('Users Service', () => {
     it('should send password reset email for existing user', async () => {
       const request = { email: 'test@example.com' }
       const mockUser = {
+        uuid: 'user-uuid',
         email: 'test@example.com',
         firstName: 'John',
       }
       const updatedUser = { email: 'test@example.com' }
 
       mockValidate.mockReturnValueOnce(request)
-      mockUsersDB.getUserBy.mockResolvedValueOnce(mockUser)
-      mockUsersDB.updateUserBy.mockResolvedValueOnce(updatedUser)
+      mockUsersDB.getActiveUserBy.mockResolvedValueOnce(mockUser)
+      mockUsersDB.setPasswordResetToken.mockResolvedValueOnce(updatedUser)
 
       const result = await usersService.passwordResetRequest(request)
 
-      expect(mockUsersDB.updateUserBy).toHaveBeenCalled()
-      expect(mockEnqueueEmail).toHaveBeenCalledWith(
-        'passwordReset',
-        expect.objectContaining({
-          toAddress: 'test@example.com',
-          toName: 'John',
-        }),
-      )
+      expect(mockUsersDB.setPasswordResetToken).toHaveBeenCalledTimes(1)
+      const [uuid, reset] = mockUsersDB.setPasswordResetToken.mock.calls[0] as [
+        string,
+        PasswordResetTokenUpdate,
+      ]
+
+      expect(uuid).toBe('user-uuid')
+      expect(reset.token).toBeString()
+      expect(reset.expiresAt).toBeInstanceOf(Date)
+      expect(mockUsersDB.updateUserBy).not.toHaveBeenCalled()
       expect(result).toHaveProperty('message')
     })
 
@@ -293,19 +315,40 @@ describe('Users Service', () => {
       const request = { email: 'nonexistent@example.com' }
 
       mockValidate.mockReturnValueOnce(request)
-      mockUsersDB.getUserBy.mockResolvedValueOnce(null)
+      mockUsersDB.getActiveUserBy.mockResolvedValueOnce(null)
 
       const result = await usersService.passwordResetRequest(request)
 
       expect(result).toHaveProperty('message')
-      expect(mockEnqueueEmail).not.toHaveBeenCalled()
+      expect(mockUsersDB.setPasswordResetToken).not.toHaveBeenCalled()
     })
   })
 
-  describe('getUserProfile', () => {
-    it('should return user profile without sensitive data', async () => {
-      const mockUser: UserInsert = {
+  describe('getActiveUser', () => {
+    it('expires a session whose account no longer exists', async () => {
+      mockUsersDB.getActiveUserBy.mockResolvedValueOnce(null)
+
+      await rejects(
+        usersService.getActiveUser('deleted-user-uuid'),
+        Unauthorized,
+      )
+    })
+
+    it('preserves optional missing-user lookup for guest checkout', async () => {
+      mockUsersDB.getActiveUserBy.mockResolvedValueOnce(null)
+
+      expect(
+        await usersService.getActiveUser('deleted-user-uuid', {
+          optional: true,
+        }),
+      ).toBeNull()
+    })
+
+    it('returns the loaded user for internal request context', async () => {
+      const mockUser: User = {
         id: 1,
+        createdAt: new Date(),
+        updatedAt: new Date(),
         uuid: 'user-uuid',
         firstName: 'John',
         lastName: 'Doe',
@@ -321,26 +364,18 @@ describe('Users Service', () => {
         avatar: null,
         address: null,
         phone: null,
+        deletedAt: null,
       }
 
-      mockUsersDB.getUserBy.mockResolvedValueOnce(mockUser)
+      mockUsersDB.getActiveUserBy.mockResolvedValueOnce(mockUser)
 
-      const result = await usersService.getUserProfile('user-uuid')
+      const result = await usersService.getActiveUser('user-uuid')
 
-      expect(mockUsersDB.getUserBy).toHaveBeenCalledWith('uuid', 'user-uuid')
-      expect(result).toEqual({
-        uuid: 'user-uuid',
-        firstName: 'John',
-        lastName: 'Doe',
-        email: 'test@example.com',
-        country: 'hu',
-        role: UserRole.User,
-        avatar: null,
-        address: null,
-        phone: null,
-      })
-      expect(result).not.toHaveProperty('password')
-      expect(result).not.toHaveProperty('verificationToken')
+      expect(mockUsersDB.getActiveUserBy).toHaveBeenCalledWith(
+        'uuid',
+        'user-uuid',
+      )
+      expect(result).toBe(mockUser)
     })
   })
 })

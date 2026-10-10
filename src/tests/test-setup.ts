@@ -3,31 +3,45 @@ import { env } from '@/config'
 import * as validation from '@/validation'
 import { toIsoString } from '@/utils/date.utils'
 import { getOrderRef } from '@/utils/string.utils'
-import {
-  stripSensitiveUserFields,
-  stripTimestamps,
-} from '@/utils/transform.utils'
 import type { Order, OrderUpdate } from '@/types'
 
+env.adminEmail ??= 'admin@example.com'
+env.clientBaseUrl ??= 'https://bookshop.test'
 env.stripeSecret ??= 'sk_test_123'
 env.stripeWebhookSecret ??= 'whsec_test'
 
 export const mockUsersDB = {
-  getUserBy: mock(),
+  getActiveUserBy: mock(),
+  emailExists: mock(),
+  getAllUsers: mock(),
+  setUsersDeleted: mock(),
   createUser: mock(),
+  createUserWithVerification: mock(),
+  setPasswordResetToken: mock(),
   updateUserBy: mock(),
   cleanupExpiredPasswordResetTokens: mock(),
   cleanupUnverifiedUsers: mock(),
 }
 
+export const mockOutboxDB = {
+  getEmailOutbox: mock(),
+  updateEmailDelivery: mock(),
+  claimEmail: mock(),
+  completeEmail: mock(),
+  retryEmail: mock(),
+}
+
 export const mockBooksDB = {
   getBookById: mock(),
+  hardDeleteBooks: mock(),
 }
 
 export const mockOrdersDB = {
   getOrder: mock(),
   getOrderById: mock(),
   getOrdersByEmail: mock(),
+  getAllOrders: mock(),
+  setOrdersDeleted: mock(),
   getOrderByCheckoutRequestId: mock(),
   createCheckoutOrder: mock(),
   linkPaymentIntent: mock(),
@@ -35,10 +49,12 @@ export const mockOrdersDB = {
   getOrdersForReconciliation: mock(),
   markUnlinkedOrderReconciled: mock(),
   markOrderReconciliationAttempted: mock(),
+  recordReconciliationFailure: mock(() => Promise.resolve()),
   updateOrderIfUnchanged: mock(
     async (paymentId: string, _expected: unknown, fields: OrderUpdate) => {
       const result: unknown = await mockOrdersDB.updateOrder(paymentId, fields)
-      return result as { order: Order | null; becamePaid: boolean }
+
+      return result as Order | null
     },
   ),
 }
@@ -58,12 +74,9 @@ export const mockStripe = {
 export const mockValidate = mock()
 export const mockSignAccessToken = mock()
 export const mockSignRefreshToken = mock()
+export const mockVerifyJWTRefresh = mock()
 export const mockUploadFile = mock()
 export const mockSendMail = mock()
-export const mockEnqueueEmail = mock()
-export const mockCancelAdminPaymentErrorAlert = mock(() =>
-  Promise.resolve(false),
-)
 export const mockExtractPaymentIntentFields = mock(() => ({}))
 export const mockLogger = {
   info: mock(),
@@ -83,16 +96,28 @@ export const mockWorker = {
   close: mock(() => Promise.resolve()),
 }
 
+export const mockWorkerConstructor = mock<
+  (
+    queueName: unknown,
+    processor: unknown,
+    options: unknown,
+  ) => typeof mockWorker
+>(() => mockWorker)
+
 export const mockIORedis = mock(() => mockWorker)
 
 await mock.module('@/repositories', () => ({
+  authorsDB: { hardDeleteAuthors: mock() },
+  newsDB: {},
   booksDB: mockBooksDB,
   usersDB: mockUsersDB,
   ordersDB: mockOrdersDB,
+  outboxDB: mockOutboxDB,
 }))
 
 await mock.module('stripe', () => {
   const mockStripeCtor = mock(() => mockStripe)
+
   return {
     Stripe: mockStripeCtor,
     default: mockStripeCtor,
@@ -103,12 +128,6 @@ await mock.module('@/validation', () => ({
   ...validation,
   validate: mockValidate,
   safeValidate: mock(() => null),
-}))
-
-await mock.module('@/queues', () => ({
-  emailQueue: mockEmailQueue,
-  enqueueEmail: mockEnqueueEmail,
-  cancelAdminPaymentErrorAlert: mockCancelAdminPaymentErrorAlert,
 }))
 
 await mock.module('@/libs', () => ({
@@ -123,11 +142,14 @@ await mock.module('@/utils', () => ({
   extractPaymentIntentFields: mockExtractPaymentIntentFields,
   signAccessToken: mockSignAccessToken,
   signRefreshToken: mockSignRefreshToken,
+  verifyJWTRefresh: mockVerifyJWTRefresh,
   uploadFile: mockUploadFile,
-  stripSensitiveUserFields,
-  stripTimestamps,
   toIsoString,
   getOrderRef,
+  closeNgrokTunnel: mock(),
+  formatUptime: mock(() => 'test uptime'),
+  ngrokForward: mock(),
+  shortHash: mock(() => 'test-fingerprint'),
   Folder: {
     Avatars: 'avatars',
     ProductImages: 'product-images',
@@ -140,5 +162,5 @@ await mock.module('ioredis', () => ({
 
 await mock.module('bullmq', () => ({
   Queue: mock(() => mockEmailQueue),
-  Worker: mock(() => mockWorker),
+  Worker: mockWorkerConstructor,
 }))

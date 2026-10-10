@@ -22,6 +22,8 @@ export const ordersTable = sqliteTable('orders', {
   lastReconciledAt: int('last_reconciled_at', {
     mode: 'timestamp_ms',
   }).$type<Date>(),
+  reconciliationFailures: int('reconciliation_failures').notNull().default(0),
+  reconciliationAlertId: text('reconciliation_alert_id'),
   paidAt: int('paid_at', { mode: 'timestamp' }).$type<Date>(),
   total: real().notNull(),
   currency: text().notNull(),
@@ -30,5 +32,6 @@ export const ordersTable = sqliteTable('orders', {
   lastName: text('last_name'),
   email: text(),
   shipping: text({ mode: 'json' }).$type<PaymentIntentShipping>(),
+  deletedAt: int('deleted_at', { mode: 'timestamp_ms' }).$type<Date>(),
   ...timestamps,
 })

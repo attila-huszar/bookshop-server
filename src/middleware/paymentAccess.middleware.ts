@@ -1,19 +1,11 @@
 import type { MiddlewareHandler } from 'hono'
 import { deleteCookie, getSignedCookie } from 'hono/cookie'
 import { env, PAYMENT_SESSION, paymentCookieOptions } from '@/config'
-import { getUserProfile } from '@/services'
 import { errorHandler } from '@/errors'
-import type { PaymentAccess } from '@/types'
-
-type Variables = {
-  jwtPayload?: {
-    uuid: string
-  }
-  paymentAccess?: PaymentAccess
-}
+import type { PaymentVariables } from '@/types'
 
 export const paymentAccessMiddleware: MiddlewareHandler<{
-  Variables: Variables
+  Variables: PaymentVariables
 }> = async (c, next) => {
   try {
     const paymentSessionCookie = await getSignedCookie(
@@ -31,13 +23,7 @@ export const paymentAccessMiddleware: MiddlewareHandler<{
         ? paymentSessionCookie
         : undefined
 
-    const jwtPayload = c.get('jwtPayload')
-    let userEmail: string | undefined
-
-    if (jwtPayload?.uuid) {
-      const user = await getUserProfile(jwtPayload.uuid, { optional: true })
-      userEmail = user?.email
-    }
+    const userEmail = c.get('authUser')?.email
 
     c.set('paymentAccess', { cookiePaymentId, userEmail })
 

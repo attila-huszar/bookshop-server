@@ -1,0 +1,17 @@
+<mj-text
+  container-background-color="#fff0f0"
+  color="#a61b1b"
+  font-size="16px"
+  line-height="1.5"
+>
+  <strong>Reason:</strong> {{ reason }}<br />
+  <strong>Order ID:</strong> {{ orderId }}<br />
+  <strong>Payment reference:</strong> {{ paymentReference }}<br />
+  <strong>Failed checks:</strong> {{ failures }}<br />
+  Automatic checks will continue on the maintenance schedule. No further alert
+  will be sent for this incident. Open Stripe Dashboard to check the payment
+  manually.
+</mj-text>
+<mj-button background-color="#5469d4" href="{{ dashboardUrl }}">
+  Open Stripe Dashboard
+</mj-button>

@@ -1,7 +1,12 @@
-import model from '@/models'
+import { EmailOutboxModel, OrderModel } from '@/models/mongo'
+import {
+  orderPaidEmails,
+  orderReconciliationFailure,
+} from '@/utils/email-job.utils'
 import { getErrorCode } from '@/utils/error.utils'
 import { terminalStatuses } from '@/constants/payment'
 import type {
+  CmsOrderUpdate,
   Order,
   OrderInsert,
   OrderPaymentSnapshot,
@@ -9,7 +14,6 @@ import type {
   OrderUpdate,
 } from '@/types'
 
-const { OrderModel } = model as MongoModel
 const MONGO_DUPLICATE_KEY_CODE = 11000
 
 export async function getOrderByCheckoutRequestId(
@@ -24,6 +28,7 @@ export async function createCheckoutOrder(
   try {
     const { id, createdAt, updatedAt, ...orderData } = order
     const created = await OrderModel.create(orderData)
+
     return created.toObject()
   } catch (error) {
     // Concurrent requests can race to insert the same checkout. Only recover
@@ -32,111 +37,80 @@ export async function createCheckoutOrder(
       const existing = await getOrderByCheckoutRequestId(
         order.checkoutRequestId,
       )
-      if (existing) return existing
+
+      if (existing) {
+        return existing
+      }
     }
+
     throw error
   }
 }
 
 export async function updateOrder(
   paymentId: string,
-  fields: OrderUpdate,
-): Promise<{ order: Order | null; becamePaid: boolean }> {
-  const shouldAttemptPaidTransition = fields.paidAt instanceof Date
-
-  if (!shouldAttemptPaidTransition) {
-    const updatedOrder = await OrderModel.findOneAndUpdate(
-      { paymentId },
-      fields,
-      { new: true },
-    )
-      .lean()
-      .exec()
-
-    return {
-      order: updatedOrder ?? null,
-      becamePaid: false,
-    }
-  }
-
-  const paidTransitionOrder = await OrderModel.findOneAndUpdate(
-    { paymentId, paidAt: null },
-    fields,
-    { new: true },
-  )
+  fields: CmsOrderUpdate,
+): Promise<Order | null> {
+  return await OrderModel.findOneAndUpdate({ paymentId }, fields, {
+    returnDocument: 'after',
+  })
     .lean()
     .exec()
-
-  if (paidTransitionOrder) {
-    return {
-      order: paidTransitionOrder,
-      becamePaid: true,
-    }
-  }
-
-  const fieldsWithoutPaidAt: OrderUpdate = { ...fields }
-  delete fieldsWithoutPaidAt.paidAt
-
-  if (Object.keys(fieldsWithoutPaidAt).length === 0) {
-    return {
-      order: await getOrder(paymentId),
-      becamePaid: false,
-    }
-  }
-
-  const updatedOrder = await OrderModel.findOneAndUpdate(
-    { paymentId },
-    fieldsWithoutPaidAt,
-    { new: true },
-  )
-    .lean()
-    .exec()
-
-  return {
-    order: updatedOrder ?? null,
-    becamePaid: false,
-  }
 }
 
 export async function updateOrderIfUnchanged(
   paymentId: string,
   expected: OrderPaymentSnapshot,
   fields: OrderUpdate,
-): Promise<{ order: Order | null; becamePaid: boolean }> {
-  const updatedOrder = await OrderModel.findOneAndUpdate(
-    {
-      paymentId,
-      id: expected.id,
-      total: expected.total,
-      currency: expected.currency,
-      email: expected.email,
-      updatedAt: expected.updatedAt,
-      paymentStatus: expected.paymentStatus,
-      lastStripeEventCreated: expected.lastStripeEventCreated,
-      lastStripeEventId: expected.lastStripeEventId,
-      lastReconciledAt: expected.lastReconciledAt,
-      paidAt: expected.paidAt,
-    },
-    fields,
-    { new: true },
-  )
-    .lean()
-    .exec()
+): Promise<Order | null> {
+  return await OrderModel.db.transaction(async (session) => {
+    const updatedOrder = await OrderModel.findOneAndUpdate(
+      {
+        paymentId,
+        id: expected.id,
+        total: expected.total,
+        currency: expected.currency,
+        email: expected.email,
+        updatedAt: expected.updatedAt,
+        paymentStatus: expected.paymentStatus,
+        lastStripeEventCreated: expected.lastStripeEventCreated,
+        lastStripeEventId: expected.lastStripeEventId,
+        lastReconciledAt: expected.lastReconciledAt,
+        paidAt: expected.paidAt,
+      },
+      fields,
+      { returnDocument: 'after', session },
+    )
+      .lean()
+      .exec()
 
-  return {
-    order: updatedOrder ?? null,
-    becamePaid: Boolean(updatedOrder && fields.paidAt instanceof Date),
-  }
+    const becamePaid = Boolean(
+      updatedOrder && expected.paidAt === null && fields.paidAt instanceof Date,
+    )
+
+    if (updatedOrder && becamePaid) {
+      await EmailOutboxModel.insertMany(orderPaidEmails(updatedOrder), {
+        session,
+      })
+    }
+
+    return updatedOrder ?? null
+  })
 }
 
 export async function getOrder(paymentId: string): Promise<Order | null> {
   const order = await OrderModel.findOne({ paymentId }).lean().exec()
-  if (!order) return null
+
+  if (!order) {
+    return null
+  }
+
   return order
 }
 
 export async function getOrderById(id: number): Promise<Order | null> {
   const order = await OrderModel.findOne({ id }).lean().exec()
+
   return order ?? null
 }
 
@@ -144,42 +118,52 @@ export async function linkPaymentIntent(
   orderId: number,
   paymentId: string,
   paymentStatus: Order['paymentStatus'],
-): Promise<{ order: Order | null; linked: boolean }> {
+): Promise<Order | null> {
   const existingOrder = await getOrderById(orderId)
 
-  if (!existingOrder) return { order: null, linked: false }
+  if (!existingOrder) {
+    return null
+  }
+
   if (existingOrder.paymentId === paymentId) {
-    return { order: existingOrder, linked: false }
+    return existingOrder
   }
+
   if (existingOrder.paymentId !== null) {
-    return { order: null, linked: false }
+    return null
   }
 
-  const linkedOrder = await OrderModel.findOneAndUpdate(
-    { id: orderId, paymentId: null },
-    { paymentId, paymentStatus },
-    { new: true },
-  )
-    .lean()
-    .exec()
+  const linkedOrder = await OrderModel.db.transaction(async (session) => {
+    const order = await OrderModel.findOneAndUpdate(
+      { id: orderId, paymentId: null },
+      { paymentId, paymentStatus },
+      { returnDocument: 'after', session },
+    )
+      .lean()
+      .exec()
 
-  if (linkedOrder) return { order: linkedOrder, linked: true }
+    return order
+  })
+
+  if (linkedOrder) {
+    return linkedOrder
+  }
 
   const currentOrder = await getOrderById(orderId)
-  return {
-    order: currentOrder?.paymentId === paymentId ? currentOrder : null,
-    linked: false,
-  }
+
+  return currentOrder?.paymentId === paymentId ? currentOrder : null
 }
 
 export async function getAllOrders(): Promise<Order[]> {
   const orders = await OrderModel.find().lean().exec()
+
   return orders
 }
 
 export async function getOrdersForReconciliation({
   staleBefore,
   checkedBefore,
+  failedCheckedBefore,
   terminalCheckedBefore,
   limit,
 }: OrderReconciliationQuery): Promise<Order[]> {
@@ -190,10 +174,15 @@ export async function getOrdersForReconciliation({
         $or: [
           { lastReconciliationAttemptAt: null },
           { lastReconciliationAttemptAt: { $lt: checkedBefore } },
+          {
+            reconciliationFailures: { $gt: 0 },
+            lastReconciliationAttemptAt: { $lt: failedCheckedBefore },
+          },
         ],
       },
     ],
     $or: [
+      { reconciliationFailures: { $gt: 0 } },
       { lastReconciledAt: null },
       { lastReconciledAt: { $lt: terminalCheckedBefore } },
       {
@@ -227,8 +216,46 @@ export async function markUnlinkedOrderReconciled(
 ): Promise<void> {
   await OrderModel.updateOne(
     { id: orderId, paymentId: null },
-    { lastReconciledAt: checkedAt },
+    {
+      lastReconciledAt: checkedAt,
+      reconciliationFailures: 0,
+      reconciliationAlertId: null,
+    },
   ).exec()
+}
+
+/** Mongo operations share one session and execute sequentially. */
+export async function recordReconciliationFailure(
+  expected: Order,
+  reason: string,
+  attemptedAt: Date,
+): Promise<void> {
+  await OrderModel.db.transaction(async (session) => {
+    const filter = {
+      id: expected.id,
+      reconciliationFailures: expected.reconciliationFailures,
+      lastReconciliationAttemptAt: attemptedAt,
+      $or: [
+        { lastReconciledAt: null },
+        { lastReconciledAt: { $lt: attemptedAt } },
+      ],
+    }
+    const order = await OrderModel.findOne(filter)
+      .session(session)
+      .lean()
+      .exec()
+
+    if (!order) {
+      return
+    }
+
+    const failure = orderReconciliationFailure(order, reason)
+    await OrderModel.updateOne(filter, failure.fields, { session }).exec()
+
+    if (failure.email) {
+      await EmailOutboxModel.insertMany([failure.email], { session })
+    }
+  })
 }
 
 export async function getOrdersByEmail(email: string): Promise<Order[]> {
@@ -240,9 +267,15 @@ export async function getOrdersByEmail(email: string): Promise<Order[]> {
   return orders
 }
 
-export async function deleteOrdersByIds(
+/** Archiving changes CMS visibility; payment and customer lookups still see the row. */
+export async function setOrdersDeleted(
   orderIds: number[],
-): Promise<Order['id'][]> {
-  await OrderModel.deleteMany({ id: { $in: orderIds } }).exec()
-  return orderIds
+  deleted: boolean,
+): Promise<number> {
+  const result = await OrderModel.updateMany(
+    { id: { $in: orderIds }, deletedAt: deleted ? null : { $ne: null } },
+    { $set: { deletedAt: deleted ? new Date() : null } },
+  ).exec()
+
+  return result.modifiedCount
 }

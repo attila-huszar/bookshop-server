@@ -1,5 +1,6 @@
 services:
   server:
+    init: true
     build:
       context: .
       dockerfile: Dockerfile
@@ -11,8 +12,6 @@ services:
       default:
         aliases: [api]
     depends_on:
-      redis:
-        condition: service_healthy
       loki:
         condition: service_started
     restart: unless-stopped
@@ -21,18 +20,11 @@ services:
       DB_REPO: SQLITE
       PORT: '5000'
       REDIS_URL: redis://redis:6379
-    command:
-      - sh
-      - -c
-      - |
-        set -e
-
-        if [ -n "${SETUP:-}" ]; then
-          bun run migrate
-          bun run seed
-        fi
-
-        exec bun src/app.ts
+      SETUP: '${SETUP:-}'
+      NODE_ENV: '${NODE_ENV:-development}'
+      NGROK_AUTHTOKEN: '${NGROK_AUTHTOKEN:-}'
+    entrypoint: ['sh', 'docker/entrypoint.sh']
+    command: ['bun', '${BUN_RUN_MODE:-run}', 'src/app.ts']
 
     logging:
       driver: loki
@@ -56,6 +48,7 @@ services:
       - sqlite_data:/bookshop-server/data
 
   server-with-mongo:
+    init: true
     build:
       context: .
       dockerfile: Dockerfile
@@ -69,8 +62,6 @@ services:
     depends_on:
       mongodb:
         condition: service_healthy
-      redis:
-        condition: service_healthy
       loki:
         condition: service_started
     restart: unless-stopped
@@ -79,17 +70,11 @@ services:
       DB_REPO: MONGO
       PORT: '5000'
       REDIS_URL: redis://redis:6379
-    command:
-      - sh
-      - -c
-      - |
-        set -e
-
-        if [ -n "${SETUP:-}" ]; then
-          bun run seed
-        fi
-
-        exec bun src/app.ts
+      SETUP: '${SETUP:-}'
+      NODE_ENV: '${NODE_ENV:-development}'
+      NGROK_AUTHTOKEN: '${NGROK_AUTHTOKEN:-}'
+    entrypoint: ['sh', 'docker/entrypoint.sh']
+    command: ['bun', '${BUN_RUN_MODE:-run}', 'src/app.ts']
 
     logging:
       driver: loki
@@ -113,6 +98,7 @@ services:
 
   mongodb:
     image: mongo
+    command: ['mongod', '--replSet', 'rs0', '--bind_ip_all']
     profiles: ['mongo']
     ports:
       - '27017:27017'
@@ -131,7 +117,7 @@ services:
           'mongosh',
           '--quiet',
           '--eval',
-          "db.adminCommand('ping').ok",
+          "try { if (rs.status().ok) { quit(db.hello().isWritablePrimary ? 0 : 1) } } catch (e) { rs.initiate({_id:'rs0',members:[{_id:0,host:'mongodb:27017'}]}); quit(1) }",
           'mongodb://127.0.0.1:27017/admin',
         ]
       interval: 30s
@@ -144,7 +130,7 @@ services:
     restart: unless-stopped
     ports:
       - '${REDIS_PUBLISHED_PORT:-6380}:6379'
-    command: redis-server --maxmemory 128mb --maxmemory-policy noeviction --appendonly yes --appendfsync everysec
+    command: redis-server --maxmemory 128mb --maxmemory-policy noeviction --appendonly yes --appendfsync always
     volumes:
       - redis_data:/data
     healthcheck:
@@ -155,6 +141,8 @@ services:
       start_period: 5s
 
   worker:
+    init: true
+    stop_grace_period: 50s
     build:
       context: .
       dockerfile: Dockerfile
@@ -172,7 +160,8 @@ services:
     environment:
       DB_REPO: SQLITE
       REDIS_URL: redis://redis:6379
-    command: bun worker:email
+      NODE_ENV: '${NODE_ENV:-development}'
+    command: ['bun', '${BUN_RUN_MODE:-run}', 'src/workers/email.worker.ts']
     logging:
       driver: loki
       options:
@@ -189,6 +178,8 @@ services:
       - sqlite_data:/bookshop-server/data
 
   worker-with-mongo:
+    init: true
+    stop_grace_period: 50s
     build:
       context: .
       dockerfile: Dockerfile
@@ -206,7 +197,8 @@ services:
     environment:
       DB_REPO: MONGO
       REDIS_URL: redis://redis:6379
-    command: bun worker:email
+      NODE_ENV: '${NODE_ENV:-development}'
+    command: ['bun', '${BUN_RUN_MODE:-run}', 'src/workers/email.worker.ts']
     logging:
       driver: loki
       options:

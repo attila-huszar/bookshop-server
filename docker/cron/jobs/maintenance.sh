@@ -7,4 +7,4 @@ cd /bookshop-server
 exec flock -n /tmp/bookshop-maintenance.lock \
   /bin/sh /bookshop-server/docker/cron/jobs/run_with_cronitor.sh \
   "maintenance" \
-  timeout -s TERM -k 10 540 bun run cron:maintenance
+  timeout -s TERM -k 10 540 bun src/scripts/maintenance.ts

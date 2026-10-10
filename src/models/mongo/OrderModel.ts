@@ -1,8 +1,8 @@
-import { mongo } from '@/db'
+import mongoose from 'mongoose'
 import type { Order } from '@/types'
 import { autoIncrementPlugin } from './'
 
-const orderSchema = new mongo.Schema<Order>(
+const orderSchema = new mongoose.Schema<Order>(
   {
     id: { type: Number, unique: true, index: true },
     paymentId: { type: String, default: null },
@@ -12,14 +12,17 @@ const orderSchema = new mongo.Schema<Order>(
     lastStripeEventId: { type: String, default: null },
     lastReconciliationAttemptAt: { type: Date, default: null },
     lastReconciledAt: { type: Date, default: null },
-    paidAt: { type: Date },
+    reconciliationFailures: { type: Number, required: true, default: 0 },
+    reconciliationAlertId: { type: String, default: null },
+    paidAt: { type: Date, default: null },
     total: { type: Number, required: true },
     currency: { type: String, required: true },
     items: { type: [Object], required: true },
-    firstName: { type: String },
-    lastName: { type: String },
-    email: { type: String },
-    shipping: { type: Object },
+    firstName: { type: String, default: null },
+    lastName: { type: String, default: null },
+    email: { type: String, default: null },
+    shipping: { type: Object, default: null },
+    deletedAt: { type: Date, default: null },
   },
   { timestamps: true },
 )
@@ -32,4 +35,4 @@ orderSchema.index({ checkoutRequestId: 1 }, { unique: true })
 
 orderSchema.plugin(autoIncrementPlugin)
 
-export const OrderModel = mongo.model<Order>('Order', orderSchema)
+export const OrderModel = mongoose.model<Order>('Order', orderSchema)

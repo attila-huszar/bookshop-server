@@ -14,8 +14,7 @@ export const enum IssueCode {
 }
 
 export const enum AdminNotification {
-  Created = 'created',
-  Confirmed = 'confirmed',
+  New = 'new',
   Error = 'error',
 }
 

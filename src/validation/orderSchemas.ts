@@ -8,7 +8,12 @@ import { ordersTable } from '@/models/sqlite'
 import { maxItemQuantity } from '@/constants'
 import type { PaymentIntentStatus, SchemaRefinements } from '@/types'
 import { emailSchema } from './authSchemas'
-import { addressSchema, nameSchema, phoneSchema } from './commonSchemas'
+import {
+  addressSchema,
+  idsSchema,
+  nameSchema,
+  phoneSchema,
+} from './commonSchemas'
 
 export const paymentIntentStatusSchema = z
   .enum([
@@ -82,11 +87,7 @@ export const orderUpdateSchema = createUpdateSchema(ordersTable, {
 })
 
 export const cmsOrderUpdateSchema = orderUpdateSchema
-  .omit({
-    paidAt: true,
-    lastStripeEventCreated: true,
-    lastStripeEventId: true,
-    lastReconciledAt: true,
-    lastReconciliationAttemptAt: true,
-  })
+  .pick({ firstName: true, lastName: true, email: true, shipping: true })
   .strict()
+
+export const cmsOrderIdsSchema = z.object({ orderIds: idsSchema }).strict()

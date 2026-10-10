@@ -50,6 +50,11 @@ export const API = {
     authors: '/cms/authors',
     orders: '/cms/orders',
     users: '/cms/users',
+    restore: {
+      orders: '/cms/restore/orders',
+      users: '/cms/restore/users',
+    },
+    emailOutbox: '/cms/email-outbox',
     productImage: '/cms/product-image',
   },
   logs: {

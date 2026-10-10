@@ -1,5 +1,4 @@
-import type { Types } from 'mongoose'
-import { mongo } from '@/db'
+import mongoose, { type Types } from 'mongoose'
 import type { Book } from '@/types'
 import { autoIncrementPlugin } from './'
 
@@ -21,12 +20,12 @@ export type BookDocPopulatedWithAuthorId = Omit<
   authorId: { _id: Types.ObjectId; id: number } | null
 }
 
-const bookSchema = new mongo.Schema<BookWithAuthorRef>(
+const bookSchema = new mongoose.Schema<BookWithAuthorRef>(
   {
     id: { type: Number, unique: true, index: true },
     title: { type: String, required: true },
     authorId: {
-      type: mongo.Schema.Types.ObjectId,
+      type: mongoose.Schema.Types.ObjectId,
       ref: 'Author',
       default: null,
       required: true,
@@ -47,4 +46,4 @@ const bookSchema = new mongo.Schema<BookWithAuthorRef>(
 
 bookSchema.plugin(autoIncrementPlugin)
 
-export const BookModel = mongo.model<BookWithAuthorRef>('Book', bookSchema)
+export const BookModel = mongoose.model<BookWithAuthorRef>('Book', bookSchema)

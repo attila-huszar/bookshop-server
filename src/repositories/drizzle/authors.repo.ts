@@ -1,6 +1,7 @@
 import { eq, inArray, like } from 'drizzle-orm'
 import { sqlite } from '@/db'
-import model from '@/models'
+import { authorsTable } from '@/models/sqlite'
+import { NotFound } from '@/errors'
 import type {
   Author,
   AuthorInsert,
@@ -8,7 +9,6 @@ import type {
   AuthorUpdate,
 } from '@/types'
 
-const { authorsTable } = model as SQLiteModel
 const { id, name } = authorsTable
 
 export async function getAuthorById(
@@ -24,8 +24,9 @@ export async function getAuthorById(
     .limit(1)
 
   const authorRecord = authorRecords[0]
+
   if (!authorRecord) {
-    throw new Error('Author does not exist')
+    throw new NotFound('Author does not exist')
   }
 
   return authorRecord
@@ -47,6 +48,7 @@ export async function getAuthorsBySearch(
 
 export async function getAllAuthors(): Promise<Author[]> {
   const authorRecords = await sqlite.select().from(authorsTable)
+
   return authorRecords
 }
 
@@ -55,30 +57,28 @@ export async function insertAuthor(author: AuthorInsert): Promise<Author> {
     .insert(authorsTable)
     .values(author)
     .returning()
+
   if (!newAuthor) {
     throw new Error('Failed to create author')
   }
+
   return newAuthor
 }
 
 export async function updateAuthor(
   authorId: number,
   updates: AuthorUpdate,
-): Promise<Author> {
+): Promise<Author | null> {
   const [updatedAuthor] = await sqlite
     .update(authorsTable)
     .set(updates)
     .where(eq(authorsTable.id, authorId))
     .returning()
 
-  if (!updatedAuthor) {
-    throw new Error('Author does not exist')
-  }
-
-  return updatedAuthor
+  return updatedAuthor ?? null
 }
 
-export async function deleteAuthors(
+export async function hardDeleteAuthors(
   authorIds: number[],
 ): Promise<Author['id'][]> {
   await sqlite.delete(authorsTable).where(inArray(authorsTable.id, authorIds))

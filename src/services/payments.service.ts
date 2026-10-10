@@ -6,11 +6,9 @@ import {
   validate,
 } from '@/validation'
 import { log, stripe } from '@/libs'
-import { enqueueEmail } from '@/queues'
 import { defaultCurrency, paymentMessage } from '@/constants'
 import { BadRequest, Internal, NotFound } from '@/errors'
 import { Unauthorized } from '@/errors/Unauthorized'
-import { AdminNotification } from '@/types'
 import type {
   Order,
   OrderInsert,
@@ -29,6 +27,7 @@ async function resolveAuthorizedPayment(
   const validatedId = validate(paymentIdSchema, paymentId)
 
   let order: Order | null
+
   try {
     order = await ordersDB.getOrder(validatedId)
   } catch (lookupErr) {
@@ -36,6 +35,7 @@ async function resolveAuthorizedPayment(
       paymentId: validatedId,
       lookupErr,
     })
+
     throw new Internal('Failed to read order')
   }
 
@@ -106,6 +106,7 @@ export async function retrievePaymentIntent(
   access: PaymentAccess,
 ) {
   const { validatedId } = await resolveAuthorizedPayment(paymentId, access)
+
   return await stripe.paymentIntents.retrieve(validatedId)
 }
 
@@ -120,7 +121,10 @@ async function getOrCreateCheckoutOrder(
   )
   const existingOrder =
     await ordersDB.getOrderByCheckoutRequestId(checkoutRequestId)
-  if (existingOrder) return existingOrder
+
+  if (existingOrder) {
+    return existingOrder
+  }
 
   const { items, total } = await buildOrderItemsAndTotal(validatedRequest)
 
@@ -173,6 +177,7 @@ export async function startCheckoutPayment(
   )
 
   let paymentIntent: StripePaymentIntent
+
   try {
     // Use the persisted snapshot on retries, not current prices or user details.
     paymentIntent = order.paymentId
@@ -181,7 +186,10 @@ export async function startCheckoutPayment(
           {
             amount: Math.round(order.total * 100),
             currency: order.currency.toLowerCase(),
-            metadata: { orderId: String(order.id) },
+            metadata: {
+              orderId: String(order.id),
+              checkoutRequestId: order.checkoutRequestId,
+            },
           },
           { idempotencyKey: checkoutRequestId },
         )
@@ -193,6 +201,7 @@ export async function startCheckoutPayment(
       checkoutRequestId,
       error,
     })
+
     throw error
   }
 
@@ -208,7 +217,7 @@ export async function startCheckoutPayment(
     throw new Internal('Failed to create payment intent: missing client secret')
   }
 
-  const { order: linkedOrder, linked } = await ordersDB.linkPaymentIntent(
+  const linkedOrder = await ordersDB.linkPaymentIntent(
     order.id,
     paymentIntent.id,
     paymentIntent.status,
@@ -220,14 +229,8 @@ export async function startCheckoutPayment(
       paymentId: paymentIntent.id,
       checkoutRequestId,
     })
-    throw new Internal('Failed to link payment intent to order')
-  }
 
-  if (linked) {
-    enqueueEmail('adminPaymentNotification', {
-      order: linkedOrder,
-      notificationType: AdminNotification.Created,
-    })
+    throw new Internal('Failed to link payment intent to order')
   }
 
   return {

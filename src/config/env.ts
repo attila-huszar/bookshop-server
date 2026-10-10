@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import { DB_REPO } from '@/types/enums'
 
 export const env = {
@@ -19,9 +20,15 @@ export const env = {
   cookieSecret: Bun.env.COOKIE_SECRET,
   cookieMaxAge: Bun.env.COOKIE_MAX_AGE ?? '1209600',
 
-  dbRepo: Bun.env.DB_REPO === DB_REPO.MONGO ? DB_REPO.MONGO : DB_REPO.SQLITE,
+  dbRepo: z
+    .enum([DB_REPO.SQLITE, DB_REPO.MONGO], {
+      error: 'Invalid DB_REPO: expected SQLITE or MONGO',
+    })
+    .default(DB_REPO.SQLITE)
+    .parse(Bun.env.DB_REPO),
   dbSqliteFile: Bun.env.DB_SQLITE_FILE ?? 'data/db.sqlite',
-  dbMongoUrl: Bun.env.DB_MONGO_URL ?? 'mongodb://mongodb:27017/bookshop',
+  dbMongoUrl:
+    Bun.env.DB_MONGO_URL ?? 'mongodb://mongodb:27017/bookshop?replicaSet=rs0',
 
   backupDir: Bun.env.BACKUP_DIR ?? 'data/backups',
   backupRetentionDays: Bun.env.BACKUP_RETENTION_DAYS ?? '7',

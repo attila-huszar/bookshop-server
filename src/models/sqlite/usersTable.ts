@@ -33,6 +33,7 @@ export const usersTable = sqliteTable(
     passwordResetExpires: integer('password_reset_expires', {
       mode: 'timestamp',
     }).$type<Date>(),
+    deletedAt: integer('deleted_at', { mode: 'timestamp_ms' }).$type<Date>(),
     ...timestamps,
   },
   (table) => [uniqueIndex('email_unique_ci').on(sql`lower(${table.email})`)],

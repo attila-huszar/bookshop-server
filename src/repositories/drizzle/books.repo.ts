@@ -1,6 +1,6 @@
-import { count, eq, inArray, max, min } from 'drizzle-orm'
+import { count, eq, getTableColumns, inArray, max, min, sql } from 'drizzle-orm'
 import { sqlite } from '@/db'
-import model from '@/models'
+import { authorsTable, booksTable } from '@/models/sqlite'
 import { PAGINATION } from '@/constants'
 import type {
   Book,
@@ -10,8 +10,6 @@ import type {
   BookWithAuthor,
 } from '@/types'
 import { bookQueryBuilder } from './books.query'
-
-const { booksTable, authorsTable } = model as SQLiteModel
 
 const {
   id,
@@ -134,6 +132,7 @@ export async function getBookSearchOptions(): Promise<{
     .filter((genre) => genre !== null)
 
   const minMaxField = minMaxFields[0]
+
   if (!minMaxField) {
     throw new Error('Failed to get min/max values')
   }
@@ -150,33 +149,47 @@ export async function getBookSearchOptions(): Promise<{
 
 export async function getAllBooks(): Promise<Book[]> {
   const bookRecords = await sqlite.select().from(booksTable)
+
   return bookRecords
 }
 
 export async function insertBook(book: BookInsert): Promise<Book> {
   const [newBook] = await sqlite.insert(booksTable).values(book).returning()
+
   if (!newBook) {
     throw new Error('Failed to create book')
   }
+
   return newBook
 }
 
 export async function updateBook(
   bookId: number,
   book: BookUpdate,
-): Promise<Book> {
+): Promise<Book | null> {
   const [updatedBook] = await sqlite
     .update(booksTable)
     .set(book)
     .where(eq(booksTable.id, bookId))
     .returning()
-  if (!updatedBook) {
-    throw new Error('Book not found')
-  }
-  return updatedBook
+
+  return updatedBook ?? null
 }
 
-export async function deleteBooks(bookIds: number[]): Promise<Book['id'][]> {
+export async function hardDeleteBooks(
+  bookIds: number[],
+): Promise<Book['id'][]> {
   await sqlite.delete(booksTable).where(inArray(booksTable.id, bookIds))
+
   return bookIds
+}
+
+/** Sample real rows: catalogue IDs may have gaps after CMS deletions. */
+export async function getRecommendedBooks(): Promise<BookWithAuthor[]> {
+  return await sqlite
+    .select({ ...getTableColumns(booksTable), author: authorsTable.name })
+    .from(booksTable)
+    .leftJoin(authorsTable, eq(authorId, authorsTable.id))
+    .orderBy(sql`random()`)
+    .limit(4)
 }

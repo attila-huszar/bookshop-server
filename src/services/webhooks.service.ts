@@ -1,11 +1,9 @@
 import { env } from '@/config'
 import { extractPaymentIntentFields } from '@/utils'
 import { log, stripe } from '@/libs'
-import { enqueueEmail } from '@/queues'
 import { BadRequest } from '@/errors/BadRequest'
 import { Internal } from '@/errors/Internal'
 import {
-  AdminNotification,
   isPaymentIntentEvent,
   IssueCode,
   type OrderUpdate,
@@ -19,8 +17,6 @@ function reportMissingWebhookOrder(
   paymentIntent: StripePaymentIntent,
   eventMeta: PaymentIntentEventMeta,
 ): void {
-  const extractedFields = extractPaymentIntentFields(paymentIntent)
-
   void log.error('[CRITICAL] Missing order for Stripe payment_intent webhook', {
     issueCode: IssueCode.WEBHOOK_MISSING_ORDER,
     paymentId: paymentIntent.id,
@@ -30,25 +26,25 @@ function reportMissingWebhookOrder(
     currency: paymentIntent.currency,
     receiptEmail: paymentIntent.receipt_email ?? null,
   })
-
-  enqueueEmail('adminPaymentNotification', {
-    notificationType: AdminNotification.Error,
-    source: IssueCode.WEBHOOK_MISSING_ORDER,
-    order: {
-      paymentId: paymentIntent.id,
-      items: [],
-      total: paymentIntent.amount / 100,
-      currency: paymentIntent.currency.toUpperCase(),
-      paymentStatus: paymentIntent.status,
-      ...extractedFields,
-    },
-  })
 }
 
 async function handlePaymentIntentWebhook(
   paymentIntent: StripePaymentIntent,
   eventMeta: PaymentIntentEventMeta,
 ): Promise<void> {
+  // A Stripe account can send PaymentIntents created outside this demo.
+  if (
+    !paymentIntent.metadata?.orderId ||
+    !paymentIntent.metadata.checkoutRequestId
+  ) {
+    log.info(
+      '[STRIPE] Ignoring PaymentIntent outside the bookshop checkout flow',
+      { paymentId: paymentIntent.id },
+    )
+
+    return
+  }
+
   const { eventType } = eventMeta
   const isTerminalEvent =
     eventType === 'payment_intent.succeeded' ||
@@ -59,28 +55,32 @@ async function handlePaymentIntentWebhook(
     ...(includeCustomerDetails && extractPaymentIntentFields(paymentIntent)),
     paymentStatus: paymentIntent.status,
   }
-  const result = await applyPaymentIntentWebhookToOrder(
+  const order = await applyPaymentIntentWebhookToOrder(
     paymentIntent,
     updates,
     eventMeta,
   )
 
-  if (!result) {
+  if (!order) {
     if (isTerminalEvent) {
       reportMissingWebhookOrder(paymentIntent, eventMeta)
+
       throw new Internal(
         `Missing order for Stripe payment intent: ${paymentIntent.id}`,
       )
     }
+
     void log.warn('Failed to find order for payment intent', {
       paymentId: paymentIntent.id,
       ...eventMeta,
     })
+
     return
   }
 
-  const { order } = result
-  if (order.paymentStatus !== paymentIntent.status) return
+  if (order.paymentStatus !== paymentIntent.status) {
+    return
+  }
 
   switch (eventType) {
     case 'payment_intent.succeeded':
@@ -111,6 +111,7 @@ async function handlePaymentIntentWebhook(
       break
     default: {
       const exhaustiveCheck: never = eventType
+
       return exhaustiveCheck
     }
   }

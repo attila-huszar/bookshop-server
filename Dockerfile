@@ -18,7 +18,7 @@ CMD ["bun", "src/app.ts"]
 
 FROM base AS worker
 USER bun
-CMD ["bun", "worker:email"]
+CMD ["bun", "src/workers/email.worker.ts"]
 
 FROM base AS cron
 RUN apk add --no-cache bash mongodb-tools util-linux

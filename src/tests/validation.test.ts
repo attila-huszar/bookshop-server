@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test'
+import { fileURLToPath } from 'node:url'
 import { SQLiteSyncDialect } from 'drizzle-orm/sqlite-core'
 import { bookQueryBuilder as sqliteBookQuery } from '@/repositories/drizzle/books.query'
 import { bookQueryBuilder as mongoBookQuery } from '@/repositories/mongoose/books.query'
@@ -84,6 +85,7 @@ describe('request validation', () => {
         }).success,
       ).toBe(true)
     }
+
     expect(nameSchema.parse(' Jane ')).toBe('Jane')
     expect(nameSchema.safeParse(' ').success).toBe(false)
     expect(
@@ -91,9 +93,11 @@ describe('request validation', () => {
         .success,
     ).toBe(true)
     expect(nameSchema.safeParse('A'.repeat(101)).success).toBe(false)
+
     for (const value of [null, undefined, '']) {
       expect(nameSchema.safeParse(value).success).toBe(false)
     }
+
     for (const field of ['firstName', 'lastName']) {
       expect(
         cmsOrderUpdateSchema.safeParse({ [field]: 'A'.repeat(101) }).success,
@@ -117,6 +121,7 @@ describe('request validation', () => {
     ]) {
       expect(idSchema.safeParse(value).success).toBe(false)
     }
+
     expect(idSchema.parse('12')).toBe(12)
   })
 
@@ -127,6 +132,7 @@ describe('request validation', () => {
     expect(registerSchema.safeParse({ ...user, avatar: null }).success).toBe(
       true,
     )
+
     for (const fields of [
       { firstName: '   ' },
       { lastName: '' },
@@ -156,6 +162,7 @@ describe('request validation', () => {
         false,
       )
     }
+
     expect(
       profileUpdateSchema.parse({
         firstName: ' Jane ',
@@ -177,6 +184,7 @@ describe('request validation', () => {
     expect(
       cmsUserUpdateSchema.safeParse({ role: 'admin', verified: true }).success,
     ).toBe(true)
+
     for (const field of [
       'password',
       'uuid',
@@ -201,8 +209,10 @@ describe('request validation', () => {
     ]) {
       expect(paymentIntentStatusSchema.parse(status)).toBe(status)
     }
-    for (const status of ['paid', '', 1, null])
+
+    for (const status of ['paid', '', 1, null]) {
       expect(paymentIntentStatusSchema.safeParse(status).success).toBe(false)
+    }
   })
 
   it('accepts guest drafts and guest orders without names, email, or shipping', () => {
@@ -238,7 +248,12 @@ describe('request validation', () => {
         false,
       )
     }
+
     for (const field of [
+      'paymentStatus',
+      'total',
+      'currency',
+      'items',
       'paymentId',
       'checkoutRequestId',
       'paidAt',
@@ -246,8 +261,11 @@ describe('request validation', () => {
       'lastStripeEventCreated',
       'lastReconciledAt',
       'lastReconciliationAttemptAt',
+      'reconciliationFailures',
+      'reconciliationAlertId',
       'createdAt',
       'updatedAt',
+      'deletedAt',
     ]) {
       expect(cmsOrderUpdateSchema.safeParse({ [field]: 'value' }).success).toBe(
         false,
@@ -257,6 +275,7 @@ describe('request validation', () => {
 
   it('enforces book domain rules for creation and partial updates', () => {
     expect(bookInsertSchema.safeParse(book).success).toBe(true)
+
     for (const fields of [
       { title: ' ' },
       { authorId: 0 },
@@ -277,6 +296,7 @@ describe('request validation', () => {
 
   it('allows unknown author details but rejects invalid names and years', () => {
     expect(authorInsertSchema.safeParse(author).success).toBe(true)
+
     for (const fields of [
       { name: ' ' },
       { birthYear: '-10' },
@@ -289,6 +309,44 @@ describe('request validation', () => {
     }
   })
 
+  it('accepts the same empty optional author details in Mongo as in request validation', async () => {
+    // Use real models outside the repository suite's module mocks. Validation
+    // with an explicit ID does not allocate a counter or connect to Mongo.
+    const schemaUrl = new URL('../validation/authorSchemas.ts', import.meta.url)
+      .href
+    const modelUrl = new URL('../models/mongo/AuthorModel.ts', import.meta.url)
+      .href
+    const child = Bun.spawn(
+      [
+        process.execPath,
+        '--no-env-file',
+        '-e',
+        `
+        const { authorInsertSchema } = await import(${JSON.stringify(schemaUrl)})
+        const { AuthorModel } = await import(${JSON.stringify(modelUrl)})
+        const input = authorInsertSchema.parse(${JSON.stringify(author)})
+        await new AuthorModel({ ...input, id: 1 }).validate()
+      `,
+      ],
+      {
+        cwd: fileURLToPath(new URL('../../', import.meta.url)),
+        env: {
+          ...process.env,
+          DB_REPO: 'MONGO',
+          STRIPE_SECRET: 'sk_test_validation',
+        },
+        stdout: 'pipe',
+        stderr: 'pipe',
+      },
+    )
+    const [exitCode, stderr] = await Promise.all([
+      child.exited,
+      new Response(child.stderr).text(),
+    ])
+
+    expect({ exitCode, stderr }).toEqual({ exitCode: 0, stderr: '' })
+  })
+
   it('parses numeric and boolean queries while preserving zero and false', () => {
     const query = bookQuerySchema.parse({
       discount: '0',
@@ -297,6 +355,7 @@ describe('request validation', () => {
       page: '2',
       rating_lte: '4.5',
     })
+
     expect(query).toEqual({
       discount: 0,
       newRelease: false,
@@ -311,6 +370,7 @@ describe('request validation', () => {
       rating: { $lte: 4.5 },
     })
     const sql = new SQLiteSyncDialect().sqlToQuery(sqliteBookQuery(query)!)
+
     expect(sql.params).toEqual([0, 4.5, 0, 0])
     expect(sql.sql).toContain('"books"."discount" = ?')
     expect(sqliteBookQuery({})).toBeUndefined()
@@ -329,6 +389,7 @@ describe('request validation', () => {
     ]) {
       expect(bookQuerySchema.safeParse(query).success).toBe(false)
     }
+
     expect(
       mongoBookQuery(bookQuerySchema.parse({ title: '[book].*' })),
     ).toEqual({ title: { $regex: '\\[book\\]\\.\\*', $options: 'i' } })

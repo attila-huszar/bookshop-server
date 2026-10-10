@@ -6,8 +6,6 @@ import {
   type StripePaymentIntent,
 } from '@/types'
 import {
-  mockCancelAdminPaymentErrorAlert,
-  mockEnqueueEmail,
   mockExtractPaymentIntentFields,
   mockLogger,
   mockOrdersDB,
@@ -27,6 +25,8 @@ const createOrder = (overrides: Partial<Order> = {}): Order => ({
   lastStripeEventCreated: null,
   lastStripeEventId: null,
   lastReconciledAt: null,
+  reconciliationFailures: 0,
+  reconciliationAlertId: null,
   lastReconciliationAttemptAt: null,
   paidAt: null,
   total: 25.99,
@@ -38,6 +38,7 @@ const createOrder = (overrides: Partial<Order> = {}): Order => ({
   shipping: null,
   createdAt: new Date('2026-02-24T10:00:00.000Z'),
   updatedAt: new Date('2026-02-24T10:05:00.000Z'),
+  deletedAt: null,
   ...overrides,
 })
 
@@ -48,7 +49,11 @@ const createStripePaymentIntent = (
   ({
     id: 'pi_test_123',
     status,
-    metadata: orderId ? { orderId } : {},
+    metadata: orderId
+      ? { orderId, checkoutRequestId: 'checkout-webhook-test' }
+      : {},
+    amount: 2599,
+    currency: 'usd',
   }) as unknown as StripePaymentIntent
 
 function createPaymentIntentEvent({
@@ -77,6 +82,7 @@ function createPaymentIntentEvent({
       object: {
         id: 'pi_test_123',
         object: 'payment_intent',
+        metadata: { orderId: '1', checkoutRequestId: 'checkout-webhook-test' },
         status,
         amount: 2599,
         currency: 'usd',
@@ -91,13 +97,15 @@ function createPaymentIntentEvent({
 function mockWebhookRequest(event: unknown) {
   // Signature verification belongs to Stripe; these tests exercise our handler.
   mockStripe.webhooks.constructEventAsync.mockResolvedValueOnce(event)
+
   return { payload: JSON.stringify(event), signature: 'test-signature' }
 }
 
 describe('Webhooks Service', () => {
   beforeEach(() => {
+    mockOrdersDB.recordReconciliationFailure.mockReset()
+    mockOrdersDB.getOrderById.mockReset().mockResolvedValue(null)
     mockOrdersDB.getOrder.mockReset()
-    mockOrdersDB.getOrderById.mockReset()
     mockOrdersDB.linkPaymentIntent.mockReset()
     mockOrdersDB.updateOrder.mockReset()
     mockStripe.webhooks.constructEventAsync.mockReset()
@@ -106,9 +114,6 @@ describe('Webhooks Service', () => {
     mockLogger.warn.mockReset()
     mockLogger.error.mockReset()
     mockExtractPaymentIntentFields.mockReset()
-    mockEnqueueEmail.mockReset()
-    mockCancelAdminPaymentErrorAlert.mockReset()
-    mockCancelAdminPaymentErrorAlert.mockResolvedValue(false)
     mockExtractPaymentIntentFields.mockReturnValue({})
   })
 
@@ -132,7 +137,8 @@ describe('Webhooks Service', () => {
         eventId: 'evt_delayed',
       },
     )
-    expect(result?.order.paymentStatus).toBe('requires_payment_method')
+
+    expect(result?.paymentStatus).toBe('requires_payment_method')
     expect(mockStripe.paymentIntents.retrieve).toHaveBeenCalledWith(
       'pi_test_123',
     )
@@ -144,10 +150,11 @@ describe('Webhooks Service', () => {
       paymentStatus: 'requires_payment_method',
       lastReconciledAt: new Date(250_000),
     })
+
     mockOrdersDB.getOrder.mockResolvedValueOnce(order)
     mockOrdersDB.updateOrder.mockResolvedValueOnce({
-      order: { ...order, paymentStatus: 'processing' },
-      becamePaid: false,
+      ...order,
+      paymentStatus: 'processing',
     })
     await applyPaymentIntentWebhookToOrder(
       createStripePaymentIntent(),
@@ -175,7 +182,7 @@ describe('Webhooks Service', () => {
       received: true,
     })
     expect(mockOrdersDB.getOrder).not.toHaveBeenCalled()
-    expect(mockEnqueueEmail).not.toHaveBeenCalled()
+    expect(mockOrdersDB.recordReconciliationFailure).not.toHaveBeenCalled()
     expect(mockLogger.info).toHaveBeenCalledWith(
       '[STRIPE] Unhandled webhook event type: charge.refunded',
     )
@@ -194,7 +201,7 @@ describe('Webhooks Service', () => {
       received: true,
     })
     expect(mockOrdersDB.getOrder).not.toHaveBeenCalled()
-    expect(mockEnqueueEmail).not.toHaveBeenCalled()
+    expect(mockOrdersDB.recordReconciliationFailure).not.toHaveBeenCalled()
     expect(mockLogger.info).toHaveBeenCalledWith(
       '[STRIPE] Unhandled webhook event type: payment_intent.future_event',
     )
@@ -221,20 +228,17 @@ describe('Webhooks Service', () => {
 
     expect(mockOrdersDB.updateOrder).not.toHaveBeenCalled()
     expect(result).not.toBeNull()
-    expect(result?.becamePaid).toBe(false)
   })
 
   it('links a draft order using the Stripe metadata before applying the webhook', async () => {
+    mockOrdersDB.getOrderById.mockResolvedValueOnce(
+      createOrder({ paymentId: null }),
+    )
     const linkedOrder = createOrder({ paymentId: 'pi_test_123' })
+
     mockOrdersDB.getOrder.mockResolvedValueOnce(null)
-    mockOrdersDB.linkPaymentIntent.mockResolvedValueOnce({
-      order: linkedOrder,
-      linked: true,
-    })
-    mockOrdersDB.updateOrder.mockResolvedValueOnce({
-      order: linkedOrder,
-      becamePaid: false,
-    })
+    mockOrdersDB.linkPaymentIntent.mockResolvedValueOnce(linkedOrder)
+    mockOrdersDB.updateOrder.mockResolvedValueOnce(linkedOrder)
 
     await applyPaymentIntentWebhookToOrder(
       createStripePaymentIntent('1'),
@@ -259,10 +263,27 @@ describe('Webhooks Service', () => {
         lastStripeEventId: 'evt_draft',
       }),
     )
-    expect(mockEnqueueEmail).toHaveBeenCalledWith('adminPaymentNotification', {
-      order: linkedOrder,
-      notificationType: 'created',
+    expect(mockOrdersDB.recordReconciliationFailure).not.toHaveBeenCalled()
+  })
+
+  it('acknowledges unrelated PaymentIntents without creating orders or alerts', async () => {
+    const event = createPaymentIntentEvent({
+      eventId: 'evt_unrelated',
+      eventCreated: 100,
+      type: 'payment_intent.succeeded',
+      status: 'succeeded',
     })
+    const unrelated = {
+      ...event,
+      data: { object: { ...event.data.object, metadata: {} } },
+    }
+    const { payload, signature } = mockWebhookRequest(unrelated)
+
+    expect(await verifyAndHandleStripeWebhook(payload, signature)).toEqual({
+      received: true,
+    })
+    expect(mockOrdersDB.getOrder).not.toHaveBeenCalled()
+    expect(mockOrdersDB.recordReconciliationFailure).not.toHaveBeenCalled()
   })
 
   it('ignores duplicate webhook events in the same second', async () => {
@@ -286,7 +307,6 @@ describe('Webhooks Service', () => {
 
     expect(mockOrdersDB.updateOrder).not.toHaveBeenCalled()
     expect(result).not.toBeNull()
-    expect(result?.becamePaid).toBe(false)
   })
 
   it('ignores a same-second status when Stripe has moved on', async () => {
@@ -316,7 +336,6 @@ describe('Webhooks Service', () => {
       'pi_test_123',
     )
     expect(result).not.toBeNull()
-    expect(result?.becamePaid).toBe(false)
   })
 
   it('applies a same-second status when Stripe confirms it', async () => {
@@ -336,10 +355,7 @@ describe('Webhooks Service', () => {
         lastStripeEventId: 'evt_prev',
       }),
     )
-    mockOrdersDB.updateOrder.mockResolvedValueOnce({
-      order: updatedOrder,
-      becamePaid: false,
-    })
+    mockOrdersDB.updateOrder.mockResolvedValueOnce(updatedOrder)
 
     const result = await applyPaymentIntentWebhookToOrder(
       createStripePaymentIntent(),
@@ -360,7 +376,7 @@ describe('Webhooks Service', () => {
       }),
     )
     expect(result).not.toBeNull()
-    expect(result?.order.paymentStatus).toBe('processing')
+    expect(result?.paymentStatus).toBe('processing')
   })
 
   it('applies a same-second payment failure when Stripe confirms the new status', async () => {
@@ -374,10 +390,9 @@ describe('Webhooks Service', () => {
         lastStripeEventId: 'evt_action',
       }),
     )
-    mockOrdersDB.updateOrder.mockResolvedValueOnce({
-      order: createOrder({ paymentStatus: 'requires_payment_method' }),
-      becamePaid: false,
-    })
+    mockOrdersDB.updateOrder.mockResolvedValueOnce(
+      createOrder({ paymentStatus: 'requires_payment_method' }),
+    )
 
     const result = await applyPaymentIntentWebhookToOrder(
       createStripePaymentIntent(undefined, 'requires_payment_method'),
@@ -389,7 +404,7 @@ describe('Webhooks Service', () => {
       },
     )
 
-    expect(result?.order.paymentStatus).toBe('requires_payment_method')
+    expect(result?.paymentStatus).toBe('requires_payment_method')
     expect(mockOrdersDB.updateOrder).toHaveBeenCalledWith(
       'pi_test_123',
       expect.objectContaining({ paymentStatus: 'requires_payment_method' }),
@@ -409,6 +424,7 @@ describe('Webhooks Service', () => {
     )
 
     let resultError: unknown = null
+
     try {
       await applyPaymentIntentWebhookToOrder(
         createStripePaymentIntent(undefined, 'requires_payment_method'),
@@ -444,10 +460,7 @@ describe('Webhooks Service', () => {
         lastStripeEventId: 'evt_prev',
       }),
     )
-    mockOrdersDB.updateOrder.mockResolvedValueOnce({
-      order: updatedOrder,
-      becamePaid: true,
-    })
+    mockOrdersDB.updateOrder.mockResolvedValueOnce(updatedOrder)
 
     const result = await applyPaymentIntentWebhookToOrder(
       createStripePaymentIntent(),
@@ -469,11 +482,12 @@ describe('Webhooks Service', () => {
       }),
     )
     expect(result).not.toBeNull()
-    expect(result?.becamePaid).toBe(true)
+    expect(result?.paidAt).toBeInstanceOf(Date)
   })
 
   it('preserves an existing order email when Stripe supplies a different receipt email', async () => {
     const existingOrder = createOrder({ email: 'account@example.com' })
+
     mockOrdersDB.getOrder.mockResolvedValueOnce(existingOrder)
     mockOrdersDB.updateOrder.mockRejectedValueOnce(new Error('save failed'))
 
@@ -504,15 +518,7 @@ describe('Webhooks Service', () => {
         email: 'account@example.com',
       }),
     )
-    expect(mockEnqueueEmail).toHaveBeenCalledWith(
-      'adminPaymentNotification',
-      expect.objectContaining({
-        notificationType: 'error',
-        order: expect.objectContaining({
-          email: 'account@example.com',
-        }) as Order,
-      }),
-    )
+    expect(mockOrdersDB.recordReconciliationFailure).not.toHaveBeenCalled()
   })
 
   it('ignores terminal status downgrade even for newer events', async () => {
@@ -537,7 +543,6 @@ describe('Webhooks Service', () => {
 
     expect(mockOrdersDB.updateOrder).not.toHaveBeenCalled()
     expect(result).not.toBeNull()
-    expect(result?.becamePaid).toBe(false)
   })
 
   it('does not log a canceled order transition when the order is already paid', async () => {
@@ -547,6 +552,7 @@ describe('Webhooks Service', () => {
       type: 'payment_intent.canceled',
       status: 'canceled',
     })
+
     mockOrdersDB.getOrder.mockResolvedValueOnce(
       createOrder({
         paymentStatus: 'succeeded',
@@ -567,7 +573,7 @@ describe('Webhooks Service', () => {
     )
   })
 
-  it('throws 500 and alerts admin when webhook order update save throws', async () => {
+  it('throws 500 and leaves reconciliation to maintenance when webhook order update save throws', async () => {
     mockOrdersDB.getOrder.mockResolvedValueOnce(
       createOrder({
         paymentStatus: 'processing',
@@ -601,17 +607,7 @@ describe('Webhooks Service', () => {
       status: 500,
       message: 'Failed to save webhook order update',
     })
-    expect(mockEnqueueEmail).toHaveBeenCalledWith(
-      'adminPaymentNotification',
-      expect.objectContaining({
-        notificationType: 'error',
-        order: expect.objectContaining({
-          paymentId: 'pi_test_123',
-          paymentStatus: 'succeeded',
-          email: 'buyer@example.com',
-        }) as Order,
-      }),
-    )
+    expect(mockOrdersDB.recordReconciliationFailure).not.toHaveBeenCalled()
     expect(mockLogger.error).toHaveBeenCalledWith(
       '[CRITICAL] Webhook order update save failed',
       expect.objectContaining({
@@ -628,17 +624,14 @@ describe('Webhooks Service', () => {
     )
   })
 
-  it('throws 500 and alerts admin when webhook order update returns null', async () => {
+  it('throws 500 and leaves reconciliation to maintenance when webhook order update returns null', async () => {
     mockOrdersDB.getOrder.mockResolvedValueOnce(
       createOrder({
         paymentStatus: 'processing',
         email: null,
       }),
     )
-    mockOrdersDB.updateOrder.mockResolvedValueOnce({
-      order: null,
-      becamePaid: false,
-    })
+    mockOrdersDB.updateOrder.mockResolvedValueOnce(null)
     mockExtractPaymentIntentFields.mockReturnValue({
       email: 'buyer@example.com',
     })
@@ -663,17 +656,7 @@ describe('Webhooks Service', () => {
       status: 500,
       message: 'Failed to save webhook order update',
     })
-    expect(mockEnqueueEmail).toHaveBeenCalledWith(
-      'adminPaymentNotification',
-      expect.objectContaining({
-        notificationType: 'error',
-        order: expect.objectContaining({
-          paymentId: 'pi_test_123',
-          paymentStatus: 'succeeded',
-          email: 'buyer@example.com',
-        }) as Order,
-      }),
-    )
+    expect(mockOrdersDB.recordReconciliationFailure).not.toHaveBeenCalled()
     expect(mockLogger.error).toHaveBeenCalledWith(
       '[CRITICAL] Webhook order update save failed',
       expect.objectContaining({
@@ -690,7 +673,7 @@ describe('Webhooks Service', () => {
     )
   })
 
-  it('sends confirmed notifications when webhook marks order as just paid', async () => {
+  it('sends new-order notifications when webhook marks order as just paid', async () => {
     const updatedOrder = createOrder({
       paymentStatus: 'succeeded',
       paidAt: new Date('2026-02-24T10:10:00.000Z'),
@@ -702,10 +685,7 @@ describe('Webhooks Service', () => {
         paidAt: null,
       }),
     )
-    mockOrdersDB.updateOrder.mockResolvedValueOnce({
-      order: updatedOrder,
-      becamePaid: true,
-    })
+    mockOrdersDB.updateOrder.mockResolvedValueOnce(updatedOrder)
 
     const event = createPaymentIntentEvent({
       eventId: 'evt_webhook_paid',
@@ -718,22 +698,10 @@ describe('Webhooks Service', () => {
     const result = await verifyAndHandleStripeWebhook(payload, signature)
 
     expect(result).toEqual({ received: true })
-    expect(mockCancelAdminPaymentErrorAlert).toHaveBeenCalledWith('pi_test_123')
-    expect(mockEnqueueEmail).toHaveBeenCalledTimes(2)
-    expect(mockEnqueueEmail).toHaveBeenNthCalledWith(1, 'orderConfirmation', {
-      order: updatedOrder,
-    })
-    expect(mockEnqueueEmail).toHaveBeenNthCalledWith(
-      2,
-      'adminPaymentNotification',
-      {
-        order: updatedOrder,
-        notificationType: 'confirmed',
-      },
-    )
+    expect(mockOrdersDB.recordReconciliationFailure).not.toHaveBeenCalled()
   })
 
-  it('does not send confirmed notifications for succeeded webhook when order is already paid', async () => {
+  it('does not send new-order notifications for succeeded webhook when order is already paid', async () => {
     const existingOrder = createOrder({
       paymentStatus: 'succeeded',
       paidAt: new Date('2026-02-24T10:03:00.000Z'),
@@ -748,10 +716,7 @@ describe('Webhooks Service', () => {
     })
 
     mockOrdersDB.getOrder.mockResolvedValueOnce(existingOrder)
-    mockOrdersDB.updateOrder.mockResolvedValueOnce({
-      order: updatedOrder,
-      becamePaid: false,
-    })
+    mockOrdersDB.updateOrder.mockResolvedValueOnce(updatedOrder)
 
     const event = createPaymentIntentEvent({
       eventId: 'evt_repeat_success',
@@ -764,7 +729,7 @@ describe('Webhooks Service', () => {
     const result = await verifyAndHandleStripeWebhook(payload, signature)
 
     expect(result).toEqual({ received: true })
-    expect(mockEnqueueEmail).not.toHaveBeenCalled()
+    expect(mockOrdersDB.recordReconciliationFailure).not.toHaveBeenCalled()
     expect(mockOrdersDB.updateOrder).toHaveBeenCalledTimes(1)
     expect(mockOrdersDB.updateOrder).toHaveBeenCalledWith(
       'pi_test_123',
@@ -774,7 +739,7 @@ describe('Webhooks Service', () => {
     )
   })
 
-  it('throws 500, logs, and alerts on missing order for payment_intent.succeeded', async () => {
+  it('throws 500, logs the missing order on missing order for payment_intent.succeeded', async () => {
     mockOrdersDB.getOrder.mockResolvedValueOnce(null)
     mockExtractPaymentIntentFields.mockReturnValue({
       email: 'buyer@example.com',
@@ -801,19 +766,7 @@ describe('Webhooks Service', () => {
       status: 500,
       message: 'Missing order for Stripe payment intent: pi_test_123',
     })
-    expect(mockEnqueueEmail).toHaveBeenCalledWith(
-      'adminPaymentNotification',
-      expect.objectContaining({
-        notificationType: 'error',
-        order: expect.objectContaining({
-          paymentId: 'pi_test_123',
-          total: 25.99,
-          currency: 'USD',
-          paymentStatus: 'succeeded',
-          email: 'buyer@example.com',
-        }) as Order,
-      }),
-    )
+    expect(mockOrdersDB.recordReconciliationFailure).not.toHaveBeenCalled()
 
     const missingOrderErrorLog = mockLogger.error.mock.calls.find(
       ([message]) =>
@@ -835,7 +788,7 @@ describe('Webhooks Service', () => {
     })
   })
 
-  it('throws 500, logs, and alerts on missing order for payment_intent.canceled', async () => {
+  it('throws 500, logs the missing order on missing order for payment_intent.canceled', async () => {
     mockOrdersDB.getOrder.mockResolvedValueOnce(null)
     mockExtractPaymentIntentFields.mockReturnValue({
       email: 'buyer@example.com',
@@ -860,19 +813,7 @@ describe('Webhooks Service', () => {
       status: 500,
       message: 'Missing order for Stripe payment intent: pi_test_123',
     })
-    expect(mockEnqueueEmail).toHaveBeenCalledWith(
-      'adminPaymentNotification',
-      expect.objectContaining({
-        notificationType: 'error',
-        order: expect.objectContaining({
-          paymentId: 'pi_test_123',
-          total: 25.99,
-          currency: 'USD',
-          paymentStatus: 'canceled',
-          email: 'buyer@example.com',
-        }) as Order,
-      }),
-    )
+    expect(mockOrdersDB.recordReconciliationFailure).not.toHaveBeenCalled()
 
     const missingOrderErrorLog = mockLogger.error.mock.calls.find(
       ([message]) =>

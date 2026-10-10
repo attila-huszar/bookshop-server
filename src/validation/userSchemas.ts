@@ -11,6 +11,7 @@ import { emailSchema, passwordSchema } from './authSchemas'
 import {
   addressSchema,
   countrySchema,
+  idsSchema,
   nameSchema,
   phoneSchema,
 } from './commonSchemas'
@@ -94,3 +95,5 @@ export const cmsUserInsertSchema = userInsertSchema
     password: passwordSchema.shape.password,
     verified: z.boolean().default(false),
   })
+
+export const cmsUserIdsSchema = z.object({ userIds: idsSchema }).strict()

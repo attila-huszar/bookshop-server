@@ -1,33 +1,15 @@
 import type { Stripe } from 'stripe'
 
-// ============================================================================
-// Stripe Core Types - Primary Aliases
-// ============================================================================
-
 export type StripePaymentIntent = Stripe.PaymentIntent
 export type StripeEvent = Stripe.Event
 
-// ============================================================================
-// Stripe Nested Types - Commonly Used
-// ============================================================================
-
 export type PaymentIntentStatus = Stripe.PaymentIntent.Status
 export type PaymentIntentShipping = Stripe.PaymentIntent.Shipping
-export type Address = Stripe.Address
 
-// ============================================================================
-// Stripe Event Types - Webhook Handlers
-// ============================================================================
-
-export type StripePaymentIntentEvent =
-  | Stripe.PaymentIntentCreatedEvent
-  | Stripe.PaymentIntentSucceededEvent
-  | Stripe.PaymentIntentAmountCapturableUpdatedEvent
-  | Stripe.PaymentIntentPartiallyFundedEvent
-  | Stripe.PaymentIntentPaymentFailedEvent
-  | Stripe.PaymentIntentRequiresActionEvent
-  | Stripe.PaymentIntentProcessingEvent
-  | Stripe.PaymentIntentCanceledEvent
+export type StripePaymentIntentEvent = Extract<
+  StripeEvent,
+  { type: `payment_intent.${string}` }
+>
 
 export type PaymentIntentEventMeta = {
   eventType: StripePaymentIntentEvent['type']
@@ -35,24 +17,19 @@ export type PaymentIntentEventMeta = {
   eventCreated: number
 }
 
-// ============================================================================
-// Type Guards - Event Narrowing
-// ============================================================================
+// SDK additions require an explicit decision here and in the webhook handler.
+const paymentIntentEvents = {
+  'payment_intent.created': true,
+  'payment_intent.succeeded': true,
+  'payment_intent.amount_capturable_updated': true,
+  'payment_intent.partially_funded': true,
+  'payment_intent.payment_failed': true,
+  'payment_intent.requires_action': true,
+  'payment_intent.processing': true,
+  'payment_intent.canceled': true,
+} satisfies Record<StripePaymentIntentEvent['type'], true>
 
 export const isPaymentIntentEvent = (
   event: StripeEvent,
-): event is StripePaymentIntentEvent => {
-  switch (event.type) {
-    case 'payment_intent.created':
-    case 'payment_intent.succeeded':
-    case 'payment_intent.amount_capturable_updated':
-    case 'payment_intent.partially_funded':
-    case 'payment_intent.payment_failed':
-    case 'payment_intent.requires_action':
-    case 'payment_intent.processing':
-    case 'payment_intent.canceled':
-      return true
-    default:
-      return false
-  }
-}
+): event is StripePaymentIntentEvent =>
+  Object.hasOwn(paymentIntentEvents, event.type)

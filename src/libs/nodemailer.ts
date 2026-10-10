@@ -24,6 +24,9 @@ function createTransporter(): MailTransporter {
     pool: true,
     maxConnections: 5,
     maxMessages: 100,
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 30_000,
 
     service: env.mailerService,
     host: env.mailerHost,
@@ -38,7 +41,9 @@ function createTransporter(): MailTransporter {
 }
 
 export function getTransporter(): MailTransporter | null {
-  if (transporter) return transporter
+  if (transporter) {
+    return transporter
+  }
 
   if (!env.mailerUser || !env.mailerPass) {
     return null
@@ -60,15 +65,14 @@ export function getTransporter(): MailTransporter | null {
   return transporter
 }
 
-export function initMailer(): void {
-  getTransporter()
-}
-
 export function closeMailer(): void {
   const activeTransporter = transporter
+
   transporter = null
 
-  if (!activeTransporter) return
+  if (!activeTransporter) {
+    return
+  }
 
   activeTransporter.close()
 }

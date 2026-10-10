@@ -3,6 +3,7 @@ export { AuthorModel } from './AuthorModel'
 export { UserModel } from './UserModel'
 export { NewsModel } from './NewsModel'
 export { OrderModel } from './OrderModel'
+export { EmailOutboxModel } from './EmailOutboxModel'
 export {
   autoIncrementPlugin,
   getHighestId,

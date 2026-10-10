@@ -1,8 +1,8 @@
 import { newsDB } from '@/repositories'
-import { stripTimestamps } from '@/utils'
-import type { News } from '@/types'
+import { newsResponse } from '@/utils/response.utils'
 
-export async function getNews(): Promise<WithoutTS<News>[]> {
+export async function getNews(): Promise<ReturnType<typeof newsResponse>[]> {
   const news = await newsDB.getNews()
-  return news.map(stripTimestamps)
+
+  return news.map(newsResponse)
 }

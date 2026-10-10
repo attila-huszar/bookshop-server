@@ -1,16 +1,11 @@
 import { Hono } from 'hono'
 import { getNews } from '@/services'
 import { API } from '@/constants'
-import { errorHandler } from '@/errors'
 
 export const news = new Hono()
 
 news.get(API.news.root, async (c) => {
-  try {
-    const newsRecords = await getNews()
+  const newsRecords = await getNews()
 
-    return c.json(newsRecords)
-  } catch (error) {
-    return errorHandler(c, error)
-  }
+  return c.json(newsRecords)
 })

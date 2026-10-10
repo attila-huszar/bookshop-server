@@ -1,4 +1,3 @@
-import { env } from '@/config'
 import { usersDB } from '@/repositories'
 import {
   emailSchema,
@@ -10,21 +9,10 @@ import {
   tokenSchema,
   validate,
 } from '@/validation'
-import {
-  signAccessToken,
-  signRefreshToken,
-  stripSensitiveUserFields,
-  uploadFile,
-} from '@/utils'
-import { enqueueEmail } from '@/queues'
+import { signAccessToken, signRefreshToken, uploadFile } from '@/utils'
+import { publicUserResponse } from '@/utils/response.utils'
 import { authMessage, DUMMY_PASSWORD_HASH, userMessage } from '@/constants'
-import {
-  BadRequest,
-  Forbidden,
-  Internal,
-  NotFound,
-  Unauthorized,
-} from '@/errors'
+import { BadRequest, Forbidden, Internal, Unauthorized } from '@/errors'
 import {
   Folder,
   type LoginRequest,
@@ -33,7 +21,8 @@ import {
   type PasswordResetToken,
   type ProfileUpdate,
   type PublicUser,
-  type UserInsert,
+  type User,
+  type UserRegistrationInsert,
   UserRole,
   type VerificationRequest,
 } from '@/types'
@@ -41,7 +30,7 @@ import {
 export async function loginUser(loginRequest: LoginRequest) {
   const { email, password } = validate(loginSchema, loginRequest)
 
-  const user = await usersDB.getUserBy('email', email)
+  const user = await usersDB.getActiveUserBy('email', email)
   let isPasswordCorrect = false
 
   try {
@@ -87,22 +76,21 @@ export async function registerUser(formData: FormData) {
     form,
   )
 
-  const existingUser = await usersDB.getUserBy('email', email)
+  const emailTaken = await usersDB.emailExists(email)
 
-  if (existingUser) {
+  if (emailTaken) {
     throw new BadRequest(userMessage.emailTaken)
   }
 
   const verificationToken = crypto.randomUUID()
   const verificationExpires = new Date(Date.now() + 86400000)
-  const tokenLink = `${env.clientBaseUrl}/verification?token=${verificationToken}`
 
   const avatar =
     form.avatar instanceof File
       ? await uploadFile(form.avatar, Folder.Avatars)
       : null
 
-  const newUser: UserInsert = {
+  const newUser: UserRegistrationInsert = {
     uuid: crypto.randomUUID(),
     firstName,
     lastName,
@@ -120,17 +108,11 @@ export async function registerUser(formData: FormData) {
     passwordResetExpires: null,
   }
 
-  const userCreated = await usersDB.createUser(newUser)
+  const userCreated = await usersDB.createUserWithVerification(newUser)
 
   if (!userCreated) {
     throw new Internal(userMessage.createFailed)
   }
-
-  enqueueEmail('verification', {
-    toAddress: email,
-    toName: firstName,
-    tokenLink,
-  })
 
   return { email: userCreated.email }
 }
@@ -138,7 +120,7 @@ export async function registerUser(formData: FormData) {
 export async function verifyUser(verificationRequest: VerificationRequest) {
   const { token } = validate(tokenSchema, verificationRequest)
 
-  const user = await usersDB.getUserBy('verificationToken', token)
+  const user = await usersDB.getActiveUserBy('verificationToken', token)
 
   if (!user?.verificationToken) {
     throw new BadRequest(authMessage.invalidToken)
@@ -168,7 +150,7 @@ export async function passwordResetRequest(
 ) {
   const { email } = validate(emailSchema, passwordResetRequest)
 
-  const user = await usersDB.getUserBy('email', email)
+  const user = await usersDB.getActiveUserBy('email', email)
 
   if (!user) {
     return { message: userMessage.forgotPasswordRequest }
@@ -176,22 +158,15 @@ export async function passwordResetRequest(
 
   const passwordResetToken = crypto.randomUUID()
   const passwordResetExpires = new Date(Date.now() + 86400000)
-  const tokenLink = `${env.clientBaseUrl}/password-reset?token=${passwordResetToken}`
 
-  const userUpdated = await usersDB.updateUserBy('email', user.email, {
-    passwordResetToken,
-    passwordResetExpires,
+  const userUpdated = await usersDB.setPasswordResetToken(user.uuid, {
+    token: passwordResetToken,
+    expiresAt: passwordResetExpires,
   })
 
   if (!userUpdated) {
     throw new Internal(userMessage.updateFailed)
   }
-
-  enqueueEmail('passwordReset', {
-    toAddress: user.email,
-    toName: user.firstName,
-    tokenLink,
-  })
 
   return { message: userMessage.forgotPasswordRequest }
 }
@@ -201,7 +176,7 @@ export async function passwordResetToken(
 ) {
   const { token } = validate(tokenSchema, passwordResetToken)
 
-  const user = await usersDB.getUserBy('passwordResetToken', token)
+  const user = await usersDB.getActiveUserBy('passwordResetToken', token)
 
   if (!user?.passwordResetToken) {
     throw new BadRequest(authMessage.invalidToken)
@@ -215,7 +190,7 @@ export async function passwordResetSubmit(
 ) {
   const { token, password } = validate(passwordResetSchema, passwordResetSubmit)
 
-  const user = await usersDB.getUserBy('passwordResetToken', token)
+  const user = await usersDB.getActiveUserBy('passwordResetToken', token)
   const passwordResetExpiry = user?.passwordResetExpires
 
   if (
@@ -239,29 +214,30 @@ export async function passwordResetSubmit(
   return { message: userMessage.passwordResetSuccess }
 }
 
-export async function getUserProfile(uuid: string): Promise<PublicUser>
-export async function getUserProfile(
+export async function getActiveUser(uuid: string): Promise<User>
+export async function getActiveUser(
   uuid: string,
   options: { optional: true },
-): Promise<PublicUser | null>
-export async function getUserProfile(
+): Promise<User | null>
+export async function getActiveUser(
   uuid: string,
   options?: { optional?: boolean },
-): Promise<PublicUser | null> {
-  const user = await usersDB.getUserBy('uuid', uuid)
+): Promise<User | null> {
+  const user = await usersDB.getActiveUserBy('uuid', uuid)
 
   if (!user) {
     if (options?.optional) {
       return null
     }
-    throw new NotFound(userMessage.notFound)
+
+    throw new Unauthorized(authMessage.invalidToken)
   }
 
-  return stripSensitiveUserFields(user)
+  return user
 }
 
 export async function updateUserProfile(
-  uuid: string,
+  user: Pick<User, 'uuid' | 'password'>,
   updateFields: ProfileUpdate,
 ): Promise<PublicUser> {
   const { currentPassword, ...validatedFields } = validate(
@@ -269,14 +245,9 @@ export async function updateUserProfile(
     updateFields,
   )
 
-  const user = await usersDB.getUserBy('uuid', uuid)
-
-  if (!user) {
-    throw new NotFound(userMessage.notFound)
-  }
-
   if (validatedFields.password) {
     let isPasswordCorrect = false
+
     try {
       isPasswordCorrect = await Bun.password.verify(
         currentPassword!,
@@ -285,15 +256,17 @@ export async function updateUserProfile(
     } catch {
       // Treat malformed hashes as invalid credentials.
     }
+
     if (!isPasswordCorrect) {
       throw new BadRequest('Current password is incorrect')
     }
+
     validatedFields.password = await Bun.password.hash(validatedFields.password)
   }
 
   const userUpdated = await usersDB.updateUserBy(
-    'email',
-    user.email,
+    'uuid',
+    user.uuid,
     validatedFields,
   )
 
@@ -301,19 +274,13 @@ export async function updateUserProfile(
     throw new Internal(userMessage.updateFailed)
   }
 
-  return stripSensitiveUserFields(userUpdated)
+  return publicUserResponse(userUpdated)
 }
 
 export async function uploadUserAvatar(
-  userUuid: string,
+  user: Pick<User, 'uuid'>,
   avatar: Bun.FormDataEntryValue | null,
 ): Promise<PublicUser> {
-  const user = await usersDB.getUserBy('uuid', userUuid)
-
-  if (!user) {
-    throw new NotFound(userMessage.notFound)
-  }
-
   if (!(avatar instanceof File)) {
     throw new BadRequest('Avatar must be a file')
   }
@@ -322,7 +289,7 @@ export async function uploadUserAvatar(
 
   const url = await uploadFile(avatar, Folder.Avatars)
 
-  const userUpdated = await usersDB.updateUserBy('email', user.email, {
+  const userUpdated = await usersDB.updateUserBy('uuid', user.uuid, {
     avatar: url,
   })
 
@@ -330,5 +297,5 @@ export async function uploadUserAvatar(
     throw new Internal(userMessage.updateFailed)
   }
 
-  return stripSensitiveUserFields(userUpdated)
+  return publicUserResponse(userUpdated)
 }

@@ -4,7 +4,9 @@ import {
   authorUpdateSchema,
   bookInsertSchema,
   bookUpdateSchema,
+  cmsOrderIdsSchema,
   cmsOrderUpdateSchema,
+  cmsUserIdsSchema,
   cmsUserInsertSchema,
   cmsUserUpdateSchema,
   idSchema,
@@ -15,59 +17,79 @@ import {
   validate,
 } from '@/validation'
 import { uploadFile } from '@/utils'
-import { BadRequest } from '@/errors'
+import {
+  adminUserResponse,
+  authorResponse,
+  cmsBookResponse,
+} from '@/utils/response.utils'
+import { BadRequest, Internal, NotFound } from '@/errors'
 import type {
-  Author,
   AuthorInsert,
   AuthorUpdate,
-  Book,
   BookInsert,
   BookUpdate,
+  CmsOrderIds,
+  CmsOrderUpdate,
+  CmsUserIds,
   CmsUserInsert,
   CmsUserUpdate,
   Order,
-  OrderUpdate,
-  User,
 } from '@/types'
 import { Folder, UserRole } from '@/types'
 
 // --- READ --- //
-export async function getAllBooks(): Promise<Book[]> {
+export async function getAllBooks(): Promise<
+  ReturnType<typeof cmsBookResponse>[]
+> {
   const books = await booksDB.getAllBooks()
-  return books
+
+  return books.map(cmsBookResponse)
 }
 
-export async function getAllAuthors(): Promise<Author[]> {
+export async function getAllAuthors(): Promise<
+  ReturnType<typeof authorResponse>[]
+> {
   const authors = await authorsDB.getAllAuthors()
-  return authors
+
+  return authors.map(authorResponse)
 }
 
 export async function getAllOrders(): Promise<Order[]> {
   const orders = await ordersDB.getAllOrders()
+
   return orders
 }
 
-export async function getAllUsers(): Promise<Omit<User, 'password'>[]> {
+export async function getAllUsers(): Promise<
+  ReturnType<typeof adminUserResponse>[]
+> {
   const users = await usersDB.getAllUsers()
-  return users.map(({ password, ...user }) => user)
+
+  return users.map(adminUserResponse)
 }
 
 // --- CREATE --- //
-export async function addBook(book: BookInsert): Promise<Book> {
+export async function addBook(
+  book: BookInsert,
+): Promise<ReturnType<typeof cmsBookResponse>> {
   const validatedBook = validate(bookInsertSchema, book)
   const newBook = await booksDB.insertBook(validatedBook)
-  return newBook
+
+  return cmsBookResponse(newBook)
 }
 
-export async function addAuthor(author: AuthorInsert): Promise<Author> {
+export async function addAuthor(
+  author: AuthorInsert,
+): Promise<ReturnType<typeof authorResponse>> {
   const validatedAuthor = validate(authorInsertSchema, author)
   const newAuthor = await authorsDB.insertAuthor(validatedAuthor)
-  return newAuthor
+
+  return authorResponse(newAuthor)
 }
 
 export async function addUser(
   user: CmsUserInsert,
-): Promise<Omit<User, 'password'>> {
+): Promise<ReturnType<typeof adminUserResponse>> {
   const validatedUser = validate(cmsUserInsertSchema, user)
   const newUser = await usersDB.createUser({
     ...validatedUser,
@@ -80,31 +102,32 @@ export async function addUser(
   })
 
   if (!newUser) {
-    throw new Error('Failed to create user')
+    throw new Internal('Failed to create user')
   }
-  const { password, ...userWithoutPassword } = newUser
-  return userWithoutPassword
+
+  return adminUserResponse(newUser)
 }
 
 // --- UPDATE --- //
 export async function updateBook(
   bookId: number,
   book: BookUpdate,
-): Promise<Book> {
+): Promise<ReturnType<typeof cmsBookResponse>> {
   const validatedId = validate(idSchema, bookId)
   const validatedBook = validate(bookUpdateSchema, book)
   const updatedBook = await booksDB.updateBook(validatedId, validatedBook)
 
   if (!updatedBook) {
-    throw new Error(`Book with id ${bookId} not found`)
+    throw new NotFound(`Book with id ${bookId} not found`)
   }
-  return updatedBook
+
+  return cmsBookResponse(updatedBook)
 }
 
 export async function updateAuthor(
   authorId: number,
   author: AuthorUpdate,
-): Promise<Author> {
+): Promise<ReturnType<typeof authorResponse>> {
   const validatedId = validate(idSchema, authorId)
   const validatedAuthor = validate(authorUpdateSchema, author)
   const updatedAuthor = await authorsDB.updateAuthor(
@@ -113,32 +136,31 @@ export async function updateAuthor(
   )
 
   if (!updatedAuthor) {
-    throw new Error(`Author with id ${authorId} not found`)
+    throw new NotFound(`Author with id ${authorId} not found`)
   }
-  return updatedAuthor
+
+  return authorResponse(updatedAuthor)
 }
 
 export async function updateOrder(
   paymentId: string,
-  fields: OrderUpdate,
+  fields: CmsOrderUpdate,
 ): Promise<Order> {
   const validatedId = validate(paymentIdSchema, paymentId)
   const validatedFields = validate(cmsOrderUpdateSchema, fields)
-  const { order: updatedOrder } = await ordersDB.updateOrder(
-    validatedId,
-    validatedFields,
-  )
+  const updatedOrder = await ordersDB.updateOrder(validatedId, validatedFields)
 
   if (!updatedOrder) {
-    throw new Error(`Order with paymentId ${paymentId} not found`)
+    throw new NotFound(`Order with paymentId ${paymentId} not found`)
   }
+
   return updatedOrder
 }
 
 export async function updateUser(
   userUuid: string,
   user: CmsUserUpdate,
-): Promise<Omit<User, 'password'>> {
+): Promise<ReturnType<typeof adminUserResponse>> {
   const validatedUuid = validate(uuidSchema, userUuid)
   const validatedUser = validate(cmsUserUpdateSchema, user)
 
@@ -149,45 +171,61 @@ export async function updateUser(
   )
 
   if (!updatedUser) {
-    throw new Error(`User with uuid ${userUuid} not found`)
+    throw new NotFound(`User with uuid ${userUuid} not found`)
   }
-  const { password, ...userWithoutPassword } = updatedUser
-  return userWithoutPassword
+
+  return adminUserResponse(updatedUser)
 }
 
 // --- DELETE --- //
-export async function deleteBooks(bookIds: number[]): Promise<number[]> {
+export async function hardDeleteBooks(bookIds: number[]): Promise<number[]> {
   const validatedIds = validate(idsSchema, bookIds)
-  const deletedIds = await booksDB.deleteBooks(validatedIds)
+  const deletedIds = await booksDB.hardDeleteBooks(validatedIds)
+
   return deletedIds
 }
 
-export async function deleteAuthors(authorIds: number[]): Promise<number[]> {
+export async function hardDeleteAuthors(
+  authorIds: number[],
+): Promise<number[]> {
   const validatedIds = validate(idsSchema, authorIds)
-  const deletedIds = await authorsDB.deleteAuthors(validatedIds)
+  const deletedIds = await authorsDB.hardDeleteAuthors(validatedIds)
+
   return deletedIds
 }
 
-export async function deleteOrders(orderIds: number[]): Promise<number[]> {
-  const validatedIds = validate(idsSchema, orderIds)
-  const deletedIds = await ordersDB.deleteOrdersByIds(validatedIds)
-  return deletedIds
+export async function softDeleteOrders(input: CmsOrderIds): Promise<number> {
+  const { orderIds } = validate(cmsOrderIdsSchema, input)
+
+  return await ordersDB.setOrdersDeleted(orderIds, true)
 }
 
-export async function deleteUsers(userIds: number[]): Promise<number[]> {
-  const validatedIds = validate(idsSchema, userIds)
+export async function restoreOrders(input: CmsOrderIds): Promise<number> {
+  const { orderIds } = validate(cmsOrderIdsSchema, input)
 
-  const allUsers = await usersDB.getAllUsers()
+  return await ordersDB.setOrdersDeleted(orderIds, false)
+}
 
-  const usersToDelete = allUsers.filter((user) =>
-    validatedIds.includes(user.id),
+export async function restoreUsers(input: CmsUserIds): Promise<number> {
+  const { userIds } = validate(cmsUserIdsSchema, input)
+
+  return await usersDB.setUsersDeleted(userIds, false)
+}
+
+export async function softDeleteUsers(input: CmsUserIds): Promise<number> {
+  const { userIds } = validate(cmsUserIdsSchema, input)
+
+  const activeUsers = (await usersDB.getAllUsers()).filter(
+    (user) => !user.deletedAt,
   )
+
+  const usersToDelete = activeUsers.filter((user) => userIds.includes(user.id))
   const deletingAdmins = usersToDelete.filter(
     (user) => user.role === UserRole.Admin,
   )
 
   if (deletingAdmins.length > 0) {
-    const totalAdmins = allUsers.filter(
+    const totalAdmins = activeUsers.filter(
       (user) => user.role === UserRole.Admin,
     ).length
 
@@ -198,8 +236,7 @@ export async function deleteUsers(userIds: number[]): Promise<number[]> {
     }
   }
 
-  const deletedIds = await usersDB.deleteUsersByIds(validatedIds)
-  return deletedIds
+  return await usersDB.setUsersDeleted(userIds, true)
 }
 
 // --- UPLOADS --- //
@@ -207,10 +244,12 @@ export async function uploadProductImage(
   image: Bun.FormDataEntryValue | null,
 ): Promise<{ url: string }> {
   if (!(image instanceof File)) {
-    throw new Error('Image must be a file')
+    throw new BadRequest('Image must be a file')
   }
+
   validate(imageSchema, image)
 
   const url = await uploadFile(image, Folder.ProductImages)
+
   return { url }
 }

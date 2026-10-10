@@ -6,7 +6,6 @@ import { Unauthorized } from '@/errors/Unauthorized'
 import type { Order, OrderInsert, PublicUser } from '@/types'
 import {
   mockBooksDB,
-  mockEnqueueEmail,
   mockOrdersDB,
   mockStripe,
   mockValidate,
@@ -25,6 +24,8 @@ const createOrder = (overrides: Partial<Order> = {}): Order => ({
   lastStripeEventCreated: null,
   lastStripeEventId: null,
   lastReconciledAt: null,
+  reconciliationFailures: 0,
+  reconciliationAlertId: null,
   lastReconciliationAttemptAt: null,
   paidAt: null,
   total: 12.34,
@@ -36,6 +37,7 @@ const createOrder = (overrides: Partial<Order> = {}): Order => ({
   shipping: null,
   createdAt: new Date(),
   updatedAt: new Date(),
+  deletedAt: null,
   ...overrides,
 })
 const paymentIntent = {
@@ -43,7 +45,7 @@ const paymentIntent = {
   status: 'requires_payment_method',
   amount: 1234,
   client_secret: 'pi_test_secret',
-  metadata: { orderId: '1' },
+  metadata: { orderId: '1', checkoutRequestId },
 }
 
 describe('Payments Service', () => {
@@ -64,10 +66,9 @@ describe('Payments Service', () => {
     mockOrdersDB.createCheckoutOrder
       .mockReset()
       .mockResolvedValue(createOrder())
-    mockOrdersDB.linkPaymentIntent.mockReset().mockResolvedValue({
-      order: createOrder({ paymentId: paymentIntent.id }),
-      linked: true,
-    })
+    mockOrdersDB.linkPaymentIntent
+      .mockReset()
+      .mockResolvedValue(createOrder({ paymentId: paymentIntent.id }))
     mockOrdersDB.updateOrder.mockReset()
     mockStripe.paymentIntents.create
       .mockReset()
@@ -76,11 +77,11 @@ describe('Payments Service', () => {
       .mockReset()
       .mockResolvedValue(paymentIntent)
     mockStripe.paymentIntents.cancel.mockReset()
-    mockEnqueueEmail.mockReset()
   })
 
   it('creates and links a guest draft without requiring an account or email', async () => {
     const result = await startCheckoutPayment(request, null, checkoutRequestId)
+
     expect(mockValidate.mock.calls[1]?.[1]).toEqual(
       expect.objectContaining({ checkoutRequestId }),
     )
@@ -93,12 +94,13 @@ describe('Payments Service', () => {
     )
     const createdDraft = mockOrdersDB.createCheckoutOrder.mock
       .calls[0]?.[0] as OrderInsert
+
     expect(createdDraft.email).toBeUndefined()
     expect(mockStripe.paymentIntents.create).toHaveBeenCalledWith(
       {
         amount: 1234,
         currency: 'usd',
-        metadata: { orderId: '1' },
+        metadata: { orderId: '1', checkoutRequestId },
       },
       { idempotencyKey: checkoutRequestId },
     )
@@ -120,12 +122,15 @@ describe('Payments Service', () => {
       firstName: 'Account',
       lastName: 'User',
     } as PublicUser
+
     await startCheckoutPayment(request, user, checkoutRequestId)
     expect(mockOrdersDB.createCheckoutOrder).toHaveBeenCalledWith(
       expect.objectContaining({ email: user.email }),
     )
     expect(mockStripe.paymentIntents.create).toHaveBeenCalledWith(
-      expect.objectContaining({ metadata: { orderId: '1' } }),
+      expect.objectContaining({
+        metadata: { orderId: '1', checkoutRequestId },
+      }),
       expect.anything(),
     )
   })
@@ -154,14 +159,17 @@ describe('Payments Service', () => {
 
   it('retries a lost Stripe response with exactly the same draft and parameters', async () => {
     const error = new Error('Connection lost after Stripe created the intent')
+
     mockStripe.paymentIntents.create.mockRejectedValueOnce(error)
     await rejects(startCheckoutPayment(request, null, checkoutRequestId), error)
     const firstCall = mockStripe.paymentIntents.create.mock.calls[0]
+
     mockOrdersDB.getOrderByCheckoutRequestId.mockResolvedValueOnce(
       createOrder(),
     )
     mockBooksDB.getBookById.mockClear()
     const result = await startCheckoutPayment(request, null, checkoutRequestId)
+
     expect(mockStripe.paymentIntents.create.mock.calls[1]).toEqual(firstCall)
     expect(mockOrdersDB.createCheckoutOrder).toHaveBeenCalledTimes(1)
     expect(mockBooksDB.getBookById).not.toHaveBeenCalled()
@@ -173,22 +181,21 @@ describe('Payments Service', () => {
       mockOrdersDB.getOrderByCheckoutRequestId.mockResolvedValue(
         createOrder({ paymentId: paymentIntent.id }),
       )
+
       return Promise.reject(new Error('Response lost'))
     })
     await rejects(startCheckoutPayment(request, null, checkoutRequestId), {
       message: 'Response lost',
     })
-    mockOrdersDB.linkPaymentIntent.mockResolvedValueOnce({
-      order: createOrder({ paymentId: paymentIntent.id }),
-      linked: false,
-    })
+    mockOrdersDB.linkPaymentIntent.mockResolvedValueOnce(
+      createOrder({ paymentId: paymentIntent.id }),
+    )
     await startCheckoutPayment(request, null, checkoutRequestId)
     expect(mockStripe.paymentIntents.create).toHaveBeenCalledTimes(1)
     expect(mockStripe.paymentIntents.retrieve).toHaveBeenCalledWith(
       paymentIntent.id,
     )
     expect(mockOrdersDB.createCheckoutOrder).toHaveBeenCalledTimes(1)
-    expect(mockEnqueueEmail).not.toHaveBeenCalled()
   })
 
   it('uses the winning draft snapshot when concurrent creates share a request key', async () => {
@@ -200,7 +207,7 @@ describe('Payments Service', () => {
       {
         amount: 1100,
         currency: 'usd',
-        metadata: { orderId: '42' },
+        metadata: { orderId: '42', checkoutRequestId },
       },
       { idempotencyKey: checkoutRequestId },
     )
@@ -256,6 +263,7 @@ describe('Payments Service', () => {
     const result = await cancelPaymentIntent(paymentIntent.id, {
       cookiePaymentId: paymentIntent.id,
     })
+
     expect(result.status).toBe('canceled')
     expect(mockOrdersDB.updateOrder).not.toHaveBeenCalled()
   })
