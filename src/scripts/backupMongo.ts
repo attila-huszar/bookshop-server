@@ -3,6 +3,7 @@ import { writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { env } from '@/config'
+import { getErrorCode } from '@/utils/error.utils'
 import { log } from '@/libs'
 import { DB_REPO } from '@/types/enums'
 import {
@@ -26,8 +27,7 @@ async function createMongoDumpConfigFile(uri: string): Promise<string> {
       })
       return configFile
     } catch (error) {
-      const errorWithCode = error as { code?: string }
-      if (errorWithCode?.code === 'EEXIST') {
+      if (getErrorCode(error) === 'EEXIST') {
         continue
       }
       throw error

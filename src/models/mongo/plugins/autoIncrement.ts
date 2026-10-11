@@ -1,30 +1,35 @@
-import type { Model, Schema } from 'mongoose'
-import { mongo } from '@/db'
+import mongoose, { type ClientSession, type Model, type Schema } from 'mongoose'
 import { log } from '@/libs'
 
 type AutoIncrementDoc = {
   isNew: boolean
   id?: number
   $model<T>(): Model<T>
+  $session(): ClientSession | null
 }
 
-const counterSchema = new mongo.Schema({
+const counterSchema = new mongoose.Schema({
   _id: { type: String, required: true },
   seq: { type: Number, default: 0 },
 })
 
-const CounterModel = mongo.model('Counter', counterSchema)
+const CounterModel = mongoose.model('Counter', counterSchema)
 
-async function getNextSequence<T>(model: Model<T>): Promise<number> {
+async function getNextSequence<T>(
+  model: Model<T>,
+  session?: ClientSession | null,
+): Promise<number> {
   try {
     const counter = await CounterModel.findByIdAndUpdate(
       model.modelName,
       { $inc: { seq: 1 } },
-      { new: true, upsert: true },
+      { returnDocument: 'after', upsert: true, ...(session && { session }) },
     )
+
     return counter.seq
   } catch (error) {
     log.error('Failed to get next sequence', { model, error })
+
     throw error
   }
 }
@@ -51,9 +56,10 @@ export async function getHighestId<T>(model: Model<T>): Promise<number> {
 }
 
 export function autoIncrementPlugin(schema: Schema): void {
-  schema.pre('save', async function (this: AutoIncrementDoc) {
+  // Required IDs must exist before Mongoose validates a new document.
+  schema.pre('validate', async function (this: AutoIncrementDoc) {
     if (this.isNew && this.id == null) {
-      this.id = await getNextSequence(this.$model())
+      this.id = await getNextSequence(this.$model(), this.$session())
     }
   })
 }

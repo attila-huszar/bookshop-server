@@ -1,4 +1,5 @@
-import model from '@/models'
+import { AuthorModel } from '@/models/mongo'
+import { NotFound } from '@/errors'
 import type {
   Author,
   AuthorInsert,
@@ -6,10 +7,9 @@ import type {
   AuthorUpdate,
 } from '@/types'
 
-const { AuthorModel } = model as MongoModel
-
 export async function getAllAuthors(): Promise<Author[]> {
   const authors = await AuthorModel.find().lean().exec()
+
   return authors
 }
 
@@ -24,7 +24,7 @@ export async function getAuthorById(
     .exec()
 
   if (!author) {
-    throw new Error(`Author with id ${authorId} not found`)
+    throw new NotFound(`Author with id ${authorId} not found`)
   }
 
   return {
@@ -37,7 +37,12 @@ export async function getAuthorsBySearch(
   searchString: string,
 ): Promise<AuthorReference[]> {
   const authors = await AuthorModel.find(
-    { name: { $regex: searchString, $options: 'i' } },
+    {
+      name: {
+        $regex: searchString.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+        $options: 'i',
+      },
+    },
     { id: true, name: true },
   )
     .lean()
@@ -50,9 +55,9 @@ export async function getAuthorsBySearch(
 }
 
 export async function insertAuthor(author: AuthorInsert): Promise<Author> {
-  const { id, createdAt, updatedAt, ...authorData } = author
-  const created = await AuthorModel.create(authorData)
+  const created = await AuthorModel.create(author)
   const authorObj = created.toObject()
+
   return authorObj
 }
 
@@ -63,17 +68,22 @@ export async function updateAuthor(
   const updatedAuthor = await AuthorModel.findOneAndUpdate(
     { id: authorId },
     author,
-    { new: true },
+    { returnDocument: 'after' },
   )
     .lean()
     .exec()
-  if (!updatedAuthor) return null
+
+  if (!updatedAuthor) {
+    return null
+  }
+
   return updatedAuthor
 }
 
-export async function deleteAuthors(
+export async function hardDeleteAuthors(
   authorIds: number[],
 ): Promise<Author['id'][]> {
   await AuthorModel.deleteMany({ id: { $in: authorIds } }).exec()
+
   return authorIds
 }

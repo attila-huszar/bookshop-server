@@ -5,25 +5,31 @@ import type { BookQuery } from '@/types'
 export function bookQueryBuilder(q?: BookQuery) {
   if (!q) return
 
+  const comparisons = [
+    [c.discount, q.discount, eq],
+    [c.discountPrice, q.discountPrice, eq],
+    [c.publishYear, q.publishYear, eq],
+    [c.rating, q.rating, eq],
+    [c.discount, q.discount_gte, gte],
+    [c.discount, q.discount_lte, lte],
+    [c.discountPrice, q.discountPrice_gte, gte],
+    [c.discountPrice, q.discountPrice_lte, lte],
+    [c.publishYear, q.publishYear_gte, gte],
+    [c.publishYear, q.publishYear_lte, lte],
+    [c.rating, q.rating_gte, gte],
+    [c.rating, q.rating_lte, lte],
+    [c.newRelease, q.newRelease, eq],
+    [c.topSellers, q.topSellers, eq],
+    [c.authorId, q.authorId, eq],
+  ] as const
+
   const conditions = [
+    ...comparisons.flatMap(([column, value, compare]) =>
+      value === undefined ? [] : [compare(column, value)],
+    ),
     Array.isArray(q.genre) && q.genre.length > 0 && inArray(c.genre, q.genre),
-    q.discount && eq(c.discount, parseFloat(q.discount)),
-    q.discountPrice && eq(c.discountPrice, parseFloat(q.discountPrice)),
-    q.publishYear && eq(c.publishYear, parseInt(q.publishYear, 10)),
-    q.discount_gte && gte(c.discount, parseFloat(q.discount_gte)),
-    q.discount_lte && lte(c.discount, parseFloat(q.discount_lte)),
-    q.discountPrice_gte &&
-      gte(c.discountPrice, parseFloat(q.discountPrice_gte)),
-    q.discountPrice_lte &&
-      lte(c.discountPrice, parseFloat(q.discountPrice_lte)),
-    q.publishYear_gte && gte(c.publishYear, parseInt(q.publishYear_gte, 10)),
-    q.publishYear_lte && lte(c.publishYear, parseInt(q.publishYear_lte, 10)),
-    q.rating_gte && gte(c.rating, parseFloat(q.rating_gte)),
-    q.newRelease && eq(c.newRelease, true),
-    q.topSellers && eq(c.topSellers, true),
     q.title && like(c.title, `%${q.title}%`),
-    q.authorId && eq(c.authorId, q.authorId),
-  ].filter((cond) => typeof cond === 'object' && cond !== null)
+  ].filter((condition) => typeof condition === 'object' && condition !== null)
 
   return and(...conditions)
 }

@@ -1,26 +1,62 @@
 import { mock } from 'bun:test'
-import { throwCriticalOrderPersistFailure } from '@/utils/persistence.utils'
+import { env } from '@/config'
+import * as validation from '@/validation'
+import { toIsoString } from '@/utils/date.utils'
 import { getOrderRef } from '@/utils/string.utils'
-import {
-  stripSensitiveUserFields,
-  stripTimestamps,
-} from '@/utils/transform.utils'
+import type { Order, OrderUpdate } from '@/types'
+
+env.adminEmail ??= 'admin@example.com'
+env.clientBaseUrl ??= 'https://bookshop.test'
+env.stripeSecret ??= 'sk_test_123'
+env.stripeWebhookSecret ??= 'whsec_test'
 
 export const mockUsersDB = {
-  getUserBy: mock(),
+  getActiveUserBy: mock(),
+  emailExists: mock(),
+  getAllUsers: mock(),
+  setUsersDeleted: mock(),
   createUser: mock(),
+  createUserWithVerification: mock(),
+  setPasswordResetToken: mock(),
   updateUserBy: mock(),
+  cleanupExpiredPasswordResetTokens: mock(),
+  cleanupUnverifiedUsers: mock(),
+}
+
+export const mockOutboxDB = {
+  getEmailOutbox: mock(),
+  updateEmailDelivery: mock(),
+  claimEmail: mock(),
+  completeEmail: mock(),
+  retryEmail: mock(),
 }
 
 export const mockBooksDB = {
   getBookById: mock(),
+  hardDeleteBooks: mock(),
 }
 
 export const mockOrdersDB = {
   getOrder: mock(),
+  getOrderById: mock(),
   getOrdersByEmail: mock(),
-  createOrder: mock(),
+  getAllOrders: mock(),
+  setOrdersDeleted: mock(),
+  getOrderByCheckoutRequestId: mock(),
+  createCheckoutOrder: mock(),
+  linkPaymentIntent: mock(),
   updateOrder: mock(),
+  getOrdersForReconciliation: mock(),
+  markUnlinkedOrderReconciled: mock(),
+  markOrderReconciliationAttempted: mock(),
+  recordReconciliationFailure: mock(() => Promise.resolve()),
+  updateOrderIfUnchanged: mock(
+    async (paymentId: string, _expected: unknown, fields: OrderUpdate) => {
+      const result: unknown = await mockOrdersDB.updateOrder(paymentId, fields)
+
+      return result as Order | null
+    },
+  ),
 }
 
 export const mockStripe = {
@@ -30,6 +66,7 @@ export const mockStripe = {
   paymentIntents: {
     create: mock(),
     retrieve: mock(),
+    search: mock(),
     cancel: mock(),
   },
 }
@@ -37,18 +74,10 @@ export const mockStripe = {
 export const mockValidate = mock()
 export const mockSignAccessToken = mock()
 export const mockSignRefreshToken = mock()
+export const mockVerifyJWTRefresh = mock()
 export const mockUploadFile = mock()
 export const mockSendMail = mock()
-export const mockSendEmail = mock()
 export const mockExtractPaymentIntentFields = mock(() => ({}))
-export const mockGetPaymentIntentId = mock(
-  (source: { payment_intent?: unknown }) =>
-    typeof source.payment_intent === 'string'
-      ? source.payment_intent
-      : ((source.payment_intent as { id?: string } | undefined)?.id ??
-        undefined),
-)
-
 export const mockLogger = {
   info: mock(),
   warn: mock(),
@@ -57,6 +86,9 @@ export const mockLogger = {
 
 export const mockEmailQueue = {
   add: mock(),
+  on: mock(),
+  close: mock(() => Promise.resolve()),
+  getJob: mock(),
 }
 
 export const mockWorker = {
@@ -64,16 +96,28 @@ export const mockWorker = {
   close: mock(() => Promise.resolve()),
 }
 
+export const mockWorkerConstructor = mock<
+  (
+    queueName: unknown,
+    processor: unknown,
+    options: unknown,
+  ) => typeof mockWorker
+>(() => mockWorker)
+
 export const mockIORedis = mock(() => mockWorker)
 
 await mock.module('@/repositories', () => ({
+  authorsDB: { hardDeleteAuthors: mock() },
+  newsDB: {},
   booksDB: mockBooksDB,
   usersDB: mockUsersDB,
   ordersDB: mockOrdersDB,
+  outboxDB: mockOutboxDB,
 }))
 
 await mock.module('stripe', () => {
   const mockStripeCtor = mock(() => mockStripe)
+
   return {
     Stripe: mockStripeCtor,
     default: mockStripeCtor,
@@ -81,48 +125,35 @@ await mock.module('stripe', () => {
 })
 
 await mock.module('@/validation', () => ({
+  ...validation,
   validate: mockValidate,
-  orderInsertSchema: {},
-  paymentIdSchema: {},
-  paymentIntentRequestSchema: {},
-  loginSchema: {},
-  registerSchema: {},
-  emailSchema: {},
-  tokenSchema: {},
-  passwordResetSchema: {},
-  imageSchema: {},
-  userUpdateSchema: {},
-}))
-
-await mock.module('@/utils', () => ({
-  sendEmail: mockSendEmail,
-  extractPaymentIntentFields: mockExtractPaymentIntentFields,
-  getPaymentIntentId: mockGetPaymentIntentId,
-  signAccessToken: mockSignAccessToken,
-  signRefreshToken: mockSignRefreshToken,
-  uploadFile: mockUploadFile,
-  throwCriticalOrderPersistFailure,
-  stripSensitiveUserFields,
-  stripTimestamps,
-  getOrderRef,
-  Folder: {
-    Avatars: 'avatars',
-    ProductImages: 'product-images',
-  },
-}))
-
-await mock.module('@/utils/email.utils', () => ({
-  sendEmail: mockSendEmail,
-}))
-
-await mock.module('@/queues', () => ({
-  emailQueue: mockEmailQueue,
+  safeValidate: mock(() => null),
 }))
 
 await mock.module('@/libs', () => ({
   log: mockLogger,
   logWorker: mockLogger,
-  sendEmail: mock(),
+  stripe: mockStripe,
+  sendMail: mockSendMail,
+  closeMailer: mock(),
+}))
+
+await mock.module('@/utils', () => ({
+  extractPaymentIntentFields: mockExtractPaymentIntentFields,
+  signAccessToken: mockSignAccessToken,
+  signRefreshToken: mockSignRefreshToken,
+  verifyJWTRefresh: mockVerifyJWTRefresh,
+  uploadFile: mockUploadFile,
+  toIsoString,
+  getOrderRef,
+  closeNgrokTunnel: mock(),
+  formatUptime: mock(() => 'test uptime'),
+  ngrokForward: mock(),
+  shortHash: mock(() => 'test-fingerprint'),
+  Folder: {
+    Avatars: 'avatars',
+    ProductImages: 'product-images',
+  },
 }))
 
 await mock.module('ioredis', () => ({
@@ -130,5 +161,6 @@ await mock.module('ioredis', () => ({
 }))
 
 await mock.module('bullmq', () => ({
-  Worker: mock(() => mockWorker),
+  Queue: mock(() => mockEmailQueue),
+  Worker: mockWorkerConstructor,
 }))

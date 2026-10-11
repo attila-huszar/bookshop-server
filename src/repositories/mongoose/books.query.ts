@@ -15,13 +15,12 @@ export function bookQueryBuilder(
 
   const addRangeFilter = (
     key: string,
-    gteValue?: string,
-    lteValue?: string,
-    parser: (val: string) => number = parseFloat,
+    gteValue?: number,
+    lteValue?: number,
   ) => {
     const rangeFilter: Record<string, number> = {}
-    if (gteValue) rangeFilter.$gte = parser(gteValue)
-    if (lteValue) rangeFilter.$lte = parser(lteValue)
+    if (gteValue !== undefined) rangeFilter.$gte = gteValue
+    if (lteValue !== undefined) rangeFilter.$lte = lteValue
     if (Object.keys(rangeFilter).length > 0) {
       filter[key] = rangeFilter
     }
@@ -31,28 +30,24 @@ export function bookQueryBuilder(
     addFilter('genre', { $in: q.genre })
   }
 
-  addFilter('discount', q.discount ? parseFloat(q.discount) : undefined)
-  addFilter(
-    'discountPrice',
-    q.discountPrice ? parseFloat(q.discountPrice) : undefined,
-  )
-  addFilter(
-    'publishYear',
-    q.publishYear ? parseInt(q.publishYear, 10) : undefined,
-  )
-  addFilter('newRelease', q.newRelease ? true : undefined)
-  addFilter('topSellers', q.topSellers ? true : undefined)
+  addFilter('discount', q.discount)
+  addFilter('discountPrice', q.discountPrice)
+  addFilter('publishYear', q.publishYear)
+  addFilter('rating', q.rating)
+  addFilter('newRelease', q.newRelease)
+  addFilter('topSellers', q.topSellers)
 
   if (q.title) {
-    addFilter('title', { $regex: q.title, $options: 'i' })
+    addFilter('title', {
+      $regex: q.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+      $options: 'i',
+    })
   }
 
   addRangeFilter('discount', q.discount_gte, q.discount_lte)
   addRangeFilter('discountPrice', q.discountPrice_gte, q.discountPrice_lte)
-  addRangeFilter('publishYear', q.publishYear_gte, q.publishYear_lte, (val) =>
-    parseInt(val, 10),
-  )
-  addRangeFilter('rating', q.rating_gte, undefined)
+  addRangeFilter('publishYear', q.publishYear_gte, q.publishYear_lte)
+  addRangeFilter('rating', q.rating_gte, q.rating_lte)
 
   return filter
 }

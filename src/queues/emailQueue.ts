@@ -1,13 +1,35 @@
 import { Queue } from 'bullmq'
 import { env } from '@/config'
-import { QUEUE } from '@/constants'
+import { getRedisConnectionHint } from '@/utils/redis.utils'
+import { log } from '@/libs/logger'
+import { emailQueueName } from '@/constants/email'
 
-const parsedUrl = new URL(env.redisUrl)
+let redisConnectionErrorShown = false
 
-export const emailQueue = new Queue(QUEUE.EMAIL.NAME, {
+export const emailQueue = new Queue(emailQueueName, {
   connection: {
-    host: parsedUrl.hostname,
-    port: Number(parsedUrl.port),
-    maxRetriesPerRequest: null,
+    url: env.redisUrl,
+    maxRetriesPerRequest: 1,
+    enableOfflineQueue: false,
+    commandTimeout: 10_000,
   },
+})
+
+emailQueue.on('error', (error) => {
+  const hint = getRedisConnectionHint(error, env.redisUrl)
+
+  if (hint) {
+    if (redisConnectionErrorShown) {
+      return
+    }
+
+    redisConnectionErrorShown = true
+
+    log.warn('🚫 Redis is not reachable for email queue', { hint })
+
+    return
+  }
+
+  redisConnectionErrorShown = false
+  log.error('Email queue error', { error })
 })

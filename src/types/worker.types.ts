@@ -1,46 +1,56 @@
-import type { QUEUE } from '@/constants'
+import type { EMAIL } from '@/constants'
 import type { AdminNotification } from './enums'
 import type { Order } from './orders.types'
 
-export type QueueName = typeof QUEUE.EMAIL.NAME
+export type EmailType = (typeof EMAIL)[keyof typeof EMAIL]['type']
+export type AccountEmailType =
+  typeof EMAIL.verification.type | typeof EMAIL.passwordReset.type
 
-export type EmailJobType =
-  (typeof QUEUE.EMAIL.JOB)[keyof typeof QUEUE.EMAIL.JOB]
-
-export type VerificationEmailProps = {
-  type: 'verification'
+type AccountEmailFields = {
   toAddress: string
   toName: string
   tokenLink: string
 }
 
-export type PasswordResetEmailProps = {
-  type: 'passwordReset'
-  toAddress: string
-  toName: string
-  tokenLink: string
+export type VerificationEmailProps = AccountEmailFields & {
+  type: typeof EMAIL.verification.type
+}
+
+export type PasswordResetEmailProps = AccountEmailFields & {
+  type: typeof EMAIL.passwordReset.type
 }
 
 export type OrderConfirmationEmailProps = {
-  type: 'orderConfirmation'
+  type: typeof EMAIL.orderConfirmation.type
   toAddress: string
   toName: string
-  order: Order
+  order: Pick<Order, 'paymentId' | 'total' | 'currency' | 'shipping'> & {
+    items: OrderEmailItem[]
+  }
 }
 
-export type AdminPaymentNotificationEmailItem = Pick<
+export type OrderEmailItem = Pick<
   Order['items'][number],
   'title' | 'quantity' | 'price' | 'discount'
 >
 
+export type ReconciliationAlert = {
+  alertId: string
+  orderId: number
+  reason: string
+  failures: number
+  liveMode: boolean
+}
+
 export type AdminPaymentNotificationEmailProps = {
-  type: 'adminPaymentNotification'
+  type: typeof EMAIL.adminPaymentNotification.type
   notificationType: AdminNotification
+  reconciliation?: ReconciliationAlert
   toAddress: string
   emailTitle: string
   customerName: string
   customerEmail: string
-  items: AdminPaymentNotificationEmailItem[]
+  items: OrderEmailItem[]
   shippingAddress: string
 } & Pick<Order, 'paymentId' | 'total' | 'currency' | 'paymentStatus'>
 
@@ -50,29 +60,28 @@ export type SendEmailProps =
   | OrderConfirmationEmailProps
   | AdminPaymentNotificationEmailProps
 
-type OrderForAdminEmail = Pick<
+export type AdminPaymentNotificationOrder = Pick<
   Order,
   'paymentId' | 'items' | 'total' | 'currency' | 'paymentStatus'
 > &
   Partial<Pick<Order, 'firstName' | 'lastName' | 'email' | 'shipping'>>
 
 export type SendEmailInputMap = {
-  [QUEUE.EMAIL.JOB.VERIFICATION]: {
-    toAddress: string
-    toName: string
-    tokenLink: string
-  }
-  [QUEUE.EMAIL.JOB.PASSWORD_RESET]: {
-    toAddress: string
-    toName: string
-    tokenLink: string
-  }
-  [QUEUE.EMAIL.JOB.ORDER_CONFIRMATION]: {
+  [EMAIL.verification.type]: AccountEmailFields
+  [EMAIL.passwordReset.type]: AccountEmailFields
+  [EMAIL.orderConfirmation.type]: {
     order: Order
-    source: 'webhook' | 'fallback'
   }
-  [QUEUE.EMAIL.JOB.ADMIN_PAYMENT_NOTIFICATION]: {
-    order: OrderForAdminEmail
+  [EMAIL.adminPaymentNotification.type]: {
+    order: AdminPaymentNotificationOrder
     notificationType: AdminNotification
+    reconciliation?: ReconciliationAlert
   }
 }
+
+export type EmailInput = {
+  [Type in keyof SendEmailInputMap]: {
+    type: Type
+    data: SendEmailInputMap[Type]
+  }
+}[keyof SendEmailInputMap]

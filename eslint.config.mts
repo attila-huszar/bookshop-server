@@ -54,6 +54,14 @@ export default defineConfig(
     },
   },
   {
+    files: ['src/repositories/drizzle/**/*.repo.ts'],
+    rules: {
+      // SQLite transactions are synchronous; async functions preserve the
+      // shared repository contract and turn thrown errors into rejections.
+      '@typescript-eslint/require-await': 'off',
+    },
+  },
+  {
     files: ['**/*.js'],
     extends: [tseslint.configs.disableTypeChecked],
   },

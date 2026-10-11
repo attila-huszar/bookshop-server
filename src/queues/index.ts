@@ -1,1 +1,0 @@
-export { emailQueue } from './emailQueue'

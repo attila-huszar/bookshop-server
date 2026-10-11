@@ -24,6 +24,7 @@
           Order Ref: #{{ paymentId }}
         </mj-text>
         <mj-divider border-color="#5469d4" />
+        {{ reconciliationDetails }}
         <mj-table css-class="order-table">
           <tr style="background-color: #e8e8e8">
             <th align="left" css-class="order-item">Item</th>
@@ -44,11 +45,6 @@
         <mj-text font-size="16px" line-height="1.5">
           <strong>Shipping Address:</strong><br />
           {{ shippingAddress }}
-        </mj-text>
-        <mj-text font-size="16px" line-height="1.5">
-          If shipping address is unavailable, please check payment details in
-          Stripe.
-          <a href="https://dashboard.stripe.com/">Open Stripe Dashboard</a>.
         </mj-text>
         <mj-text font-size="14px" line-height="1.5">
           This is an automated notification.<br />

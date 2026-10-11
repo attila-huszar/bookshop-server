@@ -1,4 +1,3 @@
-import { DB_REPO } from '@/types/enums'
 import { env } from './env'
 
 type EnvKey = keyof typeof env
@@ -15,15 +14,9 @@ const requiredKeys: EnvKey[] = [
   'awsSecretAccessKey',
   'awsRegion',
   'awsBucket',
-  'redisUrl',
 ]
 
 export function validateEnv(): void {
-  if (env.dbRepo !== DB_REPO.SQLITE && env.dbRepo !== DB_REPO.MONGO) {
-    console.error(`❌ Invalid DB_REPO: ${Bun.env.DB_REPO}`)
-    process.exit(1)
-  }
-
   const missing = requiredKeys.filter((key) => !env[key])
 
   if (missing.length > 0) {
@@ -45,5 +38,3 @@ export function validateEnv(): void {
     process.exit(1)
   }
 }
-
-validateEnv()

@@ -1,7 +1,10 @@
-import nodemailer, { type SendMailOptions, type Transporter } from 'nodemailer'
-import type SMTPPool from 'nodemailer/lib/smtp-pool'
+import nodemailer, {
+  type SendMailOptions,
+  type SMTPPoolSentMessageInfo,
+  type Transporter,
+} from 'nodemailer'
 import { env } from '@/config'
-import { getEmailHtml, getEmailSubject } from '@/utils'
+import { getEmailHtml, getEmailSubject } from '@/utils/email.utils'
 import {
   emailLogoContentId,
   emailLogoFilename,
@@ -12,8 +15,7 @@ import {
 import type { SendEmailProps } from '@/types'
 import { log } from './logger'
 
-type MailTransporter = Transporter<SMTPPool.SentMessageInfo, SMTPPool.Options>
-type SentMessageInfo = SMTPPool.SentMessageInfo
+type MailTransporter = Transporter<SMTPPoolSentMessageInfo>
 
 let transporter: MailTransporter | null = null
 
@@ -22,6 +24,9 @@ function createTransporter(): MailTransporter {
     pool: true,
     maxConnections: 5,
     maxMessages: 100,
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 30_000,
 
     service: env.mailerService,
     host: env.mailerHost,
@@ -36,7 +41,9 @@ function createTransporter(): MailTransporter {
 }
 
 export function getTransporter(): MailTransporter | null {
-  if (transporter) return transporter
+  if (transporter) {
+    return transporter
+  }
 
   if (!env.mailerUser || !env.mailerPass) {
     return null
@@ -58,22 +65,21 @@ export function getTransporter(): MailTransporter | null {
   return transporter
 }
 
-export function initMailer(): void {
-  getTransporter()
-}
-
 export function closeMailer(): void {
   const activeTransporter = transporter
+
   transporter = null
 
-  if (!activeTransporter) return
+  if (!activeTransporter) {
+    return
+  }
 
   activeTransporter.close()
 }
 
 export async function sendMail(
   props: SendEmailProps,
-): Promise<SentMessageInfo> {
+): Promise<SMTPPoolSentMessageInfo> {
   try {
     if (!env.mailerUser || !env.mailerPass) {
       throw new Error(
@@ -100,7 +106,7 @@ export async function sendMail(
       from: `${env.mailerName} <${env.mailerUser}>`,
       to: props.toAddress,
       subject: getEmailSubject(props),
-      html: getEmailHtml(props),
+      html: await getEmailHtml(props),
       attachments,
     }
 

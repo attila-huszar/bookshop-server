@@ -1,99 +1,159 @@
-import model from '@/models'
-import type { GetUserBy, User, UserInsert, UserUpdate } from '@/types'
+import { EmailOutboxModel, UserModel } from '@/models/mongo'
+import { accountEmailIntent } from '@/utils/email-job.utils'
+import { EMAIL } from '@/constants/email'
+import type {
+  PasswordResetTokenUpdate,
+  User,
+  UserInsert,
+  UserLookupField,
+  UserRegistrationInsert,
+  UserUpdate,
+} from '@/types'
 
-const { UserModel } = model as MongoModel
-
-export async function getUserBy(
-  field: GetUserBy,
+export async function getActiveUserBy(
+  field: UserLookupField,
   value: string | number,
 ): Promise<User | null> {
-  const user = await UserModel.findOne({ [field]: value })
+  const user = await UserModel.findOne({
+    [field]: value,
+    deletedAt: null,
+  })
     .lean()
     .exec()
-  if (!user) return null
+
+  if (!user) {
+    return null
+  }
+
   return user
+}
+
+/** Soft-deleted accounts continue to reserve their email address. */
+export async function emailExists(email: string): Promise<boolean> {
+  const user = await UserModel.exists({ email }).exec()
+
+  return Boolean(user)
 }
 
 export async function createUser(user: UserInsert): Promise<User | null> {
   const { id, createdAt, updatedAt, ...userData } = user
-  const created = await UserModel.create(userData)
-  const userObj = created.toObject()
-  return userObj
+
+  // Keep numeric ID allocation and the user insert in the same transaction.
+  return await UserModel.db.transaction(async (session) => {
+    const [created] = await UserModel.create([userData], { session })
+
+    return created?.toObject() ?? null
+  })
+}
+
+export async function createUserWithVerification(
+  user: UserRegistrationInsert,
+): Promise<User | null> {
+  const { id, createdAt, updatedAt, ...userData } = user
+
+  return await UserModel.db.transaction(async (session) => {
+    const [created] = await UserModel.create([userData], { session })
+
+    if (!created) {
+      return null
+    }
+
+    const savedUser = created.toObject()
+
+    await EmailOutboxModel.insertMany(
+      [accountEmailIntent(EMAIL.verification.type, savedUser)],
+      { session },
+    )
+
+    return savedUser
+  })
 }
 
 export async function updateUserBy(
-  field: GetUserBy,
+  field: UserLookupField,
   value: string | number,
   fields: UserUpdate,
 ): Promise<User | null> {
-  const updatedUsers = await UserModel.findOneAndUpdate(
-    { [field]: value },
+  const user = await UserModel.findOneAndUpdate(
+    { [field]: value, deletedAt: null },
     fields,
-    { new: true },
+    {
+      returnDocument: 'after',
+    },
   )
     .lean()
     .exec()
-  if (!updatedUsers) return null
-  return updatedUsers
+
+  return user ?? null
+}
+
+export async function setPasswordResetToken(
+  uuid: string,
+  reset: PasswordResetTokenUpdate,
+): Promise<User | null> {
+  return await UserModel.db.transaction(async (session) => {
+    const user = await UserModel.findOneAndUpdate(
+      { uuid, deletedAt: null },
+      {
+        passwordResetToken: reset.token,
+        passwordResetExpires: reset.expiresAt,
+      },
+      { returnDocument: 'after', session },
+    )
+      .lean()
+      .exec()
+
+    if (user) {
+      await EmailOutboxModel.insertMany(
+        [accountEmailIntent(EMAIL.passwordReset.type, user)],
+        { session },
+      )
+    }
+
+    return user ?? null
+  })
 }
 
 export async function getAllUsers(): Promise<User[]> {
   const users = await UserModel.find().lean().exec()
+
   return users
 }
 
-export async function deleteUserBy(
-  field: GetUserBy,
-  value: string | number,
-): Promise<User['email'] | null> {
-  const user = await UserModel.findOne({ [field]: value })
-    .lean()
-    .exec()
-  if (!user) return null
-  const { email } = user
-  const deleteResult = await UserModel.deleteOne({ [field]: value }).exec()
-  if (deleteResult.deletedCount === 0) return null
-  return email
-}
-
-export async function deleteUsersByIds(
+export async function setUsersDeleted(
   userIds: number[],
-): Promise<User['id'][]> {
-  await UserModel.deleteMany({ id: { $in: userIds } }).exec()
-  return userIds
+  deleted: boolean,
+): Promise<number> {
+  const result = await UserModel.updateMany(
+    { id: { $in: userIds }, deletedAt: deleted ? null : { $ne: null } },
+    { $set: { deletedAt: deleted ? new Date() : null } },
+  ).exec()
+
+  return result.modifiedCount
 }
 
-export async function cleanupExpiredPasswordResetTokens(): Promise<User[]> {
+export async function cleanupExpiredPasswordResetTokens(): Promise<number> {
   const now = new Date()
 
-  const updatedUsers = await UserModel.find({
-    passwordResetExpires: { $lt: now },
-  })
-    .lean()
-    .exec()
-
-  await UserModel.updateMany(
+  const result = await UserModel.updateMany(
     { passwordResetExpires: { $lt: now } },
     { $unset: { passwordResetToken: 1, passwordResetExpires: 1 } },
   ).exec()
 
-  return updatedUsers
+  return result.modifiedCount
 }
 
-export async function cleanupUnverifiedUsers(): Promise<User[]> {
+export async function cleanupUnverifiedUsers(): Promise<number> {
   const now = new Date()
 
-  const deletedUsers = await UserModel.find({
-    verified: false,
-    verificationExpires: { $lt: now },
-  })
-    .lean()
-    .exec()
+  const result = await UserModel.updateMany(
+    {
+      verified: false,
+      verificationExpires: { $lt: now },
+      deletedAt: null,
+    },
+    { $set: { deletedAt: now } },
+  ).exec()
 
-  await UserModel.deleteMany({
-    verified: false,
-    verificationExpires: { $lt: now },
-  }).exec()
-
-  return deletedUsers
+  return result.modifiedCount
 }

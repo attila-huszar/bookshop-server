@@ -25,7 +25,9 @@ fi
 
 if [ -n "${CRONITOR_API_KEY:-}" ]; then
   if command -v cronitor >/dev/null 2>&1; then
-    exec cronitor exec --env "${NODE_ENV:-production}" "$MONITOR_KEY" "$@"
+    export CRONITOR_ENV="${NODE_ENV:-production}"
+    # Stop Cronitor from interpreting flags belonging to the wrapped command.
+    exec cronitor exec -- "$MONITOR_KEY" "$@"
   fi
 
   echo "Warning: CRONITOR_API_KEY is set but cronitor CLI not found; running without monitoring" >&2

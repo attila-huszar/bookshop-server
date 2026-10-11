@@ -1,34 +1,28 @@
 import { Hono } from 'hono'
 import { getAuthorById, getAuthorsByName } from '@/services'
 import { API } from '@/constants'
-import { errorHandler } from '@/errors'
 
 export const authors = new Hono()
 
 authors.get(API.authors.root, async (c) => {
-  try {
-    const query = c.req.query()
-    if (!query.name) return c.json([], 200)
+  const query = c.req.query()
 
-    const authorRecords = await getAuthorsByName(query.name)
-
-    return c.json(authorRecords)
-  } catch (error) {
-    return errorHandler(c, error)
+  if (!query.name) {
+    return c.json([], 200)
   }
+
+  const authorRecords = await getAuthorsByName(query.name)
+
+  return c.json(authorRecords)
 })
 
 authors.get(API.authors.byId, async (c) => {
-  try {
-    const id = c.req.param('id')
-    const authorRecord = await getAuthorById(Number(id))
+  const id = c.req.param('id')
+  const authorRecord = await getAuthorById(Number(id))
 
-    if (!authorRecord) {
-      return c.json({ error: 'Author not found' }, 404)
-    }
-
-    return c.json(authorRecord)
-  } catch (error) {
-    return errorHandler(c, error)
+  if (!authorRecord) {
+    return c.json({ error: 'Author not found' }, 404)
   }
+
+  return c.json(authorRecord)
 })

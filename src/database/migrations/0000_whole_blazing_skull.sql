@@ -40,11 +40,16 @@ CREATE TABLE `news` (
 --> statement-breakpoint
 CREATE TABLE `orders` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
-	`payment_id` text NOT NULL,
+	`payment_id` text,
+	`checkout_request_id` text NOT NULL,
 	`payment_status` text DEFAULT 'processing' NOT NULL,
 	`last_stripe_event_created` integer,
 	`last_stripe_event_id` text,
-	`last_stripe_sync_checked_at` integer,
+	`last_reconciled_at` integer,
+	`reconciliation_failures` integer DEFAULT 0 NOT NULL,
+	`reconciliation_alert_id` text,
+	`deleted_at` integer,
+	`last_reconciliation_attempt_at` integer,
 	`paid_at` integer,
 	`total` real NOT NULL,
 	`currency` text NOT NULL,
@@ -58,6 +63,7 @@ CREATE TABLE `orders` (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `orders_payment_id_unique` ON `orders` (`payment_id`);--> statement-breakpoint
+CREATE UNIQUE INDEX `orders_checkout_request_id_unique` ON `orders` (`checkout_request_id`);--> statement-breakpoint
 CREATE TABLE `users` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
 	`uuid` text NOT NULL,
@@ -75,9 +81,29 @@ CREATE TABLE `users` (
 	`verification_expires` integer,
 	`password_reset_token` text,
 	`password_reset_expires` integer,
+	`deleted_at` integer,
 	`created_at` integer DEFAULT (unixepoch()) NOT NULL,
 	`updated_at` integer DEFAULT (unixepoch()) NOT NULL
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `users_uuid_unique` ON `users` (`uuid`);--> statement-breakpoint
 CREATE UNIQUE INDEX `email_unique_ci` ON `users` (lower("email"));
+--> statement-breakpoint
+CREATE TABLE `email_outbox` (
+  `id` text PRIMARY KEY NOT NULL,
+  `payload` text NOT NULL,
+  `available_at` integer NOT NULL,
+  `attempts` integer DEFAULT 0 NOT NULL,
+  `lease_token` text,
+  `locked_until` integer,
+  `processed_at` integer,
+  `last_error` text,
+  `delivery_status` text,
+  `delivery_attempts` integer DEFAULT 0 NOT NULL,
+  `delivery_updated_at` integer,
+  `delivery_next_attempt_at` integer,
+  `delivery_error` text,
+  `created_at` integer NOT NULL
+);
+--> statement-breakpoint
+CREATE INDEX `email_outbox_pending_idx` ON `email_outbox` (`processed_at`, `available_at`);

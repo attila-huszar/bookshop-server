@@ -1,6 +1,6 @@
 import type { z } from 'zod'
 import type { paymentIntentRequestSchema } from '@/validation'
-import type { PaymentIntentShipping, PaymentIntentStatus } from './stripe.types'
+import type { AuthVariables } from './users.types'
 
 export type PaymentIntentRequest = z.infer<typeof paymentIntentRequestSchema>
 
@@ -10,13 +10,12 @@ export type PaymentSession = {
   amount: number
 }
 
-export type PaymentSyncStatus = {
-  paymentId: string
-  paymentStatus: PaymentIntentStatus
-  amount: number
-  currency: string
-  receiptEmail: string | null
-  shipping: PaymentIntentShipping | null
-  finalizedAt: string | null
-  webhookUpdatedAt: string | null
+export type PaymentAccess = {
+  cookiePaymentId?: string
+  userEmail?: string
+}
+
+/** Checkout supports authenticated accounts and guests with a payment cookie. */
+export type PaymentVariables = Partial<AuthVariables> & {
+  paymentAccess?: PaymentAccess
 }

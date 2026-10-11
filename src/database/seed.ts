@@ -1,6 +1,7 @@
+import { connectDatabase } from '@/db'
 import { seedAuthors, seedBooks, seedNews, seedUsers } from './seeds'
 
-async function seed() {
+export async function seedDatabase() {
   console.info('🌱 Starting database seed...')
 
   const authors = await seedAuthors()
@@ -12,12 +13,15 @@ async function seed() {
   console.info({ ...authors, ...books, ...news, ...users })
 }
 
-void (async () => {
-  try {
-    await seed()
-    process.exit(0)
-  } catch (error) {
-    console.error('❌ Database seed failed:', error)
-    process.exit(1)
-  }
-})()
+if (import.meta.main) {
+  void (async () => {
+    try {
+      await connectDatabase()
+      await seedDatabase()
+      process.exit(0)
+    } catch (error) {
+      console.error('❌ Database seed failed:', error)
+      process.exit(1)
+    }
+  })()
+}

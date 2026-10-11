@@ -1,23 +1,13 @@
 import { Hono } from 'hono'
 import { getUserOrders } from '@/services'
+import { orderResponse } from '@/utils/response.utils'
 import { API } from '@/constants'
-import { errorHandler } from '@/errors'
+import type { AuthVariables } from '@/types'
 
-type Variables = {
-  jwtPayload: {
-    uuid: string
-  }
-}
-
-export const orders = new Hono<{ Variables: Variables }>()
+export const orders = new Hono<{ Variables: AuthVariables }>()
 
 orders.get(API.orders.root, async (c) => {
-  try {
-    const { uuid } = c.get('jwtPayload')
-    const userOrders = await getUserOrders(uuid)
+  const userOrders = await getUserOrders(c.get('authUser'))
 
-    return c.json(userOrders)
-  } catch (error) {
-    return errorHandler(c, error)
-  }
+  return c.json(userOrders.map(orderResponse))
 })

@@ -42,7 +42,6 @@ export const API = {
     root: '/payments',
     byId: '/payments/:paymentId',
     byIdWildcard: '/payments/:paymentId/*',
-    orderSync: '/payments/:paymentId/order-sync',
   },
   cms: {
     root: '/cms',
@@ -51,6 +50,11 @@ export const API = {
     authors: '/cms/authors',
     orders: '/cms/orders',
     users: '/cms/users',
+    restore: {
+      orders: '/cms/restore/orders',
+      users: '/cms/restore/users',
+    },
+    emailOutbox: '/cms/email-outbox',
     productImage: '/cms/product-image',
   },
   logs: {
