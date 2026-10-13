@@ -38,6 +38,7 @@ const OrderModel = {
 const UserModel = {
   create: mock(),
   exists: mock(),
+  find: mock(),
   findOne: mock(),
   findOneAndUpdate: mock(),
   updateMany: mock(),
@@ -218,7 +219,14 @@ describe('Mongo CMS email outbox', () => {
   })
 })
 
-describe('Mongo cleanup counts', () => {
+describe('Mongo account cleanup', () => {
+  beforeEach(() => {
+    query.lean.mockReset().mockReturnValue(query)
+    query.exec.mockReset()
+    UserModel.find.mockReset().mockReturnValue(query)
+    UserModel.updateMany.mockReset().mockReturnValue(query)
+  })
+
   it('returns the modified count without fetching account records', async () => {
     const exec = mock(() => Promise.resolve({ modifiedCount: 3 }))
 
@@ -232,21 +240,70 @@ describe('Mongo cleanup counts', () => {
     expect(exec).toHaveBeenCalledTimes(1)
   })
 
-  it('returns the soft-deleted count without fetching account records', async () => {
-    const exec = mock(() => Promise.resolve({ modifiedCount: 2 }))
+  it('returns only identities from the committed soft deletion', async () => {
+    query.exec
+      .mockResolvedValueOnce([
+        {
+          id: 7,
+          email: 'expired@example.com',
+          password: 'private-hash',
+          verificationToken: 'private-token',
+          _id: 'internal-id',
+        },
+        { id: 8, email: 'another-expired@example.com' },
+      ])
+      .mockResolvedValueOnce({ modifiedCount: 2 })
 
-    UserModel.updateMany.mockReset().mockReturnValue({ exec })
-
-    expect(await users.cleanupUnverifiedUsers()).toBe(2)
-    expect(UserModel.updateMany).toHaveBeenCalledWith(
+    expect(await users.cleanupUnverifiedUsers()).toEqual([
+      { id: 7, email: 'expired@example.com' },
+      { id: 8, email: 'another-expired@example.com' },
+    ])
+    expect(UserModel.find).toHaveBeenCalledWith(
       {
         verified: false,
         verificationExpires: { $lt: expect.any(Date) as Date },
         deletedAt: null,
       },
-      { $set: { deletedAt: expect.any(Date) as Date } },
+      { id: 1, email: 1, _id: 0 },
+      { session },
     )
-    expect(exec).toHaveBeenCalledTimes(1)
+    expect(UserModel.updateMany).toHaveBeenCalledWith(
+      {
+        verified: false,
+        verificationExpires: { $lt: expect.any(Date) as Date },
+        deletedAt: null,
+        id: { $in: [7, 8] },
+      },
+      { $set: { deletedAt: expect.any(Date) as Date } },
+      { session },
+    )
+    expect(query.exec).toHaveBeenCalledTimes(2)
+  })
+
+  it('returns no identities and skips the update when no accounts expired', async () => {
+    query.exec.mockResolvedValueOnce([])
+
+    expect(await users.cleanupUnverifiedUsers()).toEqual([])
+    expect(UserModel.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('propagates a write failure so identities are not reported as deleted', async () => {
+    query.exec
+      .mockResolvedValueOnce([{ id: 7, email: 'expired@example.com' }])
+      .mockRejectedValueOnce(new Error('Cleanup write failed'))
+
+    await rejects(users.cleanupUnverifiedUsers(), /Cleanup write failed/)
+  })
+
+  it('aborts if the update count differs from the selected identities', async () => {
+    query.exec
+      .mockResolvedValueOnce([{ id: 7, email: 'expired@example.com' }])
+      .mockResolvedValueOnce({ modifiedCount: 0 })
+
+    await rejects(
+      users.cleanupUnverifiedUsers(),
+      /unexpected number of accounts/,
+    )
   })
 })
 
@@ -717,6 +774,7 @@ describe('Mongo user soft deletion', () => {
     query.lean.mockReset().mockReturnValue(query)
     query.exec.mockReset()
     UserModel.findOne.mockReset().mockReturnValue(query)
+    UserModel.find.mockReset().mockReturnValue(query)
     UserModel.exists.mockReset().mockReturnValue(query)
     UserModel.updateMany.mockReset().mockReturnValue(query)
   })
@@ -762,15 +820,21 @@ describe('Mongo user soft deletion', () => {
   )
 
   it('soft deletes expired unverified accounts without touching already deleted users', async () => {
-    query.exec.mockResolvedValue({ modifiedCount: 1 })
-    expect(await users.cleanupUnverifiedUsers()).toBe(1)
+    query.exec
+      .mockResolvedValueOnce([{ id: 7, email: 'expired@example.com' }])
+      .mockResolvedValueOnce({ modifiedCount: 1 })
+    expect(await users.cleanupUnverifiedUsers()).toEqual([
+      { id: 7, email: 'expired@example.com' },
+    ])
     expect(UserModel.updateMany).toHaveBeenCalledWith(
       {
         verified: false,
         verificationExpires: { $lt: expect.any(Date) as Date },
         deletedAt: null,
+        id: { $in: [7] },
       },
       { $set: { deletedAt: expect.any(Date) as Date } },
+      { session },
     )
   })
 })

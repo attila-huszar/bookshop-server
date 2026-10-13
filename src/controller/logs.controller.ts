@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { logSchema, validate } from '@/validation'
-import { log } from '@/libs'
+import { frontendLog } from '@/libs'
 import { API } from '@/constants'
 import type { LogEntry } from '@/types'
 
@@ -14,16 +14,16 @@ logs.post(API.logs.root, async (c) => {
 
     switch (level) {
       case 'debug':
-        log.debug(`[FRONTEND] ${message}`, meta)
+        frontendLog.debug(`[FRONTEND] ${message}`, meta)
         break
       case 'warn':
-        log.warn(`[FRONTEND] ${message}`, meta)
+        frontendLog.warn(`[FRONTEND] ${message}`, meta)
         break
       case 'error':
-        log.error(`[FRONTEND] ${message}`, meta)
+        frontendLog.error(`[FRONTEND] ${message}`, meta)
         break
       default:
-        log.info(`[FRONTEND] ${message}`, meta)
+        frontendLog.info(`[FRONTEND] ${message}`, meta)
     }
 
     return c.text('Created', 201)

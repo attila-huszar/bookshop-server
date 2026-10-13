@@ -1,15 +1,31 @@
 import { LogLevel, logSchema, safeValidate } from '@/validation'
 import type { LogEntry } from '@/types'
 
+const logPriority = { debug: 0, info: 1, warn: 2, error: 3 }
+const configuredLogLevel = LogLevel.safeParse(Bun.env.LOG_LEVEL)
+const minimumLogLevel = configuredLogLevel.success
+  ? configuredLogLevel.data
+  : 'info'
+
 export class Logger {
+  constructor(private readonly source?: 'frontend') {}
+
   private emit(level: LogEntry['level'], message: string, meta?: unknown) {
+    if (logPriority[level] < logPriority[minimumLogLevel]) {
+      return
+    }
+
     const log = safeValidate(logSchema, { level, message, meta })
-    if (!log) return
+
+    if (!log) {
+      return
+    }
 
     const logOutput = {
       level: log.level,
       message: log.message,
       meta: this.serialize(log.meta),
+      source: this.source,
     }
 
     console.log(JSON.stringify(logOutput))
@@ -55,3 +71,4 @@ export class Logger {
 }
 
 export const log = new Logger()
+export const frontendLog = new Logger('frontend')

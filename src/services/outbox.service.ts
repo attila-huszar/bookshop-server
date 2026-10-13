@@ -58,14 +58,28 @@ export async function publishPendingEmails(
 
 export function startOutboxRelay(): { close: () => Promise<void> } {
   let stopped = false
+  let lastFailureLoggedAt: number | undefined
   let timer: ReturnType<typeof setTimeout> | undefined
   let running: Promise<void> = Promise.resolve()
   const tick = () => {
     running = publishPendingEmails()
       .then(
-        () => undefined,
         () => {
-          log.error('Outbox relay failed; retrying on the next poll')
+          if (lastFailureLoggedAt !== undefined) {
+            log.info('Outbox relay polling recovered')
+            lastFailureLoggedAt = undefined
+          }
+        },
+        () => {
+          const now = Date.now()
+
+          if (
+            lastFailureLoggedAt === undefined ||
+            now - lastFailureLoggedAt >= 60_000
+          ) {
+            log.error('Outbox relay failed; retrying on the next poll')
+            lastFailureLoggedAt = now
+          }
         },
       )
       .finally(() => {

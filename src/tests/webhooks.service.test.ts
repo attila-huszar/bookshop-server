@@ -183,9 +183,8 @@ describe('Webhooks Service', () => {
     })
     expect(mockOrdersDB.getOrder).not.toHaveBeenCalled()
     expect(mockOrdersDB.recordReconciliationFailure).not.toHaveBeenCalled()
-    expect(mockLogger.info).toHaveBeenCalledWith(
-      '[STRIPE] Unhandled webhook event type: charge.refunded',
-    )
+    expect(mockLogger.info).not.toHaveBeenCalled()
+    expect(mockLogger.warn).not.toHaveBeenCalled()
   })
 
   it('logs unknown PaymentIntent events without updating orders', async () => {
@@ -202,7 +201,7 @@ describe('Webhooks Service', () => {
     })
     expect(mockOrdersDB.getOrder).not.toHaveBeenCalled()
     expect(mockOrdersDB.recordReconciliationFailure).not.toHaveBeenCalled()
-    expect(mockLogger.info).toHaveBeenCalledWith(
+    expect(mockLogger.warn).toHaveBeenCalledWith(
       '[STRIPE] Unhandled webhook event type: payment_intent.future_event',
     )
   })

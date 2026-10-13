@@ -23,9 +23,7 @@ export const optionalAuthMiddleware: MiddlewareHandler<{
         uuid = payload.uuid
       }
     } catch {
-      log.info(
-        'Checkout initiated by guest user (no or invalid token provided)',
-      )
+      log.debug('Guest payment access (invalid access token)')
     }
 
     if (uuid) {
@@ -33,7 +31,7 @@ export const optionalAuthMiddleware: MiddlewareHandler<{
 
       if (user) {
         c.set('authUser', user)
-        log.info('Checkout initiated by registered user', { uuid })
+        log.debug('Payment access resolved for registered user', { uuid })
       }
     }
   }

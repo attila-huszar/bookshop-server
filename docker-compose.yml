@@ -1,3 +1,19 @@
+x-loki-options: &loki-options
+  loki-url: 'http://127.0.0.1:3100/loki/api/v1/push'
+  loki-retries: '3'
+  loki-timeout: '1s'
+  loki-max-backoff: '1s'
+  max-size: '10m'
+  max-file: '3'
+  loki-pipeline-stages: |
+    - json:
+        expressions:
+          level: level
+          source: source
+    - labels:
+        level:
+        source:
+
 services:
   server:
     init: true
@@ -29,14 +45,8 @@ services:
     logging:
       driver: loki
       options:
-        loki-url: 'http://127.0.0.1:3100/loki/api/v1/push'
+        <<: *loki-options
         loki-external-labels: 'job=server'
-        loki-pipeline-stages: |
-          - json:
-              expressions:
-                level: level
-          - labels:
-              level:
     healthcheck:
       test: ['CMD', 'curl', '-f', 'http://127.0.0.1:5000/health']
       interval: 30s
@@ -79,14 +89,8 @@ services:
     logging:
       driver: loki
       options:
-        loki-url: 'http://127.0.0.1:3100/loki/api/v1/push'
+        <<: *loki-options
         loki-external-labels: 'job=server-with-mongo'
-        loki-pipeline-stages: |
-          - json:
-              expressions:
-                level: level
-          - labels:
-              level:
     healthcheck:
       test: ['CMD', 'curl', '-f', 'http://127.0.0.1:5000/health']
       interval: 30s
@@ -98,15 +102,31 @@ services:
 
   mongodb:
     image: mongo
-    command: ['mongod', '--replSet', 'rs0', '--bind_ip_all']
+    command: ['mongod', '--replSet', 'rs0', '--bind_ip_all', '--quiet']
     profiles: ['mongo']
     ports:
       - '27017:27017'
+    depends_on:
+      loki:
+        condition: service_started
     logging:
       driver: loki
       options:
-        loki-url: 'http://127.0.0.1:3100/loki/api/v1/push'
+        <<: *loki-options
         loki-external-labels: 'job=mongodb'
+        loki-pipeline-stages: |
+          - json:
+              expressions:
+                severity: s
+                context: ctx
+          - drop:
+              source: [severity, context]
+              expression: '^I;Checkpointer$'
+          - template:
+              source: level
+              template: '{{ if .severity }}{{ if eq .severity "I" }}info{{ else if eq .severity "W" }}warn{{ else if or (eq .severity "E") (eq .severity "F") }}error{{ else }}debug{{ end }}{{ end }}'
+          - labels:
+              level:
     volumes:
       - mongodb_data:/data/db
     restart: unless-stopped
@@ -130,7 +150,18 @@ services:
     restart: unless-stopped
     ports:
       - '${REDIS_PUBLISHED_PORT:-6380}:6379'
-    command: redis-server --maxmemory 128mb --maxmemory-policy noeviction --appendonly yes --appendfsync always
+    command: redis-server --maxmemory 128mb --maxmemory-policy noeviction --appendonly yes --appendfsync always --loglevel warning
+    depends_on:
+      loki:
+        condition: service_started
+    logging:
+      driver: loki
+      options:
+        <<: *loki-options
+        loki-external-labels: 'job=redis'
+        loki-pipeline-stages: |
+          - static_labels:
+              level: warn
     volumes:
       - redis_data:/data
     healthcheck:
@@ -165,14 +196,8 @@ services:
     logging:
       driver: loki
       options:
-        loki-url: 'http://127.0.0.1:3100/loki/api/v1/push'
+        <<: *loki-options
         loki-external-labels: 'job=worker'
-        loki-pipeline-stages: |
-          - json:
-              expressions:
-                level: level
-          - labels:
-              level:
     volumes:
       - ./src:/bookshop-server/src
       - sqlite_data:/bookshop-server/data
@@ -202,14 +227,8 @@ services:
     logging:
       driver: loki
       options:
-        loki-url: 'http://127.0.0.1:3100/loki/api/v1/push'
+        <<: *loki-options
         loki-external-labels: 'job=worker-with-mongo'
-        loki-pipeline-stages: |
-          - json:
-              expressions:
-                level: level
-          - labels:
-              level:
     volumes:
       - ./src:/bookshop-server/src
 
@@ -234,14 +253,8 @@ services:
     logging:
       driver: loki
       options:
-        loki-url: 'http://127.0.0.1:3100/loki/api/v1/push'
+        <<: *loki-options
         loki-external-labels: 'job=cron'
-        loki-pipeline-stages: |
-          - json:
-              expressions:
-                level: level
-          - labels:
-              level:
     volumes:
       - ./src:/bookshop-server/src
       - ./docker/cron:/bookshop-server/docker/cron
@@ -272,14 +285,8 @@ services:
     logging:
       driver: loki
       options:
-        loki-url: 'http://127.0.0.1:3100/loki/api/v1/push'
+        <<: *loki-options
         loki-external-labels: 'job=cron-with-mongo'
-        loki-pipeline-stages: |
-          - json:
-              expressions:
-                level: level
-          - labels:
-              level:
     volumes:
       - ./src:/bookshop-server/src
       - ./docker/cron:/bookshop-server/docker/cron
@@ -287,6 +294,11 @@ services:
 
   loki:
     image: grafana/loki
+    logging:
+      driver: local
+      options:
+        max-size: '10m'
+        max-file: '3'
     ports:
       - '3100:3100'
     volumes:
@@ -301,6 +313,14 @@ services:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: admin
       GF_SERVER_ROOT_URL: '%(protocol)s://%(domain)s/grafana'
+      GF_LOG_MODE: console
+      GF_LOG_LEVEL: warn
+      GF_LOG_CONSOLE_FORMAT: json
+    logging:
+      driver: loki
+      options:
+        <<: *loki-options
+        loki-external-labels: 'job=grafana'
     volumes:
       - grafana-data:/var/lib/grafana
     restart: unless-stopped
@@ -311,6 +331,22 @@ services:
   nginx:
     image: nginx:alpine
     restart: unless-stopped
+    logging:
+      driver: loki
+      options:
+        <<: *loki-options
+        loki-external-labels: 'job=nginx'
+        loki-pipeline-stages: |
+          - json:
+              expressions:
+                level: level
+          - regex:
+              expression: '^\S+\s+\S+\s+\[(?P<nginx_level>warn|error|crit|alert|emerg)\]'
+          - template:
+              source: level
+              template: '{{ if .nginx_level }}{{ if eq .nginx_level "warn" }}warn{{ else }}error{{ end }}{{ else }}{{ .Value }}{{ end }}'
+          - labels:
+              level:
     depends_on:
       grafana:
         condition: service_started

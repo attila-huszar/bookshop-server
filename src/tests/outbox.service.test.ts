@@ -1,7 +1,10 @@
-import { beforeEach, describe, expect, it } from 'bun:test'
-import { publishPendingEmails } from '@/services/outbox.service'
+import { beforeEach, describe, expect, it, jest } from 'bun:test'
+import {
+  publishPendingEmails,
+  startOutboxRelay,
+} from '@/services/outbox.service'
 import type { EmailOutboxEntry } from '@/types'
-import { mockEmailQueue, mockOutboxDB } from './test-setup'
+import { mockEmailQueue, mockLogger, mockOutboxDB } from './test-setup'
 
 const entry: EmailOutboxEntry = {
   id: 'order-confirmed-pi_test',
@@ -28,10 +31,56 @@ const entry: EmailOutboxEntry = {
 beforeEach(() => {
   Object.values(mockOutboxDB).forEach((fn) => fn.mockReset())
   mockEmailQueue.add.mockReset()
+  mockLogger.info.mockReset()
+  mockLogger.error.mockReset()
   mockOutboxDB.claimEmail.mockResolvedValueOnce(entry).mockResolvedValue(null)
   mockEmailQueue.add.mockResolvedValue({ id: entry.id })
 })
 describe('outbox relay', () => {
+  it('continues polling during an outage without logging every retry', async () => {
+    jest.useFakeTimers()
+    mockOutboxDB.claimEmail.mockReset().mockRejectedValue(new Error('Offline'))
+    const relay = startOutboxRelay()
+    const settlePoll = async () => {
+      // Drain publication and timer scheduling before advancing the next poll.
+      for (let step = 0; step < 6; step++) {
+        await Promise.resolve()
+      }
+    }
+
+    try {
+      await settlePoll()
+      expect(mockLogger.error).toHaveBeenCalledTimes(1)
+
+      for (let poll = 0; poll < 29; poll++) {
+        jest.advanceTimersByTime(2000)
+        await settlePoll()
+      }
+
+      expect(mockOutboxDB.claimEmail).toHaveBeenCalledTimes(30)
+      expect(mockLogger.error).toHaveBeenCalledTimes(1)
+
+      jest.advanceTimersByTime(2000)
+      await settlePoll()
+      expect(mockLogger.error).toHaveBeenCalledTimes(2)
+
+      mockOutboxDB.claimEmail.mockResolvedValue(null)
+      jest.advanceTimersByTime(2000)
+      await settlePoll()
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        'Outbox relay polling recovered',
+      )
+
+      mockOutboxDB.claimEmail.mockRejectedValue(new Error('Offline again'))
+      jest.advanceTimersByTime(2000)
+      await settlePoll()
+      expect(mockLogger.error).toHaveBeenCalledTimes(3)
+    } finally {
+      await relay.close()
+      jest.useRealTimers()
+    }
+  })
+
   it('acknowledges only after Redis accepts the stable job ID', async () => {
     expect(
       await publishPendingEmails({
