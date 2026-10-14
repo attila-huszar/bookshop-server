@@ -16,10 +16,9 @@
 [![CI](https://github.com/attila-huszar/bookshop-server/actions/workflows/bun.yml/badge.svg)](https://github.com/attila-huszar/bookshop-server/actions/workflows/bun.yml)
 [![CodeQL](https://github.com/attila-huszar/bookshop-server/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/attila-huszar/bookshop-server/actions/workflows/github-code-scanning/codeql)
 
-[![Better Stack Badge](https://uptime.betterstack.com/status-badges/v2/monitor/1vrpa.svg)](https://uptime.betterstack.com/?utm_source=status_badge)
-Deployed on AWS EC2, with Docker and ngrok for https
+[![Cronitor Badge](https://cronitor.io/badges/lsZIJ8/production/JszuBy9vjjd8K0pXvs_TdX1Fpxs.svg)](https://bookshop.cronitorstatus.com/)
 
-🛠️ [Service Status](https://bookshop.betteruptime.com/)
+🛠️ [Service Status](https://bookshop.cronitorstatus.com/)
 
 👉 [Bookshop Frontend](https://github.com/attila-huszar/bookshop-client)
 
