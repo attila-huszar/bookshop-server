@@ -138,7 +138,9 @@ export async function cleanupExpiredPasswordResetTokens(): Promise<number> {
   return rows.length
 }
 
-export async function cleanupUnverifiedUsers(): Promise<number> {
+export async function cleanupUnverifiedUsers(): Promise<
+  Pick<User, 'id' | 'email'>[]
+> {
   const rows = sqlite
     .update(usersTable)
     .set({ deletedAt: new Date() })
@@ -149,8 +151,8 @@ export async function cleanupUnverifiedUsers(): Promise<number> {
         lt(usersTable.verificationExpires, new Date()),
       ),
     )
-    .returning({ id: usersTable.id })
+    .returning({ id: usersTable.id, email: usersTable.email })
     .all()
 
-  return rows.length
+  return rows
 }

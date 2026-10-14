@@ -60,8 +60,6 @@ export function getTransporter(): MailTransporter | null {
       log.error('❌ SMTP transporter verification failed', error)
     })
 
-  transporter.on('idle', () => log.info('📧 SMTP pool ready'))
-
   return transporter
 }
 

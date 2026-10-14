@@ -37,7 +37,7 @@ async function handlePaymentIntentWebhook(
     !paymentIntent.metadata?.orderId ||
     !paymentIntent.metadata.checkoutRequestId
   ) {
-    log.info(
+    log.debug(
       '[STRIPE] Ignoring PaymentIntent outside the bookshop checkout flow',
       { paymentId: paymentIntent.id },
     )
@@ -145,8 +145,8 @@ export async function verifyAndHandleStripeWebhook(
       eventId: event.id,
       eventCreated: event.created,
     })
-  } else {
-    void log.info(`[STRIPE] Unhandled webhook event type: ${event.type}`)
+  } else if (event.type.startsWith('payment_intent.')) {
+    void log.warn(`[STRIPE] Unhandled webhook event type: ${event.type}`)
   }
 
   return { received: true }

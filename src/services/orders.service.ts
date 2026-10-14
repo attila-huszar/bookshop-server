@@ -80,7 +80,7 @@ async function shouldIgnorePaymentIntentEvent(
     lastStripeEventCreated !== null &&
     eventCreated < lastStripeEventCreated
   ) {
-    void log.warn(
+    void log.debug(
       '[STRIPE] Ignoring stale webhook event by created timestamp',
       context,
     )
@@ -92,7 +92,7 @@ async function shouldIgnorePaymentIntentEvent(
     lastStripeEventCreated === eventCreated &&
     lastStripeEventId === eventId
   ) {
-    void log.warn('[STRIPE] Ignoring duplicate webhook event', context)
+    void log.debug('[STRIPE] Ignoring duplicate webhook event', context)
 
     return true
   }
@@ -123,7 +123,7 @@ async function shouldIgnorePaymentIntentEvent(
     const currentIntent = await stripe.paymentIntents.retrieve(paymentIntentId)
 
     if (currentIntent.status !== nextStatus) {
-      void log.warn(
+      void log.debug(
         '[STRIPE] Ignoring stale status after checking current intent',
         {
           ...context,
@@ -349,7 +349,9 @@ export async function reconcileStaleOrders(): Promise<{
 
   const result = { checked, failed }
 
-  void log.info('[STRIPE] Order reconciliation completed', result)
+  if (checked > 0) {
+    void log.info('[STRIPE] Order reconciliation completed', result)
+  }
 
   return result
 }

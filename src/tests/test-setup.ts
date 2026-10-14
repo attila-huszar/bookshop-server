@@ -79,6 +79,7 @@ export const mockUploadFile = mock()
 export const mockSendMail = mock()
 export const mockExtractPaymentIntentFields = mock(() => ({}))
 export const mockLogger = {
+  debug: mock(),
   info: mock(),
   warn: mock(),
   error: mock(),
@@ -132,6 +133,7 @@ await mock.module('@/validation', () => ({
 
 await mock.module('@/libs', () => ({
   log: mockLogger,
+  frontendLog: mockLogger,
   logWorker: mockLogger,
   stripe: mockStripe,
   sendMail: mockSendMail,

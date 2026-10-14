@@ -319,6 +319,21 @@ describe('Order reconciliation', () => {
     expect(mockStripe.paymentIntents.retrieve).toHaveBeenCalledTimes(5)
   })
 
+  it('reports a reconciliation batch that actually checks orders', async () => {
+    mockOrdersDB.getOrdersForReconciliation.mockResolvedValue([createOrder()])
+
+    expect(await reconcileStaleOrders()).toEqual({ checked: 1, failed: 0 })
+    expect(mockOrdersDB.markOrderReconciliationAttempted).toHaveBeenCalledTimes(
+      1,
+    )
+    expect(mockStripe.paymentIntents.retrieve).toHaveBeenCalledTimes(1)
+    expect(mockLogger.info).toHaveBeenCalledWith(
+      '[STRIPE] Order reconciliation completed',
+      { checked: 1, failed: 0 },
+    )
+    expect(mockLogger.error).not.toHaveBeenCalled()
+  })
+
   it('continues after an individual Stripe failure and reports failed checks', async () => {
     const second = createOrder({ id: 2, paymentId: 'pi_second' })
 
@@ -369,6 +384,10 @@ describe('Order reconciliation', () => {
       '[STRIPE] Order reconciliation failed',
       expect.objectContaining({ orderId: 1, paymentId: 'pi_test' }),
     )
+    expect(mockLogger.info).toHaveBeenCalledWith(
+      '[STRIPE] Order reconciliation completed',
+      { checked: 2, failed: 1 },
+    )
   })
 
   it('skips orders deleted after selection', async () => {
@@ -389,6 +408,7 @@ describe('Order reconciliation', () => {
         mockOrdersDB.markOrderReconciliationAttempted,
       ).not.toHaveBeenCalled()
       expect(mockStripe.paymentIntents.retrieve).not.toHaveBeenCalled()
+      expect(mockLogger.info).not.toHaveBeenCalled()
     } finally {
       clock.mockRestore()
     }

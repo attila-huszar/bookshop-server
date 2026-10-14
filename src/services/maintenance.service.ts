@@ -8,18 +8,28 @@ export async function runMaintenance(): Promise<boolean> {
       name: 'password reset token cleanup',
       run: async () => {
         const totalUpdated = await usersDB.cleanupExpiredPasswordResetTokens()
-        void log.info('Expired password reset tokens cleaned up', {
-          totalUpdated,
-        })
+
+        if (totalUpdated > 0) {
+          void log.info('Expired password reset tokens cleaned up', {
+            totalUpdated,
+          })
+        }
       },
     },
     {
       name: 'unverified user cleanup',
       run: async () => {
-        const totalDeleted = await usersDB.cleanupUnverifiedUsers()
-        void log.info('Expired unverified users soft deleted', {
-          totalDeleted,
-        })
+        const deletedUsers = await usersDB.cleanupUnverifiedUsers()
+
+        if (deletedUsers.length > 0) {
+          void log.info('Expired unverified users soft deleted', {
+            totalDeleted: deletedUsers.length,
+            users: deletedUsers.map((user) => ({
+              userId: user.id,
+              email: user.email,
+            })),
+          })
+        }
       },
     },
     {

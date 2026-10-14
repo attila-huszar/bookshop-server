@@ -1240,11 +1240,11 @@ describe('SQLite transactional account emails', () => {
     })
   })
 
-  it('returns affected cleanup counts and leaves active accounts and tokens alone', async () => {
+  it('returns cleanup identities and leaves pending and verified accounts alone', async () => {
     const past = new Date(Date.now() - 60_000)
     const future = new Date(Date.now() + 60_000)
 
-    await users.createUser({
+    const expiredUser = await users.createUser({
       ...user,
       verificationExpires: past,
       passwordResetToken: 'old-token',
@@ -1259,6 +1259,18 @@ describe('SQLite transactional account emails', () => {
       passwordResetExpires: future,
     })
 
+    await users.createUser({
+      ...user,
+      uuid: 'verified-user',
+      email: 'verified@example.com',
+      verified: true,
+      verificationExpires: past,
+    })
+
+    if (!expiredUser) {
+      throw new Error('Expected expired user')
+    }
+
     expect(await users.cleanupExpiredPasswordResetTokens()).toBe(1)
     expect(
       (await users.getActiveUserBy('uuid', user.uuid))?.passwordResetToken,
@@ -1267,15 +1279,18 @@ describe('SQLite transactional account emails', () => {
       (await users.getActiveUserBy('uuid', 'active-user'))?.passwordResetToken,
     ).toBe('active-token')
     expect(await users.cleanupExpiredPasswordResetTokens()).toBe(0)
-    expect(await users.cleanupUnverifiedUsers()).toBe(1)
+    expect(await users.cleanupUnverifiedUsers()).toEqual([
+      { id: expiredUser.id, email: expiredUser.email },
+    ])
     expect(await users.getActiveUserBy('uuid', user.uuid)).toBeNull()
     expect(await users.getActiveUserBy('uuid', 'active-user')).not.toBeNull()
+    expect(await users.getActiveUserBy('uuid', 'verified-user')).not.toBeNull()
     expect(
       (await users.getAllUsers()).find(
         (savedUser) => savedUser.uuid === user.uuid,
       )?.deletedAt,
     ).toBeInstanceOf(Date)
-    expect(await users.getAllUsers()).toHaveLength(2)
-    expect(await users.cleanupUnverifiedUsers()).toBe(0)
+    expect(await users.getAllUsers()).toHaveLength(3)
+    expect(await users.cleanupUnverifiedUsers()).toEqual([])
   })
 })

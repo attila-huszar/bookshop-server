@@ -16,4 +16,5 @@ chown root:root "$CRONTAB_DIR/$CRON_USER"
 chmod 600 "$CRONTAB_DIR/$CRON_USER"
 
 echo "Using cron schedule from $CRON_FILE"
-exec crond -f -l 8 -L /dev/stdout -c "$CRONTAB_DIR"
+# Suppress routine daemon messages while preserving errors and job output.
+exec crond -f -l 9 -L /dev/stdout -c "$CRONTAB_DIR"

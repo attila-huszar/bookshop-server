@@ -55,6 +55,8 @@ Maintenance runs every ten minutes. A run checks at most 100 orders, oldest atte
 
 Reconciliation never creates, confirms, captures, cancels, or refunds payments. It preserves real webhook event markers and writes its own check timestamp. The cron wrapper prevents overlapping runs in its container; the script has a nine-minute hard deadline and stops starting Stripe checks after eight minutes.
 
+Empty maintenance runs are silent: cleanup summaries require affected records, and reconciliation summaries require at least one checked order. The expired-registration summary includes `totalDeleted` and a `users` list containing only each affected account's `userId` and `email`. SQLite returns these identities from the update; Mongo selects and soft deletes them in one transaction, and logs only after commit. Cronitor still tracks each wrapped run, and failures remain logged. BusyBox `crond` uses `-l 9` to suppress routine daemon messages while retaining errors and job output.
+
 ## Transactional email outbox
 
 The database-to-Redis boundary uses the [transactional outbox pattern](https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html):
@@ -129,6 +131,26 @@ The remaining Redux slices own cart intent, authentication/session state, checko
 Repositories return internal records. Response mappers whitelist public/CMS fields and normalize dates/nulls so Mongo-specific properties and bookkeeping do not leak into API contracts. CMS user responses contain neither password hashes nor verification/reset tokens. Client mutation types describe commands (for example author IDs when editing books), not arbitrary database records.
 
 CMS order Add is disabled. Customer/shipping details remain editable; status, paid time, totals, currency, and items are read-only, with the server enforcing the same allowlist. There is no CMS “mark paid” action.
+
+## Logs
+
+Compose sends each service's output to Loki under a separate `job` label:
+
+| Component               | Jobs in Grafana               | Routine output                                                        |
+| ----------------------- | ----------------------------- | --------------------------------------------------------------------- |
+| API                     | `server`, `server-with-mongo` | Lifecycle and payment outcomes                                        |
+| Email worker            | `worker`, `worker-with-mongo` | Sent/skipped emails, failures, lifecycle                              |
+| Maintenance and backups | `cron`, `cron-with-mongo`     | Nonempty maintenance summaries and backup actions                     |
+| MongoDB                 | `mongodb`                     | Quiet connection logging; informational Checkpointer messages dropped |
+| Redis                   | `redis`                       | Warnings and critical messages                                        |
+| Ingress                 | `nginx`                       | Failed HTTP requests and daemon warnings/errors                       |
+| Grafana                 | `grafana`                     | Warnings and errors                                                   |
+
+Browser reports pass through the API and add `source="frontend"`, so `{source="frontend"}` isolates them without losing the API container's `job` label. Vite's development output stays in the local terminal. SQLite is embedded in the API/worker/cron processes and has no separate container stream.
+
+Application logs default to `LOG_LEVEL=info`; set it to `debug` in the server `.env` to include payment-access and ignored webhook diagnostics. The SMTP pool's idle event and optional client configuration defaults are silent. Unrelated Stripe event types are acknowledged silently; unsupported PaymentIntent event types remain warnings. Actual payment/email outcomes and failures stay visible. The outbox relay keeps polling every two seconds, logs a continuing polling outage at most once a minute, and logs recovery once.
+
+Loki uses Docker's `local` log driver so its own output does not feed back into Loki. Inspect it with `docker compose logs loki`. Container log files rotate at 10 MB with three files per container; Loki retains ingested logs according to its existing retention config. Loki driver retries and send timeouts are bounded. Logging-option changes require recreating containers with `docker compose up -d --build` from the server repo; restarting an existing container does not update its logging driver. Nginx failure summaries omit query strings, cookies, and authorization headers.
 
 ## Verification and production follow-ups
 

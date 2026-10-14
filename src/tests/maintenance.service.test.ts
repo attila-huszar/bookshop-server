@@ -8,24 +8,36 @@ describe('Maintenance tasks', () => {
     mockUsersDB.cleanupExpiredPasswordResetTokens.mockReset()
     mockUsersDB.cleanupExpiredPasswordResetTokens.mockResolvedValue(0)
     mockUsersDB.cleanupUnverifiedUsers.mockReset()
-    mockUsersDB.cleanupUnverifiedUsers.mockResolvedValue(0)
+    mockUsersDB.cleanupUnverifiedUsers.mockResolvedValue([])
     mockOrdersDB.getOrdersForReconciliation.mockReset()
     mockOrdersDB.getOrdersForReconciliation.mockResolvedValue([])
+    mockLogger.info.mockReset()
     mockLogger.error.mockReset()
   })
 
-  it('runs cleanup and reconciliation successfully', async () => {
+  it('runs cleanup and reconciliation quietly when nothing is due', async () => {
     expect(await runMaintenance()).toBe(true)
     expect(mockUsersDB.cleanupExpiredPasswordResetTokens).toHaveBeenCalledTimes(
       1,
     )
     expect(mockUsersDB.cleanupUnverifiedUsers).toHaveBeenCalledTimes(1)
     expect(mockOrdersDB.getOrdersForReconciliation).toHaveBeenCalledTimes(1)
+    expect(mockLogger.info).not.toHaveBeenCalled()
+    expect(mockLogger.error).not.toHaveBeenCalled()
   })
 
-  it('logs the counts returned by each cleanup', async () => {
+  it('logs cleanup counts and the identities of expired registrations', async () => {
     mockUsersDB.cleanupExpiredPasswordResetTokens.mockResolvedValue(3)
-    mockUsersDB.cleanupUnverifiedUsers.mockResolvedValue(2)
+    mockUsersDB.cleanupUnverifiedUsers.mockResolvedValue([
+      {
+        id: 7,
+        email: 'expired@example.com',
+        password: 'private-hash',
+        verificationToken: 'private-verification-token',
+        passwordResetToken: 'private-reset-token',
+      },
+      { id: 8, email: 'another-expired@example.com' },
+    ])
 
     expect(await runMaintenance()).toBe(true)
     expect(mockLogger.info).toHaveBeenCalledWith(
@@ -34,8 +46,15 @@ describe('Maintenance tasks', () => {
     )
     expect(mockLogger.info).toHaveBeenCalledWith(
       'Expired unverified users soft deleted',
-      { totalDeleted: 2 },
+      {
+        totalDeleted: 2,
+        users: [
+          { userId: 7, email: 'expired@example.com' },
+          { userId: 8, email: 'another-expired@example.com' },
+        ],
+      },
     )
+    expect(mockLogger.info).toHaveBeenCalledTimes(2)
   })
 
   it('continues other tasks when one cleanup fails', async () => {
@@ -60,6 +79,20 @@ describe('Maintenance tasks', () => {
       1,
     )
     expect(mockUsersDB.cleanupUnverifiedUsers).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not log removed user identities when cleanup fails', async () => {
+    mockUsersDB.cleanupUnverifiedUsers.mockRejectedValue(
+      new Error('Cleanup transaction failed'),
+    )
+
+    expect(await runMaintenance()).toBe(false)
+    expect(mockLogger.info).not.toHaveBeenCalled()
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      'Maintenance task failed',
+      expect.objectContaining({ task: 'unverified user cleanup' }),
+    )
+    expect(mockOrdersDB.getOrdersForReconciliation).toHaveBeenCalledTimes(1)
   })
 
   it('returns failure when an individual order cannot be reconciled', async () => {

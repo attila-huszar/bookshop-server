@@ -39,6 +39,7 @@ analytics:
   reporting_enabled: false
 
 limits_config:
+  volume_enabled: true
   retention_period: 30d
 
 compactor:

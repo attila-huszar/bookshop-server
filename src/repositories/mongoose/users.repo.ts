@@ -143,17 +143,41 @@ export async function cleanupExpiredPasswordResetTokens(): Promise<number> {
   return result.modifiedCount
 }
 
-export async function cleanupUnverifiedUsers(): Promise<number> {
+export async function cleanupUnverifiedUsers(): Promise<
+  Pick<User, 'id' | 'email'>[]
+> {
   const now = new Date()
+  const filter = {
+    verified: false,
+    verificationExpires: { $lt: now },
+    deletedAt: null,
+  }
 
-  const result = await UserModel.updateMany(
-    {
-      verified: false,
-      verificationExpires: { $lt: now },
-      deletedAt: null,
-    },
-    { $set: { deletedAt: now } },
-  ).exec()
+  return await UserModel.db.transaction(async (session) => {
+    const users = await UserModel.find(
+      filter,
+      { id: 1, email: 1, _id: 0 },
+      { session },
+    )
+      .lean()
+      .exec()
 
-  return result.modifiedCount
+    if (users.length === 0) {
+      return []
+    }
+
+    const result = await UserModel.updateMany(
+      { ...filter, id: { $in: users.map((user) => user.id) } },
+      { $set: { deletedAt: now } },
+      { session },
+    ).exec()
+
+    if (result.modifiedCount !== users.length) {
+      throw new Error(
+        'Expired user cleanup changed an unexpected number of accounts',
+      )
+    }
+
+    return users.map((user) => ({ id: user.id, email: user.email }))
+  })
 }
