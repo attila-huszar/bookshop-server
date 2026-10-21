@@ -9,6 +9,7 @@ import { emailOutboxTable } from '@/models/sqlite/emailOutboxTable'
 import { ordersTable } from '@/models/sqlite/ordersTable'
 import { orderInsertSchema, orderUpdateSchema } from '@/validation/orderSchemas'
 import { emailOutboxResponse } from '@/utils/email-outbox.utils'
+import { defaultTermsStatements } from '@/constants/defaults'
 import {
   AdminNotification,
   type UserRegistrationInsert,
@@ -27,6 +28,7 @@ await mock.module('@/db', () => ({
 const orders = await import('@/repositories/drizzle/orders.repo')
 const books = await import('@/repositories/drizzle/books.repo')
 const authors = await import('@/repositories/drizzle/authors.repo')
+const terms = await import('@/repositories/drizzle/terms.repo')
 
 describe('SQLite missing CMS records', () => {
   it('returns null for missing books and authors so services can report 404', async () => {
@@ -35,9 +37,56 @@ describe('SQLite missing CMS records', () => {
   })
 })
 
+describe('SQLite terms documents', () => {
+  it('applies bilingual statement defaults to direct SQL inserts', async () => {
+    database
+      .query(
+        'INSERT INTO terms_documents (version, content, published_at) VALUES (?, ?, ?)',
+      )
+      .run(
+        '33333333-3333-4333-8333-333333333333',
+        JSON.stringify({ en: 'English terms', hu: 'Magyar feltételek' }),
+        Date.now(),
+      )
+
+    expect((await terms.getCurrentTerms())?.statements).toEqual(
+      defaultTermsStatements,
+    )
+  })
+
+  it('publishes a new version without modifying archived terms', async () => {
+    const first = {
+      version: '11111111-1111-4111-8111-111111111111',
+      content: { en: 'Original English', hu: 'Eredeti magyar' },
+      statements: { en: 'Original declaration', hu: 'Eredeti nyilatkozat' },
+      publishedAt: '2026-10-14T10:00:00.000Z',
+    }
+    const second = {
+      version: '22222222-2222-4222-8222-222222222222',
+      content: { en: 'Updated English', hu: 'Új magyar' },
+      publishedAt: '2026-10-14T10:01:00.000Z',
+    }
+
+    expect(await terms.getCurrentTerms()).toBeNull()
+    await terms.publishTerms(first)
+    await terms.publishTerms(second)
+
+    expect(await terms.getCurrentTerms()).toEqual({
+      ...second,
+      statements: defaultTermsStatements,
+    })
+    expect(await terms.getTermsByVersion(first.version)).toEqual(first)
+    expect(await terms.getTermsByVersion(second.version)).not.toHaveProperty(
+      'id',
+    )
+    await rejects(terms.publishTerms({ ...first, content: second.content }))
+    expect(await terms.getTermsByVersion(first.version)).toEqual(first)
+  })
+})
+
 beforeEach(() =>
   database.run(
-    'DELETE FROM email_outbox; DELETE FROM orders; DELETE FROM users',
+    'DELETE FROM email_outbox; DELETE FROM orders; DELETE FROM users; DELETE FROM terms_documents',
   ),
 )
 afterAll(() => database.close())
@@ -62,6 +111,62 @@ const draft = {
 }
 
 describe('SQLite checkout orders', () => {
+  it('records terms once and preserves the first acceptance across concurrent retries', async () => {
+    await orders.createCheckoutOrder({
+      ...draft,
+      paymentId: 'pi_terms',
+      paymentStatus: 'requires_payment_method',
+    })
+    const acceptance = {
+      version: 'v1',
+      acceptedAt: '2026-10-14T10:00:00Z',
+      statement: 'Accepted terms',
+      language: 'en' as const,
+    }
+    const results = await Promise.all([
+      orders.recordTermsAcceptance('pi_terms', acceptance),
+      orders.recordTermsAcceptance('pi_terms', {
+        ...acceptance,
+        acceptedAt: '2026-10-14T10:05:00Z',
+      }),
+    ])
+
+    expect(results[0]?.termsAcceptance).toEqual(acceptance)
+    expect(results[1]?.termsAcceptance).toEqual(acceptance)
+    expect((await orders.getOrder('pi_terms'))?.termsAcceptance).toEqual(
+      acceptance,
+    )
+    expect(orderUpdateSchema.parse({ termsAcceptance: acceptance })).toEqual({})
+  })
+
+  it('does not add acceptance after payment or cancellation', async () => {
+    const acceptance = {
+      version: 'v1',
+      acceptedAt: new Date().toISOString(),
+      statement: 'Accepted terms',
+      language: 'en' as const,
+    }
+
+    for (const paymentStatus of [
+      'processing',
+      'succeeded',
+      'canceled',
+    ] as const) {
+      const paymentId = `pi_${paymentStatus}`
+      await orders.createCheckoutOrder({
+        ...draft,
+        paymentId,
+        checkoutRequestId: paymentId,
+        paymentStatus,
+      })
+
+      expect(
+        (await orders.recordTermsAcceptance(paymentId, acceptance))
+          ?.termsAcceptance,
+      ).toBeNull()
+    }
+  })
+
   it('rejects null or missing checkout request IDs at the database boundary', () => {
     expect(() =>
       database.run(

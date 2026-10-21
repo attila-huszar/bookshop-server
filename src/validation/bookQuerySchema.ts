@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { PAGINATION } from '@/constants'
+import { ValidationRule } from '@/types/enums'
 import { idSchema } from './commonSchemas'
 
 const numericQuery = z
@@ -44,5 +45,8 @@ export const bookQuerySchema = z
         const max = value[`${key}_lte` as keyof typeof value]
         return typeof min !== 'number' || typeof max !== 'number' || min <= max
       }),
-    'Minimum filter value must not exceed maximum',
+    {
+      message: 'Minimum filter value must not exceed maximum',
+      params: { rule: ValidationRule.FilterRange },
+    },
   )

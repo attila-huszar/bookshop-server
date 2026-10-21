@@ -19,6 +19,7 @@ const { applyPaymentIntentWebhookToOrder } =
 
 const createOrder = (overrides: Partial<Order> = {}): Order => ({
   checkoutRequestId: 'checkout-webhook-test',
+  termsAcceptance: null,
   id: 1,
   paymentId: 'pi_test_123',
   paymentStatus: 'processing',

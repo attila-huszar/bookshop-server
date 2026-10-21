@@ -1,15 +1,19 @@
-import { booksDB, ordersDB } from '@/repositories'
+import { env } from '@/config'
+import { booksDB, ordersDB, termsDB } from '@/repositories'
 import {
+  acceptPaymentTermsSchema,
   orderInsertSchema,
   paymentIdSchema,
   paymentIntentRequestSchema,
   validate,
 } from '@/validation'
+import { orderResponse } from '@/utils/response.utils'
 import { log, stripe } from '@/libs'
 import { defaultCurrency, paymentMessage } from '@/constants'
 import { BadRequest, Internal, NotFound } from '@/errors'
 import { Unauthorized } from '@/errors/Unauthorized'
 import type {
+  CheckoutTerms,
   Order,
   OrderInsert,
   OrderItem,
@@ -18,7 +22,9 @@ import type {
   PaymentSession,
   PublicUser,
   StripePaymentIntent,
+  TermsAcceptance,
 } from '@/types'
+import { PaymentErrorCode, TermsErrorCode } from '@/types/enums'
 
 async function resolveAuthorizedPayment(
   paymentId: string,
@@ -40,7 +46,10 @@ async function resolveAuthorizedPayment(
   }
 
   if (!order) {
-    throw new Unauthorized('Unauthorized payment access')
+    throw new Unauthorized(
+      'Unauthorized payment access',
+      PaymentErrorCode.AccessDenied,
+    )
   }
 
   const accessEmail = access.userEmail?.toLowerCase()
@@ -49,7 +58,10 @@ async function resolveAuthorizedPayment(
     Boolean(accessEmail) && order.email?.toLowerCase() === accessEmail
 
   if (!hasSessionAccess && !hasEmailAccess) {
-    throw new Unauthorized('Unauthorized payment access')
+    throw new Unauthorized(
+      'Unauthorized payment access',
+      PaymentErrorCode.AccessDenied,
+    )
   }
 
   return { validatedId, order }
@@ -110,6 +122,95 @@ export async function retrievePaymentIntent(
   return await stripe.paymentIntents.retrieve(validatedId)
 }
 
+export async function getPaymentTerms(
+  paymentId: string,
+  access: PaymentAccess,
+) {
+  const { order } = await resolveAuthorizedPayment(paymentId, access)
+  const document = await termsDB.getCurrentTerms()
+  const terms: CheckoutTerms | null = document
+    ? {
+        url: `${env.clientBaseUrl!.replace(/\/$/, '')}/terms/${document.version}`,
+        version: document.version,
+        statements: document.statements,
+      }
+    : null
+
+  return {
+    terms,
+    order: {
+      items: orderResponse(order).items,
+      total: order.total,
+      currency: order.currency,
+    },
+  }
+}
+
+export async function acceptPaymentTerms(
+  paymentId: string,
+  input: unknown,
+  access: PaymentAccess,
+): Promise<TermsAcceptance> {
+  const request = acceptPaymentTermsSchema.parse(input)
+  const { validatedId, order } = await resolveAuthorizedPayment(
+    paymentId,
+    access,
+  )
+  const terms = await termsDB.getCurrentTerms()
+
+  if (!terms) {
+    throw new BadRequest(
+      'Terms and conditions are currently unavailable. Please try again later.',
+      TermsErrorCode.Unavailable,
+      503,
+    )
+  }
+
+  if (request.version !== terms.version) {
+    throw new BadRequest(
+      'The terms and conditions have changed. Please review and accept them again.',
+      TermsErrorCode.Changed,
+      412,
+    )
+  }
+
+  if (order.deletedAt || order.paymentStatus === 'canceled') {
+    throw new BadRequest(
+      'This checkout has ended. Please start a new checkout.',
+      PaymentErrorCode.CheckoutEnded,
+      410,
+    )
+  }
+
+  const recordedOrder = order.termsAcceptance
+    ? order
+    : await ordersDB.recordTermsAcceptance(validatedId, {
+        version: terms.version,
+        language: request.language,
+        statement: terms.statements[request.language],
+        acceptedAt: new Date().toISOString(),
+      })
+  const acceptance = recordedOrder?.termsAcceptance
+
+  if (!acceptance) {
+    throw new BadRequest(
+      'Unable to record terms acceptance for this checkout. Please start a new checkout.',
+      TermsErrorCode.NotRecorded,
+      409,
+    )
+  }
+
+  if (acceptance.version !== terms.version) {
+    throw new BadRequest(
+      'This checkout accepted an earlier version of the terms. Please start a new checkout.',
+      TermsErrorCode.AlreadyAccepted,
+      412,
+    )
+  }
+
+  return acceptance
+}
+
 async function getOrCreateCheckoutOrder(
   paymentIntentRequest: PaymentIntentRequest,
   user: PublicUser | null,
@@ -131,7 +232,7 @@ async function getOrCreateCheckoutOrder(
   if (Math.abs(total - validatedRequest.expectedTotal) > 0.05) {
     throw new BadRequest(
       paymentMessage.priceUpdatedInCart,
-      'PriceConflict',
+      PaymentErrorCode.PriceConflict,
       409,
     )
   }
@@ -208,7 +309,7 @@ export async function startCheckoutPayment(
   if (paymentIntent.status === 'canceled') {
     throw new BadRequest(
       'This checkout was canceled. Please start a new checkout.',
-      'CheckoutCanceled',
+      PaymentErrorCode.CheckoutEnded,
       410,
     )
   }
@@ -250,11 +351,17 @@ export async function cancelPaymentIntent(
   )
 
   if (order.paymentStatus === 'canceled') {
-    throw new BadRequest(paymentMessage.paymentAlreadyCanceled)
+    throw new BadRequest(
+      paymentMessage.paymentAlreadyCanceled,
+      PaymentErrorCode.AlreadyCanceled,
+    )
   }
 
   if (order.paymentStatus === 'succeeded') {
-    throw new BadRequest(paymentMessage.paymentCannotCancelSucceeded)
+    throw new BadRequest(
+      paymentMessage.paymentCannotCancelSucceeded,
+      PaymentErrorCode.AlreadySucceeded,
+    )
   }
 
   return await stripe.paymentIntents.cancel(validatedId)

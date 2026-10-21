@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { MAX_IMAGE_SIZE } from '@/constants'
+import { ValidationRule } from '@/types/enums'
 
 export const idSchema = z
   .union([z.number(), z.string().regex(/^\d+$/)])
@@ -56,6 +57,7 @@ export const imageSchema = z
   })
   .refine((data) => data.size > 0, {
     message: 'Image size must be greater than 0',
+    params: { rule: ValidationRule.ImageRequired },
   })
 
 export const uuidSchema = z.uuid()

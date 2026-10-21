@@ -36,6 +36,7 @@ import type {
   Order,
 } from '@/types'
 import { Folder, UserRole } from '@/types'
+import { UserErrorCode } from '@/types/enums'
 
 // --- READ --- //
 export async function getAllBooks(): Promise<
@@ -232,6 +233,7 @@ export async function softDeleteUsers(input: CmsUserIds): Promise<number> {
     if (totalAdmins - deletingAdmins.length === 0) {
       throw new BadRequest(
         'Cannot delete the last admin. At least one admin must remain in the system.',
+        UserErrorCode.LastAdminRequired,
       )
     }
   }
@@ -244,7 +246,7 @@ export async function uploadProductImage(
   image: Bun.FormDataEntryValue | null,
 ): Promise<{ url: string }> {
   if (!(image instanceof File)) {
-    throw new BadRequest('Image must be a file')
+    throw new BadRequest('Image must be a file', UserErrorCode.InvalidImage)
   }
 
   validate(imageSchema, image)

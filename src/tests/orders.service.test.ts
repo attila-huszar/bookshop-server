@@ -16,6 +16,7 @@ function createOrder(overrides: Partial<Order> = {}): Order {
   return {
     id: 1,
     checkoutRequestId: 'checkout-reconciliation-test',
+    termsAcceptance: null,
     paymentId: 'pi_test',
     paymentStatus: 'processing',
     lastStripeEventCreated: 100,

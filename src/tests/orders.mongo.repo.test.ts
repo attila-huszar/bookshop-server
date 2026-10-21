@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, mock } from 'bun:test'
 import { rejects } from 'node:assert/strict'
 import { env } from '@/config'
+import { defaultTermsStatements } from '@/constants/defaults'
 import { terminalStatuses } from '@/constants/payment'
 import {
   type Order,
@@ -45,6 +46,11 @@ const UserModel = {
   db: OrderModel.db,
 }
 
+const TermsDocumentModel = { findOne: mock(), create: mock() }
+await mock.module('@/models/mongo/TermsDocumentModel', () => ({
+  TermsDocumentModel,
+}))
+
 await mock.module('@/models/mongo', () => ({
   OrderModel,
   UserModel,
@@ -56,6 +62,112 @@ await mock.module('@/models/mongo/EmailOutboxModel', () => ({
 const orders = await import('@/repositories/mongoose/orders.repo')
 const users = await import('@/repositories/mongoose/users.repo')
 const outbox = await import('@/repositories/mongoose/outbox.repo')
+const terms = await import('@/repositories/mongoose/terms.repo')
+
+describe('Mongo terms documents', () => {
+  const document = {
+    version: '11111111-1111-4111-8111-111111111111',
+    content: { en: 'English', hu: 'Magyar' },
+    statements: defaultTermsStatements,
+    publishedAt: '2026-10-14T10:00:00.000Z',
+  }
+
+  beforeEach(() => {
+    query.sort.mockReset().mockReturnValue(query)
+    query.lean.mockReset().mockReturnValue(query)
+    query.exec.mockReset()
+    query.exec.mockResolvedValue({
+      ...document,
+      publishedAt: new Date(document.publishedAt),
+      _id: 'internal',
+      id: 12,
+    })
+    TermsDocumentModel.findOne.mockReset().mockReturnValue(query)
+    TermsDocumentModel.create.mockReset()
+    TermsDocumentModel.create.mockResolvedValue({
+      toObject: () => ({
+        ...document,
+        publishedAt: new Date(document.publishedAt),
+        _id: 'internal',
+        id: 12,
+      }),
+    })
+  })
+
+  it('reads the latest revision and omits database fields', async () => {
+    expect(await terms.getCurrentTerms()).toEqual(document)
+    expect(query.sort).toHaveBeenCalledWith({ id: -1 })
+    expect(await terms.getTermsByVersion(document.version)).toEqual(document)
+    expect(TermsDocumentModel.findOne).toHaveBeenLastCalledWith({
+      version: document.version,
+    })
+  })
+
+  it('publishes by appending an immutable document', async () => {
+    expect(await terms.publishTerms(document)).toEqual(document)
+    expect(TermsDocumentModel.create).toHaveBeenCalledWith({
+      ...document,
+      publishedAt: new Date(document.publishedAt),
+    })
+  })
+})
+
+describe('Mongo checkout terms acceptance', () => {
+  beforeEach(() => {
+    query.lean.mockReset().mockReturnValue(query)
+    query.exec.mockReset()
+    OrderModel.findOneAndUpdate.mockReset().mockReturnValue(query)
+    OrderModel.findOne.mockReset().mockReturnValue(query)
+  })
+
+  it('atomically records acceptance only for an active, unpaid order without prior acceptance', async () => {
+    const acceptance = {
+      version: 'v1',
+      acceptedAt: new Date().toISOString(),
+      statement: 'Accepted terms',
+      language: 'en' as const,
+    }
+    query.exec.mockResolvedValueOnce({ termsAcceptance: acceptance })
+
+    expect(
+      (await orders.recordTermsAcceptance('pi_terms', acceptance))
+        ?.termsAcceptance,
+    ).toEqual(acceptance)
+    expect(OrderModel.findOneAndUpdate).toHaveBeenCalledWith(
+      {
+        paymentId: 'pi_terms',
+        termsAcceptance: null,
+        deletedAt: null,
+        paymentStatus: {
+          $in: ['requires_payment_method', 'requires_confirmation'],
+        },
+      },
+      { $set: { termsAcceptance: acceptance } },
+      { returnDocument: 'after' },
+    )
+  })
+
+  it('returns the existing acceptance when another request won the update', async () => {
+    const acceptance = {
+      version: 'v1',
+      acceptedAt: '2026-10-14T10:00:00Z',
+      statement: 'Accepted terms',
+      language: 'en' as const,
+    }
+    query.exec
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ termsAcceptance: acceptance })
+
+    expect(
+      (
+        await orders.recordTermsAcceptance('pi_terms', {
+          ...acceptance,
+          acceptedAt: '2026-10-14T10:05:00Z',
+        })
+      )?.termsAcceptance,
+    ).toEqual(acceptance)
+  })
+})
 
 describe('Mongo order soft deletion', () => {
   beforeEach(() => {
@@ -487,6 +599,7 @@ describe('Mongo order reconciliation alerts', () => {
   const current: Order = {
     id: 1,
     checkoutRequestId: 'checkout-failed',
+    termsAcceptance: null,
     createdAt: new Date('2026-10-08T11:00:00Z'),
     updatedAt: new Date('2026-10-08T11:00:00Z'),
     lastStripeEventCreated: null,

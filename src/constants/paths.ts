@@ -38,10 +38,15 @@ export const API = {
   orders: {
     root: '/orders',
   },
+  terms: {
+    root: '/terms',
+    byVersion: '/terms/:version',
+  },
   payments: {
     root: '/payments',
     byId: '/payments/:paymentId',
     byIdWildcard: '/payments/:paymentId/*',
+    terms: '/payments/:paymentId/terms',
   },
   cms: {
     root: '/cms',
@@ -56,6 +61,7 @@ export const API = {
     },
     emailOutbox: '/cms/email-outbox',
     productImage: '/cms/product-image',
+    terms: '/cms/terms',
   },
   logs: {
     root: '/logs',

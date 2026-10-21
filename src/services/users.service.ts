@@ -26,6 +26,7 @@ import {
   UserRole,
   type VerificationRequest,
 } from '@/types'
+import { AuthErrorCode, UserErrorCode } from '@/types/enums'
 
 export async function loginUser(loginRequest: LoginRequest) {
   const { email, password } = validate(loginSchema, loginRequest)
@@ -43,15 +44,21 @@ export async function loginUser(loginRequest: LoginRequest) {
   }
 
   if (!user) {
-    throw new Unauthorized(authMessage.credentialsInvalid)
+    throw new Unauthorized(
+      authMessage.credentialsInvalid,
+      AuthErrorCode.InvalidCredentials,
+    )
   }
 
   if (!user.verified) {
-    throw new Forbidden(userMessage.verifyFirst)
+    throw new Forbidden(userMessage.verifyFirst, AuthErrorCode.EmailUnverified)
   }
 
   if (!isPasswordCorrect) {
-    throw new Unauthorized(authMessage.credentialsInvalid)
+    throw new Unauthorized(
+      authMessage.credentialsInvalid,
+      AuthErrorCode.InvalidCredentials,
+    )
   }
 
   const timestamp = Math.floor(Date.now() / 1000)
@@ -79,7 +86,10 @@ export async function registerUser(formData: FormData) {
   const emailTaken = await usersDB.emailExists(email)
 
   if (emailTaken) {
-    throw new BadRequest(userMessage.emailTaken)
+    throw new BadRequest(
+      userMessage.emailTaken,
+      UserErrorCode.EmailAlreadyExists,
+    )
   }
 
   const verificationToken = crypto.randomUUID()
@@ -123,13 +133,13 @@ export async function verifyUser(verificationRequest: VerificationRequest) {
   const user = await usersDB.getActiveUserBy('verificationToken', token)
 
   if (!user?.verificationToken) {
-    throw new BadRequest(authMessage.invalidToken)
+    throw new BadRequest(authMessage.invalidToken, AuthErrorCode.InvalidToken)
   }
 
   const expiry = user.verificationExpires
 
   if (expiry && new Date(expiry) < new Date()) {
-    throw new BadRequest(authMessage.invalidToken)
+    throw new BadRequest(authMessage.invalidToken, AuthErrorCode.InvalidToken)
   }
 
   const userUpdated = await usersDB.updateUserBy('email', user.email, {
@@ -179,7 +189,7 @@ export async function passwordResetToken(
   const user = await usersDB.getActiveUserBy('passwordResetToken', token)
 
   if (!user?.passwordResetToken) {
-    throw new BadRequest(authMessage.invalidToken)
+    throw new BadRequest(authMessage.invalidToken, AuthErrorCode.InvalidToken)
   }
 
   return { token }
@@ -198,7 +208,7 @@ export async function passwordResetSubmit(
     !passwordResetExpiry ||
     new Date(passwordResetExpiry) <= new Date()
   ) {
-    throw new Unauthorized(authMessage.invalidToken)
+    throw new Unauthorized(authMessage.invalidToken, AuthErrorCode.InvalidToken)
   }
 
   const userUpdated = await usersDB.updateUserBy('email', user.email, {
@@ -230,7 +240,7 @@ export async function getActiveUser(
       return null
     }
 
-    throw new Unauthorized(authMessage.invalidToken)
+    throw new Unauthorized(authMessage.invalidToken, AuthErrorCode.InvalidToken)
   }
 
   return user
@@ -258,7 +268,10 @@ export async function updateUserProfile(
     }
 
     if (!isPasswordCorrect) {
-      throw new BadRequest('Current password is incorrect')
+      throw new BadRequest(
+        'Current password is incorrect',
+        AuthErrorCode.CurrentPasswordIncorrect,
+      )
     }
 
     validatedFields.password = await Bun.password.hash(validatedFields.password)
@@ -282,7 +295,7 @@ export async function uploadUserAvatar(
   avatar: Bun.FormDataEntryValue | null,
 ): Promise<PublicUser> {
   if (!(avatar instanceof File)) {
-    throw new BadRequest('Avatar must be a file')
+    throw new BadRequest('Avatar must be a file', UserErrorCode.InvalidImage)
   }
 
   validate(imageSchema, avatar)

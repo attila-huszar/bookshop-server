@@ -12,6 +12,7 @@ import type {
   OrderPaymentSnapshot,
   OrderReconciliationQuery,
   OrderUpdate,
+  TermsAcceptance,
 } from '@/types'
 
 const MONGO_DUPLICATE_KEY_CODE = 11000
@@ -106,6 +107,29 @@ export async function getOrder(paymentId: string): Promise<Order | null> {
   }
 
   return order
+}
+
+/** Keep the first acceptance and its timestamp across identical retries. */
+export async function recordTermsAcceptance(
+  paymentId: string,
+  acceptance: TermsAcceptance,
+): Promise<Order | null> {
+  const updated = await OrderModel.findOneAndUpdate(
+    {
+      paymentId,
+      termsAcceptance: null,
+      deletedAt: null,
+      paymentStatus: {
+        $in: ['requires_payment_method', 'requires_confirmation'],
+      },
+    },
+    { $set: { termsAcceptance: acceptance } },
+    { returnDocument: 'after' },
+  )
+    .lean()
+    .exec()
+
+  return updated ?? getOrder(paymentId)
 }
 
 export async function getOrderById(id: number): Promise<Order | null> {

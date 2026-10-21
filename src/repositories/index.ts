@@ -6,5 +6,12 @@ const repository =
     ? await import('./mongoose')
     : await import('./drizzle')
 
-export const { authorsDB, booksDB, newsDB, ordersDB, usersDB, outboxDB } =
-  repository
+export const {
+  authorsDB,
+  booksDB,
+  newsDB,
+  ordersDB,
+  usersDB,
+  outboxDB,
+  termsDB,
+} = repository

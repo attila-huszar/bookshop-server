@@ -19,6 +19,7 @@ const checkoutRequestId = 'req_test_123'
 const createOrder = (overrides: Partial<Order> = {}): Order => ({
   id: 1,
   checkoutRequestId,
+  termsAcceptance: null,
   paymentId: null,
   paymentStatus: 'processing',
   lastStripeEventCreated: null,

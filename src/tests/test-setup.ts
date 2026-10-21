@@ -3,7 +3,7 @@ import { env } from '@/config'
 import * as validation from '@/validation'
 import { toIsoString } from '@/utils/date.utils'
 import { getOrderRef } from '@/utils/string.utils'
-import type { Order, OrderUpdate } from '@/types'
+import type { Order, OrderUpdate, TermsDocument } from '@/types'
 
 env.adminEmail ??= 'admin@example.com'
 env.clientBaseUrl ??= 'https://bookshop.test'
@@ -36,6 +36,14 @@ export const mockBooksDB = {
   hardDeleteBooks: mock(),
 }
 
+export const mockTermsDB = {
+  getCurrentTerms: mock<() => Promise<TermsDocument | null>>(() =>
+    Promise.resolve(null),
+  ),
+  getTermsByVersion: mock(),
+  publishTerms: mock(),
+}
+
 export const mockOrdersDB = {
   getOrder: mock(),
   getOrderById: mock(),
@@ -44,6 +52,7 @@ export const mockOrdersDB = {
   setOrdersDeleted: mock(),
   getOrderByCheckoutRequestId: mock(),
   createCheckoutOrder: mock(),
+  recordTermsAcceptance: mock(),
   linkPaymentIntent: mock(),
   updateOrder: mock(),
   getOrdersForReconciliation: mock(),
@@ -107,14 +116,19 @@ export const mockWorkerConstructor = mock<
 
 export const mockIORedis = mock(() => mockWorker)
 
-await mock.module('@/repositories', () => ({
-  authorsDB: { hardDeleteAuthors: mock() },
-  newsDB: {},
-  booksDB: mockBooksDB,
-  usersDB: mockUsersDB,
-  ordersDB: mockOrdersDB,
-  outboxDB: mockOutboxDB,
-}))
+export async function mockRepositories(): Promise<void> {
+  await mock.module('@/repositories', () => ({
+    authorsDB: { hardDeleteAuthors: mock() },
+    newsDB: {},
+    booksDB: mockBooksDB,
+    usersDB: mockUsersDB,
+    ordersDB: mockOrdersDB,
+    outboxDB: mockOutboxDB,
+    termsDB: mockTermsDB,
+  }))
+}
+
+await mockRepositories()
 
 await mock.module('stripe', () => {
   const mockStripeCtor = mock(() => mockStripe)

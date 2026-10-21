@@ -7,9 +7,11 @@ import {
   getAllBooks,
   getAllOrders,
   getAllUsers,
+  getCurrentTerms,
   getEmailOutbox,
   hardDeleteAuthors,
   hardDeleteBooks,
+  publishTerms,
   restoreOrders,
   restoreUsers,
   softDeleteOrders,
@@ -37,6 +39,11 @@ import type {
 export const cms = new Hono()
 
 // --- GET --- //
+cms.get(API.cms.terms, async (c) => {
+  c.header('Cache-Control', 'no-store')
+
+  return c.json(await getCurrentTerms())
+})
 cms.get(API.cms.emailOutbox, async (c) => {
   return c.json(await getEmailOutbox(c.req.query()))
 })
@@ -66,6 +73,9 @@ cms.get(API.cms.users, async (c) => {
 })
 
 // --- POST --- //
+cms.post(API.cms.terms, async (c) => {
+  return c.json(await publishTerms(await c.req.json<unknown>()))
+})
 cms.post(API.cms.books, async (c) => {
   const book = await c.req.json<BookInsert>()
   const newBook = await addBook(book)
