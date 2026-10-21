@@ -864,6 +864,53 @@ describe('Mongo transactional account emails', () => {
     expect(EmailOutboxModel.insertMany).not.toHaveBeenCalled()
   })
 
+  it('verifies only the current unexpired token of an active account', async () => {
+    query.exec.mockResolvedValueOnce({ ...storedUser, verified: true })
+
+    expect(await users.verifyUserByToken('verification-token')).toMatchObject({
+      verified: true,
+    })
+    expect(UserModel.findOneAndUpdate).toHaveBeenCalledWith(
+      {
+        verificationToken: 'verification-token',
+        verificationExpires: { $gt: expect.any(Date) as Date },
+        deletedAt: null,
+      },
+      { verified: true, verificationToken: null, verificationExpires: null },
+      { returnDocument: 'after' },
+    )
+  })
+
+  it('changes a password only while its reset token is current and unexpired', async () => {
+    query.exec.mockResolvedValueOnce({ ...storedUser, password: 'new-hash' })
+
+    expect(
+      await users.resetPasswordByToken('reset-token', 'new-hash'),
+    ).toMatchObject({ password: 'new-hash' })
+    expect(UserModel.findOneAndUpdate).toHaveBeenCalledWith(
+      {
+        passwordResetToken: 'reset-token',
+        passwordResetExpires: { $gt: expect.any(Date) as Date },
+        deletedAt: null,
+      },
+      {
+        password: 'new-hash',
+        passwordResetToken: null,
+        passwordResetExpires: null,
+      },
+      { returnDocument: 'after' },
+    )
+  })
+
+  it('returns null when a token is expired, replaced, consumed, or its account is deleted', async () => {
+    query.exec.mockResolvedValue(null)
+
+    expect(await users.verifyUserByToken('unusable-token')).toBeNull()
+    expect(
+      await users.resetPasswordByToken('unusable-token', 'new-hash'),
+    ).toBeNull()
+  })
+
   it('keeps generic creation and updates email-free', async () => {
     UserModel.create.mockResolvedValueOnce([{ toObject: () => storedUser }])
     query.exec.mockResolvedValueOnce(storedUser)

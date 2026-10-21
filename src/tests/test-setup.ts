@@ -18,6 +18,8 @@ export const mockUsersDB = {
   createUser: mock(),
   createUserWithVerification: mock(),
   setPasswordResetToken: mock(),
+  verifyUserByToken: mock(),
+  resetPasswordByToken: mock(),
   updateUserBy: mock(),
   cleanupExpiredPasswordResetTokens: mock(),
   cleanupUnverifiedUsers: mock(),

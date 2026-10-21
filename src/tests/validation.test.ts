@@ -4,7 +4,12 @@ import { SQLiteSyncDialect } from 'drizzle-orm/sqlite-core'
 import { bookQueryBuilder as sqliteBookQuery } from '@/repositories/drizzle/books.query'
 import { bookQueryBuilder as mongoBookQuery } from '@/repositories/mongoose/books.query'
 import { authorInsertSchema } from '@/validation/authorSchemas'
-import { emailSchema, registerSchema } from '@/validation/authSchemas'
+import {
+  emailSchema,
+  loginSchema,
+  passwordSchema,
+  registerSchema,
+} from '@/validation/authSchemas'
 import { bookQuerySchema } from '@/validation/bookQuerySchema'
 import { bookInsertSchema, bookUpdateSchema } from '@/validation/bookSchemas'
 import { idSchema, nameSchema } from '@/validation/commonSchemas'
@@ -58,6 +63,20 @@ const author = {
   birthYear: '',
   deathYear: '',
 }
+
+describe('existing password validation', () => {
+  it('accepts an existing password at login without applying the new-password policy', () => {
+    expect(
+      loginSchema.safeParse({ email: 'test@example.com', password: 'old' })
+        .success,
+    ).toBe(true)
+    expect(
+      loginSchema.safeParse({ email: 'test@example.com', password: '' })
+        .success,
+    ).toBe(false)
+    expect(passwordSchema.safeParse({ password: 'old' }).success).toBe(false)
+  })
+})
 const user = {
   firstName: 'Jane',
   lastName: 'Doe',

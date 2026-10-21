@@ -114,6 +114,43 @@ export async function setPasswordResetToken(
   })
 }
 
+/** Verify only while this token is current and unexpired, consuming it once. */
+export async function verifyUserByToken(token: string): Promise<User | null> {
+  const user = await UserModel.findOneAndUpdate(
+    {
+      verificationToken: token,
+      verificationExpires: { $gt: new Date() },
+      deletedAt: null,
+    },
+    { verified: true, verificationToken: null, verificationExpires: null },
+    { returnDocument: 'after' },
+  )
+    .lean()
+    .exec()
+
+  return user ?? null
+}
+
+/** Change the password and consume its reset token in the same conditional write. */
+export async function resetPasswordByToken(
+  token: string,
+  password: string,
+): Promise<User | null> {
+  const user = await UserModel.findOneAndUpdate(
+    {
+      passwordResetToken: token,
+      passwordResetExpires: { $gt: new Date() },
+      deletedAt: null,
+    },
+    { password, passwordResetToken: null, passwordResetExpires: null },
+    { returnDocument: 'after' },
+  )
+    .lean()
+    .exec()
+
+  return user ?? null
+}
+
 export async function getAllUsers(): Promise<User[]> {
   const users = await UserModel.find().lean().exec()
 

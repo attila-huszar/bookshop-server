@@ -43,7 +43,7 @@ export async function loginUser(loginRequest: LoginRequest) {
     // Treat malformed hashes as invalid credentials.
   }
 
-  if (!user) {
+  if (!user || !isPasswordCorrect) {
     throw new Unauthorized(
       authMessage.credentialsInvalid,
       AuthErrorCode.InvalidCredentials,
@@ -52,13 +52,6 @@ export async function loginUser(loginRequest: LoginRequest) {
 
   if (!user.verified) {
     throw new Forbidden(userMessage.verifyFirst, AuthErrorCode.EmailUnverified)
-  }
-
-  if (!isPasswordCorrect) {
-    throw new Unauthorized(
-      authMessage.credentialsInvalid,
-      AuthErrorCode.InvalidCredentials,
-    )
   }
 
   const timestamp = Math.floor(Date.now() / 1000)
@@ -130,26 +123,10 @@ export async function registerUser(formData: FormData) {
 export async function verifyUser(verificationRequest: VerificationRequest) {
   const { token } = validate(tokenSchema, verificationRequest)
 
-  const user = await usersDB.getActiveUserBy('verificationToken', token)
-
-  if (!user?.verificationToken) {
-    throw new BadRequest(authMessage.invalidToken, AuthErrorCode.InvalidToken)
-  }
-
-  const expiry = user.verificationExpires
-
-  if (expiry && new Date(expiry) < new Date()) {
-    throw new BadRequest(authMessage.invalidToken, AuthErrorCode.InvalidToken)
-  }
-
-  const userUpdated = await usersDB.updateUserBy('email', user.email, {
-    verified: true,
-    verificationToken: null,
-    verificationExpires: null,
-  })
+  const userUpdated = await usersDB.verifyUserByToken(token)
 
   if (!userUpdated) {
-    throw new Internal(userMessage.updateFailed)
+    throw new BadRequest(authMessage.invalidToken, AuthErrorCode.InvalidToken)
   }
 
   return { email: userUpdated.email }
@@ -186,11 +163,7 @@ export async function passwordResetToken(
 ) {
   const { token } = validate(tokenSchema, passwordResetToken)
 
-  const user = await usersDB.getActiveUserBy('passwordResetToken', token)
-
-  if (!user?.passwordResetToken) {
-    throw new BadRequest(authMessage.invalidToken, AuthErrorCode.InvalidToken)
-  }
+  await validatePasswordResetToken(token)
 
   return { token }
 }
@@ -200,28 +173,28 @@ export async function passwordResetSubmit(
 ) {
   const { token, password } = validate(passwordResetSchema, passwordResetSubmit)
 
-  const user = await usersDB.getActiveUserBy('passwordResetToken', token)
-  const passwordResetExpiry = user?.passwordResetExpires
+  await validatePasswordResetToken(token)
 
-  if (
-    !user ||
-    !passwordResetExpiry ||
-    new Date(passwordResetExpiry) <= new Date()
-  ) {
-    throw new Unauthorized(authMessage.invalidToken, AuthErrorCode.InvalidToken)
-  }
-
-  const userUpdated = await usersDB.updateUserBy('email', user.email, {
-    password: await Bun.password.hash(password),
-    passwordResetToken: null,
-    passwordResetExpires: null,
-  })
+  const userUpdated = await usersDB.resetPasswordByToken(
+    token,
+    await Bun.password.hash(password),
+  )
 
   if (!userUpdated) {
-    throw new Internal(userMessage.updateFailed)
+    throw new BadRequest(authMessage.invalidToken, AuthErrorCode.InvalidToken)
   }
 
   return { message: userMessage.passwordResetSuccess }
+}
+
+/** Preview and submission use the same expiry check; the write rechecks it atomically. */
+async function validatePasswordResetToken(token: string): Promise<void> {
+  const user = await usersDB.getActiveUserBy('passwordResetToken', token)
+  const expiresAt = user?.passwordResetExpires?.getTime() ?? 0
+
+  if (!user?.passwordResetToken || !(expiresAt > Date.now())) {
+    throw new BadRequest(authMessage.invalidToken, AuthErrorCode.InvalidToken)
+  }
 }
 
 export async function getActiveUser(uuid: string): Promise<User>

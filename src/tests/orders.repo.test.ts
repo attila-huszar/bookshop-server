@@ -1279,6 +1279,71 @@ describe('SQLite transactional account emails', () => {
     expect(await sqlite.select().from(emailOutboxTable)).toHaveLength(0)
   })
 
+  it('consumes verification and reset tokens exactly once', async () => {
+    await users.createUser(user)
+
+    expect(await users.verifyUserByToken(user.verificationToken)).toMatchObject(
+      {
+        verified: true,
+        verificationToken: null,
+        verificationExpires: null,
+      },
+    )
+    expect(await users.verifyUserByToken(user.verificationToken)).toBeNull()
+
+    await users.setPasswordResetToken(user.uuid, {
+      token: 'reset-token',
+      expiresAt: new Date(Date.now() + 60_000),
+    })
+    expect(
+      await users.resetPasswordByToken('reset-token', 'new-hash'),
+    ).toMatchObject({
+      password: 'new-hash',
+      passwordResetToken: null,
+      passwordResetExpires: null,
+    })
+    expect(
+      await users.resetPasswordByToken('reset-token', 'replayed-hash'),
+    ).toBeNull()
+    expect((await users.getActiveUserBy('uuid', user.uuid))?.password).toBe(
+      'new-hash',
+    )
+  })
+
+  it.each(['expired', 'missing expiry', 'replaced', 'deleted'])(
+    'rejects %s verification and reset tokens without changing the account',
+    async (reason) => {
+      const expiresAt =
+        reason === 'expired'
+          ? new Date(0)
+          : reason === 'missing expiry'
+            ? null
+            : new Date(Date.now() + 60_000)
+      const saved = await users.createUser({
+        ...user,
+        verificationToken:
+          reason === 'replaced'
+            ? 'new-verification-token'
+            : user.verificationToken,
+        verificationExpires: expiresAt,
+        passwordResetToken:
+          reason === 'replaced' ? 'new-reset-token' : 'reset-token',
+        passwordResetExpires: expiresAt,
+        deletedAt: reason === 'deleted' ? new Date() : null,
+      })
+
+      if (!saved) {
+        throw new Error('Expected saved user')
+      }
+
+      expect(await users.verifyUserByToken(user.verificationToken)).toBeNull()
+      expect(
+        await users.resetPasswordByToken('reset-token', 'changed-hash'),
+      ).toBeNull()
+      expect((await users.getAllUsers())[0]).toEqual(saved)
+    },
+  )
+
   it('soft deletes users without removing their identity or orders, then restores access', async () => {
     const saved = await users.createUser({ ...user, verified: true })
 
