@@ -9,6 +9,7 @@ import {
   mockSignAccessToken,
   mockSignRefreshToken,
   mockUsersDB,
+  mockValidate,
   mockVerifyJWTRefresh,
 } from './test-setup'
 
@@ -53,6 +54,12 @@ const refreshWithCookie = async () => {
 
 beforeEach(() => {
   env.cookieSecret = 'test-cookie-secret-for-refresh'
+  mockValidate
+    .mockReset()
+    .mockImplementation(
+      (schema: { parse: (value: unknown) => unknown }, value: unknown) =>
+        schema.parse(value),
+    )
   mockUsersDB.getActiveUserBy.mockReset()
   mockSignAccessToken.mockReset().mockResolvedValue('new-access-token')
   mockSignRefreshToken.mockReset().mockResolvedValue('new-refresh-token')
@@ -65,6 +72,7 @@ beforeEach(() => {
 
 afterEach(() => {
   env.cookieSecret = previousCookieSecret
+  mockValidate.mockReset()
 })
 
 describe('session refresh', () => {
