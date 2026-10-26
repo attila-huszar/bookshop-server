@@ -202,6 +202,8 @@ Development is coordinated directly by the package scripts: either repo's `dev` 
 
 Automated tests cover real in-memory SQLite transactions/rollbacks, Mongo shared-session/error propagation, reconciliation races, guest access, first-paid behavior, relay leases/retries, response boundaries, and client cache invalidation/session isolation. Mongo unit tests do not replace a live replica-set smoke test; Redis and SMTP should also be exercised with an isolated test environment.
 
+Drizzle Kit's legacy `@esbuild-kit/core-utils` dependency pulls esbuild 0.18.20, affected by [GHSA-67mh-4wv8-2f99](https://github.com/advisories/GHSA-67mh-4wv8-2f99). A scoped override in `package.json` replaces only that dependency with esbuild 0.25.12. Recheck the override when a stable Drizzle Kit release removes or updates the legacy loader. Validate changes with `bun audit` and Drizzle Kit's `check`/`export` commands under Bun, since the project config uses `Bun.env`.
+
 Useful smoke scenarios: complete a guest and account checkout; retry a lost creation response; stop Redis while changing state then restore it; restart a relay after queue publication; omit a webhook and run maintenance; submit two concurrent success updates; verify only one confirmation intent per payment.
 
 Before treating this as production commerce: establish an order-ownership/fulfillment model, add refund/dispute/inventory workflows, set retention and recovery policies beyond CMS soft deletion, configure managed/replicated infrastructure, and establish metrics/alerts. Those are separate capabilities, not implied by the current PaymentIntent success marker.
