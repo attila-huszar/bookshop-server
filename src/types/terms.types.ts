@@ -9,11 +9,19 @@ export type TermsDocument = {
   publishedAt: string
 }
 
+export type TermsDocumentSummary = Pick<
+  TermsDocument,
+  'version' | 'publishedAt'
+> & { canDelete: boolean }
+
 export type TermsDocumentInsert = Omit<TermsDocument, 'statements'> & {
   statements?: TermsContent
 }
 
-export type CheckoutTerms = Pick<TermsDocument, 'version' | 'statements'> & {
+export type CheckoutTerms = Pick<
+  TermsDocument,
+  'version' | 'statements' | 'publishedAt'
+> & {
   url: string
 }
 

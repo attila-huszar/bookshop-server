@@ -36,6 +36,8 @@ const invalidRequests: unknown[] = [
 beforeEach(() => {
   env.jwtAccessSecret = 'terms-admin-test-secret'
   mockTermsDB.getCurrentTerms.mockReset().mockResolvedValue(null)
+  mockTermsDB.deleteUnusedTerms.mockReset().mockResolvedValue(false)
+  mockTermsDB.getTermsHistory.mockReset().mockResolvedValue([])
   mockTermsDB.getTermsByVersion.mockReset().mockResolvedValue(null)
   mockTermsDB.publishTerms
     .mockReset()
@@ -57,14 +59,18 @@ afterEach(() => {
   env.jwtAccessSecret = previousSecret
 })
 
-async function adminRequest(method: string, body?: unknown) {
+async function adminRequest(
+  method: string,
+  body?: unknown,
+  path = '/cms/terms',
+) {
   const token = await sign(
     { uuid: 'admin', exp: Math.floor(Date.now() / 1000) + 60 },
     env.jwtAccessSecret!,
     'HS256',
   )
 
-  return await app.request('/cms/terms', {
+  return await app.request(path, {
     method,
     headers: {
       authorization: `Bearer ${token}`,
@@ -75,6 +81,58 @@ async function adminRequest(method: string, body?: unknown) {
 }
 
 describe('Terms publishing', () => {
+  it('deletes an unused publication through the admin endpoint', async () => {
+    mockTermsDB.deleteUnusedTerms.mockResolvedValue(true)
+    const version = '11111111-1111-4111-8111-111111111111'
+    const response = await adminRequest(
+      'DELETE',
+      undefined,
+      `/cms/terms/${version}`,
+    )
+
+    expect(response.status).toBe(204)
+    expect(mockTermsDB.deleteUnusedTerms).toHaveBeenCalledWith(version)
+    expect(mockTermsDB.publishTerms).not.toHaveBeenCalled()
+  })
+
+  it('rejects accepted, missing and invalid publications', async () => {
+    const version = '11111111-1111-4111-8111-111111111111'
+    mockTermsDB.getTermsByVersion.mockResolvedValue({
+      version,
+      content,
+      statements: defaultTermsStatements,
+      publishedAt: '2026-10-14T10:00:00.000Z',
+    })
+    const used = await adminRequest(
+      'DELETE',
+      undefined,
+      `/cms/terms/${version}`,
+    )
+
+    expect(used.status).toBe(409)
+    expect(await used.json()).toMatchObject({ code: 'TERMS_IN_USE' })
+    mockTermsDB.getTermsByVersion.mockResolvedValue(null)
+    expect(
+      (await adminRequest('DELETE', undefined, `/cms/terms/${version}`)).status,
+    ).toBe(404)
+    mockTermsDB.deleteUnusedTerms.mockClear()
+    expect(
+      (await adminRequest('DELETE', undefined, '/cms/terms/invalid')).status,
+    ).toBe(400)
+    expect(mockTermsDB.deleteUnusedTerms).not.toHaveBeenCalled()
+  })
+
+  it('requires admin authentication to delete a publication', async () => {
+    const path = '/cms/terms/11111111-1111-4111-8111-111111111111'
+    expect((await app.request(path, { method: 'DELETE' })).status).toBe(401)
+    mockUsersDB.getActiveUserBy.mockResolvedValue({
+      uuid: 'reader',
+      role: UserRole.User,
+    })
+    expect((await adminRequest('DELETE', undefined, path)).status).toBe(403)
+    expect(mockTermsDB.deleteUnusedTerms).not.toHaveBeenCalled()
+  })
+
   it('generates a version and timestamp from validated bilingual text', async () => {
     const published = await publishTerms({ content })
 
@@ -118,14 +176,77 @@ describe('Terms publishing', () => {
     expect(await publicResponse.json()).toEqual(published)
     expect(await download.text()).toBe(content.hu)
     expect(download.headers.get('content-type')).toContain('text/plain')
-    expect(download.headers.get('content-disposition')).toContain(
-      `terms-${published.version}-hu.txt`,
+    expect(download.headers.get('content-disposition')).toMatch(
+      /^attachment; filename="terms-\d{4}-\d{2}-\d{2}-hu\.txt"$/,
     )
   })
 
+  it.each([
+    ['2026-10-26T23:12:00.000Z', '2026-10-27', 'en'],
+    ['2026-07-01T22:15:00.000Z', '2026-07-02', 'hu'],
+  ] as const)(
+    'names downloads after the Budapest publication date for %s in %s (%s)',
+    async (publishedAt, date, language) => {
+      const version = '11111111-1111-4111-8111-111111111111'
+      mockTermsDB.getTermsByVersion.mockResolvedValue({
+        version,
+        content,
+        statements: defaultTermsStatements,
+        publishedAt,
+      })
+      const response = await app.request(
+        `/terms/${version}?download=true&language=${language}`,
+      )
+
+      expect(response.status).toBe(200)
+      expect(response.headers.get('content-disposition')).toBe(
+        `attachment; filename="terms-${date}-${language}.txt"`,
+      )
+      expect(await response.text()).toBe(content[language])
+    },
+  )
+
   it('reports an unpublished configuration in the CMS and public endpoint', async () => {
     expect(await (await adminRequest('GET')).json()).toBeNull()
+    expect(
+      await (await adminRequest('GET', undefined, '/cms/terms/history')).json(),
+    ).toEqual([])
     expect(await (await app.request('/terms')).json()).toBeNull()
+  })
+
+  it('lists publication metadata for admins without publishing or changing the current terms', async () => {
+    const history = [
+      {
+        version: 'newer',
+        publishedAt: '2026-10-15T10:00:00.000Z',
+        canDelete: true,
+      },
+      {
+        version: 'older',
+        publishedAt: '2026-10-14T10:00:00.000Z',
+        canDelete: false,
+      },
+    ]
+    mockTermsDB.getTermsHistory.mockResolvedValue(history)
+    const response = await adminRequest('GET', undefined, '/cms/terms/history')
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('cache-control')).toBe('no-store')
+    expect(await response.json()).toEqual(history)
+    expect(mockTermsDB.publishTerms).not.toHaveBeenCalled()
+  })
+
+  it('restricts publication history to authenticated admins', async () => {
+    expect((await app.request('/cms/terms/history')).status).toBe(401)
+    mockUsersDB.getActiveUserBy.mockResolvedValue({
+      uuid: 'reader',
+      role: UserRole.User,
+    })
+
+    expect(
+      (await adminRequest('GET', undefined, '/cms/terms/history')).status,
+    ).toBe(403)
+    expect(mockTermsDB.getTermsHistory).not.toHaveBeenCalled()
   })
 
   it.each(['GET', 'POST'])(

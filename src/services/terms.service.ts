@@ -4,10 +4,34 @@ import {
   publishTermsSchema,
   termsVersionSchema,
 } from '@/validation/termsSchemas'
-import { NotFound } from '@/errors'
+import { BadRequest, NotFound } from '@/errors'
+import { TermsErrorCode } from '@/types/enums'
 
 export async function getCurrentTerms() {
   return await termsDB.getCurrentTerms()
+}
+
+export async function getTermsHistory() {
+  return await termsDB.getTermsHistory()
+}
+
+export async function deleteTermsVersion(version: string) {
+  const validatedVersion = termsVersionSchema.parse(version)
+  const deleted = await termsDB.deleteUnusedTerms(validatedVersion)
+
+  if (deleted) {
+    return
+  }
+
+  if (!(await termsDB.getTermsByVersion(validatedVersion))) {
+    throw new NotFound('Terms and conditions version not found')
+  }
+
+  throw new BadRequest(
+    'Accepted terms and conditions cannot be deleted',
+    TermsErrorCode.InUse,
+    409,
+  )
 }
 
 export async function getTermsByVersion(version: string) {

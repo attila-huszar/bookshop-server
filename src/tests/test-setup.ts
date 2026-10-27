@@ -3,7 +3,12 @@ import { env } from '@/config'
 import * as validation from '@/validation'
 import { toIsoString } from '@/utils/date.utils'
 import { getOrderRef } from '@/utils/string.utils'
-import type { Order, OrderUpdate, TermsDocument } from '@/types'
+import type {
+  Order,
+  OrderUpdate,
+  TermsDocument,
+  TermsDocumentSummary,
+} from '@/types'
 
 env.adminEmail ??= 'admin@example.com'
 env.clientBaseUrl ??= 'https://bookshop.test'
@@ -39,6 +44,10 @@ export const mockBooksDB = {
 }
 
 export const mockTermsDB = {
+  deleteUnusedTerms: mock<() => Promise<boolean>>(() => Promise.resolve(false)),
+  getTermsHistory: mock<() => Promise<TermsDocumentSummary[]>>(() =>
+    Promise.resolve([]),
+  ),
   getCurrentTerms: mock<() => Promise<TermsDocument | null>>(() =>
     Promise.resolve(null),
   ),

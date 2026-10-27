@@ -3,6 +3,7 @@ import {
   asc,
   desc,
   eq,
+  exists,
   gt,
   inArray,
   isNotNull,
@@ -14,6 +15,7 @@ import {
 import { sqlite } from '@/db'
 import { ordersTable } from '@/models/sqlite'
 import { emailOutboxTable } from '@/models/sqlite/emailOutboxTable'
+import { termsDocumentsTable } from '@/models/sqlite/termsDocumentsTable'
 import {
   orderPaidEmails,
   orderReconciliationFailure,
@@ -76,6 +78,12 @@ export async function recordTermsAcceptance(
         eq(ordersTable.paymentId, paymentId),
         isNull(ordersTable.termsAcceptance),
         isNull(ordersTable.deletedAt),
+        exists(
+          sqlite
+            .select({ id: termsDocumentsTable.id })
+            .from(termsDocumentsTable)
+            .where(eq(termsDocumentsTable.version, acceptance.version)),
+        ),
         inArray(ordersTable.paymentStatus, [
           'requires_payment_method',
           'requires_confirmation',

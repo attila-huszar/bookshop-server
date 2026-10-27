@@ -68,9 +68,22 @@ describe('SQLite terms documents', () => {
     }
 
     expect(await terms.getCurrentTerms()).toBeNull()
+    expect(await terms.getTermsHistory()).toEqual([])
     await terms.publishTerms(first)
     await terms.publishTerms(second)
 
+    expect(await terms.getTermsHistory()).toEqual([
+      {
+        version: second.version,
+        publishedAt: second.publishedAt,
+        canDelete: true,
+      },
+      {
+        version: first.version,
+        publishedAt: first.publishedAt,
+        canDelete: true,
+      },
+    ])
     expect(await terms.getCurrentTerms()).toEqual({
       ...second,
       statements: defaultTermsStatements,
@@ -111,7 +124,75 @@ const draft = {
 }
 
 describe('SQLite checkout orders', () => {
+  const publication = {
+    version: 'v1',
+    content: { en: 'English', hu: 'Magyar' },
+    publishedAt: '2026-10-14T10:00:00.000Z',
+  }
+  const acceptance = {
+    version: 'v1',
+    acceptedAt: '2026-10-14T10:00:00Z',
+    statement: 'Accepted',
+    language: 'en' as const,
+  }
+
+  it('deletes unused versions and selects the newest remaining publication', async () => {
+    await terms.publishTerms(publication)
+    await terms.publishTerms({ ...publication, version: 'v2' })
+    expect(await terms.deleteUnusedTerms('missing')).toBe(false)
+    expect(await terms.deleteUnusedTerms('v2')).toBe(true)
+    expect((await terms.getCurrentTerms())?.version).toBe('v1')
+    expect(await terms.getTermsByVersion('v2')).toBeNull()
+    expect(await terms.deleteUnusedTerms('v1')).toBe(true)
+    expect(await terms.getCurrentTerms()).toBeNull()
+  })
+
+  it('protects acceptance even after cancellation or soft deletion of the order', async () => {
+    await terms.publishTerms(publication)
+    await orders.createCheckoutOrder({
+      ...draft,
+      paymentId: 'pi_used',
+      paymentStatus: 'requires_payment_method',
+    })
+    await orders.recordTermsAcceptance('pi_used', acceptance)
+    await sqlite
+      .update(ordersTable)
+      .set({ paymentStatus: 'canceled', deletedAt: new Date() })
+
+    expect(await terms.getTermsHistory()).toEqual([
+      { version: 'v1', publishedAt: publication.publishedAt, canDelete: false },
+    ])
+    expect(await terms.deleteUnusedTerms('v1')).toBe(false)
+    expect(await terms.getTermsByVersion('v1')).not.toBeNull()
+  })
+
+  it.each([false, true])(
+    'never leaves acceptance referencing a deleted document, delete first: %s',
+    async (deleteFirst) => {
+      await terms.publishTerms(publication)
+      await orders.createCheckoutOrder({
+        ...draft,
+        paymentId: 'pi_race',
+        paymentStatus: 'requires_payment_method',
+      })
+      const remove = () => terms.deleteUnusedTerms('v1')
+      const accept = () => orders.recordTermsAcceptance('pi_race', acceptance)
+      await Promise.all(
+        deleteFirst ? [remove(), accept()] : [accept(), remove()],
+      )
+      const order = await orders.getOrder('pi_race')
+      const document = await terms.getTermsByVersion('v1')
+
+      expect(Boolean(order?.termsAcceptance)).toBe(Boolean(document))
+    },
+  )
+
   it('records terms once and preserves the first acceptance across concurrent retries', async () => {
+    await terms.publishTerms({
+      version: 'v1',
+      content: { en: 'English', hu: 'Magyar' },
+      publishedAt: '2026-10-14T10:00:00.000Z',
+    })
     await orders.createCheckoutOrder({
       ...draft,
       paymentId: 'pi_terms',

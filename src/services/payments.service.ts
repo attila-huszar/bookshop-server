@@ -133,6 +133,7 @@ export async function getPaymentTerms(
         url: `${env.clientBaseUrl!.replace(/\/$/, '')}/terms/${document.version}`,
         version: document.version,
         statements: document.statements,
+        publishedAt: document.publishedAt,
       }
     : null
 

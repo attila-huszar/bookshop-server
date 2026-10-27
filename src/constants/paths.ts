@@ -62,6 +62,8 @@ export const API = {
     emailOutbox: '/cms/email-outbox',
     productImage: '/cms/product-image',
     terms: '/cms/terms',
+    termsHistory: '/cms/terms/history',
+    termsByVersion: '/cms/terms/:version',
   },
   logs: {
     root: '/logs',

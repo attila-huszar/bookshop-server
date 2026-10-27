@@ -11,6 +11,7 @@ import {
 } from '@/types'
 
 const query = {
+  select: mock(),
   sort: mock(),
   limit: mock(),
   session: mock(),
@@ -25,6 +26,8 @@ const EmailOutboxModel = {
   updateMany: mock(),
 }
 const OrderModel = {
+  distinct: mock(),
+  exists: mock(),
   find: mock(),
   findOne: mock(),
   findOneAndUpdate: mock(),
@@ -46,7 +49,17 @@ const UserModel = {
   db: OrderModel.db,
 }
 
-const TermsDocumentModel = { findOne: mock(), create: mock() }
+const termsLockQuery = { lean: mock(), exec: mock() }
+const distinctQuery = { exec: mock() }
+const TermsDocumentModel = {
+  find: mock(),
+  findOne: mock(),
+  create: mock(),
+  findOneAndUpdate: mock(),
+  updateOne: mock(),
+  deleteOne: mock(),
+  db: OrderModel.db,
+}
 await mock.module('@/models/mongo/TermsDocumentModel', () => ({
   TermsDocumentModel,
 }))
@@ -73,6 +86,19 @@ describe('Mongo terms documents', () => {
   }
 
   beforeEach(() => {
+    termsLockQuery.lean.mockReset().mockReturnValue(termsLockQuery)
+    termsLockQuery.exec.mockReset().mockResolvedValue(document)
+    TermsDocumentModel.findOneAndUpdate
+      .mockReset()
+      .mockReturnValue(termsLockQuery)
+    TermsDocumentModel.deleteOne
+      .mockReset()
+      .mockResolvedValue({ deletedCount: 1 })
+    query.session.mockReset().mockReturnValue(query)
+    OrderModel.exists.mockReset().mockReturnValue(query)
+    distinctQuery.exec.mockReset().mockResolvedValue([])
+    OrderModel.distinct.mockReset().mockReturnValue(distinctQuery)
+    query.select.mockReset().mockReturnValue(query)
     query.sort.mockReset().mockReturnValue(query)
     query.lean.mockReset().mockReturnValue(query)
     query.exec.mockReset()
@@ -83,6 +109,7 @@ describe('Mongo terms documents', () => {
       id: 12,
     })
     TermsDocumentModel.findOne.mockReset().mockReturnValue(query)
+    TermsDocumentModel.find.mockReset().mockReturnValue(query)
     TermsDocumentModel.create.mockReset()
     TermsDocumentModel.create.mockResolvedValue({
       toObject: () => ({
@@ -94,6 +121,31 @@ describe('Mongo terms documents', () => {
     })
   })
 
+  it('lists only publication metadata in descending revision order', async () => {
+    query.exec.mockResolvedValue([
+      {
+        ...document,
+        publishedAt: new Date(document.publishedAt),
+        id: 12,
+        _id: 'internal',
+      },
+    ])
+
+    expect(await terms.getTermsHistory()).toEqual([
+      {
+        version: document.version,
+        publishedAt: document.publishedAt,
+        canDelete: true,
+      },
+    ])
+    expect(query.select).toHaveBeenCalledWith({
+      version: 1,
+      publishedAt: 1,
+      _id: 0,
+    })
+    expect(query.sort).toHaveBeenCalledWith({ id: -1 })
+  })
+
   it('reads the latest revision and omits database fields', async () => {
     expect(await terms.getCurrentTerms()).toEqual(document)
     expect(query.sort).toHaveBeenCalledWith({ id: -1 })
@@ -101,6 +153,51 @@ describe('Mongo terms documents', () => {
     expect(TermsDocumentModel.findOne).toHaveBeenLastCalledWith({
       version: document.version,
     })
+  })
+
+  it('marks any accepted version as protected in the history', async () => {
+    query.exec.mockResolvedValue([
+      { ...document, publishedAt: new Date(document.publishedAt) },
+    ])
+    distinctQuery.exec.mockResolvedValue([document.version])
+
+    expect(await terms.getTermsHistory()).toEqual([
+      {
+        version: document.version,
+        publishedAt: document.publishedAt,
+        canDelete: false,
+      },
+    ])
+  })
+
+  it('locks the document before checking acceptance and deleting in one transaction', async () => {
+    query.exec.mockResolvedValue(null)
+
+    expect(await terms.deleteUnusedTerms(document.version)).toBe(true)
+    expect(TermsDocumentModel.findOneAndUpdate).toHaveBeenCalledWith(
+      { version: document.version },
+      { $inc: { __v: 1 } },
+      { session, returnDocument: 'after' },
+    )
+    expect(OrderModel.exists).toHaveBeenCalledWith({
+      'termsAcceptance.version': document.version,
+    })
+    expect(query.session).toHaveBeenCalledWith(session)
+    expect(TermsDocumentModel.deleteOne).toHaveBeenCalledWith(
+      { version: document.version },
+      { session },
+    )
+  })
+
+  it('does not delete accepted or missing documents', async () => {
+    query.exec.mockResolvedValue({ _id: 'accepted-order' })
+    expect(await terms.deleteUnusedTerms(document.version)).toBe(false)
+    expect(TermsDocumentModel.deleteOne).not.toHaveBeenCalled()
+    termsLockQuery.exec.mockResolvedValue(null)
+    OrderModel.exists.mockClear()
+    expect(await terms.deleteUnusedTerms(document.version)).toBe(false)
+    expect(OrderModel.exists).not.toHaveBeenCalled()
+    expect(TermsDocumentModel.deleteOne).not.toHaveBeenCalled()
   })
 
   it('publishes by appending an immutable document', async () => {
@@ -114,6 +211,9 @@ describe('Mongo terms documents', () => {
 
 describe('Mongo checkout terms acceptance', () => {
   beforeEach(() => {
+    TermsDocumentModel.updateOne
+      .mockReset()
+      .mockResolvedValue({ matchedCount: 1 })
     query.lean.mockReset().mockReturnValue(query)
     query.exec.mockReset()
     OrderModel.findOneAndUpdate.mockReset().mockReturnValue(query)
@@ -143,8 +243,29 @@ describe('Mongo checkout terms acceptance', () => {
         },
       },
       { $set: { termsAcceptance: acceptance } },
-      { returnDocument: 'after' },
+      { returnDocument: 'after', session },
     )
+    expect(TermsDocumentModel.updateOne).toHaveBeenCalledWith(
+      { version: acceptance.version },
+      { $inc: { __v: 1 } },
+      { session },
+    )
+  })
+
+  it('aborts acceptance if its document has been deleted', async () => {
+    const acceptance = {
+      version: 'deleted',
+      acceptedAt: new Date().toISOString(),
+      statement: 'Accepted',
+      language: 'en' as const,
+    }
+    query.exec.mockResolvedValue({ termsAcceptance: acceptance })
+    TermsDocumentModel.updateOne.mockResolvedValue({ matchedCount: 0 })
+
+    await rejects(orders.recordTermsAcceptance('pi_terms', acceptance), {
+      code: 'TERMS_CHANGED',
+      status: 412,
+    })
   })
 
   it('returns the existing acceptance when another request won the update', async () => {

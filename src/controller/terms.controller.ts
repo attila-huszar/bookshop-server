@@ -17,9 +17,13 @@ terms.get(API.terms.byVersion, async (c) => {
 
   if (c.req.query('download') === 'true') {
     const language = shopLanguageSchema.parse(c.req.query('language') ?? 'en')
+    const publishedDate = new Date(document.publishedAt).toLocaleDateString(
+      'en-CA',
+      { timeZone: 'Europe/Budapest' },
+    )
     c.header(
       'Content-Disposition',
-      `attachment; filename="terms-${document.version}-${language}.txt"`,
+      `attachment; filename="terms-${publishedDate}-${language}.txt"`,
     )
     c.header('X-Content-Type-Options', 'nosniff')
 

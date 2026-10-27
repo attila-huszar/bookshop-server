@@ -23,6 +23,7 @@ const { payments } = await import('@/controller/payments.controller')
 const terms = {
   url: 'https://bookshop.test/terms/11111111-1111-4111-8111-111111111111',
   version: '11111111-1111-4111-8111-111111111111',
+  publishedAt: '2026-10-14T10:00:00Z',
   statements: defaultTermsStatements,
 }
 const request = { version: terms.version, accepted: true, language: 'en' }
@@ -158,6 +159,7 @@ describe('Checkout terms', () => {
 
     expect(reviewResponse.status).toBe(200)
     expect(reviewResponse.headers.get('cache-control')).toBe('no-store')
+    expect(await reviewResponse.json()).toMatchObject({ terms })
     const acceptanceResponse = await app.request('/payments/pi_terms/terms', {
       method: 'POST',
       headers: { cookie, 'content-type': 'application/json' },

@@ -58,6 +58,7 @@ export const enum PaymentErrorCode {
 }
 
 export const enum TermsErrorCode {
+  InUse = 'TERMS_IN_USE',
   Unavailable = 'TERMS_UNAVAILABLE',
   Changed = 'TERMS_CHANGED',
   AlreadyAccepted = 'TERMS_ALREADY_ACCEPTED',
