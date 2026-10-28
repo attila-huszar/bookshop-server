@@ -17,4 +17,4 @@ jobs:
       - run: bun install
       - run: bun lint
       - run: bunx tsc -b
-      - run: bun test
+      - run: bun --no-env-file test

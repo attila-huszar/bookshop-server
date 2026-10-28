@@ -178,6 +178,8 @@ The shared Docker image creates `data` and `data/backups` with `bun:bun` ownersh
 
 Automated tests cover real in-memory SQLite transactions/rollbacks, Mongo shared-session/error propagation, reconciliation races, guest access, first-paid behavior, relay leases/retries, and response boundaries. Mongo unit tests do not replace a live replica-set smoke test; Redis and SMTP should also be exercised with an isolated test environment.
 
+`bunfig.toml` preloads `src/tests/test-setup.ts` before test modules import application code, so provider and repository mocks are installed before use. CI runs `bun --no-env-file test` to verify that the suite needs no local `.env` or real provider credentials. The preload belongs under `[test]` in Bun's config; a `bun.test` property in `package.json` is not used by the test runner.
+
 Drizzle Kit's legacy `@esbuild-kit/core-utils` dependency pulls esbuild 0.18.20, affected by [GHSA-67mh-4wv8-2f99](https://github.com/advisories/GHSA-67mh-4wv8-2f99). A scoped override in `package.json` replaces only that dependency with esbuild 0.25.12. Recheck the override when a stable Drizzle Kit release removes or updates the legacy loader. Validate changes with `bun audit` and Drizzle Kit's `check`/`export` commands under Bun, since the project config uses `Bun.env`.
 
 Useful smoke scenarios: complete a guest and account checkout; retry a lost creation response; stop Redis while changing state then restore it; restart a relay after queue publication; omit a webhook and run maintenance; submit two concurrent success updates; verify only one confirmation intent per payment.
