@@ -11,6 +11,10 @@ export async function getCurrentTerms() {
   return await termsDB.getCurrentTerms()
 }
 
+export async function getCurrentTermsVersion() {
+  return { version: await termsDB.getCurrentTermsVersion() }
+}
+
 export async function getTermsHistory() {
   return await termsDB.getTermsHistory()
 }

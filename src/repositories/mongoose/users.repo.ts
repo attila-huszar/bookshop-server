@@ -10,6 +10,13 @@ import type {
   UserUpdate,
 } from '@/types'
 
+/** Include soft-deleted accounts because they can be restored. */
+export async function getImageUrls(): Promise<(string | null)[]> {
+  const records = await UserModel.find().select({ avatar: 1 }).lean().exec()
+
+  return records.map((record) => record.avatar ?? null)
+}
+
 export async function getActiveUserBy(
   field: UserLookupField,
   value: string | number,

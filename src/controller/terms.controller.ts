@@ -1,5 +1,9 @@
 import { Hono } from 'hono'
-import { getCurrentTerms, getTermsByVersion } from '@/services/terms.service'
+import {
+  getCurrentTerms,
+  getCurrentTermsVersion,
+  getTermsByVersion,
+} from '@/services/terms.service'
 import { shopLanguageSchema } from '@/validation/termsSchemas'
 import { API } from '@/constants'
 
@@ -9,6 +13,12 @@ terms.get(API.terms.root, async (c) => {
   c.header('Cache-Control', 'no-store')
 
   return c.json(await getCurrentTerms())
+})
+
+terms.get(API.terms.currentVersion, async (c) => {
+  c.header('Cache-Control', 'no-store')
+
+  return c.json(await getCurrentTermsVersion())
 })
 
 terms.get(API.terms.byVersion, async (c) => {

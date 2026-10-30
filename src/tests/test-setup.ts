@@ -44,6 +44,9 @@ export const mockBooksDB = {
 }
 
 export const mockTermsDB = {
+  getCurrentTermsVersion: mock<() => Promise<string | null>>(() =>
+    Promise.resolve(null),
+  ),
   deleteUnusedTerms: mock<() => Promise<boolean>>(() => Promise.resolve(false)),
   getTermsHistory: mock<() => Promise<TermsDocumentSummary[]>>(() =>
     Promise.resolve([]),

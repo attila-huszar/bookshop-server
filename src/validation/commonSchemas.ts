@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { MAX_IMAGE_SIZE } from '@/constants'
+import { MAX_IMAGE_SIZE_BYTES } from '@/constants'
 import { ValidationRule } from '@/types/enums'
 
 export const idSchema = z
@@ -49,15 +49,16 @@ export const paymentIdSchema = z
   .startsWith('pi_', 'Invalid payment intent ID format')
 
 export const imageSchema = z
-  .object({
-    size: z
-      .number()
-      .max(MAX_IMAGE_SIZE * 1024, `Image too large (max ${MAX_IMAGE_SIZE} KB)`),
-    type: z.string().startsWith('image/', { message: 'Invalid file type' }),
-  })
-  .refine((data) => data.size > 0, {
+  .instanceof(File)
+  .refine((file) => file.size > 0, {
     message: 'Image size must be greater than 0',
     params: { rule: ValidationRule.ImageRequired },
+  })
+  .refine((file) => file.size <= MAX_IMAGE_SIZE_BYTES, {
+    message: `Image too large (max ${MAX_IMAGE_SIZE_BYTES / (1024 * 1024)} MB)`,
+  })
+  .refine((file) => file.type.startsWith('image/'), {
+    message: 'File must have an image MIME type',
   })
 
 export const uuidSchema = z.uuid()

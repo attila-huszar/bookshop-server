@@ -1,29 +1,34 @@
 import { s3, write } from 'bun'
-import { log } from '@/libs'
+import { env } from '@/config/env'
 import { Folder } from '@/types/enums'
+import { prepareImage } from './image.utils'
+
+export function imageStoragePrefix(folder: Folder): string {
+  return `${folder}/${env.dbRepo.toLowerCase()}/`
+}
+
+export function storedImageUrl(key: string): string {
+  const url = new URL(s3.file(key).presign())
+  url.search = ''
+  url.hash = ''
+
+  return url.href
+}
 
 export const uploadFile = async (
   file: File,
   folder: Folder,
 ): Promise<string> => {
+  const image = await prepareImage(file)
+
   try {
-    const key = `${folder}/${Date.now()}-${file.name}`
+    const key = `${imageStoragePrefix(folder)}${crypto.randomUUID()}.webp`
     const metadata = s3.file(key)
 
-    await write(metadata, file)
-    const presignedUrl = metadata.presign()
-    const permanentUrl = presignedUrl.split('?')[0]
+    await write(metadata, image)
 
-    if (!permanentUrl) {
-      throw new Error('Failed to get permanent URL after upload')
-    }
-
-    return permanentUrl
+    return storedImageUrl(key)
   } catch (error) {
-    void log.error('Error uploading to S3', {
-      error,
-      file: file.name,
-    })
     throw new Error('Failed to upload file', { cause: error })
   }
 }

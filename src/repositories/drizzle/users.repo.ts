@@ -13,6 +13,15 @@ import type {
   UserUpdate,
 } from '@/types'
 
+/** Include soft-deleted accounts because they can be restored. */
+export async function getImageUrls(): Promise<(string | null)[]> {
+  const records = await sqlite
+    .select({ avatar: usersTable.avatar })
+    .from(usersTable)
+
+  return records.map((record) => record.avatar)
+}
+
 export async function getActiveUserBy(
   field: UserLookupField,
   value: string | number,

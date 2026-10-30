@@ -21,6 +21,12 @@ type AggregateResult = {
   maxYear: number
 }
 
+export async function getImageUrls(): Promise<string[]> {
+  const records = await BookModel.find().select({ imgUrl: 1 }).lean().exec()
+
+  return records.map((record) => record.imgUrl)
+}
+
 export async function getBooks(query?: BookQuery): Promise<{
   booksRecords: BookWithAuthor[]
   booksCount: string

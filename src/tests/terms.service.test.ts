@@ -36,6 +36,7 @@ const invalidRequests: unknown[] = [
 beforeEach(() => {
   env.jwtAccessSecret = 'terms-admin-test-secret'
   mockTermsDB.getCurrentTerms.mockReset().mockResolvedValue(null)
+  mockTermsDB.getCurrentTermsVersion.mockReset().mockResolvedValue(null)
   mockTermsDB.deleteUnusedTerms.mockReset().mockResolvedValue(false)
   mockTermsDB.getTermsHistory.mockReset().mockResolvedValue([])
   mockTermsDB.getTermsByVersion.mockReset().mockResolvedValue(null)
@@ -203,6 +204,20 @@ describe('Terms publishing', () => {
         `attachment; filename="terms-${date}-${language}.txt"`,
       )
       expect(await response.text()).toBe(content[language])
+    },
+  )
+
+  it.each([null, '11111111-1111-4111-8111-111111111111'])(
+    'returns only the current version for a quiet checkout check (%s)',
+    async (version) => {
+      mockTermsDB.getCurrentTermsVersion.mockResolvedValue(version)
+      const response = await app.request('/terms/current-version')
+
+      expect(response.status).toBe(200)
+      expect(response.headers.get('cache-control')).toBe('no-store')
+      expect(await response.json()).toEqual({ version })
+      expect(mockTermsDB.getCurrentTerms).not.toHaveBeenCalled()
+      expect(mockTermsDB.getTermsByVersion).not.toHaveBeenCalled()
     },
   )
 
