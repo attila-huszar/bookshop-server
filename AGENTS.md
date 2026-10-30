@@ -11,4 +11,4 @@
 - All Git operations are performed by the user. Do not run any Git commands unless explicitly instructed. Respect user changes. Use `rg` for search and `apply_patch` for edits.
 - Keep control flow readable: use braces for guards/loops and blank lines before returns/switches and between logical sections. Avoid rest destructuring in function parameters; prefer named parameters or typed input objects.
 - Run `bun run typecheck`, `bun run lint`, `bun run format:check`, and `bun test`. Validate Compose changes with `docker compose config --quiet`. State explicitly when live provider/database checks were not available.
-- Human architecture/setup/operational explanations belong in README.md and docs/architecture.md, not this file.
+- Keep README.md focused on project basics and setup. Put this app's feature, architecture, and operational details in `docs/architecture.md`; link to `../bookshop-client/docs/architecture.md` for frontend responsibilities. Keep agent instructions here.

@@ -55,6 +55,7 @@ export async function connectDatabase(): Promise<void> {
       OrderModel,
       NewsModel,
       EmailOutboxModel,
+      TermsDocumentModel,
     } = await import('./models/mongo')
 
     await Promise.all([
@@ -64,6 +65,7 @@ export async function connectDatabase(): Promise<void> {
       OrderModel.init(),
       NewsModel.init(),
       EmailOutboxModel.init(),
+      TermsDocumentModel.init(),
       mongoose.model('Counter').init(),
     ])
   }

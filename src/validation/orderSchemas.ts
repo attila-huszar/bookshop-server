@@ -82,6 +82,7 @@ export const orderUpdateSchema = createUpdateSchema(ordersTable, {
   id: true,
   paymentId: true,
   checkoutRequestId: true,
+  termsAcceptance: true,
   createdAt: true,
   updatedAt: true,
 })

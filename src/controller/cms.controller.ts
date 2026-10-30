@@ -3,13 +3,17 @@ import {
   addAuthor,
   addBook,
   addUser,
+  deleteTermsVersion,
   getAllAuthors,
   getAllBooks,
   getAllOrders,
   getAllUsers,
+  getCurrentTerms,
   getEmailOutbox,
+  getTermsHistory,
   hardDeleteAuthors,
   hardDeleteBooks,
+  publishTerms,
   restoreOrders,
   restoreUsers,
   softDeleteOrders,
@@ -37,6 +41,16 @@ import type {
 export const cms = new Hono()
 
 // --- GET --- //
+cms.get(API.cms.terms, async (c) => {
+  c.header('Cache-Control', 'no-store')
+
+  return c.json(await getCurrentTerms())
+})
+cms.get(API.cms.termsHistory, async (c) => {
+  c.header('Cache-Control', 'no-store')
+
+  return c.json(await getTermsHistory())
+})
 cms.get(API.cms.emailOutbox, async (c) => {
   return c.json(await getEmailOutbox(c.req.query()))
 })
@@ -66,6 +80,9 @@ cms.get(API.cms.users, async (c) => {
 })
 
 // --- POST --- //
+cms.post(API.cms.terms, async (c) => {
+  return c.json(await publishTerms(await c.req.json<unknown>()))
+})
 cms.post(API.cms.books, async (c) => {
   const book = await c.req.json<BookInsert>()
   const newBook = await addBook(book)
@@ -133,6 +150,12 @@ cms.patch(API.cms.users, async (c) => {
 })
 
 // --- DELETE --- //
+cms.delete(API.cms.termsByVersion, async (c) => {
+  await deleteTermsVersion(c.req.param('version'))
+
+  return c.body(null, 204)
+})
+
 cms.delete(API.cms.books, async (c) => {
   const { bookIds } = await c.req.json<{ bookIds: number[] }>()
   const deletedIds = await hardDeleteBooks(bookIds)

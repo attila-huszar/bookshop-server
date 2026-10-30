@@ -25,7 +25,7 @@ export const tokenSchema = z.object({
 
 export const loginSchema = z.strictObject({
   ...emailSchema.shape,
-  ...passwordSchema.shape,
+  password: z.string().min(1, 'Password is required'),
 })
 
 export const registerSchema = z.object({

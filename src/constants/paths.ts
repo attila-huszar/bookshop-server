@@ -21,7 +21,6 @@ export const API = {
     root: '/search_opts',
   },
   users: {
-    root: '/users',
     login: '/users/login',
     logout: '/users/logout',
     refresh: '/users/refresh',
@@ -38,13 +37,17 @@ export const API = {
   orders: {
     root: '/orders',
   },
+  terms: {
+    root: '/terms',
+    byVersion: '/terms/:version',
+  },
   payments: {
     root: '/payments',
     byId: '/payments/:paymentId',
     byIdWildcard: '/payments/:paymentId/*',
+    terms: '/payments/:paymentId/terms',
   },
   cms: {
-    root: '/cms',
     wildcard: '/cms/*',
     books: '/cms/books',
     authors: '/cms/authors',
@@ -56,6 +59,9 @@ export const API = {
     },
     emailOutbox: '/cms/email-outbox',
     productImage: '/cms/product-image',
+    terms: '/cms/terms',
+    termsHistory: '/cms/terms/history',
+    termsByVersion: '/cms/terms/:version',
   },
   logs: {
     root: '/logs',

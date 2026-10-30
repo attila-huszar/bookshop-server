@@ -11,7 +11,7 @@ import {
 } from '@/validation'
 import { signAccessToken, signRefreshToken, uploadFile } from '@/utils'
 import { publicUserResponse } from '@/utils/response.utils'
-import { authMessage, DUMMY_PASSWORD_HASH, userMessage } from '@/constants'
+import { DUMMY_PASSWORD_HASH } from '@/constants'
 import { BadRequest, Forbidden, Internal, Unauthorized } from '@/errors'
 import {
   Folder,
@@ -26,6 +26,7 @@ import {
   UserRole,
   type VerificationRequest,
 } from '@/types'
+import { AuthErrorCode, UserErrorCode } from '@/types/enums'
 
 export async function loginUser(loginRequest: LoginRequest) {
   const { email, password } = validate(loginSchema, loginRequest)
@@ -42,16 +43,18 @@ export async function loginUser(loginRequest: LoginRequest) {
     // Treat malformed hashes as invalid credentials.
   }
 
-  if (!user) {
-    throw new Unauthorized(authMessage.credentialsInvalid)
+  if (!user || !isPasswordCorrect) {
+    throw new Unauthorized(
+      'Login rejected: invalid credentials',
+      AuthErrorCode.InvalidCredentials,
+    )
   }
 
   if (!user.verified) {
-    throw new Forbidden(userMessage.verifyFirst)
-  }
-
-  if (!isPasswordCorrect) {
-    throw new Unauthorized(authMessage.credentialsInvalid)
+    throw new Forbidden(
+      'Login rejected: email is not verified',
+      AuthErrorCode.EmailUnverified,
+    )
   }
 
   const timestamp = Math.floor(Date.now() / 1000)
@@ -79,7 +82,10 @@ export async function registerUser(formData: FormData) {
   const emailTaken = await usersDB.emailExists(email)
 
   if (emailTaken) {
-    throw new BadRequest(userMessage.emailTaken)
+    throw new BadRequest(
+      'Registration rejected: email already exists',
+      UserErrorCode.EmailAlreadyExists,
+    )
   }
 
   const verificationToken = crypto.randomUUID()
@@ -111,7 +117,7 @@ export async function registerUser(formData: FormData) {
   const userCreated = await usersDB.createUserWithVerification(newUser)
 
   if (!userCreated) {
-    throw new Internal(userMessage.createFailed)
+    throw new Internal('Registration failed: user insert returned no record')
   }
 
   return { email: userCreated.email }
@@ -120,26 +126,13 @@ export async function registerUser(formData: FormData) {
 export async function verifyUser(verificationRequest: VerificationRequest) {
   const { token } = validate(tokenSchema, verificationRequest)
 
-  const user = await usersDB.getActiveUserBy('verificationToken', token)
-
-  if (!user?.verificationToken) {
-    throw new BadRequest(authMessage.invalidToken)
-  }
-
-  const expiry = user.verificationExpires
-
-  if (expiry && new Date(expiry) < new Date()) {
-    throw new BadRequest(authMessage.invalidToken)
-  }
-
-  const userUpdated = await usersDB.updateUserBy('email', user.email, {
-    verified: true,
-    verificationToken: null,
-    verificationExpires: null,
-  })
+  const userUpdated = await usersDB.verifyUserByToken(token)
 
   if (!userUpdated) {
-    throw new Internal(userMessage.updateFailed)
+    throw new BadRequest(
+      'Email verification rejected: token could not be consumed',
+      AuthErrorCode.InvalidToken,
+    )
   }
 
   return { email: userUpdated.email }
@@ -147,13 +140,13 @@ export async function verifyUser(verificationRequest: VerificationRequest) {
 
 export async function passwordResetRequest(
   passwordResetRequest: PasswordResetRequest,
-) {
+): Promise<void> {
   const { email } = validate(emailSchema, passwordResetRequest)
 
   const user = await usersDB.getActiveUserBy('email', email)
 
   if (!user) {
-    return { message: userMessage.forgotPasswordRequest }
+    return
   }
 
   const passwordResetToken = crypto.randomUUID()
@@ -165,10 +158,10 @@ export async function passwordResetRequest(
   })
 
   if (!userUpdated) {
-    throw new Internal(userMessage.updateFailed)
+    throw new Internal(
+      'Password reset request failed: token update returned no active user',
+    )
   }
-
-  return { message: userMessage.forgotPasswordRequest }
 }
 
 export async function passwordResetToken(
@@ -176,42 +169,42 @@ export async function passwordResetToken(
 ) {
   const { token } = validate(tokenSchema, passwordResetToken)
 
-  const user = await usersDB.getActiveUserBy('passwordResetToken', token)
-
-  if (!user?.passwordResetToken) {
-    throw new BadRequest(authMessage.invalidToken)
-  }
+  await validatePasswordResetToken(token)
 
   return { token }
 }
 
 export async function passwordResetSubmit(
   passwordResetSubmit: PasswordResetSubmit,
-) {
+): Promise<void> {
   const { token, password } = validate(passwordResetSchema, passwordResetSubmit)
 
-  const user = await usersDB.getActiveUserBy('passwordResetToken', token)
-  const passwordResetExpiry = user?.passwordResetExpires
+  await validatePasswordResetToken(token)
 
-  if (
-    !user ||
-    !passwordResetExpiry ||
-    new Date(passwordResetExpiry) <= new Date()
-  ) {
-    throw new Unauthorized(authMessage.invalidToken)
-  }
-
-  const userUpdated = await usersDB.updateUserBy('email', user.email, {
-    password: await Bun.password.hash(password),
-    passwordResetToken: null,
-    passwordResetExpires: null,
-  })
+  const userUpdated = await usersDB.resetPasswordByToken(
+    token,
+    await Bun.password.hash(password),
+  )
 
   if (!userUpdated) {
-    throw new Internal(userMessage.updateFailed)
+    throw new BadRequest(
+      'Password reset rejected: token could not be consumed',
+      AuthErrorCode.InvalidToken,
+    )
   }
+}
 
-  return { message: userMessage.passwordResetSuccess }
+/** Preview and submission use the same expiry check; the write rechecks it atomically. */
+async function validatePasswordResetToken(token: string): Promise<void> {
+  const user = await usersDB.getActiveUserBy('passwordResetToken', token)
+  const expiresAt = user?.passwordResetExpires?.getTime() ?? 0
+
+  if (!user?.passwordResetToken || !(expiresAt > Date.now())) {
+    throw new BadRequest(
+      'Password reset token validation failed: token is invalid or expired',
+      AuthErrorCode.InvalidToken,
+    )
+  }
 }
 
 export async function getActiveUser(uuid: string): Promise<User>
@@ -230,7 +223,10 @@ export async function getActiveUser(
       return null
     }
 
-    throw new Unauthorized(authMessage.invalidToken)
+    throw new Unauthorized(
+      'Authentication rejected: active user not found',
+      AuthErrorCode.InvalidToken,
+    )
   }
 
   return user
@@ -258,7 +254,10 @@ export async function updateUserProfile(
     }
 
     if (!isPasswordCorrect) {
-      throw new BadRequest('Current password is incorrect')
+      throw new BadRequest(
+        'Current password is incorrect',
+        AuthErrorCode.CurrentPasswordIncorrect,
+      )
     }
 
     validatedFields.password = await Bun.password.hash(validatedFields.password)
@@ -271,7 +270,9 @@ export async function updateUserProfile(
   )
 
   if (!userUpdated) {
-    throw new Internal(userMessage.updateFailed)
+    throw new Internal(
+      'Profile update failed: user update returned no active user',
+    )
   }
 
   return publicUserResponse(userUpdated)
@@ -282,7 +283,7 @@ export async function uploadUserAvatar(
   avatar: Bun.FormDataEntryValue | null,
 ): Promise<PublicUser> {
   if (!(avatar instanceof File)) {
-    throw new BadRequest('Avatar must be a file')
+    throw new BadRequest('Avatar must be a file', UserErrorCode.InvalidImage)
   }
 
   validate(imageSchema, avatar)
@@ -294,7 +295,9 @@ export async function uploadUserAvatar(
   })
 
   if (!userUpdated) {
-    throw new Internal(userMessage.updateFailed)
+    throw new Internal(
+      'Avatar update failed: user update returned no active user',
+    )
   }
 
   return publicUserResponse(userUpdated)

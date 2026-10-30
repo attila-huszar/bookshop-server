@@ -66,9 +66,9 @@ users.post(API.users.verification, async (c) => {
 
 users.post(API.users.passwordResetRequest, async (c) => {
   const request = await c.req.json<PasswordResetRequest>()
-  const { message } = await passwordResetRequest(request)
+  await passwordResetRequest(request)
 
-  return c.json({ message })
+  return c.json({ success: true })
 })
 
 users.post(API.users.passwordResetToken, async (c) => {
@@ -80,9 +80,9 @@ users.post(API.users.passwordResetToken, async (c) => {
 
 users.post(API.users.passwordResetSubmit, async (c) => {
   const request = await c.req.json<PasswordResetSubmit>()
-  const { message } = await passwordResetSubmit(request)
+  await passwordResetSubmit(request)
 
-  return c.json({ message })
+  return c.json({ success: true })
 })
 
 users.get(API.users.profile, (c) => {

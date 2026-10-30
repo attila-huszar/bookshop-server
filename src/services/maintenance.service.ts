@@ -1,8 +1,11 @@
 import { usersDB } from '@/repositories'
 import { log } from '@/libs'
+import { cleanupUnusedImages } from './imageCleanup.service'
 import { reconcileStaleOrders } from './orders.service'
 
-export async function runMaintenance(): Promise<boolean> {
+export async function runMaintenance(
+  cleanupImages = cleanupUnusedImages,
+): Promise<boolean> {
   const tasks = [
     {
       name: 'password reset token cleanup',
@@ -39,6 +42,16 @@ export async function runMaintenance(): Promise<boolean> {
 
         if (failed > 0) {
           throw new Error(`${failed} order(s) could not be reconciled`)
+        }
+      },
+    },
+    {
+      name: 'unused image cleanup',
+      run: async () => {
+        const removed = await cleanupImages()
+
+        if (removed > 0) {
+          void log.info('Unused uploaded images cleaned up', { removed })
         }
       },
     },

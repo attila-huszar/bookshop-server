@@ -4,6 +4,58 @@
   "id": "68ddb8d5-2da9-4978-96ee-0e2bc2060ec6",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
+    "terms_documents": {
+      "name": "terms_documents",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "version": {
+          "name": "version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "content": {
+          "name": "content",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "statements": {
+          "name": "statements",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'{\"en\":\"I have read and accept the Terms and Conditions.\",\"hu\":\"Elolvastam és elfogadom az Általános Szerződési Feltételeket (ÁSZF).\"}'"
+        },
+        "published_at": {
+          "name": "published_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "terms_documents_version_unique": {
+          "name": "terms_documents_version_unique",
+          "columns": ["version"],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "authors": {
       "name": "authors",
       "columns": {
@@ -282,6 +334,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false
+        },
+        "terms_acceptance": {
+          "name": "terms_acceptance",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         },
         "payment_status": {

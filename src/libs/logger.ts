@@ -31,26 +31,45 @@ export class Logger {
     console.log(JSON.stringify(logOutput))
   }
 
-  private serialize = (value: unknown): unknown => {
-    if (value instanceof Error) {
-      return {
-        name: value.name,
-        message: value.message,
-        stack: value.stack,
+  private serialize(
+    value: unknown,
+    ancestors = new WeakSet<object>(),
+  ): unknown {
+    if (value === null || typeof value !== 'object') {
+      return value
+    }
+
+    if (ancestors.has(value)) {
+      return '[Circular]'
+    }
+
+    ancestors.add(value)
+
+    try {
+      if (value instanceof Error) {
+        return {
+          name: value.name,
+          message: value.message,
+          stack: value.stack,
+          ...(value.cause !== undefined && {
+            cause: this.serialize(value.cause, ancestors),
+          }),
+        }
       }
-    }
 
-    if (Array.isArray(value)) {
-      return value.map(this.serialize)
-    }
+      if (Array.isArray(value)) {
+        return value.map((entry) => this.serialize(entry, ancestors))
+      }
 
-    if (value !== null && typeof value === 'object') {
       return Object.fromEntries(
-        Object.entries(value).map(([k, v]) => [k, this.serialize(v)]),
+        Object.entries(value).map(([key, entry]) => [
+          key,
+          this.serialize(entry, ancestors),
+        ]),
       )
+    } finally {
+      ancestors.delete(value)
     }
-
-    return value
   }
 
   debug(message: string, meta?: unknown) {

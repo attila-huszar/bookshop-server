@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNotNull, isNull, lt } from 'drizzle-orm'
+import { and, eq, gt, inArray, isNotNull, isNull, lt } from 'drizzle-orm'
 import { sqlite } from '@/db'
 import { usersTable } from '@/models/sqlite'
 import { emailOutboxTable } from '@/models/sqlite/emailOutboxTable'
@@ -12,6 +12,15 @@ import type {
   UserRegistrationInsert,
   UserUpdate,
 } from '@/types'
+
+/** Include soft-deleted accounts because they can be restored. */
+export async function getImageUrls(): Promise<(string | null)[]> {
+  const records = await sqlite
+    .select({ avatar: usersTable.avatar })
+    .from(usersTable)
+
+  return records.map((record) => record.avatar)
+}
 
 export async function getActiveUserBy(
   field: UserLookupField,
@@ -96,6 +105,43 @@ export async function setPasswordResetToken(
 
     return user ?? null
   })
+}
+
+/** Verify only while this token is current and unexpired, consuming it once. */
+export async function verifyUserByToken(token: string): Promise<User | null> {
+  const [user] = await sqlite
+    .update(usersTable)
+    .set({ verified: true, verificationToken: null, verificationExpires: null })
+    .where(
+      and(
+        eq(usersTable.verificationToken, token),
+        gt(usersTable.verificationExpires, new Date()),
+        isNull(usersTable.deletedAt),
+      ),
+    )
+    .returning()
+
+  return user ?? null
+}
+
+/** Change the password and consume its reset token in the same conditional write. */
+export async function resetPasswordByToken(
+  token: string,
+  password: string,
+): Promise<User | null> {
+  const [user] = await sqlite
+    .update(usersTable)
+    .set({ password, passwordResetToken: null, passwordResetExpires: null })
+    .where(
+      and(
+        eq(usersTable.passwordResetToken, token),
+        gt(usersTable.passwordResetExpires, new Date()),
+        isNull(usersTable.deletedAt),
+      ),
+    )
+    .returning()
+
+  return user ?? null
 }
 
 export async function getAllUsers(): Promise<User[]> {

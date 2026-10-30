@@ -1,9 +1,13 @@
 import { mock } from 'bun:test'
 import { env } from '@/config'
 import * as validation from '@/validation'
-import { toIsoString } from '@/utils/date.utils'
 import { getOrderRef } from '@/utils/string.utils'
-import type { Order, OrderUpdate } from '@/types'
+import type {
+  Order,
+  OrderUpdate,
+  TermsDocument,
+  TermsDocumentSummary,
+} from '@/types'
 
 env.adminEmail ??= 'admin@example.com'
 env.clientBaseUrl ??= 'https://bookshop.test'
@@ -18,6 +22,8 @@ export const mockUsersDB = {
   createUser: mock(),
   createUserWithVerification: mock(),
   setPasswordResetToken: mock(),
+  verifyUserByToken: mock(),
+  resetPasswordByToken: mock(),
   updateUserBy: mock(),
   cleanupExpiredPasswordResetTokens: mock(),
   cleanupUnverifiedUsers: mock(),
@@ -33,7 +39,21 @@ export const mockOutboxDB = {
 
 export const mockBooksDB = {
   getBookById: mock(),
+  insertBook: mock(),
+  updateBook: mock(),
   hardDeleteBooks: mock(),
+}
+
+export const mockTermsDB = {
+  deleteUnusedTerms: mock<() => Promise<boolean>>(() => Promise.resolve(false)),
+  getTermsHistory: mock<() => Promise<TermsDocumentSummary[]>>(() =>
+    Promise.resolve([]),
+  ),
+  getCurrentTerms: mock<() => Promise<TermsDocument | null>>(() =>
+    Promise.resolve(null),
+  ),
+  getTermsByVersion: mock(),
+  publishTerms: mock(),
 }
 
 export const mockOrdersDB = {
@@ -44,6 +64,7 @@ export const mockOrdersDB = {
   setOrdersDeleted: mock(),
   getOrderByCheckoutRequestId: mock(),
   createCheckoutOrder: mock(),
+  recordTermsAcceptance: mock(),
   linkPaymentIntent: mock(),
   updateOrder: mock(),
   getOrdersForReconciliation: mock(),
@@ -107,14 +128,19 @@ export const mockWorkerConstructor = mock<
 
 export const mockIORedis = mock(() => mockWorker)
 
-await mock.module('@/repositories', () => ({
-  authorsDB: { hardDeleteAuthors: mock() },
-  newsDB: {},
-  booksDB: mockBooksDB,
-  usersDB: mockUsersDB,
-  ordersDB: mockOrdersDB,
-  outboxDB: mockOutboxDB,
-}))
+export async function mockRepositories(): Promise<void> {
+  await mock.module('@/repositories', () => ({
+    authorsDB: { hardDeleteAuthors: mock() },
+    newsDB: {},
+    booksDB: mockBooksDB,
+    usersDB: mockUsersDB,
+    ordersDB: mockOrdersDB,
+    outboxDB: mockOutboxDB,
+    termsDB: mockTermsDB,
+  }))
+}
+
+await mockRepositories()
 
 await mock.module('stripe', () => {
   const mockStripeCtor = mock(() => mockStripe)
@@ -146,7 +172,6 @@ await mock.module('@/utils', () => ({
   signRefreshToken: mockSignRefreshToken,
   verifyJWTRefresh: mockVerifyJWTRefresh,
   uploadFile: mockUploadFile,
-  toIsoString,
   getOrderRef,
   closeNgrokTunnel: mock(),
   formatUptime: mock(() => 'test uptime'),

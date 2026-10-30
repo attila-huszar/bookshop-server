@@ -8,7 +8,6 @@ import type {
   loginSchema,
   passwordResetSchema,
   profileUpdateSchema,
-  registerSchema,
   tokenSchema,
   userInsertSchema,
   userSelectSchema,
@@ -31,7 +30,6 @@ export type CmsUserUpdate = z.infer<typeof cmsUserUpdateSchema>
 export type CmsUserIds = z.infer<typeof cmsUserIdsSchema>
 
 export type LoginRequest = z.infer<typeof loginSchema>
-export type RegisterRequest = z.infer<typeof registerSchema>
 export type VerificationRequest = z.infer<typeof tokenSchema>
 export type PasswordResetRequest = z.infer<typeof emailSchema>
 export type PasswordResetToken = z.infer<typeof tokenSchema>

@@ -1,13 +1,7 @@
 import { env } from '@/config'
+import { calculatePriceCents, toCents } from '@/utils/pricing.utils'
 import { type BookInsert, DB_REPO } from '@/types'
 import booksData from './books.json'
-
-function calculateDiscountPrice(
-  price: number,
-  discount: number | null,
-): number {
-  return discount ? price - (price * discount) / 100 : price
-}
 
 export async function seedBooks() {
   if (env.dbRepo === DB_REPO.SQLITE) {
@@ -24,9 +18,9 @@ export async function seedBooks() {
       description: book.description,
       publishYear: book.publishYear,
       rating: book.rating,
-      price: book.price,
+      price: toCents(book.price) / 100,
       discount: book.discount,
-      discountPrice: calculateDiscountPrice(book.price, book.discount),
+      discountPrice: calculatePriceCents(book.price, book.discount ?? 0) / 100,
       topSellers: book.topSellers ?? false,
       newRelease: book.newRelease ?? false,
     }))
@@ -62,9 +56,9 @@ export async function seedBooks() {
       description: book.description,
       publishYear: book.publishYear,
       rating: book.rating,
-      price: book.price,
+      price: toCents(book.price) / 100,
       discount: book.discount,
-      discountPrice: calculateDiscountPrice(book.price, book.discount),
+      discountPrice: calculatePriceCents(book.price, book.discount ?? 0) / 100,
       topSellers: book.topSellers ?? false,
       newRelease: book.newRelease ?? false,
     }))

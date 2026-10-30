@@ -58,6 +58,7 @@ Configure the environment files:
 - Server: set `ADMIN_EMAIL`/`ADMIN_PASSWORD`, cookie/JWT secrets, `STRIPE_SECRET` (test key), SMTP credentials, and AWS S3 settings for avatar uploads.
 - Database: set exactly one `COMPOSE_PROFILES` value in the server `.env`: `sqlite` (default) or `mongo`.
 - Client: set `VITE_STRIPE_PUBLIC_KEY` to the publishable test key from the same Stripe account. Default URLs are `VITE_BASE_URL=http://localhost:5173` and `VITE_SERVER_URL=http://localhost:5000/api`; keep the server's `CLIENT_BASE_URL` aligned.
+- Checkout terms: publish English and Hungarian terms in the admin CMS under **Terms and Conditions** before testing payments.
 
 ## Local development
 

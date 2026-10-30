@@ -5,6 +5,7 @@ const { getEmailHtml, getEmailSubject } = await import('@/utils/email.utils')
 
 const order: Order = {
   checkoutRequestId: 'checkout-email-test',
+  termsAcceptance: null,
   id: 1,
   paymentId: 'pi_test_123',
   paymentStatus: 'succeeded',
@@ -38,6 +39,29 @@ const order: Order = {
 }
 
 describe('order confirmation email', () => {
+  it('uses rounded discounted unit prices for receipt line totals', async () => {
+    const html = await getEmailHtml({
+      type: 'orderConfirmation',
+      toAddress: order.email!,
+      toName: 'Casey',
+      order: {
+        ...order,
+        total: 799,
+        items: [
+          {
+            title: 'Discounted book',
+            price: 9.99,
+            discount: 20,
+            quantity: 100,
+          },
+        ],
+      },
+    })
+
+    expect(html).toContain('799.00')
+    expect(html).not.toContain('799.20')
+  })
+
   it('includes the shipping postal code in the address', async () => {
     const html = await getEmailHtml({
       type: 'orderConfirmation',

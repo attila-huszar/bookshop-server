@@ -1,10 +1,12 @@
 import { EmailOutboxModel, OrderModel } from '@/models/mongo'
+import { TermsDocumentModel } from '@/models/mongo/TermsDocumentModel'
 import {
   orderPaidEmails,
   orderReconciliationFailure,
 } from '@/utils/email-job.utils'
 import { getErrorCode } from '@/utils/error.utils'
 import { terminalStatuses } from '@/constants/payment'
+import { BadRequest } from '@/errors'
 import type {
   CmsOrderUpdate,
   Order,
@@ -12,7 +14,9 @@ import type {
   OrderPaymentSnapshot,
   OrderReconciliationQuery,
   OrderUpdate,
+  TermsAcceptance,
 } from '@/types'
+import { TermsErrorCode } from '@/types/enums'
 
 const MONGO_DUPLICATE_KEY_CODE = 11000
 
@@ -106,6 +110,52 @@ export async function getOrder(paymentId: string): Promise<Order | null> {
   }
 
   return order
+}
+
+/** Keep the first acceptance and its timestamp across identical retries. */
+export async function recordTermsAcceptance(
+  paymentId: string,
+  acceptance: TermsAcceptance,
+): Promise<Order | null> {
+  return await OrderModel.db.transaction(async (session) => {
+    const updated = await OrderModel.findOneAndUpdate(
+      {
+        paymentId,
+        termsAcceptance: null,
+        deletedAt: null,
+        paymentStatus: {
+          $in: ['requires_payment_method', 'requires_confirmation'],
+        },
+      },
+      { $set: { termsAcceptance: acceptance } },
+      { returnDocument: 'after', session },
+    )
+      .lean()
+      .exec()
+
+    if (updated) {
+      // A real write conflicts with concurrent deletion of the accepted document.
+      const reference = await TermsDocumentModel.updateOne(
+        { version: acceptance.version },
+        { $inc: { __v: 1 } },
+        { session },
+      )
+
+      if (reference.matchedCount !== 1) {
+        throw new BadRequest(
+          `Terms acceptance rolled back: referenced document ${acceptance.version} no longer exists`,
+          TermsErrorCode.Changed,
+          412,
+        )
+      }
+
+      return updated
+    }
+
+    return await OrderModel.findOne({ paymentId }, null, { session })
+      .lean()
+      .exec()
+  })
 }
 
 export async function getOrderById(id: number): Promise<Order | null> {

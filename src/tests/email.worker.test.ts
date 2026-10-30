@@ -363,9 +363,10 @@ describe('Email Worker', () => {
   })
 
   it('does not retry an accepted email when saving its outcome fails', async () => {
+    const error = new Error('DB unavailable')
     mockOutboxDB.updateEmailDelivery
       .mockResolvedValueOnce(undefined)
-      .mockRejectedValueOnce(new Error('DB unavailable'))
+      .mockRejectedValueOnce(error)
 
     expect(await processor(verificationJob, undefined)).toEqual({
       status: 'sent',
@@ -373,7 +374,7 @@ describe('Email Worker', () => {
     expect(mockSendMail).toHaveBeenCalledTimes(1)
     expect(mockLogger.error).toHaveBeenCalledWith(
       'Could not record email delivery outcome',
-      { jobId: verificationJob.id, status: 'sent' },
+      { jobId: verificationJob.id, status: 'sent', error },
     )
   })
 

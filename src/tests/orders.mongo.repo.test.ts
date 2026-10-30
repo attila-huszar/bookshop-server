@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, mock } from 'bun:test'
 import { rejects } from 'node:assert/strict'
 import { env } from '@/config'
+import { defaultTermsStatements } from '@/constants/defaults'
 import { terminalStatuses } from '@/constants/payment'
 import {
   type Order,
@@ -10,6 +11,7 @@ import {
 } from '@/types'
 
 const query = {
+  select: mock(),
   sort: mock(),
   limit: mock(),
   session: mock(),
@@ -24,6 +26,8 @@ const EmailOutboxModel = {
   updateMany: mock(),
 }
 const OrderModel = {
+  distinct: mock(),
+  exists: mock(),
   find: mock(),
   findOne: mock(),
   findOneAndUpdate: mock(),
@@ -45,6 +49,21 @@ const UserModel = {
   db: OrderModel.db,
 }
 
+const termsLockQuery = { lean: mock(), exec: mock() }
+const distinctQuery = { exec: mock() }
+const TermsDocumentModel = {
+  find: mock(),
+  findOne: mock(),
+  create: mock(),
+  findOneAndUpdate: mock(),
+  updateOne: mock(),
+  deleteOne: mock(),
+  db: OrderModel.db,
+}
+await mock.module('@/models/mongo/TermsDocumentModel', () => ({
+  TermsDocumentModel,
+}))
+
 await mock.module('@/models/mongo', () => ({
   OrderModel,
   UserModel,
@@ -56,6 +75,220 @@ await mock.module('@/models/mongo/EmailOutboxModel', () => ({
 const orders = await import('@/repositories/mongoose/orders.repo')
 const users = await import('@/repositories/mongoose/users.repo')
 const outbox = await import('@/repositories/mongoose/outbox.repo')
+const terms = await import('@/repositories/mongoose/terms.repo')
+
+describe('Mongo terms documents', () => {
+  const document = {
+    version: '11111111-1111-4111-8111-111111111111',
+    content: { en: 'English', hu: 'Magyar' },
+    statements: defaultTermsStatements,
+    publishedAt: '2026-10-14T10:00:00.000Z',
+  }
+
+  beforeEach(() => {
+    termsLockQuery.lean.mockReset().mockReturnValue(termsLockQuery)
+    termsLockQuery.exec.mockReset().mockResolvedValue(document)
+    TermsDocumentModel.findOneAndUpdate
+      .mockReset()
+      .mockReturnValue(termsLockQuery)
+    TermsDocumentModel.deleteOne
+      .mockReset()
+      .mockResolvedValue({ deletedCount: 1 })
+    query.session.mockReset().mockReturnValue(query)
+    OrderModel.exists.mockReset().mockReturnValue(query)
+    distinctQuery.exec.mockReset().mockResolvedValue([])
+    OrderModel.distinct.mockReset().mockReturnValue(distinctQuery)
+    query.select.mockReset().mockReturnValue(query)
+    query.sort.mockReset().mockReturnValue(query)
+    query.lean.mockReset().mockReturnValue(query)
+    query.exec.mockReset()
+    query.exec.mockResolvedValue({
+      ...document,
+      publishedAt: new Date(document.publishedAt),
+      _id: 'internal',
+      id: 12,
+    })
+    TermsDocumentModel.findOne.mockReset().mockReturnValue(query)
+    TermsDocumentModel.find.mockReset().mockReturnValue(query)
+    TermsDocumentModel.create.mockReset()
+    TermsDocumentModel.create.mockResolvedValue({
+      toObject: () => ({
+        ...document,
+        publishedAt: new Date(document.publishedAt),
+        _id: 'internal',
+        id: 12,
+      }),
+    })
+  })
+
+  it('lists only publication metadata in descending revision order', async () => {
+    query.exec.mockResolvedValue([
+      {
+        ...document,
+        publishedAt: new Date(document.publishedAt),
+        id: 12,
+        _id: 'internal',
+      },
+    ])
+
+    expect(await terms.getTermsHistory()).toEqual([
+      {
+        version: document.version,
+        publishedAt: document.publishedAt,
+        canDelete: true,
+      },
+    ])
+    expect(query.select).toHaveBeenCalledWith({
+      version: 1,
+      publishedAt: 1,
+      _id: 0,
+    })
+    expect(query.sort).toHaveBeenCalledWith({ id: -1 })
+  })
+
+  it('reads the latest revision and omits database fields', async () => {
+    expect(await terms.getCurrentTerms()).toEqual(document)
+    expect(query.sort).toHaveBeenCalledWith({ id: -1 })
+    expect(await terms.getTermsByVersion(document.version)).toEqual(document)
+    expect(TermsDocumentModel.findOne).toHaveBeenLastCalledWith({
+      version: document.version,
+    })
+  })
+
+  it('marks any accepted version as protected in the history', async () => {
+    query.exec.mockResolvedValue([
+      { ...document, publishedAt: new Date(document.publishedAt) },
+    ])
+    distinctQuery.exec.mockResolvedValue([document.version])
+
+    expect(await terms.getTermsHistory()).toEqual([
+      {
+        version: document.version,
+        publishedAt: document.publishedAt,
+        canDelete: false,
+      },
+    ])
+  })
+
+  it('locks the document before checking acceptance and deleting in one transaction', async () => {
+    query.exec.mockResolvedValue(null)
+
+    expect(await terms.deleteUnusedTerms(document.version)).toBe(true)
+    expect(TermsDocumentModel.findOneAndUpdate).toHaveBeenCalledWith(
+      { version: document.version },
+      { $inc: { __v: 1 } },
+      { session, returnDocument: 'after' },
+    )
+    expect(OrderModel.exists).toHaveBeenCalledWith({
+      'termsAcceptance.version': document.version,
+    })
+    expect(query.session).toHaveBeenCalledWith(session)
+    expect(TermsDocumentModel.deleteOne).toHaveBeenCalledWith(
+      { version: document.version },
+      { session },
+    )
+  })
+
+  it('does not delete accepted or missing documents', async () => {
+    query.exec.mockResolvedValue({ _id: 'accepted-order' })
+    expect(await terms.deleteUnusedTerms(document.version)).toBe(false)
+    expect(TermsDocumentModel.deleteOne).not.toHaveBeenCalled()
+    termsLockQuery.exec.mockResolvedValue(null)
+    OrderModel.exists.mockClear()
+    expect(await terms.deleteUnusedTerms(document.version)).toBe(false)
+    expect(OrderModel.exists).not.toHaveBeenCalled()
+    expect(TermsDocumentModel.deleteOne).not.toHaveBeenCalled()
+  })
+
+  it('publishes by appending an immutable document', async () => {
+    expect(await terms.publishTerms(document)).toEqual(document)
+    expect(TermsDocumentModel.create).toHaveBeenCalledWith({
+      ...document,
+      publishedAt: new Date(document.publishedAt),
+    })
+  })
+})
+
+describe('Mongo checkout terms acceptance', () => {
+  beforeEach(() => {
+    TermsDocumentModel.updateOne
+      .mockReset()
+      .mockResolvedValue({ matchedCount: 1 })
+    query.lean.mockReset().mockReturnValue(query)
+    query.exec.mockReset()
+    OrderModel.findOneAndUpdate.mockReset().mockReturnValue(query)
+    OrderModel.findOne.mockReset().mockReturnValue(query)
+  })
+
+  it('atomically records acceptance only for an active, unpaid order without prior acceptance', async () => {
+    const acceptance = {
+      version: 'v1',
+      acceptedAt: new Date().toISOString(),
+      statement: 'Accepted terms',
+      language: 'en' as const,
+    }
+    query.exec.mockResolvedValueOnce({ termsAcceptance: acceptance })
+
+    expect(
+      (await orders.recordTermsAcceptance('pi_terms', acceptance))
+        ?.termsAcceptance,
+    ).toEqual(acceptance)
+    expect(OrderModel.findOneAndUpdate).toHaveBeenCalledWith(
+      {
+        paymentId: 'pi_terms',
+        termsAcceptance: null,
+        deletedAt: null,
+        paymentStatus: {
+          $in: ['requires_payment_method', 'requires_confirmation'],
+        },
+      },
+      { $set: { termsAcceptance: acceptance } },
+      { returnDocument: 'after', session },
+    )
+    expect(TermsDocumentModel.updateOne).toHaveBeenCalledWith(
+      { version: acceptance.version },
+      { $inc: { __v: 1 } },
+      { session },
+    )
+  })
+
+  it('aborts acceptance if its document has been deleted', async () => {
+    const acceptance = {
+      version: 'deleted',
+      acceptedAt: new Date().toISOString(),
+      statement: 'Accepted',
+      language: 'en' as const,
+    }
+    query.exec.mockResolvedValue({ termsAcceptance: acceptance })
+    TermsDocumentModel.updateOne.mockResolvedValue({ matchedCount: 0 })
+
+    await rejects(orders.recordTermsAcceptance('pi_terms', acceptance), {
+      code: 'TERMS_CHANGED',
+      status: 412,
+    })
+  })
+
+  it('returns the existing acceptance when another request won the update', async () => {
+    const acceptance = {
+      version: 'v1',
+      acceptedAt: '2026-10-14T10:00:00Z',
+      statement: 'Accepted terms',
+      language: 'en' as const,
+    }
+    query.exec
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ termsAcceptance: acceptance })
+
+    expect(
+      (
+        await orders.recordTermsAcceptance('pi_terms', {
+          ...acceptance,
+          acceptedAt: '2026-10-14T10:05:00Z',
+        })
+      )?.termsAcceptance,
+    ).toEqual(acceptance)
+  })
+})
 
 describe('Mongo order soft deletion', () => {
   beforeEach(() => {
@@ -487,6 +720,7 @@ describe('Mongo order reconciliation alerts', () => {
   const current: Order = {
     id: 1,
     checkoutRequestId: 'checkout-failed',
+    termsAcceptance: null,
     createdAt: new Date('2026-10-08T11:00:00Z'),
     updatedAt: new Date('2026-10-08T11:00:00Z'),
     lastStripeEventCreated: null,
@@ -749,6 +983,53 @@ describe('Mongo transactional account emails', () => {
 
     await rejects(users.createUserWithVerification(user), /Insert failed/)
     expect(EmailOutboxModel.insertMany).not.toHaveBeenCalled()
+  })
+
+  it('verifies only the current unexpired token of an active account', async () => {
+    query.exec.mockResolvedValueOnce({ ...storedUser, verified: true })
+
+    expect(await users.verifyUserByToken('verification-token')).toMatchObject({
+      verified: true,
+    })
+    expect(UserModel.findOneAndUpdate).toHaveBeenCalledWith(
+      {
+        verificationToken: 'verification-token',
+        verificationExpires: { $gt: expect.any(Date) as Date },
+        deletedAt: null,
+      },
+      { verified: true, verificationToken: null, verificationExpires: null },
+      { returnDocument: 'after' },
+    )
+  })
+
+  it('changes a password only while its reset token is current and unexpired', async () => {
+    query.exec.mockResolvedValueOnce({ ...storedUser, password: 'new-hash' })
+
+    expect(
+      await users.resetPasswordByToken('reset-token', 'new-hash'),
+    ).toMatchObject({ password: 'new-hash' })
+    expect(UserModel.findOneAndUpdate).toHaveBeenCalledWith(
+      {
+        passwordResetToken: 'reset-token',
+        passwordResetExpires: { $gt: expect.any(Date) as Date },
+        deletedAt: null,
+      },
+      {
+        password: 'new-hash',
+        passwordResetToken: null,
+        passwordResetExpires: null,
+      },
+      { returnDocument: 'after' },
+    )
+  })
+
+  it('returns null when a token is expired, replaced, consumed, or its account is deleted', async () => {
+    query.exec.mockResolvedValue(null)
+
+    expect(await users.verifyUserByToken('unusable-token')).toBeNull()
+    expect(
+      await users.resetPasswordByToken('unusable-token', 'new-hash'),
+    ).toBeNull()
   })
 
   it('keeps generic creation and updates email-free', async () => {

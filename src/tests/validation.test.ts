@@ -4,7 +4,12 @@ import { SQLiteSyncDialect } from 'drizzle-orm/sqlite-core'
 import { bookQueryBuilder as sqliteBookQuery } from '@/repositories/drizzle/books.query'
 import { bookQueryBuilder as mongoBookQuery } from '@/repositories/mongoose/books.query'
 import { authorInsertSchema } from '@/validation/authorSchemas'
-import { emailSchema, registerSchema } from '@/validation/authSchemas'
+import {
+  emailSchema,
+  loginSchema,
+  passwordSchema,
+  registerSchema,
+} from '@/validation/authSchemas'
 import { bookQuerySchema } from '@/validation/bookQuerySchema'
 import { bookInsertSchema, bookUpdateSchema } from '@/validation/bookSchemas'
 import { idSchema, nameSchema } from '@/validation/commonSchemas'
@@ -18,6 +23,7 @@ import {
   cmsUserUpdateSchema,
   profileUpdateSchema,
 } from '@/validation/userSchemas'
+import { defaultTermsStatements } from '@/constants/defaults'
 
 const item = {
   id: 1,
@@ -57,6 +63,20 @@ const author = {
   birthYear: '',
   deathYear: '',
 }
+
+describe('existing password validation', () => {
+  it('accepts an existing password at login without applying the new-password policy', () => {
+    expect(
+      loginSchema.safeParse({ email: 'test@example.com', password: 'old' })
+        .success,
+    ).toBe(true)
+    expect(
+      loginSchema.safeParse({ email: 'test@example.com', password: '' })
+        .success,
+    ).toBe(false)
+    expect(passwordSchema.safeParse({ password: 'old' }).success).toBe(false)
+  })
+})
 const user = {
   firstName: 'Jane',
   lastName: 'Doe',
@@ -345,6 +365,52 @@ describe('request validation', () => {
     ])
 
     expect({ exitCode, stderr }).toEqual({ exitCode: 0, stderr: '' })
+  })
+
+  it('defaults Mongo terms statements without sharing mutable values between documents', async () => {
+    const modelUrl = new URL(
+      '../models/mongo/TermsDocumentModel.ts',
+      import.meta.url,
+    ).href
+    const child = Bun.spawn(
+      [
+        process.execPath,
+        '--no-env-file',
+        '-e',
+        `
+        const { TermsDocumentModel } = await import(${JSON.stringify(modelUrl)})
+        const input = { id: 1, version: 'v1', content: { en: 'English', hu: 'Magyar' }, publishedAt: new Date() }
+        const first = new TermsDocumentModel(input)
+        await first.validate()
+        const defaults = first.statements.toObject()
+        first.statements.en = 'Changed declaration'
+        const second = new TermsDocumentModel({ ...input, id: 2, version: 'v2' })
+        await second.validate()
+        console.log(JSON.stringify({ defaults, second: second.statements.toObject() }))
+      `,
+      ],
+      {
+        cwd: fileURLToPath(new URL('../../', import.meta.url)),
+        env: {
+          ...process.env,
+          DB_REPO: 'MONGO',
+          STRIPE_SECRET: 'sk_test_validation',
+        },
+        stdout: 'pipe',
+        stderr: 'pipe',
+      },
+    )
+    const [exitCode, stdout, stderr] = await Promise.all([
+      child.exited,
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+    ])
+
+    expect({ exitCode, stderr }).toEqual({ exitCode: 0, stderr: '' })
+    expect(JSON.parse(stdout)).toEqual({
+      defaults: defaultTermsStatements,
+      second: defaultTermsStatements,
+    })
   })
 
   it('parses numeric and boolean queries while preserving zero and false', () => {

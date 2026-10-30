@@ -11,6 +11,7 @@ import { cors } from 'hono/cors'
 import { csrf } from 'hono/csrf'
 import { timeout } from 'hono/timeout'
 import { trimTrailingSlash } from 'hono/trailing-slash'
+import { HttpErrorCode } from '@/types/enums'
 import { env } from './config/env'
 import { validateEnv } from './config/validateEnv'
 import { API, SHUTDOWN_SIGNALS } from './constants'
@@ -23,6 +24,7 @@ import {
   news,
   orders,
   payments,
+  terms,
   users,
   webhooks,
 } from './controller'
@@ -47,11 +49,12 @@ export const app = new Hono()
 const api = new Hono()
 
 app.onError((error, c) => errorHandler(c, error))
+app.notFound((c) => c.json({ code: HttpErrorCode.NotFound }, 404))
 
 const limiter = rateLimiter({
   windowMs: 15 * 60 * 1000,
   limit: 500,
-  message: { error: 'Too many requests' },
+  message: { code: HttpErrorCode.RateLimited },
   statusCode: 429,
   standardHeaders: 'draft-6',
   keyGenerator: (c) => {
@@ -137,6 +140,7 @@ api.route(API.root, bookSearchOptions)
 api.route(API.root, users)
 api.route(API.root, orders)
 api.route(API.root, payments)
+api.route(API.root, terms)
 api.route(API.root, cms)
 api.route(API.root, logs)
 

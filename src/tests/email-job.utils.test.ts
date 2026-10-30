@@ -10,6 +10,7 @@ import { AdminNotification, type EmailOutboxDraft, type Order } from '@/types'
 
 const createOrder = (overrides: Partial<Order> = {}): Order => ({
   checkoutRequestId: 'checkout-email-intents-test',
+  termsAcceptance: null,
   id: 1,
   paymentId: 'pi_test_123',
   paymentStatus: 'succeeded',

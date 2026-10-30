@@ -9,6 +9,7 @@ import {
   mockSignAccessToken,
   mockSignRefreshToken,
   mockUsersDB,
+  mockValidate,
   mockVerifyJWTRefresh,
 } from './test-setup'
 
@@ -53,6 +54,12 @@ const refreshWithCookie = async () => {
 
 beforeEach(() => {
   env.cookieSecret = 'test-cookie-secret-for-refresh'
+  mockValidate
+    .mockReset()
+    .mockImplementation(
+      (schema: { parse: (value: unknown) => unknown }, value: unknown) =>
+        schema.parse(value),
+    )
   mockUsersDB.getActiveUserBy.mockReset()
   mockSignAccessToken.mockReset().mockResolvedValue('new-access-token')
   mockSignRefreshToken.mockReset().mockResolvedValue('new-refresh-token')
@@ -65,9 +72,25 @@ beforeEach(() => {
 
 afterEach(() => {
   env.cookieSecret = previousCookieSecret
+  mockValidate.mockReset()
 })
 
 describe('session refresh', () => {
+  it('returns a language-independent error for invalid login credentials', async () => {
+    mockUsersDB.getActiveUserBy.mockResolvedValueOnce(null)
+    const response = await app.request(API.users.login, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        email: 'missing@example.com',
+        password: 'password1',
+      }),
+    })
+
+    expect(response.status).toBe(401)
+    expect(await response.json()).toEqual({ code: 'INVALID_CREDENTIALS' })
+  })
+
   it('discards a deleted account before issuing or rotating tokens', async () => {
     mockUsersDB.getActiveUserBy.mockResolvedValueOnce(null)
     mockVerifyJWTRefresh.mockResolvedValueOnce({

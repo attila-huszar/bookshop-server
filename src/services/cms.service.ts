@@ -17,6 +17,7 @@ import {
   validate,
 } from '@/validation'
 import { uploadFile } from '@/utils'
+import { calculatePriceCents } from '@/utils/pricing.utils'
 import {
   adminUserResponse,
   authorResponse,
@@ -36,6 +37,7 @@ import type {
   Order,
 } from '@/types'
 import { Folder, UserRole } from '@/types'
+import { UserErrorCode } from '@/types/enums'
 
 // --- READ --- //
 export async function getAllBooks(): Promise<
@@ -73,7 +75,11 @@ export async function addBook(
   book: BookInsert,
 ): Promise<ReturnType<typeof cmsBookResponse>> {
   const validatedBook = validate(bookInsertSchema, book)
-  const newBook = await booksDB.insertBook(validatedBook)
+  const newBook = await booksDB.insertBook({
+    ...validatedBook,
+    discountPrice:
+      calculatePriceCents(validatedBook.price, validatedBook.discount) / 100,
+  })
 
   return cmsBookResponse(newBook)
 }
@@ -102,7 +108,9 @@ export async function addUser(
   })
 
   if (!newUser) {
-    throw new Internal('Failed to create user')
+    throw new Internal(
+      'CMS user creation failed: user insert returned no record',
+    )
   }
 
   return adminUserResponse(newUser)
@@ -115,6 +123,29 @@ export async function updateBook(
 ): Promise<ReturnType<typeof cmsBookResponse>> {
   const validatedId = validate(idSchema, bookId)
   const validatedBook = validate(bookUpdateSchema, book)
+
+  if (
+    validatedBook.price !== undefined ||
+    validatedBook.discount !== undefined ||
+    validatedBook.discountPrice !== undefined
+  ) {
+    let price = validatedBook.price
+    let discount = validatedBook.discount
+
+    if (price === undefined || discount === undefined) {
+      const currentBook = await booksDB.getBookById(validatedId)
+
+      if (!currentBook) {
+        throw new NotFound(`Book with id ${bookId} not found`)
+      }
+
+      price ??= currentBook.price
+      discount ??= currentBook.discount
+    }
+
+    validatedBook.discountPrice = calculatePriceCents(price, discount) / 100
+  }
+
   const updatedBook = await booksDB.updateBook(validatedId, validatedBook)
 
   if (!updatedBook) {
@@ -232,6 +263,7 @@ export async function softDeleteUsers(input: CmsUserIds): Promise<number> {
     if (totalAdmins - deletingAdmins.length === 0) {
       throw new BadRequest(
         'Cannot delete the last admin. At least one admin must remain in the system.',
+        UserErrorCode.LastAdminRequired,
       )
     }
   }
@@ -244,7 +276,7 @@ export async function uploadProductImage(
   image: Bun.FormDataEntryValue | null,
 ): Promise<{ url: string }> {
   if (!(image instanceof File)) {
-    throw new BadRequest('Image must be a file')
+    throw new BadRequest('Image must be a file', UserErrorCode.InvalidImage)
   }
 
   validate(imageSchema, image)

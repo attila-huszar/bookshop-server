@@ -1,15 +1,20 @@
-import { booksDB, ordersDB } from '@/repositories'
+import { env } from '@/config'
+import { booksDB, ordersDB, termsDB } from '@/repositories'
 import {
+  acceptPaymentTermsSchema,
   orderInsertSchema,
   paymentIdSchema,
   paymentIntentRequestSchema,
   validate,
 } from '@/validation'
-import { log, stripe } from '@/libs'
-import { defaultCurrency, paymentMessage } from '@/constants'
+import { calculatePriceCents, toCents } from '@/utils/pricing.utils'
+import { orderResponse } from '@/utils/response.utils'
+import { stripe } from '@/libs'
+import { defaultCurrency } from '@/constants'
 import { BadRequest, Internal, NotFound } from '@/errors'
 import { Unauthorized } from '@/errors/Unauthorized'
 import type {
+  CheckoutTerms,
   Order,
   OrderInsert,
   OrderItem,
@@ -18,7 +23,9 @@ import type {
   PaymentSession,
   PublicUser,
   StripePaymentIntent,
+  TermsAcceptance,
 } from '@/types'
+import { PaymentErrorCode, TermsErrorCode } from '@/types/enums'
 
 async function resolveAuthorizedPayment(
   paymentId: string,
@@ -30,17 +37,18 @@ async function resolveAuthorizedPayment(
 
   try {
     order = await ordersDB.getOrder(validatedId)
-  } catch (lookupErr) {
-    void log.error('ordersDB.getOrder failed in resolveAuthorizedPayment', {
-      paymentId: validatedId,
-      lookupErr,
-    })
-
-    throw new Internal('Failed to read order')
+  } catch (error) {
+    throw new Internal(
+      `Payment access lookup failed: could not read order for payment ${validatedId}`,
+      { cause: error },
+    )
   }
 
   if (!order) {
-    throw new Unauthorized('Unauthorized payment access')
+    throw new Unauthorized(
+      'Unauthorized payment access',
+      PaymentErrorCode.AccessDenied,
+    )
   }
 
   const accessEmail = access.userEmail?.toLowerCase()
@@ -49,7 +57,10 @@ async function resolveAuthorizedPayment(
     Boolean(accessEmail) && order.email?.toLowerCase() === accessEmail
 
   if (!hasSessionAccess && !hasEmailAccess) {
-    throw new Unauthorized('Unauthorized payment access')
+    throw new Unauthorized(
+      'Unauthorized payment access',
+      PaymentErrorCode.AccessDenied,
+    )
   }
 
   return { validatedId, order }
@@ -57,7 +68,7 @@ async function resolveAuthorizedPayment(
 
 async function buildOrderItemsAndTotal(
   paymentIntentRequest: PaymentIntentRequest,
-): Promise<{ items: OrderItem[]; total: number }> {
+): Promise<{ items: OrderItem[]; totalCents: number }> {
   const pricedItems = await Promise.all(
     paymentIntentRequest.items.map(async (item) => {
       const book = await booksDB.getBookById(item.id)
@@ -68,16 +79,17 @@ async function buildOrderItemsAndTotal(
         )
       }
 
-      const priceCents = Math.round(book.price * 100)
-      const itemTotalCents = Math.round(
-        item.quantity * priceCents * (1 - (book.discount ?? 0) / 100),
+      const itemTotalCents = calculatePriceCents(
+        book.price,
+        book.discount ?? 0,
+        item.quantity,
       )
       const orderItem: OrderItem = {
         id: book.id,
         title: book.title,
         author: book.author,
         imgUrl: book.imgUrl ?? '',
-        price: book.price,
+        price: toCents(book.price) / 100,
         discount: book.discount ?? 0,
         quantity: item.quantity,
       }
@@ -97,7 +109,7 @@ async function buildOrderItemsAndTotal(
 
   return {
     items,
-    total: totalCents / 100,
+    totalCents,
   }
 }
 
@@ -108,6 +120,96 @@ export async function retrievePaymentIntent(
   const { validatedId } = await resolveAuthorizedPayment(paymentId, access)
 
   return await stripe.paymentIntents.retrieve(validatedId)
+}
+
+export async function getPaymentTerms(
+  paymentId: string,
+  access: PaymentAccess,
+) {
+  const { order } = await resolveAuthorizedPayment(paymentId, access)
+  const document = await termsDB.getCurrentTerms()
+  const terms: CheckoutTerms | null = document
+    ? {
+        url: `${env.clientBaseUrl!.replace(/\/$/, '')}/terms/${document.version}`,
+        version: document.version,
+        statements: document.statements,
+        publishedAt: document.publishedAt,
+      }
+    : null
+
+  return {
+    terms,
+    order: {
+      items: orderResponse(order).items,
+      total: order.total,
+      currency: order.currency,
+    },
+  }
+}
+
+export async function acceptPaymentTerms(
+  paymentId: string,
+  input: unknown,
+  access: PaymentAccess,
+): Promise<TermsAcceptance> {
+  const request = acceptPaymentTermsSchema.parse(input)
+  const { validatedId, order } = await resolveAuthorizedPayment(
+    paymentId,
+    access,
+  )
+  const terms = await termsDB.getCurrentTerms()
+
+  if (!terms) {
+    throw new BadRequest(
+      'Terms acceptance failed: no published terms document',
+      TermsErrorCode.Unavailable,
+      503,
+    )
+  }
+
+  if (request.version !== terms.version) {
+    throw new BadRequest(
+      `Terms acceptance rejected: expected version ${terms.version}, received ${request.version}`,
+      TermsErrorCode.Changed,
+      412,
+    )
+  }
+
+  if (order.deletedAt || order.paymentStatus === 'canceled') {
+    throw new BadRequest(
+      `Terms acceptance rejected: order ${order.id} is deleted or canceled`,
+      PaymentErrorCode.CheckoutEnded,
+      410,
+    )
+  }
+
+  const recordedOrder = order.termsAcceptance
+    ? order
+    : await ordersDB.recordTermsAcceptance(validatedId, {
+        version: terms.version,
+        language: request.language,
+        statement: terms.statements[request.language],
+        acceptedAt: new Date().toISOString(),
+      })
+  const acceptance = recordedOrder?.termsAcceptance
+
+  if (!acceptance) {
+    throw new BadRequest(
+      `Terms acceptance failed: no acceptance recorded for order ${order.id}`,
+      TermsErrorCode.NotRecorded,
+      409,
+    )
+  }
+
+  if (acceptance.version !== terms.version) {
+    throw new BadRequest(
+      `Terms acceptance rejected: order ${order.id} already accepted version ${acceptance.version}, current version is ${terms.version}`,
+      TermsErrorCode.AlreadyAccepted,
+      412,
+    )
+  }
+
+  return acceptance
 }
 
 async function getOrCreateCheckoutOrder(
@@ -126,12 +228,13 @@ async function getOrCreateCheckoutOrder(
     return existingOrder
   }
 
-  const { items, total } = await buildOrderItemsAndTotal(validatedRequest)
+  const { items, totalCents } = await buildOrderItemsAndTotal(validatedRequest)
+  const expectedTotalCents = toCents(validatedRequest.expectedTotal)
 
-  if (Math.abs(total - validatedRequest.expectedTotal) > 0.05) {
+  if (totalCents !== expectedTotalCents) {
     throw new BadRequest(
-      paymentMessage.priceUpdatedInCart,
-      'PriceConflict',
+      `Checkout total mismatch: expected ${expectedTotalCents} cents, calculated ${totalCents} cents`,
+      PaymentErrorCode.PriceConflict,
       409,
     )
   }
@@ -142,7 +245,7 @@ async function getOrCreateCheckoutOrder(
     paymentStatus: 'processing',
     currency: defaultCurrency,
     items,
-    total,
+    total: totalCents / 100,
     ...(user && {
       email: user.email,
       firstName: user.firstName,
@@ -159,7 +262,9 @@ async function getOrCreateCheckoutOrder(
   const draftOrder = await ordersDB.createCheckoutOrder(validatedOrderData)
 
   if (draftOrder?.id === undefined) {
-    throw new Internal('Failed to create order in database')
+    throw new Internal(
+      `Checkout order creation failed: no order ID returned for request ${checkoutRequestId}`,
+    )
   }
 
   return draftOrder
@@ -184,7 +289,7 @@ export async function startCheckoutPayment(
       ? await stripe.paymentIntents.retrieve(order.paymentId)
       : await stripe.paymentIntents.create(
           {
-            amount: Math.round(order.total * 100),
+            amount: toCents(order.total),
             currency: order.currency.toLowerCase(),
             metadata: {
               orderId: String(order.id),
@@ -196,25 +301,24 @@ export async function startCheckoutPayment(
   } catch (error) {
     // A timeout does not prove Stripe failed. Keep the order for retries and
     // webhooks, which may already have linked the intent while we were waiting.
-    void log.error('Failed to resolve Stripe payment for checkout order', {
-      orderId: order.id,
-      checkoutRequestId,
-      error,
-    })
-
-    throw error
+    throw new Internal(
+      `Checkout payment resolution failed: order ${order.id}, request ${checkoutRequestId}`,
+      { cause: error },
+    )
   }
 
   if (paymentIntent.status === 'canceled') {
     throw new BadRequest(
-      'This checkout was canceled. Please start a new checkout.',
-      'CheckoutCanceled',
+      `Checkout rejected: payment ${paymentIntent.id} is canceled`,
+      PaymentErrorCode.CheckoutEnded,
       410,
     )
   }
 
   if (!paymentIntent.client_secret) {
-    throw new Internal('Failed to create payment intent: missing client secret')
+    throw new Internal(
+      `Checkout payment resolution failed: payment ${paymentIntent.id} has no client secret for order ${order.id}`,
+    )
   }
 
   const linkedOrder = await ordersDB.linkPaymentIntent(
@@ -224,13 +328,9 @@ export async function startCheckoutPayment(
   )
 
   if (!linkedOrder) {
-    void log.error('Failed to link payment intent to draft order', {
-      orderId: order.id,
-      paymentId: paymentIntent.id,
-      checkoutRequestId,
-    })
-
-    throw new Internal('Failed to link payment intent to order')
+    throw new Internal(
+      `Checkout payment linking failed: no order returned when linking payment ${paymentIntent.id} to order ${order.id}, request ${checkoutRequestId}`,
+    )
   }
 
   return {
@@ -250,11 +350,17 @@ export async function cancelPaymentIntent(
   )
 
   if (order.paymentStatus === 'canceled') {
-    throw new BadRequest(paymentMessage.paymentAlreadyCanceled)
+    throw new BadRequest(
+      `Payment cancellation rejected: order ${order.id} is already canceled`,
+      PaymentErrorCode.AlreadyCanceled,
+    )
   }
 
   if (order.paymentStatus === 'succeeded') {
-    throw new BadRequest(paymentMessage.paymentCannotCancelSucceeded)
+    throw new BadRequest(
+      `Payment cancellation rejected: order ${order.id} has a successful payment`,
+      PaymentErrorCode.AlreadySucceeded,
+    )
   }
 
   return await stripe.paymentIntents.cancel(validatedId)

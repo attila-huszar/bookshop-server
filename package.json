@@ -14,34 +14,28 @@
     "migrate": "bun src/database/migrate.ts",
     "seed": "bun src/database/seed.ts"
   },
-  "bun": {
-    "test": {
-      "preload": [
-        "src/tests/test-setup.ts"
-      ]
-    }
-  },
   "dependencies": {
     "@hono/bun": "^1.0.1",
     "@ngrok/ngrok": "^1.7.0",
-    "bullmq": "^6.3.15",
+    "bullmq": "^6.5.0",
     "drizzle-orm": "^0.45.4",
     "drizzle-zod": "^0.8.3",
-    "hono": "^4.13.13",
+    "hono": "^4.13.14",
     "hono-rate-limiter": "^0.5.4",
     "http-status": "^2.1.0",
     "ioredis": "^6.0.0",
     "mjml": "^5.4.1",
-    "mongoose": "^9.11.2",
-    "nodemailer": "^10.1.1",
-    "stripe": "^23.0.0",
+    "mongoose": "^9.11.4",
+    "nodemailer": "^10.2.1",
+    "sharp": "^0.35.5",
+    "stripe": "^23.0.1",
     "zod": "^4.6.7"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@trivago/prettier-plugin-sort-imports": "^6.0.2",
-    "@types/bun": "^1.4.3",
-    "@types/mjml": "^5.0.0",
+    "@types/bun": "^1.4.4",
+    "@types/mjml": "^5.4.1",
     "concurrently": "^10.0.6",
     "cross-env": "^10.1.0",
     "drizzle-kit": "^0.31.11",
@@ -52,6 +46,11 @@
     "jiti": "^2.7.0",
     "prettier": "^3.9.10",
     "typescript": "6.0.3",
-    "typescript-eslint": "^8.71.2"
+    "typescript-eslint": "^8.72.1"
+  },
+  "overrides": {
+    "@esbuild-kit/core-utils": {
+      "esbuild": "0.25.12"
+    }
   }
 }

@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { getAuthorById, getAuthorsByName } from '@/services'
 import { API } from '@/constants'
+import { HttpErrorCode } from '@/types/enums'
 
 export const authors = new Hono()
 
@@ -21,7 +22,7 @@ authors.get(API.authors.byId, async (c) => {
   const authorRecord = await getAuthorById(Number(id))
 
   if (!authorRecord) {
-    return c.json({ error: 'Author not found' }, 404)
+    return c.json({ code: HttpErrorCode.NotFound }, 404)
   }
 
   return c.json(authorRecord)
