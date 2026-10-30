@@ -11,7 +11,7 @@ import {
 } from '@/validation'
 import { signAccessToken, signRefreshToken, uploadFile } from '@/utils'
 import { publicUserResponse } from '@/utils/response.utils'
-import { authMessage, DUMMY_PASSWORD_HASH, userMessage } from '@/constants'
+import { DUMMY_PASSWORD_HASH } from '@/constants'
 import { BadRequest, Forbidden, Internal, Unauthorized } from '@/errors'
 import {
   Folder,
@@ -45,13 +45,16 @@ export async function loginUser(loginRequest: LoginRequest) {
 
   if (!user || !isPasswordCorrect) {
     throw new Unauthorized(
-      authMessage.credentialsInvalid,
+      'Invalid credentials. Please try again.',
       AuthErrorCode.InvalidCredentials,
     )
   }
 
   if (!user.verified) {
-    throw new Forbidden(userMessage.verifyFirst, AuthErrorCode.EmailUnverified)
+    throw new Forbidden(
+      'Please verify your email address before logging in.',
+      AuthErrorCode.EmailUnverified,
+    )
   }
 
   const timestamp = Math.floor(Date.now() / 1000)
@@ -80,7 +83,7 @@ export async function registerUser(formData: FormData) {
 
   if (emailTaken) {
     throw new BadRequest(
-      userMessage.emailTaken,
+      'Email address is already registered.',
       UserErrorCode.EmailAlreadyExists,
     )
   }
@@ -114,7 +117,9 @@ export async function registerUser(formData: FormData) {
   const userCreated = await usersDB.createUserWithVerification(newUser)
 
   if (!userCreated) {
-    throw new Internal(userMessage.createFailed)
+    throw new Internal(
+      'We could not create your account right now. Please try again later.',
+    )
   }
 
   return { email: userCreated.email }
@@ -126,7 +131,10 @@ export async function verifyUser(verificationRequest: VerificationRequest) {
   const userUpdated = await usersDB.verifyUserByToken(token)
 
   if (!userUpdated) {
-    throw new BadRequest(authMessage.invalidToken, AuthErrorCode.InvalidToken)
+    throw new BadRequest(
+      'The token provided is either expired or invalid.',
+      AuthErrorCode.InvalidToken,
+    )
   }
 
   return { email: userUpdated.email }
@@ -134,13 +142,13 @@ export async function verifyUser(verificationRequest: VerificationRequest) {
 
 export async function passwordResetRequest(
   passwordResetRequest: PasswordResetRequest,
-) {
+): Promise<void> {
   const { email } = validate(emailSchema, passwordResetRequest)
 
   const user = await usersDB.getActiveUserBy('email', email)
 
   if (!user) {
-    return { message: userMessage.forgotPasswordRequest }
+    return
   }
 
   const passwordResetToken = crypto.randomUUID()
@@ -152,10 +160,10 @@ export async function passwordResetRequest(
   })
 
   if (!userUpdated) {
-    throw new Internal(userMessage.updateFailed)
+    throw new Internal(
+      'We could not save your account changes right now. Please try again later.',
+    )
   }
-
-  return { message: userMessage.forgotPasswordRequest }
 }
 
 export async function passwordResetToken(
@@ -170,7 +178,7 @@ export async function passwordResetToken(
 
 export async function passwordResetSubmit(
   passwordResetSubmit: PasswordResetSubmit,
-) {
+): Promise<void> {
   const { token, password } = validate(passwordResetSchema, passwordResetSubmit)
 
   await validatePasswordResetToken(token)
@@ -181,10 +189,11 @@ export async function passwordResetSubmit(
   )
 
   if (!userUpdated) {
-    throw new BadRequest(authMessage.invalidToken, AuthErrorCode.InvalidToken)
+    throw new BadRequest(
+      'The token provided is either expired or invalid.',
+      AuthErrorCode.InvalidToken,
+    )
   }
-
-  return { message: userMessage.passwordResetSuccess }
 }
 
 /** Preview and submission use the same expiry check; the write rechecks it atomically. */
@@ -193,7 +202,10 @@ async function validatePasswordResetToken(token: string): Promise<void> {
   const expiresAt = user?.passwordResetExpires?.getTime() ?? 0
 
   if (!user?.passwordResetToken || !(expiresAt > Date.now())) {
-    throw new BadRequest(authMessage.invalidToken, AuthErrorCode.InvalidToken)
+    throw new BadRequest(
+      'The token provided is either expired or invalid.',
+      AuthErrorCode.InvalidToken,
+    )
   }
 }
 
@@ -213,7 +225,10 @@ export async function getActiveUser(
       return null
     }
 
-    throw new Unauthorized(authMessage.invalidToken, AuthErrorCode.InvalidToken)
+    throw new Unauthorized(
+      'The token provided is either expired or invalid.',
+      AuthErrorCode.InvalidToken,
+    )
   }
 
   return user
@@ -257,7 +272,9 @@ export async function updateUserProfile(
   )
 
   if (!userUpdated) {
-    throw new Internal(userMessage.updateFailed)
+    throw new Internal(
+      'We could not save your account changes right now. Please try again later.',
+    )
   }
 
   return publicUserResponse(userUpdated)
@@ -280,7 +297,9 @@ export async function uploadUserAvatar(
   })
 
   if (!userUpdated) {
-    throw new Internal(userMessage.updateFailed)
+    throw new Internal(
+      'We could not save your account changes right now. Please try again later.',
+    )
   }
 
   return publicUserResponse(userUpdated)

@@ -10,7 +10,6 @@ import {
   emailLogoFilename,
   emailLogoFilePath,
   emailLogoMimeType,
-  userMessage,
 } from '@/constants'
 import type { SendEmailProps } from '@/types'
 import { log } from './logger'
@@ -110,6 +109,9 @@ export async function sendMail(
 
     return await transporter.sendMail(mailOptions)
   } catch (error) {
-    throw new Error(userMessage.emailSendFailed, { cause: error })
+    throw new Error(
+      'We could not send the email right now. Please try again later.',
+      { cause: error },
+    )
   }
 }

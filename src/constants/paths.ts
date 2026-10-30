@@ -21,7 +21,6 @@ export const API = {
     root: '/search_opts',
   },
   users: {
-    root: '/users',
     login: '/users/login',
     logout: '/users/logout',
     refresh: '/users/refresh',
@@ -49,7 +48,6 @@ export const API = {
     terms: '/payments/:paymentId/terms',
   },
   cms: {
-    root: '/cms',
     wildcard: '/cms/*',
     books: '/cms/books',
     authors: '/cms/authors',

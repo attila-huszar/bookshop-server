@@ -9,7 +9,7 @@ import {
 } from '@/validation'
 import { orderResponse } from '@/utils/response.utils'
 import { log, stripe } from '@/libs'
-import { defaultCurrency, paymentMessage } from '@/constants'
+import { defaultCurrency } from '@/constants'
 import { BadRequest, Internal, NotFound } from '@/errors'
 import { Unauthorized } from '@/errors/Unauthorized'
 import type {
@@ -232,7 +232,7 @@ async function getOrCreateCheckoutOrder(
 
   if (Math.abs(total - validatedRequest.expectedTotal) > 0.05) {
     throw new BadRequest(
-      paymentMessage.priceUpdatedInCart,
+      'Prices have been updated in your cart. Please review before checkout.',
       PaymentErrorCode.PriceConflict,
       409,
     )
@@ -353,14 +353,14 @@ export async function cancelPaymentIntent(
 
   if (order.paymentStatus === 'canceled') {
     throw new BadRequest(
-      paymentMessage.paymentAlreadyCanceled,
+      'Payment already canceled',
       PaymentErrorCode.AlreadyCanceled,
     )
   }
 
   if (order.paymentStatus === 'succeeded') {
     throw new BadRequest(
-      paymentMessage.paymentCannotCancelSucceeded,
+      'Cannot cancel a successful payment',
       PaymentErrorCode.AlreadySucceeded,
     )
   }
