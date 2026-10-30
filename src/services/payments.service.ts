@@ -9,7 +9,7 @@ import {
 } from '@/validation'
 import { calculatePriceCents, toCents } from '@/utils/pricing.utils'
 import { orderResponse } from '@/utils/response.utils'
-import { log, stripe } from '@/libs'
+import { stripe } from '@/libs'
 import { defaultCurrency } from '@/constants'
 import { BadRequest, Internal, NotFound } from '@/errors'
 import { Unauthorized } from '@/errors/Unauthorized'
@@ -37,13 +37,11 @@ async function resolveAuthorizedPayment(
 
   try {
     order = await ordersDB.getOrder(validatedId)
-  } catch (lookupErr) {
-    void log.error('ordersDB.getOrder failed in resolveAuthorizedPayment', {
-      paymentId: validatedId,
-      lookupErr,
-    })
-
-    throw new Internal('Failed to read order')
+  } catch (error) {
+    throw new Internal(
+      `Payment access lookup failed: could not read order for payment ${validatedId}`,
+      { cause: error },
+    )
   }
 
   if (!order) {
@@ -163,7 +161,7 @@ export async function acceptPaymentTerms(
 
   if (!terms) {
     throw new BadRequest(
-      'Terms and conditions are currently unavailable. Please try again later.',
+      'Terms acceptance failed: no published terms document',
       TermsErrorCode.Unavailable,
       503,
     )
@@ -171,7 +169,7 @@ export async function acceptPaymentTerms(
 
   if (request.version !== terms.version) {
     throw new BadRequest(
-      'The terms and conditions have changed. Please review and accept them again.',
+      `Terms acceptance rejected: expected version ${terms.version}, received ${request.version}`,
       TermsErrorCode.Changed,
       412,
     )
@@ -179,7 +177,7 @@ export async function acceptPaymentTerms(
 
   if (order.deletedAt || order.paymentStatus === 'canceled') {
     throw new BadRequest(
-      'This checkout has ended. Please start a new checkout.',
+      `Terms acceptance rejected: order ${order.id} is deleted or canceled`,
       PaymentErrorCode.CheckoutEnded,
       410,
     )
@@ -197,7 +195,7 @@ export async function acceptPaymentTerms(
 
   if (!acceptance) {
     throw new BadRequest(
-      'Unable to record terms acceptance for this checkout. Please start a new checkout.',
+      `Terms acceptance failed: no acceptance recorded for order ${order.id}`,
       TermsErrorCode.NotRecorded,
       409,
     )
@@ -205,7 +203,7 @@ export async function acceptPaymentTerms(
 
   if (acceptance.version !== terms.version) {
     throw new BadRequest(
-      'This checkout accepted an earlier version of the terms. Please start a new checkout.',
+      `Terms acceptance rejected: order ${order.id} already accepted version ${acceptance.version}, current version is ${terms.version}`,
       TermsErrorCode.AlreadyAccepted,
       412,
     )
@@ -231,10 +229,11 @@ async function getOrCreateCheckoutOrder(
   }
 
   const { items, totalCents } = await buildOrderItemsAndTotal(validatedRequest)
+  const expectedTotalCents = toCents(validatedRequest.expectedTotal)
 
-  if (totalCents !== toCents(validatedRequest.expectedTotal)) {
+  if (totalCents !== expectedTotalCents) {
     throw new BadRequest(
-      'Prices have been updated in your cart. Please review before checkout.',
+      `Checkout total mismatch: expected ${expectedTotalCents} cents, calculated ${totalCents} cents`,
       PaymentErrorCode.PriceConflict,
       409,
     )
@@ -263,7 +262,9 @@ async function getOrCreateCheckoutOrder(
   const draftOrder = await ordersDB.createCheckoutOrder(validatedOrderData)
 
   if (draftOrder?.id === undefined) {
-    throw new Internal('Failed to create order in database')
+    throw new Internal(
+      `Checkout order creation failed: no order ID returned for request ${checkoutRequestId}`,
+    )
   }
 
   return draftOrder
@@ -300,25 +301,24 @@ export async function startCheckoutPayment(
   } catch (error) {
     // A timeout does not prove Stripe failed. Keep the order for retries and
     // webhooks, which may already have linked the intent while we were waiting.
-    void log.error('Failed to resolve Stripe payment for checkout order', {
-      orderId: order.id,
-      checkoutRequestId,
-      error,
-    })
-
-    throw error
+    throw new Internal(
+      `Checkout payment resolution failed: order ${order.id}, request ${checkoutRequestId}`,
+      { cause: error },
+    )
   }
 
   if (paymentIntent.status === 'canceled') {
     throw new BadRequest(
-      'This checkout was canceled. Please start a new checkout.',
+      `Checkout rejected: payment ${paymentIntent.id} is canceled`,
       PaymentErrorCode.CheckoutEnded,
       410,
     )
   }
 
   if (!paymentIntent.client_secret) {
-    throw new Internal('Failed to create payment intent: missing client secret')
+    throw new Internal(
+      `Checkout payment resolution failed: payment ${paymentIntent.id} has no client secret for order ${order.id}`,
+    )
   }
 
   const linkedOrder = await ordersDB.linkPaymentIntent(
@@ -328,13 +328,9 @@ export async function startCheckoutPayment(
   )
 
   if (!linkedOrder) {
-    void log.error('Failed to link payment intent to draft order', {
-      orderId: order.id,
-      paymentId: paymentIntent.id,
-      checkoutRequestId,
-    })
-
-    throw new Internal('Failed to link payment intent to order')
+    throw new Internal(
+      `Checkout payment linking failed: no order returned when linking payment ${paymentIntent.id} to order ${order.id}, request ${checkoutRequestId}`,
+    )
   }
 
   return {
@@ -355,14 +351,14 @@ export async function cancelPaymentIntent(
 
   if (order.paymentStatus === 'canceled') {
     throw new BadRequest(
-      'Payment already canceled',
+      `Payment cancellation rejected: order ${order.id} is already canceled`,
       PaymentErrorCode.AlreadyCanceled,
     )
   }
 
   if (order.paymentStatus === 'succeeded') {
     throw new BadRequest(
-      'Cannot cancel a successful payment',
+      `Payment cancellation rejected: order ${order.id} has a successful payment`,
       PaymentErrorCode.AlreadySucceeded,
     )
   }

@@ -80,14 +80,14 @@ export async function sendMail(
   try {
     if (!env.mailerUser || !env.mailerPass) {
       throw new Error(
-        '🚫 Mailer is not configured in .env (MAILER_USER / MAILER_PASS missing)',
+        'SMTP credentials are not configured (MAILER_USER / MAILER_PASS)',
       )
     }
 
     const transporter = getTransporter()
 
     if (!transporter) {
-      throw new Error('❌ SMTP transporter unavailable')
+      throw new Error('SMTP transporter is unavailable')
     }
 
     const attachments: SendMailOptions['attachments'] = [
@@ -109,9 +109,6 @@ export async function sendMail(
 
     return await transporter.sendMail(mailOptions)
   } catch (error) {
-    throw new Error(
-      'We could not send the email right now. Please try again later.',
-      { cause: error },
-    )
+    throw new Error(`Failed to send ${props.type} email`, { cause: error })
   }
 }

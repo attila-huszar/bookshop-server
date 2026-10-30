@@ -108,7 +108,9 @@ export async function addUser(
   })
 
   if (!newUser) {
-    throw new Internal('Failed to create user')
+    throw new Internal(
+      'CMS user creation failed: user insert returned no record',
+    )
   }
 
   return adminUserResponse(newUser)

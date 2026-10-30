@@ -29,6 +29,8 @@ export const uploadFile = async (
 
     return storedImageUrl(key)
   } catch (error) {
-    throw new Error('Failed to upload file', { cause: error })
+    throw new Error(`Image upload failed: could not store image in ${folder}`, {
+      cause: error,
+    })
   }
 }

@@ -143,7 +143,7 @@ export async function recordTermsAcceptance(
 
       if (reference.matchedCount !== 1) {
         throw new BadRequest(
-          'The terms and conditions have changed. Please review them again.',
+          `Terms acceptance rolled back: referenced document ${acceptance.version} no longer exists`,
           TermsErrorCode.Changed,
           412,
         )

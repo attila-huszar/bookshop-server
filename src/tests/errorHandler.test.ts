@@ -123,7 +123,9 @@ describe('central HTTP error handling', () => {
 
   it.each([
     {
-      error: new Internal('Private database failure'),
+      error: new Internal('Private database failure', {
+        cause: new Error('Private database connection details'),
+      }),
       code: 'INTERNAL_ERROR',
       status: 500,
     },

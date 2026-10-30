@@ -82,11 +82,12 @@ async function recordOutcome(
 ): Promise<void> {
   try {
     await outboxDB.updateEmailDelivery(id, update)
-  } catch {
+  } catch (error) {
     // A tracking outage must not retry an email already accepted by SMTP.
     log.error('Could not record email delivery outcome', {
       jobId: id,
       status: update.status,
+      error,
     })
   }
 }
@@ -261,8 +262,8 @@ if (import.meta.main) {
 
   await connectDatabase()
   relay = startOutboxRelay()
-  void emailWorker.run().catch(() => {
-    log.error('Email worker stopped unexpectedly')
+  void emailWorker.run().catch((error: unknown) => {
+    log.error('Email worker stopped unexpectedly', { error })
     void shutdownEmailWorker('SIGTERM')
   })
 

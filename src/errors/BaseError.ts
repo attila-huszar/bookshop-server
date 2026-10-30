@@ -14,8 +14,9 @@ export class BaseError extends Error {
     name: string,
     status: ContentfulStatusCode,
     code: ErrorCode,
+    options?: ErrorOptions,
   ) {
-    super(message)
+    super(message, options)
 
     this.name = name
     this.status = status

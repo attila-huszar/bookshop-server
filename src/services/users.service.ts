@@ -45,14 +45,14 @@ export async function loginUser(loginRequest: LoginRequest) {
 
   if (!user || !isPasswordCorrect) {
     throw new Unauthorized(
-      'Invalid credentials. Please try again.',
+      'Login rejected: invalid credentials',
       AuthErrorCode.InvalidCredentials,
     )
   }
 
   if (!user.verified) {
     throw new Forbidden(
-      'Please verify your email address before logging in.',
+      'Login rejected: email is not verified',
       AuthErrorCode.EmailUnverified,
     )
   }
@@ -83,7 +83,7 @@ export async function registerUser(formData: FormData) {
 
   if (emailTaken) {
     throw new BadRequest(
-      'Email address is already registered.',
+      'Registration rejected: email already exists',
       UserErrorCode.EmailAlreadyExists,
     )
   }
@@ -117,9 +117,7 @@ export async function registerUser(formData: FormData) {
   const userCreated = await usersDB.createUserWithVerification(newUser)
 
   if (!userCreated) {
-    throw new Internal(
-      'We could not create your account right now. Please try again later.',
-    )
+    throw new Internal('Registration failed: user insert returned no record')
   }
 
   return { email: userCreated.email }
@@ -132,7 +130,7 @@ export async function verifyUser(verificationRequest: VerificationRequest) {
 
   if (!userUpdated) {
     throw new BadRequest(
-      'The token provided is either expired or invalid.',
+      'Email verification rejected: token could not be consumed',
       AuthErrorCode.InvalidToken,
     )
   }
@@ -161,7 +159,7 @@ export async function passwordResetRequest(
 
   if (!userUpdated) {
     throw new Internal(
-      'We could not save your account changes right now. Please try again later.',
+      'Password reset request failed: token update returned no active user',
     )
   }
 }
@@ -190,7 +188,7 @@ export async function passwordResetSubmit(
 
   if (!userUpdated) {
     throw new BadRequest(
-      'The token provided is either expired or invalid.',
+      'Password reset rejected: token could not be consumed',
       AuthErrorCode.InvalidToken,
     )
   }
@@ -203,7 +201,7 @@ async function validatePasswordResetToken(token: string): Promise<void> {
 
   if (!user?.passwordResetToken || !(expiresAt > Date.now())) {
     throw new BadRequest(
-      'The token provided is either expired or invalid.',
+      'Password reset token validation failed: token is invalid or expired',
       AuthErrorCode.InvalidToken,
     )
   }
@@ -226,7 +224,7 @@ export async function getActiveUser(
     }
 
     throw new Unauthorized(
-      'The token provided is either expired or invalid.',
+      'Authentication rejected: active user not found',
       AuthErrorCode.InvalidToken,
     )
   }
@@ -273,7 +271,7 @@ export async function updateUserProfile(
 
   if (!userUpdated) {
     throw new Internal(
-      'We could not save your account changes right now. Please try again later.',
+      'Profile update failed: user update returned no active user',
     )
   }
 
@@ -298,7 +296,7 @@ export async function uploadUserAvatar(
 
   if (!userUpdated) {
     throw new Internal(
-      'We could not save your account changes right now. Please try again later.',
+      'Avatar update failed: user update returned no active user',
     )
   }
 

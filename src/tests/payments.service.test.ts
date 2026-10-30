@@ -7,6 +7,7 @@ import type { Order, OrderInsert, PublicUser } from '@/types'
 import { PaymentErrorCode } from '@/types/enums'
 import {
   mockBooksDB,
+  mockLogger,
   mockOrdersDB,
   mockStripe,
   mockValidate,
@@ -52,6 +53,7 @@ const paymentIntent = {
 
 describe('Payments Service', () => {
   beforeEach(() => {
+    mockLogger.error.mockClear()
     mockValidate
       .mockReset()
       .mockImplementation((_schema: unknown, value: unknown) => value)
@@ -219,7 +221,12 @@ describe('Payments Service', () => {
     const error = new Error('Connection lost after Stripe created the intent')
 
     mockStripe.paymentIntents.create.mockRejectedValueOnce(error)
-    await rejects(startCheckoutPayment(request, null, checkoutRequestId), error)
+    await rejects(startCheckoutPayment(request, null, checkoutRequestId), {
+      name: 'InternalServerError',
+      code: 'INTERNAL_ERROR',
+      cause: error,
+    })
+    expect(mockLogger.error).not.toHaveBeenCalled()
     const firstCall = mockStripe.paymentIntents.create.mock.calls[0]
 
     mockOrdersDB.getOrderByCheckoutRequestId.mockResolvedValueOnce(
@@ -235,15 +242,17 @@ describe('Payments Service', () => {
   })
 
   it('recovers a response failure after the webhook has linked the order', async () => {
+    const error = new Error('Response lost')
+
     mockStripe.paymentIntents.create.mockImplementationOnce(() => {
       mockOrdersDB.getOrderByCheckoutRequestId.mockResolvedValue(
         createOrder({ paymentId: paymentIntent.id }),
       )
 
-      return Promise.reject(new Error('Response lost'))
+      return Promise.reject(error)
     })
     await rejects(startCheckoutPayment(request, null, checkoutRequestId), {
-      message: 'Response lost',
+      cause: error,
     })
     mockOrdersDB.linkPaymentIntent.mockResolvedValueOnce(
       createOrder({ paymentId: paymentIntent.id }),
@@ -296,6 +305,24 @@ describe('Payments Service', () => {
       Unauthorized,
     )
     expect(mockStripe.paymentIntents.retrieve).not.toHaveBeenCalled()
+  })
+
+  it('preserves order lookup failures for central logging without contacting Stripe', async () => {
+    const error = new Error('Database unavailable')
+    mockOrdersDB.getOrder.mockRejectedValueOnce(error)
+
+    await rejects(
+      retrievePaymentIntent(paymentIntent.id, {
+        cookiePaymentId: paymentIntent.id,
+      }),
+      {
+        name: 'InternalServerError',
+        code: 'INTERNAL_ERROR',
+        cause: error,
+      },
+    )
+    expect(mockStripe.paymentIntents.retrieve).not.toHaveBeenCalled()
+    expect(mockLogger.error).not.toHaveBeenCalled()
   })
 
   it('allows a guest to retrieve their payment using only the signed session', async () => {
