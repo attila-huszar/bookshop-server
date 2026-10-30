@@ -39,6 +39,8 @@ export const mockOutboxDB = {
 
 export const mockBooksDB = {
   getBookById: mock(),
+  insertBook: mock(),
+  updateBook: mock(),
   hardDeleteBooks: mock(),
 }
 

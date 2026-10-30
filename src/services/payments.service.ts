@@ -7,6 +7,7 @@ import {
   paymentIntentRequestSchema,
   validate,
 } from '@/validation'
+import { calculatePriceCents, toCents } from '@/utils/pricing.utils'
 import { orderResponse } from '@/utils/response.utils'
 import { log, stripe } from '@/libs'
 import { defaultCurrency } from '@/constants'
@@ -69,7 +70,7 @@ async function resolveAuthorizedPayment(
 
 async function buildOrderItemsAndTotal(
   paymentIntentRequest: PaymentIntentRequest,
-): Promise<{ items: OrderItem[]; total: number }> {
+): Promise<{ items: OrderItem[]; totalCents: number }> {
   const pricedItems = await Promise.all(
     paymentIntentRequest.items.map(async (item) => {
       const book = await booksDB.getBookById(item.id)
@@ -80,16 +81,17 @@ async function buildOrderItemsAndTotal(
         )
       }
 
-      const priceCents = Math.round(book.price * 100)
-      const itemTotalCents = Math.round(
-        item.quantity * priceCents * (1 - (book.discount ?? 0) / 100),
+      const itemTotalCents = calculatePriceCents(
+        book.price,
+        book.discount ?? 0,
+        item.quantity,
       )
       const orderItem: OrderItem = {
         id: book.id,
         title: book.title,
         author: book.author,
         imgUrl: book.imgUrl ?? '',
-        price: book.price,
+        price: toCents(book.price) / 100,
         discount: book.discount ?? 0,
         quantity: item.quantity,
       }
@@ -109,7 +111,7 @@ async function buildOrderItemsAndTotal(
 
   return {
     items,
-    total: totalCents / 100,
+    totalCents,
   }
 }
 
@@ -228,9 +230,9 @@ async function getOrCreateCheckoutOrder(
     return existingOrder
   }
 
-  const { items, total } = await buildOrderItemsAndTotal(validatedRequest)
+  const { items, totalCents } = await buildOrderItemsAndTotal(validatedRequest)
 
-  if (Math.abs(total - validatedRequest.expectedTotal) > 0.05) {
+  if (totalCents !== toCents(validatedRequest.expectedTotal)) {
     throw new BadRequest(
       'Prices have been updated in your cart. Please review before checkout.',
       PaymentErrorCode.PriceConflict,
@@ -244,7 +246,7 @@ async function getOrCreateCheckoutOrder(
     paymentStatus: 'processing',
     currency: defaultCurrency,
     items,
-    total,
+    total: totalCents / 100,
     ...(user && {
       email: user.email,
       firstName: user.firstName,
@@ -286,7 +288,7 @@ export async function startCheckoutPayment(
       ? await stripe.paymentIntents.retrieve(order.paymentId)
       : await stripe.paymentIntents.create(
           {
-            amount: Math.round(order.total * 100),
+            amount: toCents(order.total),
             currency: order.currency.toLowerCase(),
             metadata: {
               orderId: String(order.id),

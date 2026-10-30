@@ -4,6 +4,7 @@ import { BadRequest } from '@/errors/BadRequest'
 import { Internal } from '@/errors/Internal'
 import { Unauthorized } from '@/errors/Unauthorized'
 import type { Order, OrderInsert, PublicUser } from '@/types'
+import { PaymentErrorCode } from '@/types/enums'
 import {
   mockBooksDB,
   mockOrdersDB,
@@ -144,6 +145,62 @@ describe('Payments Service', () => {
     )
     expect(mockStripe.paymentIntents.create).not.toHaveBeenCalled()
   })
+
+  it.each([
+    { price: 9.99, discount: 20, quantity: 100, total: 799 },
+    { price: 9.99, discount: 50, quantity: 3, total: 15 },
+    { price: 1.005, discount: 0, quantity: 1, total: 1.01 },
+  ])(
+    'charges the displayed rounded unit prices for $quantity copies at $price',
+    async ({ price, discount, quantity, total }) => {
+      mockBooksDB.getBookById.mockResolvedValueOnce({
+        id: 1,
+        title: 'Book',
+        author: null,
+        price,
+        discount,
+        discountPrice: 0,
+      })
+      mockOrdersDB.createCheckoutOrder.mockResolvedValueOnce(
+        createOrder({ total }),
+      )
+      mockStripe.paymentIntents.create.mockResolvedValueOnce({
+        ...paymentIntent,
+        amount: Math.round(total * 100),
+      })
+
+      const result = await startCheckoutPayment(
+        { items: [{ id: 1, quantity }], expectedTotal: total },
+        null,
+        checkoutRequestId,
+      )
+
+      expect(mockOrdersDB.createCheckoutOrder).toHaveBeenCalledWith(
+        expect.objectContaining({ total }),
+      )
+      expect(mockStripe.paymentIntents.create).toHaveBeenCalledWith(
+        expect.objectContaining({ amount: Math.round(total * 100) }),
+        { idempotencyKey: checkoutRequestId },
+      )
+      expect(result.amount).toBe(Math.round(total * 100))
+    },
+  )
+
+  it.each([12.33, 12.35, 12.29, 12.39])(
+    'rejects a cent-level price change from %s before storing a draft or contacting Stripe',
+    async (expectedTotal) => {
+      await rejects(
+        startCheckoutPayment(
+          { ...request, expectedTotal },
+          null,
+          checkoutRequestId,
+        ),
+        { code: PaymentErrorCode.PriceConflict, status: 409 },
+      )
+      expect(mockOrdersDB.createCheckoutOrder).not.toHaveBeenCalled()
+      expect(mockStripe.paymentIntents.create).not.toHaveBeenCalled()
+    },
+  )
 
   it('rejects a price conflict before storing a new draft', async () => {
     mockBooksDB.getBookById.mockResolvedValueOnce({

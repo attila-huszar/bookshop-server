@@ -18,7 +18,7 @@ The reconciliation runner records failures through `ordersDB.recordReconciliatio
 
 1. The client keeps a random client idempotency key for the active checkout attempt. Identical retries reuse it; a different cart or a fresh attempt gets a different key.
 2. The server combines that key, principal scope (account UUID or guest), and request contents into a SHA-256-derived checkout request ID.
-3. The server reads catalogue prices and builds an immutable order snapshot. A price conflict returns 409 before creating a new draft. Checkout recovery explicitly refreshes book prices, bypassing cached query results.
+3. The server reads catalogue prices and builds an immutable order snapshot. USD prices round to cents per unit, then round the discounted unit price to cents before multiplying by quantity. Totals sum integer cents and must exactly match the client's expected cents; any cent-level change returns 409 before creating a draft. CMS writes derive the stored discount price on the server, catalogue responses and seeds use the same policy, and receipt line totals use the rounded units. Checkout recovery explicitly refreshes book prices, bypassing cached query results.
 4. A unique checkout request ID makes racing requests resolve to the same persisted draft. Replays use that snapshot, not today's prices.
 5. Stripe creates the PaymentIntent using the checkout request ID as its SDK idempotency key. Metadata contains the numeric order ID and unique checkout request ID.
 6. Linking the PaymentIntent saves its reference without sending an admin email. Stripe creation and database persistence cannot share a transaction; a timeout is not proof of Stripe failure. Retry or reconciliation recovers the link.

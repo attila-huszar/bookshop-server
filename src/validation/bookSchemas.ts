@@ -5,6 +5,7 @@ import {
 } from 'drizzle-zod'
 import { z } from 'zod'
 import { booksTable } from '@/models/sqlite'
+import { toCents } from '@/utils/pricing.utils'
 import type { SchemaRefinements } from '@/types'
 import { ValidationRule } from '@/types/enums'
 import { idSchema } from './commonSchemas'
@@ -25,7 +26,11 @@ const bookFields = {
       message: 'Max 1 decimal',
       params: { rule: ValidationRule.Decimal },
     }),
-  price: z.number().positive(),
+  price: z
+    .number()
+    .positive()
+    .transform((price) => toCents(price) / 100)
+    .pipe(z.number().positive()),
   discount: z.int().min(0).max(100),
   discountPrice: z.number().nonnegative(),
 } satisfies SchemaRefinements<typeof booksTable.$inferInsert>

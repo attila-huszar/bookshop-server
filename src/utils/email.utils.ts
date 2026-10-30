@@ -13,6 +13,7 @@ import type {
   OrderEmailItem,
   SendEmailProps,
 } from '@/types'
+import { calculatePriceCents } from './pricing.utils'
 import { getOrderRef } from './string.utils'
 
 const baseLink = env.clientBaseUrl!
@@ -23,10 +24,12 @@ const interpolate = (template: string, vars: Record<string, string>) =>
 const renderOrderItems = (items: OrderEmailItem[]) =>
   items
     .map(({ title, quantity, price, discount }) => {
-      const priceString = price.toFixed(2)
-      const discountValue = discount ? (price * discount) / 100 : 0
+      const priceCents = calculatePriceCents(price)
+      const discountedUnitCents = calculatePriceCents(price, discount)
+      const priceString = (priceCents / 100).toFixed(2)
+      const discountValue = (priceCents - discountedUnitCents) / 100
       const discountString = discountValue ? `-${discountValue.toFixed(2)}` : ''
-      const totalString = ((price - discountValue) * quantity).toFixed(2)
+      const totalString = ((discountedUnitCents * quantity) / 100).toFixed(2)
 
       return `<tr>
         <td>${Bun.escapeHTML(title)}</td>

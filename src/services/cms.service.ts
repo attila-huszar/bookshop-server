@@ -17,6 +17,7 @@ import {
   validate,
 } from '@/validation'
 import { uploadFile } from '@/utils'
+import { calculatePriceCents } from '@/utils/pricing.utils'
 import {
   adminUserResponse,
   authorResponse,
@@ -74,7 +75,11 @@ export async function addBook(
   book: BookInsert,
 ): Promise<ReturnType<typeof cmsBookResponse>> {
   const validatedBook = validate(bookInsertSchema, book)
-  const newBook = await booksDB.insertBook(validatedBook)
+  const newBook = await booksDB.insertBook({
+    ...validatedBook,
+    discountPrice:
+      calculatePriceCents(validatedBook.price, validatedBook.discount) / 100,
+  })
 
   return cmsBookResponse(newBook)
 }
@@ -116,6 +121,29 @@ export async function updateBook(
 ): Promise<ReturnType<typeof cmsBookResponse>> {
   const validatedId = validate(idSchema, bookId)
   const validatedBook = validate(bookUpdateSchema, book)
+
+  if (
+    validatedBook.price !== undefined ||
+    validatedBook.discount !== undefined ||
+    validatedBook.discountPrice !== undefined
+  ) {
+    let price = validatedBook.price
+    let discount = validatedBook.discount
+
+    if (price === undefined || discount === undefined) {
+      const currentBook = await booksDB.getBookById(validatedId)
+
+      if (!currentBook) {
+        throw new NotFound(`Book with id ${bookId} not found`)
+      }
+
+      price ??= currentBook.price
+      discount ??= currentBook.discount
+    }
+
+    validatedBook.discountPrice = calculatePriceCents(price, discount) / 100
+  }
+
   const updatedBook = await booksDB.updateBook(validatedId, validatedBook)
 
   if (!updatedBook) {
