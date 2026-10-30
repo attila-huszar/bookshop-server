@@ -51,16 +51,6 @@ export async function deleteUnusedTerms(version: string): Promise<boolean> {
   return deleted.length === 1
 }
 
-export async function getCurrentTermsVersion(): Promise<string | null> {
-  const [document] = await sqlite
-    .select({ version: termsDocumentsTable.version })
-    .from(termsDocumentsTable)
-    .orderBy(desc(termsDocumentsTable.id))
-    .limit(1)
-
-  return document?.version ?? null
-}
-
 export async function getCurrentTerms(): Promise<TermsDocument | null> {
   const [document] = await sqlite
     .select()

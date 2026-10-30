@@ -49,8 +49,3 @@ export const paymentMessage = {
   priceUpdatedInCart:
     'Prices have been updated in your cart. Please review before checkout.',
 } as const
-
-export const commonMessage = {
-  fieldsRequired: 'Required fields missing',
-  unknown: 'Unknown error occurred',
-} as const

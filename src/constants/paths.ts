@@ -40,7 +40,6 @@ export const API = {
   },
   terms: {
     root: '/terms',
-    currentVersion: '/terms/current-version',
     byVersion: '/terms/:version',
   },
   payments: {

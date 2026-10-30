@@ -60,16 +60,6 @@ export async function deleteUnusedTerms(version: string): Promise<boolean> {
   })
 }
 
-export async function getCurrentTermsVersion(): Promise<string | null> {
-  const document = await TermsDocumentModel.findOne()
-    .select({ version: 1, _id: 0 })
-    .sort({ id: -1 })
-    .lean()
-    .exec()
-
-  return document?.version ?? null
-}
-
 export async function getCurrentTerms(): Promise<TermsDocument | null> {
   const document = await TermsDocumentModel.findOne()
     .sort({ id: -1 })

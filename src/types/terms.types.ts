@@ -30,7 +30,3 @@ export type TermsAcceptance = Pick<TermsDocument, 'version'> & {
   acceptedAt: string
   statement: string
 }
-
-export type PublishTermsRequest = {
-  content: TermsContent
-}

@@ -1,7 +1,6 @@
 import { mock } from 'bun:test'
 import { env } from '@/config'
 import * as validation from '@/validation'
-import { toIsoString } from '@/utils/date.utils'
 import { getOrderRef } from '@/utils/string.utils'
 import type {
   Order,
@@ -44,9 +43,6 @@ export const mockBooksDB = {
 }
 
 export const mockTermsDB = {
-  getCurrentTermsVersion: mock<() => Promise<string | null>>(() =>
-    Promise.resolve(null),
-  ),
   deleteUnusedTerms: mock<() => Promise<boolean>>(() => Promise.resolve(false)),
   getTermsHistory: mock<() => Promise<TermsDocumentSummary[]>>(() =>
     Promise.resolve([]),
@@ -174,7 +170,6 @@ await mock.module('@/utils', () => ({
   signRefreshToken: mockSignRefreshToken,
   verifyJWTRefresh: mockVerifyJWTRefresh,
   uploadFile: mockUploadFile,
-  toIsoString,
   getOrderRef,
   closeNgrokTunnel: mock(),
   formatUptime: mock(() => 'test uptime'),

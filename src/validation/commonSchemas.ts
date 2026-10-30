@@ -37,10 +37,6 @@ export const addressSchema = z.object({
   state: z.string().max(100).nullable().default(null),
 })
 
-export const entityWithIdSchema = z.object({
-  id: idSchema,
-})
-
 export const idsSchema = z.array(idSchema).min(1, 'At least one ID is required')
 
 export const paymentIdSchema = z
