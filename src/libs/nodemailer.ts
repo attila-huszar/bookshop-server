@@ -10,7 +10,8 @@ import {
   emailLogoFilename,
   emailLogoFilePath,
   emailLogoMimeType,
-} from '@/constants'
+  smtpPolicy,
+} from '@/constants/email'
 import type { SendEmailProps } from '@/types'
 import { log } from './logger'
 
@@ -19,13 +20,21 @@ type MailTransporter = Transporter<SMTPPoolSentMessageInfo>
 let transporter: MailTransporter | null = null
 
 function createTransporter(): MailTransporter {
+  const {
+    maxConnections,
+    maxMessages,
+    connectionTimeoutMs: connectionTimeout,
+    greetingTimeoutMs: greetingTimeout,
+    socketTimeoutMs: socketTimeout,
+  } = smtpPolicy
+
   return nodemailer.createTransport({
     pool: true,
-    maxConnections: 5,
-    maxMessages: 100,
-    connectionTimeout: 10_000,
-    greetingTimeout: 10_000,
-    socketTimeout: 30_000,
+    maxConnections,
+    maxMessages,
+    connectionTimeout,
+    greetingTimeout,
+    socketTimeout,
 
     service: env.mailerService,
     host: env.mailerHost,

@@ -5,7 +5,10 @@ import {
   reconciliationFailureReason,
 } from '@/utils/reconciliation.utils'
 import { log, stripe } from '@/libs'
-import { terminalStatuses } from '@/constants'
+import {
+  reconciliationRequestPolicy,
+  terminalStatuses,
+} from '@/constants/payment'
 import { reconciliationPolicy } from '@/constants/reconciliation'
 import { Internal } from '@/errors/Internal'
 import {
@@ -18,7 +21,10 @@ import {
   type User,
 } from '@/types'
 
-const reconciliationRequestOptions = { timeout: 10_000, maxNetworkRetries: 1 }
+const reconciliationRequestOptions = {
+  timeout: reconciliationRequestPolicy.timeoutMs,
+  maxNetworkRetries: reconciliationRequestPolicy.maxNetworkRetries,
+}
 
 export async function getUserOrders(
   user: Pick<User, 'email'>,
@@ -295,14 +301,12 @@ export async function reconcileStaleOrders(): Promise<{
   const startedAt = Date.now()
   const orders = await ordersDB.getOrdersForReconciliation({
     staleBefore: new Date(startedAt - reconciliationPolicy.minimumOrderAgeMs),
-    checkedBefore: new Date(
-      startedAt - reconciliationPolicy.pendingCheckIntervalMs,
-    ),
+    checkedBefore: new Date(startedAt - reconciliationPolicy.pendingCheckMs),
     failedCheckedBefore: new Date(
-      startedAt - reconciliationPolicy.failureRetryIntervalMs,
+      startedAt - reconciliationPolicy.failureRetryMs,
     ),
     terminalCheckedBefore: new Date(
-      startedAt - reconciliationPolicy.terminalAuditIntervalMs,
+      startedAt - reconciliationPolicy.terminalAuditMs,
     ),
     limit: reconciliationPolicy.batchSize,
   })

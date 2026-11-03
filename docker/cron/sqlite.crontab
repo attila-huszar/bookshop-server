@@ -5,5 +5,5 @@ TZ=UTC
 # Every 10 minutes: reconcile orders and clean up expired account data
 */10 * * * * /bin/sh /bookshop-server/docker/cron/jobs/maintenance.sh >> /proc/1/fd/1 2>&1
 
-# Daily at 02:00: create SQLite backup
+# Daily at 02:00 UTC: upload and verify a SQLite backup in S3
 0 2 * * * /bin/sh /bookshop-server/docker/cron/jobs/backup_sqlite.sh >> /proc/1/fd/1 2>&1

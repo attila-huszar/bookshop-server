@@ -259,8 +259,6 @@ services:
       - ./src:/bookshop-server/src
       - ./docker/cron:/bookshop-server/docker/cron
       - sqlite_data:/bookshop-server/data
-      # Intentionally override /bookshop-server/data/backups so backup archives persist independently.
-      - backups_data:/bookshop-server/data/backups
 
   cron-with-mongo:
     init: true
@@ -290,7 +288,6 @@ services:
     volumes:
       - ./src:/bookshop-server/src
       - ./docker/cron:/bookshop-server/docker/cron
-      - backups_data:/bookshop-server/data/backups
 
   loki:
     image: grafana/loki
@@ -359,6 +356,5 @@ volumes:
   redis_data:
   sqlite_data:
   mongodb_data:
-  backups_data:
   loki-data:
   grafana-data:

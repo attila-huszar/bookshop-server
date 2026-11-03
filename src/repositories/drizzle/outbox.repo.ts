@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, isNull, lte, or, sql } from 'drizzle-orm'
 import { sqlite } from '@/db'
 import { emailOutboxTable } from '@/models/sqlite/emailOutboxTable'
+import { outboxPolicy } from '@/constants/email'
 import {
   type EmailDeliveryUpdate,
   type EmailOutboxEntry,
@@ -41,7 +42,7 @@ export async function claimEmail(
         .update(emailOutboxTable)
         .set({
           leaseToken,
-          lockedUntil: new Date(now.getTime() + 60_000),
+          lockedUntil: new Date(now.getTime() + outboxPolicy.leaseMs),
           attempts: sql`${emailOutboxTable.attempts} + 1`,
         })
         .where(eq(emailOutboxTable.id, candidate.id))

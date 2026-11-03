@@ -11,8 +11,8 @@ import {
   emailJobOptions,
   emailQueueName,
   emailWorkerConcurrency,
-  SHUTDOWN_SIGNALS,
-} from '@/constants'
+} from '@/constants/email'
+import { processTiming, SHUTDOWN_SIGNALS } from '@/constants/process'
 import {
   AdminNotification,
   type EmailDeliveryUpdate,
@@ -215,7 +215,7 @@ export async function shutdownEmailWorker(
   const deadline = setTimeout(() => {
     log.error('Email worker shutdown timed out')
     process.exit(1)
-  }, 45_000)
+  }, processTiming.workerShutdownMs)
 
   deadline.unref()
 

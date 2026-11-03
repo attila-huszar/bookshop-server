@@ -1,5 +1,5 @@
 import { type MiddlewareHandler } from 'hono'
-import { MAX_IMAGE_SIZE_BYTES, MAX_JSON_SIZE } from '@/constants'
+import { MAX_IMAGE_SIZE_BYTES, MAX_JSON_SIZE_KIB } from '@/constants/fileLimits'
 import { HttpErrorCode } from '@/types/enums'
 
 export const payloadLimiter: MiddlewareHandler = async (c, next) => {
@@ -15,11 +15,11 @@ export const payloadLimiter: MiddlewareHandler = async (c, next) => {
   }
 
   if (contentType.includes('application/json')) {
-    if (contentLength > MAX_JSON_SIZE * 1024) {
+    if (contentLength > MAX_JSON_SIZE_KIB * 1024) {
       return c.json(
         {
           code: HttpErrorCode.PayloadTooLarge,
-          limit: `${MAX_JSON_SIZE} KB`,
+          limit: `${MAX_JSON_SIZE_KIB} KB`,
           received: `${Math.ceil(contentLength / 1024)} KB`,
         },
         413,
@@ -42,11 +42,11 @@ export const payloadLimiter: MiddlewareHandler = async (c, next) => {
     return next()
   }
 
-  if (contentLength > MAX_JSON_SIZE * 1024) {
+  if (contentLength > MAX_JSON_SIZE_KIB * 1024) {
     return c.json(
       {
         code: HttpErrorCode.PayloadTooLarge,
-        limit: `${MAX_JSON_SIZE} KB`,
+        limit: `${MAX_JSON_SIZE_KIB} KB`,
         received: `${Math.ceil(contentLength / 1024)} KB`,
       },
       413,

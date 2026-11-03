@@ -25,7 +25,7 @@ import {
   uploadProductImage,
 } from '@/services'
 import { cmsOrderResponse } from '@/utils/response.utils'
-import { API } from '@/constants'
+import { API } from '@/constants/paths'
 import type {
   AuthorInsert,
   AuthorUpdate,

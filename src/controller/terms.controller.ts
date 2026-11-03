@@ -2,7 +2,8 @@ import { Hono } from 'hono'
 import { getCurrentTerms, getTermsByVersion } from '@/services/terms.service'
 import { shopLanguageSchema } from '@/validation/termsSchemas'
 import { formatTermsPublicationDate } from '@/utils/terms.utils'
-import { API } from '@/constants'
+import { httpPolicy } from '@/constants/http'
+import { API } from '@/constants/paths'
 
 export const terms = new Hono()
 
@@ -26,12 +27,18 @@ terms.get(API.terms.byVersion, async (c) => {
       `attachment; filename="terms-${publishedDate}-${language}.txt"`,
     )
     c.header('X-Content-Type-Options', 'nosniff')
-    c.header('Cache-Control', 'public, max-age=31536000, immutable')
+    c.header(
+      'Cache-Control',
+      `public, max-age=${httpPolicy.termsCacheSeconds}, immutable`,
+    )
 
     return c.text(document.content[language])
   }
 
-  c.header('Cache-Control', 'public, max-age=31536000, immutable')
+  c.header(
+    'Cache-Control',
+    `public, max-age=${httpPolicy.termsCacheSeconds}, immutable`,
+  )
 
   return c.json(document)
 })

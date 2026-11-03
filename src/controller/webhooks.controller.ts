@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { verifyAndHandleStripeWebhook } from '@/services'
-import { API } from '@/constants'
+import { API } from '@/constants/paths'
 import { HttpErrorCode } from '@/types/enums'
 
 export const webhooks = new Hono()

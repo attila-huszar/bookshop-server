@@ -5,7 +5,8 @@ import {
 } from 'drizzle-zod'
 import { z } from 'zod'
 import { ordersTable } from '@/models/sqlite'
-import { maxItemQuantity } from '@/constants'
+import { maxItemQuantity } from '@/constants/catalogue'
+import { validationLimits } from '@/constants/validation'
 import type { PaymentIntentStatus, SchemaRefinements } from '@/types'
 import { emailSchema } from './authSchemas'
 import {
@@ -33,7 +34,7 @@ export const orderItemSchema = z.object({
   author: z.string().nullable(),
   imgUrl: z.string().nullable(),
   price: z.number().positive(),
-  discount: z.number().min(0).max(100),
+  discount: z.number().min(0).max(validationLimits.discountMaxPercent),
   quantity: z.int().min(1).max(maxItemQuantity),
 })
 
@@ -47,7 +48,12 @@ const orderFields = {
   email: emailSchema.shape.email.nullable(),
   shipping: z
     .object({
-      name: z.string().trim().min(1).max(200).optional(),
+      name: z
+        .string()
+        .trim()
+        .min(1)
+        .max(validationLimits.order.shippingNameMaxLength)
+        .optional(),
       address: addressSchema.optional(),
       phone: phoneSchema.nullable().optional(),
       carrier: z.string().nullable().optional(),

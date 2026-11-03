@@ -1,5 +1,5 @@
 import mongoose from 'mongoose'
-import { shopLanguages } from '@/constants/defaults'
+import { shopLanguages } from '@/constants/localization'
 import type { Order } from '@/types'
 import { autoIncrementPlugin } from './'
 

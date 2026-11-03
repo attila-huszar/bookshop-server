@@ -1,4 +1,4 @@
-import { defaultTimeZone } from '@/constants/defaults'
+import { defaultTimeZone } from '@/constants/localization'
 import type { TermsContent, TermsDocument } from '@/types/terms.types'
 
 const publicationDateFormatter = new Intl.DateTimeFormat('en', {

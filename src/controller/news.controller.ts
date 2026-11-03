@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { getNews } from '@/services'
-import { API } from '@/constants'
+import { API } from '@/constants/paths'
 
 export const news = new Hono()
 

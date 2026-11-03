@@ -11,7 +11,7 @@ import {
 } from '@/services'
 import { publicUserResponse } from '@/utils/response.utils'
 import { getPaymentIdempotencyKey } from '@/utils/stripe.utils'
-import { API } from '@/constants'
+import { API } from '@/constants/paths'
 import type { PaymentIntentRequest, PaymentVariables } from '@/types'
 
 export const payments = new Hono<{ Variables: PaymentVariables }>()

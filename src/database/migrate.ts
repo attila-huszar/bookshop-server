@@ -1,6 +1,6 @@
 import { migrate } from 'drizzle-orm/bun-sqlite/migrator'
 import { connectDatabase, sqlite } from '@/db'
-import { MIGRATIONS_DIR } from '@/constants'
+import { MIGRATIONS_DIR } from '@/constants/paths'
 
 if (import.meta.main) {
   try {

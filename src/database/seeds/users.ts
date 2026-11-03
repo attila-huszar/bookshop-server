@@ -1,5 +1,5 @@
 import { env } from '@/config'
-import { defaultCountry } from '@/constants'
+import { defaultCountry } from '@/constants/localization'
 import { DB_REPO, type UserInsert, UserRole } from '@/types'
 
 const admin: UserInsert = {

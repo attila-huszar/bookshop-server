@@ -1,4 +1,4 @@
-import type { shopLanguages } from '@/constants/defaults'
+import type { shopLanguages } from '@/constants/localization'
 
 export type ShopLanguage = (typeof shopLanguages)[number]
 

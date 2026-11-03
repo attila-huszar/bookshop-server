@@ -10,7 +10,7 @@ import {
 import { calculatePriceCents, toCents } from '@/utils/pricing.utils'
 import { orderResponse } from '@/utils/response.utils'
 import { stripe } from '@/libs'
-import { defaultCurrency } from '@/constants'
+import { defaultCurrency } from '@/constants/payment'
 import { BadRequest, Internal, NotFound } from '@/errors'
 import { Unauthorized } from '@/errors/Unauthorized'
 import type {

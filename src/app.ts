@@ -11,10 +11,12 @@ import { cors } from 'hono/cors'
 import { csrf } from 'hono/csrf'
 import { timeout } from 'hono/timeout'
 import { trimTrailingSlash } from 'hono/trailing-slash'
+import { httpPolicy } from '@/constants/http'
+import { API } from '@/constants/paths'
+import { processTiming, SHUTDOWN_SIGNALS } from '@/constants/process'
 import { HttpErrorCode } from '@/types/enums'
 import { env } from './config/env'
 import { validateEnv } from './config/validateEnv'
-import { API, SHUTDOWN_SIGNALS } from './constants'
 import {
   authors,
   books,
@@ -52,8 +54,8 @@ app.onError((error, c) => errorHandler(c, error))
 app.notFound((c) => c.json({ code: HttpErrorCode.NotFound }, 404))
 
 const limiter = rateLimiter({
-  windowMs: 15 * 60 * 1000,
-  limit: 500,
+  windowMs: httpPolicy.rateLimitWindowMs,
+  limit: httpPolicy.rateLimit,
   message: { code: HttpErrorCode.RateLimited },
   statusCode: 429,
   standardHeaders: 'draft-6',
@@ -89,7 +91,7 @@ app.use(limiter)
 app.use(trimTrailingSlash())
 app.use('*', corsMiddleware)
 app.use('*', payloadLimiter)
-app.use('*', timeout(10000))
+app.use('*', timeout(httpPolicy.requestTimeoutMs))
 app.use(API.favicon, serveStatic({ path: './static/favicon.ico' }))
 
 if (Bun.env.NODE_ENV === 'production') {
@@ -149,7 +151,6 @@ app.route(API.webhooks.root, webhooks)
 
 let httpServer: Bun.Server<undefined> | undefined
 let shuttingDown = false
-const SHUTDOWN_TIMEOUT_MS = 10_000
 
 if (import.meta.main) {
   validateEnv()
@@ -219,10 +220,10 @@ async function shutdownApp(signal: NodeJS.Signals): Promise<void> {
       hasShutdownError = true
       log.error('⏱️ Shutdown timeout reached; forcing process exit', {
         signal,
-        timeoutMs: SHUTDOWN_TIMEOUT_MS,
+        timeoutMs: processTiming.apiShutdownMs,
       })
       resolve('timed-out')
-    }, SHUTDOWN_TIMEOUT_MS)
+    }, processTiming.apiShutdownMs)
   })
 
   try {

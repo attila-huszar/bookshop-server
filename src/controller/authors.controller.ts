@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { getAuthorById, getAuthorsByName } from '@/services'
-import { API } from '@/constants'
+import { API } from '@/constants/paths'
 import { HttpErrorCode } from '@/types/enums'
 
 export const authors = new Hono()

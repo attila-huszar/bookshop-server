@@ -1,7 +1,7 @@
 import { outboxDB } from '@/repositories'
 import { log } from '@/libs'
 import { emailQueue } from '@/queues/emailQueue'
-import { emailJobOptions } from '@/constants/email'
+import { emailJobOptions, outboxPolicy } from '@/constants/email'
 
 type Dependencies = {
   repository: typeof outboxDB
@@ -17,7 +17,7 @@ export async function publishPendingEmails(
 ): Promise<number> {
   let published = 0
 
-  for (let count = 0; count < 50; count++) {
+  for (let count = 0; count < outboxPolicy.batchSize; count++) {
     const leaseToken = crypto.randomUUID()
     const entry = await repository.claimEmail(new Date(), leaseToken)
 
@@ -35,8 +35,10 @@ export async function publishPendingEmails(
     } catch {
       // Provider errors may contain credentials; persist only a generic failure.
       const delay = Math.min(
-        60 * 60_000,
-        5000 * 2 ** Math.min(entry.attempts, 10),
+        outboxPolicy.maxRetryMs,
+        outboxPolicy.initialRetryMs *
+          outboxPolicy.retryMultiplier **
+            Math.min(entry.attempts, outboxPolicy.maxRetryExponent),
       )
 
       await repository.retryEmail(
@@ -75,7 +77,7 @@ export function startOutboxRelay(): { close: () => Promise<void> } {
 
           if (
             lastFailureLoggedAt === undefined ||
-            now - lastFailureLoggedAt >= 60_000
+            now >= lastFailureLoggedAt + outboxPolicy.failureLogMs
           ) {
             log.error('Outbox relay failed; retrying on the next poll')
             lastFailureLoggedAt = now
@@ -84,7 +86,7 @@ export function startOutboxRelay(): { close: () => Promise<void> } {
       )
       .finally(() => {
         if (!stopped) {
-          timer = setTimeout(tick, 2000)
+          timer = setTimeout(tick, outboxPolicy.pollMs)
         }
       })
   }

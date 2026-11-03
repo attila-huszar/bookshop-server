@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { logSchema, validate } from '@/validation'
 import { frontendLog } from '@/libs'
-import { API } from '@/constants'
+import { API } from '@/constants/paths'
 import type { LogEntry } from '@/types'
 
 export const logs = new Hono()

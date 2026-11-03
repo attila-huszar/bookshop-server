@@ -1,5 +1,7 @@
 import sharp from 'sharp'
 import { imageSchema } from '@/validation/commonSchemas'
+import { imageProcessingPolicy } from '@/constants/fileLimits'
+import { TimeMs } from '@/constants/time'
 import { BadRequest } from '@/errors/BadRequest'
 import { UserErrorCode } from '@/types/enums'
 
@@ -12,7 +14,7 @@ export async function prepareImage(file: File): Promise<File> {
   try {
     const image = sharp(await file.arrayBuffer(), {
       animated: true,
-      limitInputPixels: 10_000_000,
+      limitInputPixels: imageProcessingPolicy.maxInputPixels,
       failOn: 'warning',
     })
     const metadata = await image.metadata()
@@ -24,13 +26,13 @@ export async function prepareImage(file: File): Promise<File> {
     const output = await image
       .autoOrient()
       .resize({
-        width: 2048,
-        height: 2048,
+        width: imageProcessingPolicy.maxDimensionPixels,
+        height: imageProcessingPolicy.maxDimensionPixels,
         fit: 'inside',
         withoutEnlargement: true,
       })
-      .webp({ quality: 85 })
-      .timeout({ seconds: 5 })
+      .webp({ quality: imageProcessingPolicy.webpQuality })
+      .timeout({ seconds: imageProcessingPolicy.timeoutMs / TimeMs.OneSecond })
       .toBuffer()
 
     return new File([new Uint8Array(output)], 'image.webp', {

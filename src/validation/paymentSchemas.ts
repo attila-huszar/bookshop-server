@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { maxItemQuantity } from '@/constants'
+import { maxItemQuantity } from '@/constants/catalogue'
 import { shopLanguageSchema, termsVersionSchema } from './termsSchemas'
 
 export const acceptPaymentTermsSchema = z

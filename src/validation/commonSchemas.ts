@@ -1,5 +1,6 @@
 import { z } from 'zod'
-import { MAX_IMAGE_SIZE_BYTES } from '@/constants'
+import { MAX_IMAGE_SIZE_BYTES } from '@/constants/fileLimits'
+import { validationLimits } from '@/constants/validation'
 import { ValidationRule } from '@/types/enums'
 
 export const idSchema = z
@@ -12,7 +13,11 @@ export const idSchema = z
       .max(Number.MAX_SAFE_INTEGER),
   )
 
-export const nameSchema = z.string().trim().min(1).max(100)
+export const nameSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(validationLimits.personName.maxLength)
 
 export const countrySchema = z
   .string()
@@ -29,12 +34,32 @@ export const phoneSchema = z
   .or(z.literal(''))
 
 export const addressSchema = z.object({
-  city: z.string().max(100).nullable().default(null),
+  city: z
+    .string()
+    .max(validationLimits.address.cityMaxLength)
+    .nullable()
+    .default(null),
   country: countrySchema.or(z.literal('')).nullable().default(null),
-  line1: z.string().max(200).nullable().default(null),
-  line2: z.string().max(200).nullable().default(null),
-  postal_code: z.string().max(30).nullable().default(null),
-  state: z.string().max(100).nullable().default(null),
+  line1: z
+    .string()
+    .max(validationLimits.address.lineMaxLength)
+    .nullable()
+    .default(null),
+  line2: z
+    .string()
+    .max(validationLimits.address.lineMaxLength)
+    .nullable()
+    .default(null),
+  postal_code: z
+    .string()
+    .max(validationLimits.address.postalCodeMaxLength)
+    .nullable()
+    .default(null),
+  state: z
+    .string()
+    .max(validationLimits.address.stateMaxLength)
+    .nullable()
+    .default(null),
 })
 
 export const idsSchema = z.array(idSchema).min(1, 'At least one ID is required')

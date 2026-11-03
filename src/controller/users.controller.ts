@@ -20,7 +20,8 @@ import {
 } from '@/services/users.service'
 import { signAccessToken, signRefreshToken, verifyJWTRefresh } from '@/utils'
 import { publicUserResponse } from '@/utils/response.utils'
-import { API, COUNTRY_CODES_FILE } from '@/constants'
+import { authTiming } from '@/constants/auth'
+import { API, COUNTRY_CODES_FILE } from '@/constants/paths'
 import type {
   AuthJWTPayload,
   AuthVariables,
@@ -136,7 +137,7 @@ users.post(API.users.refresh, async (c) => {
   const expTimestamp = jwtPayload.exp ?? 0
   const timestamp = Math.floor(Date.now() / 1000)
 
-  if (expTimestamp - 259200 < timestamp) {
+  if (expTimestamp - authTiming.refreshRenewalSeconds < timestamp) {
     const refreshToken = await signRefreshToken(jwtPayload.uuid, timestamp)
 
     await setSignedCookie(

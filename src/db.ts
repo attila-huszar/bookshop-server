@@ -3,6 +3,7 @@ import { mkdir } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite'
 import mongoose from 'mongoose'
+import { databasePolicy } from '@/constants/database'
 import { env } from './config'
 import { DB_REPO } from './types/enums'
 
@@ -26,13 +27,13 @@ export async function connectDatabase(): Promise<void> {
 
     sqliteClient = new Database(env.dbSqliteFile)
     sqliteClient.run(
-      'PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000; PRAGMA foreign_keys = ON',
+      `PRAGMA journal_mode = WAL; PRAGMA busy_timeout = ${databasePolicy.sqliteBusyTimeoutMs}; PRAGMA foreign_keys = ON`,
     )
     sqlite = drizzle({ client: sqliteClient, casing: 'snake_case' })
   } else {
     await mongoose.connect(env.dbMongoUrl, {
-      serverSelectionTimeoutMS: 10_000,
-      socketTimeoutMS: 10_000,
+      serverSelectionTimeoutMS: databasePolicy.mongoSelectionTimeoutMs,
+      socketTimeoutMS: databasePolicy.mongoSocketTimeoutMs,
     })
     const mongoDb = mongoose.connection.db
 

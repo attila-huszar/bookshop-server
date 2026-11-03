@@ -3,7 +3,8 @@ import type {
   BookDocPopulatedWithAuthorId,
   BookDocPopulatedWithAuthorName,
 } from '@/models/mongo/BookModel'
-import { PAGINATION } from '@/constants'
+import { catalogueFilterDefaults } from '@/constants/catalogue'
+import { PAGINATION } from '@/constants/pagination'
 import type {
   Book,
   BookInsert,
@@ -25,12 +26,9 @@ export async function getBooks(query?: BookQuery): Promise<{
   booksRecords: BookWithAuthor[]
   booksCount: number
 }> {
-  const page = Math.min(
-    Math.max(1, Number(query?.page) || 1),
-    PAGINATION.MAX_PAGE,
-  )
+  const page = Math.min(Math.max(1, query?.page ?? 1), PAGINATION.MAX_PAGE)
   const limit = Math.min(
-    Math.max(1, Number(query?.limit) || PAGINATION.DEFAULT_LIMIT),
+    Math.max(1, query?.limit ?? PAGINATION.DEFAULT_LIMIT),
     PAGINATION.MAX_LIMIT,
   )
   const offset = (page - 1) * limit
@@ -209,9 +207,12 @@ export async function getBookSearchOptions(): Promise<{
   const minMax = prices[0]
 
   return {
-    price: [minMax?.minPrice ?? 0, minMax?.maxPrice ?? 500],
+    price: [
+      minMax?.minPrice ?? 0,
+      minMax?.maxPrice ?? catalogueFilterDefaults.maxPrice,
+    ],
     publishYear: [
-      minMax?.minYear ?? 1000,
+      minMax?.minYear ?? catalogueFilterDefaults.minYear,
       minMax?.maxYear ?? new Date().getFullYear(),
     ],
     genre: genres.filter((g): g is string => g != null),

@@ -1,5 +1,6 @@
 import { z } from 'zod'
-import { PAGINATION } from '@/constants'
+import { PAGINATION } from '@/constants/pagination'
+import { validationLimits } from '@/constants/validation'
 import { ValidationRule } from '@/types/enums'
 import { idSchema } from './commonSchemas'
 
@@ -12,9 +13,18 @@ const booleanQuery = z.union([
   z.enum(['true', 'false']).transform((value) => value === 'true'),
 ])
 
-const discountQuery = numericQuery.pipe(z.number().max(100)).optional()
+const discountQuery = numericQuery
+  .pipe(z.number().max(validationLimits.discountMaxPercent))
+  .optional()
 
-const ratingQuery = numericQuery.pipe(z.number().min(1).max(5)).optional()
+const ratingQuery = numericQuery
+  .pipe(
+    z
+      .number()
+      .min(validationLimits.book.ratingMin)
+      .max(validationLimits.book.ratingMax),
+  )
+  .optional()
 
 const genreQuery = z.string().trim().min(1)
 
@@ -35,7 +45,12 @@ export const bookQuerySchema = z
       .union([genreQuery, z.array(genreQuery)])
       .transform((value) => (typeof value === 'string' ? [value] : value))
       .optional(),
-    title: z.string().trim().min(1).max(100).optional(),
+    title: z
+      .string()
+      .trim()
+      .min(1)
+      .max(validationLimits.book.titleMaxLength)
+      .optional(),
     newRelease: booleanQuery.optional(),
     topSellers: booleanQuery.optional(),
     recommended: booleanQuery.optional(),
@@ -67,5 +82,9 @@ export const bookQuerySchema = z
   )
 
 export const bookSearchSchema = z.object({
-  q: z.string().trim().min(2).max(100),
+  q: z
+    .string()
+    .trim()
+    .min(validationLimits.search.minLength)
+    .max(validationLimits.search.maxLength),
 })

@@ -1,6 +1,6 @@
 import { defineConfig } from 'drizzle-kit'
 import { env } from '@/config'
-import { MIGRATIONS_DIR, MODELS_DIR } from './src/constants/'
+import { MIGRATIONS_DIR, MODELS_DIR } from '@/constants/paths'
 
 const dbType = 'sqlite'
 

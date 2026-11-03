@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
 import { Hono } from 'hono'
 import { setSignedCookie } from 'hono/cookie'
 import { cookieOptions, env, REFRESH_TOKEN } from '@/config'
-import { API } from '@/constants'
+import { API } from '@/constants/paths'
 import { errorHandler } from '@/errors/errorHandler'
 import { UserRole } from '@/types'
 import {

@@ -10,7 +10,8 @@ import {
 } from 'drizzle-orm'
 import { sqlite } from '@/db'
 import { authorsTable, booksTable } from '@/models/sqlite'
-import { PAGINATION } from '@/constants'
+import { catalogueFilterDefaults } from '@/constants/catalogue'
+import { PAGINATION } from '@/constants/pagination'
 import type {
   Book,
   BookInsert,
@@ -42,12 +43,9 @@ export async function getBooks(query?: BookQuery): Promise<{
   booksRecords: BookWithAuthor[]
   booksCount: number
 }> {
-  const page = Math.min(
-    Math.max(1, Number(query?.page) || 1),
-    PAGINATION.MAX_PAGE,
-  )
+  const page = Math.min(Math.max(1, query?.page ?? 1), PAGINATION.MAX_PAGE)
   const limit = Math.min(
-    Math.max(1, Number(query?.limit) || PAGINATION.DEFAULT_LIMIT),
+    Math.max(1, query?.limit ?? PAGINATION.DEFAULT_LIMIT),
     PAGINATION.MAX_LIMIT,
   )
   const offset = (page - 1) * limit
@@ -182,9 +180,12 @@ export async function getBookSearchOptions(): Promise<{
   }
 
   return {
-    price: [minMaxField.minPrice ?? 0, minMaxField.maxPrice ?? 500],
+    price: [
+      minMaxField.minPrice ?? 0,
+      minMaxField.maxPrice ?? catalogueFilterDefaults.maxPrice,
+    ],
     publishYear: [
-      minMaxField.minYear ?? 1000,
+      minMaxField.minYear ?? catalogueFilterDefaults.minYear,
       minMaxField.maxYear ?? new Date().getFullYear(),
     ],
     genre: genres,

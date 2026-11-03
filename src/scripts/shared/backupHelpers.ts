@@ -1,74 +1,61 @@
-import { rm, stat } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
-import { env } from '@/config'
-import { log } from '@/libs'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import type { BunFile } from 'bun'
+import { log } from '@/libs/logger'
+import { backupTiming } from '@/constants/backup'
 import { DB_REPO } from '@/types/enums'
-
-type PruneBackupsParams =
-  | { backupType: DB_REPO.MONGO }
-  | { backupType: DB_REPO.SQLITE; sourceFileName: string }
 
 type SpawnedProcess = {
   exited: Promise<number>
   kill: (signal?: number | NodeJS.Signals) => void
 }
 
-export const BACKUP_PROCESS_TIMEOUT_MS = 30 * 60 * 1000
-const PROCESS_TERMINATION_GRACE_MS = 5000
-
-export function getBackupDir(backupType: DB_REPO): string {
-  return join(resolve(process.cwd(), env.backupDir), backupType.toLowerCase())
+type BackupArchiveInput = {
+  backupType: DB_REPO
+  create: (context: { directory: string; outputFile: string }) => Promise<void>
+  consume: (archive: BunFile) => Promise<void>
 }
 
-export function timestamp(): string {
-  return new Date().toISOString().replace(/[:.]/g, '-')
-}
+export type WithBackupArchive = (
+  consume: BackupArchiveInput['consume'],
+) => Promise<void>
 
-export async function pruneOldBackups(
-  params: PruneBackupsParams,
+export async function withBackupArchive(
+  input: BackupArchiveInput,
 ): Promise<void> {
-  const { backupType } = params
-  const directory = getBackupDir(backupType)
+  const directory = await mkdtemp(
+    join(tmpdir(), `bookshop-${input.backupType.toLowerCase()}-backup-`),
+  )
 
-  const retentionDays = Number(env.backupRetentionDays)
-  if (!Number.isInteger(retentionDays) || retentionDays <= 0) {
-    throw new Error(
-      `Invalid BACKUP_RETENTION_DAYS: ${env.backupRetentionDays}. It must be a positive integer.`,
+  try {
+    const outputFile = join(directory, 'backup.gz')
+    await writeFile(outputFile, '', { mode: 0o600, flag: 'wx' })
+    await input.create({ directory, outputFile })
+    const archive = Bun.file(outputFile)
+
+    if (archive.size === 0) {
+      throw new Error(`${input.backupType} backup produced an empty archive`)
+    }
+
+    await input.consume(archive)
+  } finally {
+    await rm(directory, { recursive: true, force: true }).catch(
+      (error: unknown) => {
+        log.warn('Failed to remove temporary backup files', {
+          error,
+          directory,
+          backupType: input.backupType,
+        })
+      },
     )
   }
-
-  const directoryStat = await stat(directory).catch(() => null)
-  if (!directoryStat?.isDirectory()) return
-
-  const pattern =
-    params.backupType === DB_REPO.MONGO
-      ? '*.archive.gz'
-      : `*-${params.sourceFileName}`
-  const maxAgeMs = retentionDays * 24 * 60 * 60 * 1000
-  const files = await Array.fromAsync(
-    new Bun.Glob(pattern).scan({ cwd: directory }),
-  )
-
-  const now = Date.now()
-
-  await Promise.all(
-    files.map(async (fileName) => {
-      const filePath = join(directory, fileName)
-      const fileStat = await Bun.file(filePath)
-        .stat()
-        .catch(() => null)
-      if (fileStat && now - fileStat.mtimeMs > maxAgeMs) {
-        await rm(filePath, { force: true })
-        log.info(`Removed old ${backupType} backup`, { filePath })
-      }
-    }),
-  )
 }
 
 export async function waitForProcessExitWithTimeout(
   processName: string,
   spawnedProcess: SpawnedProcess,
-  timeoutMs = BACKUP_PROCESS_TIMEOUT_MS,
+  timeoutMs: number = backupTiming.processTimeoutMs,
 ): Promise<number> {
   let timeoutId: ReturnType<typeof setTimeout> | undefined
 
@@ -90,7 +77,7 @@ export async function waitForProcessExitWithTimeout(
     const exited = await Promise.race([
       spawnedProcess.exited.then(() => true),
       new Promise<false>((resolve) =>
-        setTimeout(() => resolve(false), PROCESS_TERMINATION_GRACE_MS),
+        setTimeout(() => resolve(false), backupTiming.terminationGraceMs),
       ),
     ])
 
@@ -104,6 +91,8 @@ export async function waitForProcessExitWithTimeout(
 
     throw error
   } finally {
-    if (timeoutId) clearTimeout(timeoutId)
+    if (timeoutId) {
+      clearTimeout(timeoutId)
+    }
   }
 }

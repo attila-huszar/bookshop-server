@@ -8,8 +8,8 @@ WORKDIR /bookshop-server
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile
 
-RUN mkdir -p /bookshop-server/data/backups && \
-  chown bun:bun /bookshop-server/data /bookshop-server/data/backups
+RUN mkdir -p /bookshop-server/data && \
+  chown bun:bun /bookshop-server/data
 
 COPY . .
 

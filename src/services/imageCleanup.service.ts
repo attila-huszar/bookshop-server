@@ -2,9 +2,9 @@ import { s3 } from 'bun'
 import { env } from '@/config/env'
 import { booksDB, usersDB } from '@/repositories'
 import { imageStoragePrefix, storedImageUrl } from '@/utils/file.utils'
+import { imageCleanupGraceMs } from '@/constants/fileLimits'
 import { Folder } from '@/types/enums'
 
-const IMAGE_GRACE_PERIOD_MS = 24 * 60 * 60 * 1000
 const generatedFilename =
   /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}\.webp$/
 
@@ -35,7 +35,7 @@ function canonicalUrl(value: string): string {
 export async function collectUnusedImages(
   input: CleanupInput,
 ): Promise<number> {
-  const cutoff = (input.now ?? Date.now()) - IMAGE_GRACE_PERIOD_MS
+  const cutoff = (input.now ?? Date.now()) - imageCleanupGraceMs
   let removed = 0
 
   for (const prefix of input.prefixes) {

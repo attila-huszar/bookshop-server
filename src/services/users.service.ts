@@ -11,7 +11,7 @@ import {
 } from '@/validation'
 import { signAccessToken, signRefreshToken, uploadFile } from '@/utils'
 import { publicUserResponse } from '@/utils/response.utils'
-import { DUMMY_PASSWORD_HASH } from '@/constants'
+import { authTiming, DUMMY_PASSWORD_HASH } from '@/constants/auth'
 import { BadRequest, Forbidden, Internal, Unauthorized } from '@/errors'
 import {
   Folder,
@@ -89,7 +89,7 @@ export async function registerUser(formData: FormData) {
   }
 
   const verificationToken = crypto.randomUUID()
-  const verificationExpires = new Date(Date.now() + 86400000)
+  const verificationExpires = new Date(Date.now() + authTiming.verificationMs)
 
   const avatar =
     form.avatar instanceof File
@@ -150,7 +150,7 @@ export async function passwordResetRequest(
   }
 
   const passwordResetToken = crypto.randomUUID()
-  const passwordResetExpires = new Date(Date.now() + 86400000)
+  const passwordResetExpires = new Date(Date.now() + authTiming.passwordResetMs)
 
   const userUpdated = await usersDB.setPasswordResetToken(user.uuid, {
     token: passwordResetToken,
