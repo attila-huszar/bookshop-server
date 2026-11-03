@@ -20,7 +20,7 @@ import {
 } from '@/services/users.service'
 import { signAccessToken, signRefreshToken, verifyJWTRefresh } from '@/utils'
 import { publicUserResponse } from '@/utils/response.utils'
-import { API } from '@/constants'
+import { API, COUNTRY_CODES_FILE } from '@/constants'
 import type {
   AuthJWTPayload,
   AuthVariables,
@@ -170,7 +170,7 @@ users.get(API.users.country, (c) => {
 })
 
 users.get(API.users.countryCodes, async (c) => {
-  const file = Bun.file('./src/resources/country-codes.json')
+  const file = Bun.file(COUNTRY_CODES_FILE)
   const content: unknown = await file.json()
 
   return c.json(content)

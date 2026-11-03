@@ -1,14 +1,10 @@
 import { Hono } from 'hono'
-import { getBookById, getBooks, getRecommendedBooks } from '@/services'
-import { bookQuerySchema, validate } from '@/validation'
+import { getBookById, getBooks, searchBooks } from '@/services'
+import { bookQuerySchema, bookSearchSchema, validate } from '@/validation'
 import { API } from '@/constants'
 import { NotFound } from '@/errors'
 
 export const books = new Hono()
-
-books.get(`${API.books.root}/recommended`, async (c) =>
-  c.json(await getRecommendedBooks()),
-)
 
 books.get(API.books.root, async (c) => {
   const rawQuery = c.req.query()
@@ -30,7 +26,13 @@ books.get(API.books.root, async (c) => {
   const { booksRecords, booksCount } = await getBooks(query)
 
   c.header('Access-Control-Expose-Headers', 'x-total-count')
-  c.header('x-total-count', booksCount)
+  c.header('x-total-count', String(booksCount))
 
   return c.json(booksRecords)
+})
+
+books.get(API.books.search, async (c) => {
+  const query = validate(bookSearchSchema, c.req.query())
+
+  return c.json(await searchBooks(query.q))
 })

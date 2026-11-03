@@ -9,6 +9,7 @@ export const API = {
   },
   books: {
     root: '/books',
+    search: '/books/search',
   },
   authors: {
     root: '/authors',
@@ -70,3 +71,4 @@ export const API = {
 
 export const MIGRATIONS_DIR = './src/database/migrations'
 export const MODELS_DIR = './src/models'
+export const COUNTRY_CODES_FILE = './src/resources/country-codes.json'

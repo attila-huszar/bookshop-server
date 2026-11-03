@@ -30,6 +30,82 @@ const books = await import('@/repositories/drizzle/books.repo')
 const authors = await import('@/repositories/drizzle/authors.repo')
 const terms = await import('@/repositories/drizzle/terms.repo')
 
+describe('SQLite combined book search', () => {
+  beforeEach(async () => {
+    const matchingAuthor = await authors.insertAuthor({
+      name: 'Needle Author',
+      fullName: '',
+      birthYear: '',
+      deathYear: '',
+      homeland: '',
+      biography: '',
+    })
+    const otherAuthor = await authors.insertAuthor({
+      name: 'Other Author',
+      fullName: '',
+      birthYear: '',
+      deathYear: '',
+      homeland: '',
+      biography: '',
+    })
+    const book = {
+      authorId: matchingAuthor.id,
+      genre: 'Fiction',
+      imgUrl: 'book.jpg',
+      description: 'A book',
+      publishYear: 2020,
+      rating: 4,
+      price: 10,
+      discount: 0,
+      discountPrice: 10,
+      topSellers: false,
+      newRelease: false,
+    }
+
+    await books.insertBook({ ...book, title: 'Author match only' })
+    await books.insertBook({ ...book, title: 'Needle in both fields' })
+    await books.insertBook({
+      ...book,
+      authorId: otherAuthor.id,
+      title: 'Needle in title',
+    })
+    await books.insertBook({
+      ...book,
+      authorId: otherAuthor.id,
+      title: 'Literal 10%_\\ sale',
+    })
+  })
+
+  it('matches title or author case-insensitively, with title matches first and no duplicates', async () => {
+    const results = await books.searchBooks('needle', 10)
+
+    expect(results.map((book) => book.title)).toEqual([
+      'Needle in both fields',
+      'Needle in title',
+      'Author match only',
+    ])
+    expect(results.map((book) => book.author)).toEqual([
+      'Needle Author',
+      'Other Author',
+      'Needle Author',
+    ])
+    expect(await books.searchBooks('missing', 10)).toEqual([])
+  })
+
+  it('applies the global result limit after prioritizing title matches', async () => {
+    expect(
+      (await books.searchBooks('needle', 2)).map((book) => book.title),
+    ).toEqual(['Needle in both fields', 'Needle in title'])
+  })
+
+  it('treats SQL wildcard and escape characters as literal search text', async () => {
+    expect(
+      (await books.searchBooks('10%_\\', 10)).map((book) => book.title),
+    ).toEqual(['Literal 10%_\\ sale'])
+    expect(await books.searchBooks("%' OR 1=1 --", 10)).toEqual([])
+  })
+})
+
 describe('SQLite missing CMS records', () => {
   it('returns null for missing books and authors so services can report 404', async () => {
     expect(await books.updateBook(999999, { title: 'Updated' })).toBeNull()
@@ -99,7 +175,7 @@ describe('SQLite terms documents', () => {
 
 beforeEach(() =>
   database.run(
-    'DELETE FROM email_outbox; DELETE FROM orders; DELETE FROM users; DELETE FROM terms_documents',
+    'DELETE FROM email_outbox; DELETE FROM orders; DELETE FROM users; DELETE FROM terms_documents; DELETE FROM books; DELETE FROM authors',
   ),
 )
 afterAll(() => database.close())
