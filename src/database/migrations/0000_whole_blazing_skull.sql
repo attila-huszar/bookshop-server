@@ -2,7 +2,6 @@ CREATE TABLE `terms_documents` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
 	`version` text NOT NULL,
 	`content` text NOT NULL,
-	`statements` text DEFAULT '{"en":"I have read and accept the Terms and Conditions.","hu":"Elolvastam és elfogadom az Általános Szerződési Feltételeket (ÁSZF)."}' NOT NULL,
 	`published_at` integer NOT NULL
 );
 --> statement-breakpoint

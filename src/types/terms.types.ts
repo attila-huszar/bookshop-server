@@ -1,11 +1,12 @@
-export type ShopLanguage = 'en' | 'hu'
+import type { shopLanguages } from '@/constants/defaults'
+
+export type ShopLanguage = (typeof shopLanguages)[number]
 
 export type TermsContent = Record<ShopLanguage, string>
 
 export type TermsDocument = {
   version: string
   content: TermsContent
-  statements: TermsContent
   publishedAt: string
 }
 
@@ -14,19 +15,11 @@ export type TermsDocumentSummary = Pick<
   'version' | 'publishedAt'
 > & { canDelete: boolean }
 
-export type TermsDocumentInsert = Omit<TermsDocument, 'statements'> & {
-  statements?: TermsContent
-}
-
-export type CheckoutTerms = Pick<
-  TermsDocument,
-  'version' | 'statements' | 'publishedAt'
-> & {
+export type CheckoutTerms = Pick<TermsDocument, 'version' | 'publishedAt'> & {
   url: string
 }
 
 export type TermsAcceptance = Pick<TermsDocument, 'version'> & {
   language: ShopLanguage
   acceptedAt: string
-  statement: string
 }

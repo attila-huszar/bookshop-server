@@ -1,4 +1,5 @@
 import mongoose from 'mongoose'
+import { shopLanguages } from '@/constants/defaults'
 import type { Order } from '@/types'
 import { autoIncrementPlugin } from './'
 
@@ -11,9 +12,8 @@ const orderSchema = new mongoose.Schema<Order>(
       type: new mongoose.Schema(
         {
           version: { type: String, required: true },
-          language: { type: String, enum: ['en', 'hu'], required: true },
+          language: { type: String, enum: shopLanguages, required: true },
           acceptedAt: { type: String, required: true },
-          statement: { type: String, required: true },
         },
         { _id: false },
       ),

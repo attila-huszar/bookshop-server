@@ -1,5 +1,4 @@
 import mongoose from 'mongoose'
-import { defaultTermsStatements } from '@/constants/defaults'
 import type { TermsContent } from '@/types/terms.types'
 import { autoIncrementPlugin } from './plugins/autoIncrement'
 
@@ -15,7 +14,6 @@ const termsDocumentSchema = new mongoose.Schema<{
   id: number
   version: string
   content: TermsContent
-  statements: TermsContent
   publishedAt: Date
 }>({
   id: { type: Number, required: true, unique: true },
@@ -23,11 +21,6 @@ const termsDocumentSchema = new mongoose.Schema<{
   content: {
     type: localizedTextSchema,
     required: true,
-  },
-  statements: {
-    type: localizedTextSchema,
-    required: true,
-    default: () => ({ ...defaultTermsStatements }),
   },
   publishedAt: { type: Date, required: true },
 })

@@ -1,7 +1,8 @@
 import { z } from 'zod'
+import { shopLanguages } from '@/constants/defaults'
 
 export const termsVersionSchema = z.uuid()
-export const shopLanguageSchema = z.enum(['en', 'hu'])
+export const shopLanguageSchema = z.enum(shopLanguages)
 
 export const publishTermsSchema = z
   .object({

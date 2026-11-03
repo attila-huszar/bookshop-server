@@ -132,7 +132,6 @@ export async function getPaymentTerms(
     ? {
         url: `${env.clientBaseUrl!.replace(/\/$/, '')}/terms/${document.version}`,
         version: document.version,
-        statements: document.statements,
         publishedAt: document.publishedAt,
       }
     : null
@@ -188,7 +187,6 @@ export async function acceptPaymentTerms(
     : await ordersDB.recordTermsAcceptance(validatedId, {
         version: terms.version,
         language: request.language,
-        statement: terms.statements[request.language],
         acceptedAt: new Date().toISOString(),
       })
   const acceptance = recordedOrder?.termsAcceptance

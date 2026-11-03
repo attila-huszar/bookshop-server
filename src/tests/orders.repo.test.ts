@@ -9,7 +9,6 @@ import { emailOutboxTable } from '@/models/sqlite/emailOutboxTable'
 import { ordersTable } from '@/models/sqlite/ordersTable'
 import { orderInsertSchema, orderUpdateSchema } from '@/validation/orderSchemas'
 import { emailOutboxResponse } from '@/utils/email-outbox.utils'
-import { defaultTermsStatements } from '@/constants/defaults'
 import {
   AdminNotification,
   type UserRegistrationInsert,
@@ -114,27 +113,10 @@ describe('SQLite missing CMS records', () => {
 })
 
 describe('SQLite terms documents', () => {
-  it('applies bilingual statement defaults to direct SQL inserts', async () => {
-    database
-      .query(
-        'INSERT INTO terms_documents (version, content, published_at) VALUES (?, ?, ?)',
-      )
-      .run(
-        '33333333-3333-4333-8333-333333333333',
-        JSON.stringify({ en: 'English terms', hu: 'Magyar feltételek' }),
-        Date.now(),
-      )
-
-    expect((await terms.getCurrentTerms())?.statements).toEqual(
-      defaultTermsStatements,
-    )
-  })
-
   it('publishes a new version without modifying archived terms', async () => {
     const first = {
       version: '11111111-1111-4111-8111-111111111111',
       content: { en: 'Original English', hu: 'Eredeti magyar' },
-      statements: { en: 'Original declaration', hu: 'Eredeti nyilatkozat' },
       publishedAt: '2026-10-14T10:00:00.000Z',
     }
     const second = {
@@ -160,10 +142,7 @@ describe('SQLite terms documents', () => {
         canDelete: true,
       },
     ])
-    expect(await terms.getCurrentTerms()).toEqual({
-      ...second,
-      statements: defaultTermsStatements,
-    })
+    expect(await terms.getCurrentTerms()).toEqual(second)
     expect(await terms.getTermsByVersion(first.version)).toEqual(first)
     expect(await terms.getTermsByVersion(second.version)).not.toHaveProperty(
       'id',
@@ -208,7 +187,6 @@ describe('SQLite checkout orders', () => {
   const acceptance = {
     version: 'v1',
     acceptedAt: '2026-10-14T10:00:00Z',
-    statement: 'Accepted',
     language: 'en' as const,
   }
 
@@ -277,7 +255,6 @@ describe('SQLite checkout orders', () => {
     const acceptance = {
       version: 'v1',
       acceptedAt: '2026-10-14T10:00:00Z',
-      statement: 'Accepted terms',
       language: 'en' as const,
     }
     const results = await Promise.all([
@@ -300,7 +277,6 @@ describe('SQLite checkout orders', () => {
     const acceptance = {
       version: 'v1',
       acceptedAt: new Date().toISOString(),
-      statement: 'Accepted terms',
       language: 'en' as const,
     }
 

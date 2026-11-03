@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, mock } from 'bun:test'
 import { rejects } from 'node:assert/strict'
 import { env } from '@/config'
-import { defaultTermsStatements } from '@/constants/defaults'
 import { terminalStatuses } from '@/constants/payment'
 import {
   type Order,
@@ -81,7 +80,6 @@ describe('Mongo terms documents', () => {
   const document = {
     version: '11111111-1111-4111-8111-111111111111',
     content: { en: 'English', hu: 'Magyar' },
-    statements: defaultTermsStatements,
     publishedAt: '2026-10-14T10:00:00.000Z',
   }
 
@@ -224,7 +222,6 @@ describe('Mongo checkout terms acceptance', () => {
     const acceptance = {
       version: 'v1',
       acceptedAt: new Date().toISOString(),
-      statement: 'Accepted terms',
       language: 'en' as const,
     }
     query.exec.mockResolvedValueOnce({ termsAcceptance: acceptance })
@@ -256,7 +253,6 @@ describe('Mongo checkout terms acceptance', () => {
     const acceptance = {
       version: 'deleted',
       acceptedAt: new Date().toISOString(),
-      statement: 'Accepted',
       language: 'en' as const,
     }
     query.exec.mockResolvedValue({ termsAcceptance: acceptance })
@@ -272,7 +268,6 @@ describe('Mongo checkout terms acceptance', () => {
     const acceptance = {
       version: 'v1',
       acceptedAt: '2026-10-14T10:00:00Z',
-      statement: 'Accepted terms',
       language: 'en' as const,
     }
     query.exec

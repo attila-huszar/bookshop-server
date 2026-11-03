@@ -4,9 +4,8 @@ import { Hono } from 'hono'
 import { sign } from 'hono/jwt'
 import { env } from '@/config'
 import { authAdminMiddleware } from '@/middleware/authAdmin.middleware'
-import { defaultTermsStatements } from '@/constants/defaults'
 import { errorHandler } from '@/errors/errorHandler'
-import { type TermsDocument, type TermsDocumentInsert, UserRole } from '@/types'
+import { type TermsDocument, UserRole } from '@/types'
 import { mockRepositories, mockTermsDB, mockUsersDB } from './test-setup'
 
 // Reapply service mocks after tests that import the concrete repositories.
@@ -41,14 +40,10 @@ beforeEach(() => {
   mockTermsDB.getTermsByVersion.mockReset().mockResolvedValue(null)
   mockTermsDB.publishTerms
     .mockReset()
-    .mockImplementation((document: TermsDocumentInsert) => {
-      const saved = {
-        ...document,
-        statements: document.statements ?? defaultTermsStatements,
-      }
-      mockTermsDB.getTermsByVersion.mockResolvedValue(saved)
+    .mockImplementation((document: TermsDocument) => {
+      mockTermsDB.getTermsByVersion.mockResolvedValue(document)
 
-      return Promise.resolve(saved)
+      return Promise.resolve(document)
     })
   mockUsersDB.getActiveUserBy
     .mockReset()
@@ -100,7 +95,6 @@ describe('Terms publishing', () => {
     mockTermsDB.getTermsByVersion.mockResolvedValue({
       version,
       content,
-      statements: defaultTermsStatements,
       publishedAt: '2026-10-14T10:00:00.000Z',
     })
     const used = await adminRequest(
@@ -144,7 +138,6 @@ describe('Terms publishing', () => {
       content,
       publishedAt: published.publishedAt,
     })
-    expect(published.statements).toEqual(defaultTermsStatements)
   })
 
   it('reuses the current version when an identical publish is retried', async () => {
@@ -173,9 +166,15 @@ describe('Terms publishing', () => {
     )
 
     expect(publicResponse.status).toBe(200)
+    expect(publicResponse.headers.get('cache-control')).toBe(
+      'public, max-age=31536000, immutable',
+    )
     expect(await publicResponse.json()).toEqual(published)
     expect(await download.text()).toBe(content.hu)
     expect(download.headers.get('content-type')).toContain('text/plain')
+    expect(download.headers.get('cache-control')).toBe(
+      'public, max-age=31536000, immutable',
+    )
     expect(download.headers.get('content-disposition')).toMatch(
       /^attachment; filename="terms-\d{4}-\d{2}-\d{2}-hu\.txt"$/,
     )
@@ -184,6 +183,7 @@ describe('Terms publishing', () => {
   it.each([
     ['2026-10-26T23:12:00.000Z', '2026-10-27', 'en'],
     ['2026-07-01T22:15:00.000Z', '2026-07-02', 'hu'],
+    ['2026-12-31T23:30:00.000Z', '2027-01-01', 'en'],
   ] as const)(
     'names downloads after the Budapest publication date for %s in %s (%s)',
     async (publishedAt, date, language) => {
@@ -191,7 +191,6 @@ describe('Terms publishing', () => {
       mockTermsDB.getTermsByVersion.mockResolvedValue({
         version,
         content,
-        statements: defaultTermsStatements,
         publishedAt,
       })
       const response = await app.request(
@@ -203,6 +202,20 @@ describe('Terms publishing', () => {
         `attachment; filename="terms-${date}-${language}.txt"`,
       )
       expect(await response.text()).toBe(content[language])
+    },
+  )
+
+  it.each(['fr', '', 'EN'])(
+    'does not cache invalid download language %s',
+    async (language) => {
+      const published = await publishTerms({ content })
+      const response = await app.request(
+        `/terms/${published.version}?download=true&language=${language}`,
+      )
+
+      expect(response.status).toBe(400)
+      expect(response.headers.get('cache-control')).toBe('no-store')
+      expect(response.headers.get('content-disposition')).toBeNull()
     },
   )
 
@@ -273,9 +286,14 @@ describe('Terms publishing', () => {
   })
 
   it('returns 404 for a missing archive and validates version identifiers', async () => {
-    expect(
-      (await app.request('/terms/11111111-1111-4111-8111-111111111111')).status,
-    ).toBe(404)
-    expect((await app.request('/terms/invalid')).status).toBe(400)
+    const missing = await app.request(
+      '/terms/11111111-1111-4111-8111-111111111111',
+    )
+    const invalid = await app.request('/terms/invalid')
+
+    expect(missing.status).toBe(404)
+    expect(missing.headers.get('cache-control')).toBe('no-store')
+    expect(invalid.status).toBe(400)
+    expect(invalid.headers.get('cache-control')).toBe('no-store')
   })
 })

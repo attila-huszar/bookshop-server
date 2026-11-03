@@ -5,7 +5,6 @@ import { setSignedCookie } from 'hono/cookie'
 import { env, PAYMENT_SESSION, paymentCookieOptions } from '@/config'
 import { paymentAccessMiddleware } from '@/middleware/paymentAccess.middleware'
 import { acceptPaymentTermsSchema } from '@/validation/paymentSchemas'
-import { defaultTermsStatements } from '@/constants/defaults'
 import { errorHandler } from '@/errors/errorHandler'
 import type { Order, TermsAcceptance } from '@/types'
 import {
@@ -24,7 +23,6 @@ const terms = {
   url: 'https://bookshop.test/terms/11111111-1111-4111-8111-111111111111',
   version: '11111111-1111-4111-8111-111111111111',
   publishedAt: '2026-10-14T10:00:00Z',
-  statements: defaultTermsStatements,
 }
 const request = { version: terms.version, accepted: true, language: 'en' }
 const access = { cookiePaymentId: 'pi_terms' }
@@ -87,7 +85,6 @@ beforeEach(() => {
   mockTermsDB.getCurrentTerms.mockReset().mockResolvedValue({
     version: terms.version,
     content: { en: 'English terms', hu: 'Magyar feltételek' },
-    statements: defaultTermsStatements,
     publishedAt: '2026-10-14T10:00:00Z',
   })
   env.cookieSecret = 'terms-cookie-test-secret'
@@ -108,45 +105,17 @@ afterEach(() => {
 })
 
 describe('Checkout terms', () => {
-  it('displays and records the declaration stored with the published version', async () => {
-    const statements = {
-      en: 'Version-specific English declaration',
-      hu: 'A verzióhoz tartozó magyar nyilatkozat',
-    }
-    mockTermsDB.getCurrentTerms.mockResolvedValue({
-      version: terms.version,
-      content: { en: 'English terms', hu: 'Magyar feltételek' },
-      statements,
-      publishedAt: '2026-10-14T10:00:00Z',
-    })
+  it('records the selected language for Hungarian checkout', async () => {
+    const acceptance = await acceptPaymentTerms(
+      'pi_terms',
+      { ...request, language: 'hu' },
+      access,
+    )
 
-    expect(
-      (await getPaymentTerms('pi_terms', access)).terms?.statements,
-    ).toEqual(statements)
-    expect(
-      await acceptPaymentTerms(
-        'pi_terms',
-        { ...request, language: 'hu' },
-        access,
-      ),
-    ).toMatchObject({
+    expect(acceptance).toEqual({
       version: terms.version,
       language: 'hu',
-      statement: statements.hu,
-    })
-  })
-
-  it('records the Hungarian declaration when checkout is in Hungarian', async () => {
-    expect(
-      await acceptPaymentTerms(
-        'pi_terms',
-        { ...request, language: 'hu' },
-        access,
-      ),
-    ).toMatchObject({
-      language: 'hu',
-      statement:
-        'Elolvastam és elfogadom az Általános Szerződési Feltételeket (ÁSZF).',
+      acceptedAt: acceptance.acceptedAt,
     })
   })
 
@@ -279,14 +248,14 @@ describe('Checkout terms', () => {
     expect(mockOrdersDB.recordTermsAcceptance).not.toHaveBeenCalled()
   })
 
-  it('records a server timestamp and the declaration for guest checkout', async () => {
+  it('records the version, language and server timestamp for guest checkout', async () => {
     const before = Date.now()
     const acceptance = await acceptPaymentTerms('pi_terms', request, access)
 
-    expect(acceptance).toMatchObject({
+    expect(acceptance).toEqual({
       version: terms.version,
       language: 'en',
-      statement: 'I have read and accept the Terms and Conditions.',
+      acceptedAt: acceptance.acceptedAt,
     })
     expect(Date.parse(acceptance.acceptedAt)).toBeGreaterThanOrEqual(before)
     expect(Date.parse(acceptance.acceptedAt)).toBeLessThanOrEqual(Date.now())
@@ -334,7 +303,6 @@ describe('Checkout terms', () => {
         version: 'old',
         language: 'en',
         acceptedAt: new Date().toISOString(),
-        statement: 'Original',
       },
     })
 

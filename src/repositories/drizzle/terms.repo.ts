@@ -3,11 +3,7 @@ import { sqlite } from '@/db'
 import { ordersTable } from '@/models/sqlite/ordersTable'
 import { termsDocumentsTable } from '@/models/sqlite/termsDocumentsTable'
 import { termsDocumentResponse } from '@/utils/terms.utils'
-import type {
-  TermsDocument,
-  TermsDocumentInsert,
-  TermsDocumentSummary,
-} from '@/types/terms.types'
+import type { TermsDocument, TermsDocumentSummary } from '@/types/terms.types'
 
 export async function getTermsHistory(): Promise<TermsDocumentSummary[]> {
   const documents = await sqlite
@@ -74,14 +70,13 @@ export async function getTermsByVersion(
 }
 
 export async function publishTerms(
-  document: TermsDocumentInsert,
+  document: TermsDocument,
 ): Promise<TermsDocument> {
   const [saved] = await sqlite
     .insert(termsDocumentsTable)
     .values({
       version: document.version,
       content: document.content,
-      statements: document.statements,
       publishedAt: new Date(document.publishedAt),
     })
     .returning()

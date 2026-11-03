@@ -1,11 +1,7 @@
 import { OrderModel } from '@/models/mongo'
 import { TermsDocumentModel } from '@/models/mongo/TermsDocumentModel'
 import { termsDocumentResponse } from '@/utils/terms.utils'
-import type {
-  TermsDocument,
-  TermsDocumentInsert,
-  TermsDocumentSummary,
-} from '@/types/terms.types'
+import type { TermsDocument, TermsDocumentSummary } from '@/types/terms.types'
 
 export async function getTermsHistory(): Promise<TermsDocumentSummary[]> {
   const documents = await TermsDocumentModel.find()
@@ -78,12 +74,11 @@ export async function getTermsByVersion(
 }
 
 export async function publishTerms(
-  document: TermsDocumentInsert,
+  document: TermsDocument,
 ): Promise<TermsDocument> {
   const saved = await TermsDocumentModel.create({
     version: document.version,
     content: document.content,
-    statements: document.statements,
     publishedAt: new Date(document.publishedAt),
   })
 

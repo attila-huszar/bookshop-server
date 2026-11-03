@@ -28,14 +28,6 @@
           "notNull": true,
           "autoincrement": false
         },
-        "statements": {
-          "name": "statements",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'{\"en\":\"I have read and accept the Terms and Conditions.\",\"hu\":\"Elolvastam és elfogadom az Általános Szerződési Feltételeket (ÁSZF).\"}'"
-        },
         "published_at": {
           "name": "published_at",
           "type": "integer",
