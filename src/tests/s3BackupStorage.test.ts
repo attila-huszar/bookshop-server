@@ -8,6 +8,7 @@ import {
 } from '@/scripts/shared/s3BackupStorage'
 import { S3Client } from '@aws-sdk/client-s3'
 import type { BunFile } from 'bun'
+import { backupUploadPolicy } from '@/constants/backup'
 import { DB_REPO } from '@/types/enums'
 
 const abcChecksum = 'ungWv48Bz+pBQUDeXa4iI7ADYaOWF3qctBD/YfIAFa0='
@@ -108,6 +109,183 @@ describe('backup SHA-256 verification', () => {
 })
 
 describe('S3 backup adapter', () => {
+  it.each([
+    { outcome: 'success', size: backupUploadPolicy.partSizeBytes + 1 },
+    { outcome: 'success', size: backupUploadPolicy.partSizeBytes * 2 },
+    { outcome: 'part-failure', size: backupUploadPolicy.partSizeBytes + 1 },
+    { outcome: 'complete-failure', size: backupUploadPolicy.partSizeBytes + 1 },
+    { outcome: 'abort-failure', size: backupUploadPolicy.partSizeBytes + 1 },
+    { outcome: 'already-aborted', size: backupUploadPolicy.partSizeBytes + 1 },
+    { outcome: 'checksum-failure', size: backupUploadPolicy.partSizeBytes + 1 },
+  ])(
+    'handles multipart $outcome for $size bytes',
+    async ({ outcome, size }) => {
+      const bytes = Buffer.alloc(size, 42)
+      const calls: { method: string; query: URLSearchParams }[] = []
+      const checksums = new Map<number, Buffer>()
+      const key = 'backups/sqlite/multipart.sqlite.gz'
+      let completion = ''
+      const denied = () =>
+        new Response(
+          '<Error><Code>AccessDenied</Code><Message>Upload fixture failed</Message></Error>',
+          { status: 403 },
+        )
+      const server = Bun.serve({
+        hostname: '127.0.0.1',
+        port: 0,
+        fetch: async (request) => {
+          const query = new URL(request.url).searchParams
+          calls.push({ method: request.method, query })
+
+          if (request.method === 'POST' && query.has('uploads')) {
+            return new Response(
+              '<InitiateMultipartUploadResult><UploadId>fixture-upload</UploadId></InitiateMultipartUploadResult>',
+              { headers: { 'content-type': 'application/xml' } },
+            )
+          }
+
+          if (request.method === 'PUT') {
+            if (outcome === 'part-failure') {
+              return denied()
+            }
+
+            const part = Number(query.get('partNumber'))
+            const body = Buffer.from(await request.arrayBuffer())
+            const checksum = createHash('sha256').update(body).digest()
+            checksums.set(part, checksum)
+            expect(body).toEqual(
+              bytes.subarray(
+                (part - 1) * backupUploadPolicy.partSizeBytes,
+                part * backupUploadPolicy.partSizeBytes,
+              ),
+            )
+            expect(request.headers.get('x-amz-checksum-sha256')).toBe(
+              checksum.toString('base64'),
+            )
+
+            return new Response('', {
+              headers: {
+                etag: `"part-${part}"`,
+                'x-amz-checksum-sha256': checksum.toString('base64'),
+              },
+            })
+          }
+
+          if (request.method === 'POST') {
+            completion = await request.text()
+
+            if (
+              outcome === 'complete-failure' ||
+              outcome === 'abort-failure' ||
+              outcome === 'already-aborted'
+            ) {
+              return denied()
+            }
+
+            return new Response(
+              '<CompleteMultipartUploadResult><ETag>"fixture"</ETag></CompleteMultipartUploadResult>',
+              {
+                headers: {
+                  'content-type': 'application/xml',
+                  'x-amz-version-id': 'fixture-version',
+                },
+              },
+            )
+          }
+
+          if (request.method === 'HEAD') {
+            const parts = [...checksums.entries()]
+              .sort(([left], [right]) => left - right)
+              .map(([, checksum]) => checksum)
+            const checksum = `${createHash('sha256').update(Buffer.concat(parts)).digest('base64')}-${parts.length}`
+
+            return new Response(null, {
+              headers: {
+                'content-length': String(size),
+                'x-amz-checksum-type': 'COMPOSITE',
+                'x-amz-checksum-sha256':
+                  outcome === 'checksum-failure' ? 'incorrect' : checksum,
+              },
+            })
+          }
+
+          if (request.method === 'DELETE' && outcome === 'abort-failure') {
+            return new Response(
+              '<Error><Code>AccessDenied</Code><Message>Cleanup fixture failed</Message></Error>',
+              { status: 403 },
+            )
+          }
+
+          if (request.method === 'DELETE' && outcome === 'already-aborted') {
+            return new Response('<Error><Code>NoSuchUpload</Code></Error>', {
+              status: 404,
+            })
+          }
+
+          return new Response(null, { status: 204 })
+        },
+      })
+      const client = new S3Client({
+        region: 'us-east-1',
+        endpoint: `http://127.0.0.1:${server.port}`,
+        forcePathStyle: true,
+        maxAttempts: 1,
+        credentials: { accessKeyId: 'test', secretAccessKey: 'test' },
+      })
+      const storage = createS3BackupStorage({ client, bucket: 'test-bucket' })
+
+      try {
+        await withFile(bytes, async (archive) => {
+          const upload = storage.uploadAndVerify(key, archive)
+
+          if (outcome === 'success') {
+            await upload
+          } else {
+            await rejects(
+              upload,
+              outcome === 'checksum-failure'
+                ? /verification failed/
+                : /Upload fixture failed/,
+            )
+          }
+        })
+
+        const deletes = calls.filter((call) => call.method === 'DELETE')
+        const heads = calls.filter((call) => call.method === 'HEAD')
+
+        if (outcome === 'success' || outcome === 'checksum-failure') {
+          expect(checksums.size).toBe(2)
+          expect(completion).toContain('<PartNumber>1</PartNumber>')
+          expect(completion).toContain('<PartNumber>2</PartNumber>')
+
+          for (const checksum of checksums.values()) {
+            expect(completion).toContain(
+              `<ChecksumSHA256>${checksum.toString('base64')}</ChecksumSHA256>`,
+            )
+          }
+
+          expect(heads).toHaveLength(1)
+          expect(heads[0]!.query.get('versionId')).toBe('fixture-version')
+          expect(deletes).toHaveLength(outcome === 'success' ? 0 : 1)
+
+          if (outcome === 'checksum-failure') {
+            expect(deletes[0]!.query.get('versionId')).toBe('fixture-version')
+            expect(deletes[0]!.query.has('uploadId')).toBe(false)
+          }
+        } else {
+          expect(heads).toHaveLength(0)
+          expect(deletes).toHaveLength(1)
+          expect(deletes[0]!.query.get('uploadId')).toBe('fixture-upload')
+          expect(deletes[0]!.query.has('versionId')).toBe(false)
+          expect(calls.at(-1)!.method).toBe('DELETE')
+        }
+      } finally {
+        client.destroy()
+        await server.stop(true)
+      }
+    },
+  )
+
   it.each([true, false])(
     'requests upload checksums and checksum metadata; valid checksum: %s',
     async (validChecksum) => {

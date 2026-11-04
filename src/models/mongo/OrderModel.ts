@@ -1,7 +1,7 @@
 import mongoose from 'mongoose'
 import { shopLanguages } from '@/constants/localization'
 import type { Order } from '@/types'
-import { autoIncrementPlugin } from './'
+import { autoIncrementPlugin } from './plugins/autoIncrement'
 
 const orderSchema = new mongoose.Schema<Order>(
   {

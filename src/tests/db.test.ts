@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url'
 const projectRoot = fileURLToPath(new URL('../../', import.meta.url))
 const databaseUrl = new URL('../db.ts', import.meta.url).href
 const envUrl = new URL('../config/env.ts', import.meta.url).href
+const modelsUrl = new URL('../models/mongo/index.ts', import.meta.url).href
 
 // A subprocess exercises the real bootstrap, outside the suite's module mocks.
 async function checkBootstrap(filename: string, cwd = projectRoot) {
@@ -54,7 +55,7 @@ async function checkBootstrap(filename: string, cwd = projectRoot) {
 }
 
 describe('database bootstrap', () => {
-  it('fails clearly if Mongo connects without initializing a database', async () => {
+  it('loads Mongo models without payment credentials or a database connection', async () => {
     const child = Bun.spawn(
       [
         process.execPath,
@@ -62,21 +63,20 @@ describe('database bootstrap', () => {
         '-e',
         `
           import assert from 'node:assert/strict'
-          import { mock } from 'bun:test'
-          const connect = mock(async () => undefined)
-          await mock.module('mongoose', () => ({
-            default: { connect, connection: { db: undefined } },
-          }))
-          const db = await import(${JSON.stringify(databaseUrl)})
-          assert.equal(connect.mock.calls.length, 0)
-          await assert.rejects(db.connectDatabase(), /MongoDB connection is not initialized/)
-          await assert.rejects(db.connectDatabase(), /MongoDB connection is not initialized/)
-          assert.equal(connect.mock.calls.length, 2)
+          const models = await import(${JSON.stringify(modelsUrl)})
+          assert.equal(models.BookModel.modelName, 'Book')
+          assert.equal(models.BookModel.db.readyState, 0)
         `,
       ],
       {
         cwd: projectRoot,
-        env: { ...process.env, DB_REPO: 'MONGO' },
+        env: {
+          ...process.env,
+          STRIPE_SECRET: '',
+          STRIPE_WEBHOOK_SECRET: '',
+          MAILER_USER: '',
+          MAILER_PASS: '',
+        },
         stdout: 'pipe',
         stderr: 'pipe',
       },
@@ -88,6 +88,60 @@ describe('database bootstrap', () => {
 
     expect({ exitCode, stderr }).toEqual({ exitCode: 0, stderr: '' })
   })
+
+  it.each([
+    {
+      scenario: 'Mongo connects without initializing a database',
+      uri: 'mongodb+srv://user:secret@cluster.test/bookshop?authSource=admin',
+      errorMessage: 'MongoDB connection is not initialized',
+      connectionAttempts: 2,
+    },
+    {
+      scenario: 'the Mongo connection URI is missing',
+      uri: '',
+      errorMessage: 'MongoDB requires DB_MONGO_URL',
+      connectionAttempts: 0,
+    },
+  ])(
+    'fails clearly when $scenario',
+    async ({ uri, errorMessage, connectionAttempts }) => {
+      const child = Bun.spawn(
+        [
+          process.execPath,
+          '--no-env-file',
+          '-e',
+          `
+          import assert from 'node:assert/strict'
+          import { mock } from 'bun:test'
+          const connect = mock(async () => undefined)
+          await mock.module('mongoose', () => ({
+            default: { connect, connection: { db: undefined } },
+          }))
+          const db = await import(${JSON.stringify(databaseUrl)})
+          assert.equal(connect.mock.calls.length, 0)
+          await assert.rejects(db.connectDatabase(), { message: ${JSON.stringify(errorMessage)} })
+          await assert.rejects(db.connectDatabase(), { message: ${JSON.stringify(errorMessage)} })
+          assert.equal(connect.mock.calls.length, ${connectionAttempts})
+          if (${connectionAttempts} > 0) {
+            assert.equal(connect.mock.calls[0][0], ${JSON.stringify(uri)})
+          }
+        `,
+        ],
+        {
+          cwd: projectRoot,
+          env: { ...process.env, DB_REPO: 'MONGO', DB_MONGO_URL: uri },
+          stdout: 'pipe',
+          stderr: 'pipe',
+        },
+      )
+      const [exitCode, stderr] = await Promise.all([
+        child.exited,
+        new Response(child.stderr).text(),
+      ])
+
+      expect({ exitCode, stderr }).toEqual({ exitCode: 0, stderr: '' })
+    },
+  )
 
   it('opens and reopens an in-memory SQLite database without a directory', async () => {
     await checkBootstrap(':memory:')

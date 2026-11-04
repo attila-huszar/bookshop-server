@@ -70,8 +70,6 @@ services:
       default:
         aliases: [api]
     depends_on:
-      mongodb:
-        condition: service_healthy
       loki:
         condition: service_started
     restart: unless-stopped
@@ -99,51 +97,6 @@ services:
       start_period: 60s
     volumes:
       - ./src:/bookshop-server/src
-
-  mongodb:
-    image: mongo
-    command: ['mongod', '--replSet', 'rs0', '--bind_ip_all', '--quiet']
-    profiles: ['mongo']
-    ports:
-      - '27017:27017'
-    depends_on:
-      loki:
-        condition: service_started
-    logging:
-      driver: loki
-      options:
-        <<: *loki-options
-        loki-external-labels: 'job=mongodb'
-        loki-pipeline-stages: |
-          - json:
-              expressions:
-                severity: s
-                context: ctx
-          - drop:
-              source: [severity, context]
-              expression: '^I;Checkpointer$'
-          - template:
-              source: level
-              template: '{{ if .severity }}{{ if eq .severity "I" }}info{{ else if eq .severity "W" }}warn{{ else if or (eq .severity "E") (eq .severity "F") }}error{{ else }}debug{{ end }}{{ end }}'
-          - labels:
-              level:
-    volumes:
-      - mongodb_data:/data/db
-    restart: unless-stopped
-    healthcheck:
-      test:
-        [
-          'CMD',
-          'mongosh',
-          '--quiet',
-          '--eval',
-          "try { if (rs.status().ok) { quit(db.hello().isWritablePrimary ? 0 : 1) } } catch (e) { rs.initiate({_id:'rs0',members:[{_id:0,host:'mongodb:27017'}]}); quit(1) }",
-          'mongodb://127.0.0.1:27017/admin',
-        ]
-      interval: 30s
-      timeout: 5s
-      retries: 10
-      start_period: 15s
 
   redis:
     image: redis:alpine
@@ -270,8 +223,6 @@ services:
     depends_on:
       server-with-mongo:
         condition: service_healthy
-      mongodb:
-        condition: service_healthy
       loki:
         condition: service_started
     restart: unless-stopped
@@ -355,6 +306,5 @@ services:
 volumes:
   redis_data:
   sqlite_data:
-  mongodb_data:
   loki-data:
   grafana-data:

@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { getAuthorById, getAuthorsByName } from '@/services'
+import { getAuthorById, getAuthorsByName } from '@/services/authors.service'
 import { API } from '@/constants/paths'
 import { HttpErrorCode } from '@/types/enums'
 

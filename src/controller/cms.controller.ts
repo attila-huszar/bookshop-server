@@ -3,17 +3,12 @@ import {
   addAuthor,
   addBook,
   addUser,
-  deleteTermsVersion,
   getAllAuthors,
   getAllBooks,
   getAllOrders,
   getAllUsers,
-  getCurrentTerms,
-  getEmailOutbox,
-  getTermsHistory,
   hardDeleteAuthors,
   hardDeleteBooks,
-  publishTerms,
   restoreOrders,
   restoreUsers,
   softDeleteOrders,
@@ -23,7 +18,14 @@ import {
   updateOrder,
   updateUser,
   uploadProductImage,
-} from '@/services'
+} from '@/services/cms.service'
+import { getEmailOutbox } from '@/services/emailOutbox.service'
+import {
+  deleteTermsVersion,
+  getCurrentTerms,
+  getTermsHistory,
+  publishTerms,
+} from '@/services/terms.service'
 import { cmsOrderResponse } from '@/utils/response.utils'
 import { API } from '@/constants/paths'
 import type {

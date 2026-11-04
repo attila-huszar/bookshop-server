@@ -8,7 +8,7 @@ import {
   getPaymentTerms,
   retrievePaymentIntent,
   startCheckoutPayment,
-} from '@/services'
+} from '@/services/payments.service'
 import { publicUserResponse } from '@/utils/response.utils'
 import { getPaymentIdempotencyKey } from '@/utils/stripe.utils'
 import { API } from '@/constants/paths'

@@ -4,7 +4,8 @@ import { env } from '@/config'
 import { startOutboxRelay } from '@/services/outbox.service'
 import { ordersDB, outboxDB, usersDB } from '@/repositories'
 import { getRedisConnectionHint } from '@/utils/redis.utils'
-import { closeMailer, log, sendMail } from '@/libs'
+import { log } from '@/libs/logger'
+import { closeMailer, sendMail } from '@/libs/nodemailer'
 import { emailQueue } from '@/queues/emailQueue'
 import {
   EMAIL,

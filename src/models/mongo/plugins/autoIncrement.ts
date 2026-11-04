@@ -1,5 +1,5 @@
 import mongoose, { type ClientSession, type Model, type Schema } from 'mongoose'
-import { log } from '@/libs'
+import { log } from '@/libs/logger'
 
 type AutoIncrementDoc = {
   isNew: boolean

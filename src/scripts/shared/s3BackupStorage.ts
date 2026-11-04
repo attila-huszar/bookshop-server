@@ -1,8 +1,10 @@
 import {
+  AbortMultipartUploadCommand,
   DeleteObjectCommand,
   HeadObjectCommand,
   type HeadObjectCommandOutput,
   ListObjectsV2Command,
+  NoSuchUpload,
   type S3Client,
 } from '@aws-sdk/client-s3'
 import { Upload } from '@aws-sdk/lib-storage'
@@ -86,6 +88,7 @@ export function createS3BackupStorage(input: {
         backupUploadPolicy.partSizeBytes,
         Math.ceil(archive.size / backupUploadPolicy.maxParts),
       )
+
       const upload = new Upload({
         client,
         params: {
@@ -98,9 +101,36 @@ export function createS3BackupStorage(input: {
         },
         partSize,
         queueSize: backupUploadPolicy.concurrency,
-        leavePartsOnError: false,
+        // Own cleanup also covers completion failures after all parts settle.
+        leavePartsOnError: true,
       })
-      const uploaded = await upload.done()
+
+      const uploaded = await upload.done().catch(async (error: unknown) => {
+        if (upload.uploadId) {
+          await client
+            .send(
+              new AbortMultipartUploadCommand({
+                Bucket: bucket,
+                Key: key,
+                UploadId: upload.uploadId,
+              }),
+            )
+            .catch((cleanupError: unknown) => {
+              if (cleanupError instanceof NoSuchUpload) {
+                return
+              }
+
+              log.warn('Failed to abort an incomplete backup upload', {
+                error: cleanupError,
+                key,
+                uploadId: upload.uploadId,
+              })
+            })
+        }
+
+        throw error
+      })
+
       const uploadedObject = {
         Bucket: bucket,
         Key: key,

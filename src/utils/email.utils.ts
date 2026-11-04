@@ -1,6 +1,6 @@
 import mjml2html from 'mjml'
 import { env } from '@/config'
-import { log } from '@/libs'
+import { log } from '@/libs/logger'
 import { EMAIL, emailLogoContentId } from '@/constants/email'
 import adminPaymentNotification from '@/resources/emailTemplates/adminPaymentNotification.mjml' with { type: 'text' }
 import orderConfirmation from '@/resources/emailTemplates/orderConfirmation.mjml' with { type: 'text' }

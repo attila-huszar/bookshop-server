@@ -31,6 +31,10 @@ export async function connectDatabase(): Promise<void> {
     )
     sqlite = drizzle({ client: sqliteClient, casing: 'snake_case' })
   } else {
+    if (!env.dbMongoUrl) {
+      throw new Error('MongoDB requires DB_MONGO_URL')
+    }
+
     await mongoose.connect(env.dbMongoUrl, {
       serverSelectionTimeoutMS: databasePolicy.mongoSelectionTimeoutMs,
       socketTimeoutMS: databasePolicy.mongoSocketTimeoutMs,

@@ -16,7 +16,7 @@ import {
   uuidSchema,
   validate,
 } from '@/validation'
-import { uploadFile } from '@/utils'
+import { uploadFile } from '@/utils/file.utils'
 import { calculatePriceCents } from '@/utils/pricing.utils'
 import {
   adminUserResponse,

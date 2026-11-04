@@ -7,31 +7,29 @@ import { S3Client } from '@aws-sdk/client-s3'
 import type { BunFile } from 'bun'
 import { env } from '@/config/env'
 import { log } from '@/libs/logger'
+import { backupTiming } from '@/constants/backup'
 import { DB_REPO } from '@/types/enums'
 import {
   waitForProcessExitWithTimeout,
   withBackupArchive,
 } from './shared/backupHelpers'
 import { BackupRetentionError, backupToStorage } from './shared/backupStorage'
+import {
+  getMongoBackupUri,
+  type MongoBackupMode,
+} from './shared/mongoBackupUri'
 import { createS3BackupStorage } from './shared/s3BackupStorage'
 
 type MongoArchiveInput = {
   uri: string
+  mode?: MongoBackupMode
   consume: (archive: BunFile) => Promise<void>
-  dump?: (configFile: string, outputFile: string) => Promise<void>
+  dump?: (command: string[]) => Promise<void>
 }
 
-async function dumpMongo(
-  configFile: string,
-  outputFile: string,
-): Promise<void> {
+async function dumpMongo(command: string[]): Promise<void> {
   const dumpProcess = Bun.spawn({
-    cmd: [
-      'mongodump',
-      `--config=${configFile}`,
-      `--archive=${outputFile}`,
-      '--gzip',
-    ],
+    cmd: command,
     env: process.env,
     stdout: 'inherit',
     stderr: 'inherit',
@@ -46,15 +44,35 @@ async function dumpMongo(
 export async function withMongoArchive(
   input: MongoArchiveInput,
 ): Promise<void> {
+  const mode = input.mode ?? 'oplog'
+  const uri = await getMongoBackupUri({ uri: input.uri, mode })
+
+  if (mode === 'logical') {
+    log.warn(
+      'Mongo logical backups do not capture oplog entries; pause all application, worker, maintenance and other writes for cross-collection consistency',
+    )
+  }
+
   await withBackupArchive({
     backupType: DB_REPO.MONGO,
     create: async ({ directory, outputFile }) => {
       const configFile = join(directory, 'mongodump.yaml')
-      await writeFile(configFile, `uri: ${JSON.stringify(input.uri)}\n`, {
+      await writeFile(configFile, `uri: ${JSON.stringify(uri)}\n`, {
         mode: 0o600,
         flag: 'wx',
       })
-      await (input.dump ?? dumpMongo)(configFile, outputFile)
+      const command = [
+        'mongodump',
+        `--config=${configFile}`,
+        `--archive=${outputFile}`,
+        '--gzip',
+      ]
+
+      if (mode === 'oplog') {
+        command.push('--oplog')
+      }
+
+      await (input.dump ?? dumpMongo)(command)
     },
     consume: input.consume,
   })
@@ -131,6 +149,12 @@ async function main(): Promise<void> {
         secretAccessKey: env.awsSecretAccessKey,
       },
       requestChecksumCalculation: 'WHEN_SUPPORTED',
+      requestHandler: {
+        connectionTimeout: backupTiming.connectionTimeoutMs,
+        socketTimeout: backupTiming.socketTimeoutMs,
+        requestTimeout: backupTiming.requestTimeoutMs,
+        throwOnRequestTimeout: true,
+      },
     })
     const result = await backupToStorage({
       backupType,
@@ -142,7 +166,11 @@ async function main(): Promise<void> {
       dryRun: env.backupRetentionDryRun,
       withArchive: (consume) =>
         backupType === DB_REPO.MONGO
-          ? withMongoArchive({ uri: env.dbMongoUrl, consume })
+          ? withMongoArchive({
+              uri: env.dbMongoUrl ?? '',
+              mode: env.mongoBackupMode,
+              consume,
+            })
           : withSqliteArchive({ source: env.dbSqliteFile, consume }),
       storage: createS3BackupStorage({ client, bucket: env.awsBucket }),
     })

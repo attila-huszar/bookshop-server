@@ -32,7 +32,7 @@ import {
 } from './controller'
 import { closeDatabase, connectDatabase } from './db'
 import { errorHandler } from './errors/errorHandler'
-import { log } from './libs'
+import { log } from './libs/logger'
 import {
   authAdminMiddleware,
   authMiddleware,
@@ -40,12 +40,9 @@ import {
   payloadLimiter,
   paymentAccessMiddleware,
 } from './middleware'
-import {
-  closeNgrokTunnel,
-  formatUptime,
-  ngrokForward,
-  shortHash,
-} from './utils'
+import { formatUptime } from './utils/date.utils'
+import { closeNgrokTunnel, ngrokForward } from './utils/ngrok'
+import { shortHash } from './utils/string.utils'
 
 export const app = new Hono()
 const api = new Hono()

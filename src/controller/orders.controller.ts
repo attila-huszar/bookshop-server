@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { getUserOrders } from '@/services'
+import { getUserOrders } from '@/services/orders.service'
 import { orderResponse } from '@/utils/response.utils'
 import { API } from '@/constants/paths'
 import type { AuthVariables } from '@/types'

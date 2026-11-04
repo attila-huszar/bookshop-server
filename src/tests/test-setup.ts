@@ -1,7 +1,6 @@
 import { mock } from 'bun:test'
 import { env } from '@/config'
 import * as validation from '@/validation'
-import { getOrderRef } from '@/utils/string.utils'
 import type {
   Order,
   OrderUpdate,
@@ -160,30 +159,66 @@ await mock.module('@/validation', () => ({
   safeValidate: mock(() => null),
 }))
 
-await mock.module('@/libs', () => ({
+const logger = await import('@/libs/logger')
+
+await mock.module('@/libs/logger', () => ({
+  ...logger,
   log: mockLogger,
   frontendLog: mockLogger,
-  logWorker: mockLogger,
-  stripe: mockStripe,
+}))
+
+const mailer = await import('@/libs/nodemailer')
+
+await mock.module('@/libs/nodemailer', () => ({
+  ...mailer,
   sendMail: mockSendMail,
   closeMailer: mock(),
 }))
 
-await mock.module('@/utils', () => ({
+const [
+  stripeUtilities,
+  jwtUtilities,
+  fileUtilities,
+  dateUtilities,
+  stringUtilities,
+] = await Promise.all([
+  import('@/utils/stripe.utils'),
+  import('@/utils/jwt.utils'),
+  import('@/utils/file.utils'),
+  import('@/utils/date.utils'),
+  import('@/utils/string.utils'),
+])
+
+await mock.module('@/utils/stripe.utils', () => ({
+  ...stripeUtilities,
   extractPaymentIntentFields: mockExtractPaymentIntentFields,
+}))
+
+await mock.module('@/utils/jwt.utils', () => ({
+  ...jwtUtilities,
   signAccessToken: mockSignAccessToken,
   signRefreshToken: mockSignRefreshToken,
   verifyJWTRefresh: mockVerifyJWTRefresh,
+}))
+
+await mock.module('@/utils/file.utils', () => ({
+  ...fileUtilities,
   uploadFile: mockUploadFile,
-  getOrderRef,
+}))
+
+await mock.module('@/utils/ngrok', () => ({
   closeNgrokTunnel: mock(),
-  formatUptime: mock(() => 'test uptime'),
   ngrokForward: mock(),
+}))
+
+await mock.module('@/utils/date.utils', () => ({
+  ...dateUtilities,
+  formatUptime: mock(() => 'test uptime'),
+}))
+
+await mock.module('@/utils/string.utils', () => ({
+  ...stringUtilities,
   shortHash: mock(() => 'test-fingerprint'),
-  Folder: {
-    Avatars: 'avatars',
-    ProductImages: 'product-images',
-  },
 }))
 
 await mock.module('ioredis', () => ({

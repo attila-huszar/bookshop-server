@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { logSchema, validate } from '@/validation'
-import { frontendLog } from '@/libs'
+import { frontendLog } from '@/libs/logger'
 import { API } from '@/constants/paths'
 import type { LogEntry } from '@/types'
 

@@ -1,5 +1,5 @@
 import { usersDB } from '@/repositories'
-import { log } from '@/libs'
+import { log } from '@/libs/logger'
 import { cleanupUnusedImages } from './imageCleanup.service'
 import { reconcileStaleOrders } from './orders.service'
 

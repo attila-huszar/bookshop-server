@@ -1,6 +1,6 @@
 import { closeDatabase, connectDatabase } from '@/db'
 import { runMaintenance } from '@/services/maintenance.service'
-import { log } from '@/libs'
+import { log } from '@/libs/logger'
 import { processTiming } from '@/constants/process'
 
 async function main(): Promise<void> {

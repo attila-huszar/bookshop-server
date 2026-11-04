@@ -9,7 +9,8 @@ import {
   tokenSchema,
   validate,
 } from '@/validation'
-import { signAccessToken, signRefreshToken, uploadFile } from '@/utils'
+import { uploadFile } from '@/utils/file.utils'
+import { signAccessToken, signRefreshToken } from '@/utils/jwt.utils'
 import { publicUserResponse } from '@/utils/response.utils'
 import { authTiming, DUMMY_PASSWORD_HASH } from '@/constants/auth'
 import { BadRequest, Forbidden, Internal, Unauthorized } from '@/errors'

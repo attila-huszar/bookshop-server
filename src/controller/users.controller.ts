@@ -18,7 +18,11 @@ import {
   uploadUserAvatar,
   verifyUser,
 } from '@/services/users.service'
-import { signAccessToken, signRefreshToken, verifyJWTRefresh } from '@/utils'
+import {
+  signAccessToken,
+  signRefreshToken,
+  verifyJWTRefresh,
+} from '@/utils/jwt.utils'
 import { publicUserResponse } from '@/utils/response.utils'
 import { authTiming } from '@/constants/auth'
 import { API, COUNTRY_CODES_FILE } from '@/constants/paths'

@@ -1,5 +1,5 @@
 import { outboxDB } from '@/repositories'
-import { log } from '@/libs'
+import { log } from '@/libs/logger'
 import { emailQueue } from '@/queues/emailQueue'
 import { emailJobOptions, outboxPolicy } from '@/constants/email'
 

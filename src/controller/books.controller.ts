@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { getBookById, getBooks, searchBooks } from '@/services'
+import { getBookById, getBooks, searchBooks } from '@/services/books.service'
 import { bookQuerySchema, bookSearchSchema, validate } from '@/validation'
 import { API } from '@/constants/paths'
 import { NotFound } from '@/errors'

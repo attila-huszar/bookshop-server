@@ -30,8 +30,11 @@ export const env = {
     .default(DB_REPO.SQLITE)
     .parse(Bun.env.DB_REPO),
   dbSqliteFile: Bun.env.DB_SQLITE_FILE ?? 'data/db.sqlite',
-  dbMongoUrl:
-    Bun.env.DB_MONGO_URL ?? 'mongodb://mongodb:27017/bookshop?replicaSet=rs0',
+  dbMongoUrl: Bun.env.DB_MONGO_URL,
+  mongoBackupMode: z
+    .enum(['oplog', 'logical'])
+    .default('oplog')
+    .parse(Bun.env.MONGO_BACKUP_MODE),
 
   backupRetentionDaily:
     Bun.env.BACKUP_RETENTION_DAILY ?? String(backupRetentionPolicy.daily),

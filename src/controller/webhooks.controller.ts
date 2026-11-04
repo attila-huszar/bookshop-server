@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { verifyAndHandleStripeWebhook } from '@/services'
+import { verifyAndHandleStripeWebhook } from '@/services/webhooks.service'
 import { API } from '@/constants/paths'
 import { HttpErrorCode } from '@/types/enums'
 

@@ -8,6 +8,9 @@ export const backupScriptPath = fileURLToPath(
 export const backupTiming = {
   processTimeoutMs: TimeMs.ThirtyMinutes,
   terminationGraceMs: TimeMs.FiveSeconds,
+  connectionTimeoutMs: TimeMs.TenSeconds,
+  socketTimeoutMs: TimeMs.OneMinute,
+  requestTimeoutMs: TimeMs.FiveMinutes,
 } as const
 
 export const backupRetentionPolicy = {

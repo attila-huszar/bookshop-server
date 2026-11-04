@@ -1,8 +1,8 @@
 import type { MiddlewareHandler } from 'hono'
 import { verify } from 'hono/jwt'
 import { env } from '@/config'
-import { getActiveUser } from '@/services'
-import { log } from '@/libs'
+import { getActiveUser } from '@/services/users.service'
+import { log } from '@/libs/logger'
 import type { AuthVariables } from '@/types'
 
 const BEARER_PREFIX = 'Bearer '

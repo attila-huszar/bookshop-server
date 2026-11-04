@@ -9,7 +9,7 @@ import {
 } from '@/validation'
 import { calculatePriceCents, toCents } from '@/utils/pricing.utils'
 import { orderResponse } from '@/utils/response.utils'
-import { stripe } from '@/libs'
+import { stripe } from '@/libs/stripe'
 import { defaultCurrency } from '@/constants/payment'
 import { BadRequest, Internal, NotFound } from '@/errors'
 import { Unauthorized } from '@/errors/Unauthorized'
