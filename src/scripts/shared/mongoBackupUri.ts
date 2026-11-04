@@ -1,10 +1,6 @@
 import { Resolver } from 'node:dns/promises'
-import type { ConnectionString as ParsedConnectionString } from 'mongodb-connection-string-url'
+import { getMongoUriOption, parseMongoURI } from '@/utils/mongoUri.utils'
 import { backupTiming } from '@/constants/backup'
-
-// Use CommonJS to bypass the package's broken ESM wrapper in Bun.
-const { ConnectionString } =
-  require('mongodb-connection-string-url') as typeof import('mongodb-connection-string-url')
 
 export type MongoBackupMode = 'logical' | 'oplog'
 
@@ -52,7 +48,8 @@ async function resolveAuthSource(
     throw new Error('MongoDB backup URI has multiple DNS TXT records')
   }
 
-  const source = new URLSearchParams(records[0]?.join('') ?? '').get(
+  const source = getMongoUriOption(
+    new URLSearchParams(records[0]?.join('') ?? ''),
     'authSource',
   )
 
@@ -66,20 +63,16 @@ async function resolveAuthSource(
 export async function getMongoBackupUri(
   input: MongoBackupUriInput,
 ): Promise<string> {
-  let connection: ParsedConnectionString
-  let database: string
+  let connection: ReturnType<typeof parseMongoURI>
 
   try {
-    connection = new ConnectionString(input.uri)
-    database = decodeURIComponent(connection.pathname.slice(1))
-
-    if (database.includes('/') || connection.hash) {
-      throw new Error('Invalid database path')
-    }
+    connection = parseMongoURI(input.uri)
   } catch {
     // Parser errors can contain credentials; do not include their cause.
     throw new Error('Mongo backups require a valid DB_MONGO_URL')
   }
+
+  const database = connection.database
 
   if (input.mode === 'logical') {
     if (!database) {
@@ -96,10 +89,10 @@ export async function getMongoBackupUri(
   }
 
   const options = connection.searchParams
-  const mechanism = options.get('authMechanism') ?? ''
+  const mechanism = getMongoUriOption(options, 'authMechanism') ?? ''
 
   if (
-    !options.has('authSource') &&
+    getMongoUriOption(options, 'authSource') === null &&
     (connection.username || mechanism) &&
     !externalAuthMechanisms.has(mechanism)
   ) {
@@ -109,7 +102,7 @@ export async function getMongoBackupUri(
     options.set('authSource', source ?? database)
   }
 
-  connection.pathname = '/'
+  const query = options.toString()
 
-  return connection.toString()
+  return `${connection.origin}/${query ? `?${query}` : ''}`
 }

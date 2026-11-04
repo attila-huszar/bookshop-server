@@ -45,6 +45,29 @@ describe('MongoDB backup connection strings', () => {
       expected: 'mongodb://user:secret@mongo.test/?AUTHSOURCE=admin',
     },
     {
+      uri: 'mongodb+srv://user:secret@cluster.test/bookshop?AUTHSOURCE=admin',
+      expected: 'mongodb+srv://user:secret@cluster.test/?AUTHSOURCE=admin',
+    },
+    {
+      uri: 'mongodb://user:@mongo.test/bookshop',
+      expected: 'mongodb://user:@mongo.test/?authSource=bookshop',
+    },
+    {
+      uri: 'mongodb://user:p%3Ass%2F%40%23%5B%5D%24@[::1]:27017,[2001:db8::1]:27018/bookshop',
+      expected:
+        'mongodb://user:p%3Ass%2F%40%23%5B%5D%24@[::1]:27017,[2001:db8::1]:27018/?authSource=bookshop',
+    },
+    {
+      uri: 'mongodb://user:secret@%2Ftmp%2Fmongodb-27017.sock/bookshop',
+      expected:
+        'mongodb://user:secret@%2Ftmp%2Fmongodb-27017.sock/?authSource=bookshop',
+    },
+    {
+      uri: 'mongodb://user:secret@mongo.test/bookshop?readPreferenceTags=region%3Aeu&readPreferenceTags=&tls=true',
+      expected:
+        'mongodb://user:secret@mongo.test/?readPreferenceTags=region%3Aeu&readPreferenceTags=&tls=true&authSource=bookshop',
+    },
+    {
       uri: 'mongodb://user:secret@mongo.test/%62ookshop',
       expected: 'mongodb://user:secret@mongo.test/?authSource=bookshop',
     },
@@ -55,6 +78,11 @@ describe('MongoDB backup connection strings', () => {
     {
       uri: 'mongodb://mongo.test/bookshop?authMechanism=MONGODB-X509&tls=true',
       expected: 'mongodb://mongo.test/?authMechanism=MONGODB-X509&tls=true',
+    },
+    {
+      uri: 'mongodb+srv://user:secret@cluster.test/bookshop?AUTHMECHANISM=MONGODB-AWS',
+      expected:
+        'mongodb+srv://user:secret@cluster.test/?AUTHMECHANISM=MONGODB-AWS',
     },
     {
       uri: 'mongodb://user:secret@mongo.test/?authSource=bookshop',
@@ -80,6 +108,7 @@ describe('MongoDB backup connection strings', () => {
       source: 'admin',
     },
     { records: [['replicaSet=rs0']], source: 'bookshop' },
+    { records: [['AUTHSOURCE=admin']], source: 'admin' },
     { records: [], source: 'bookshop' },
   ])(
     'preserves implicit SRV authentication with $records',
@@ -151,19 +180,29 @@ describe('MongoDB backup connection strings', () => {
     )
   })
 
-  it('rejects malformed URIs without exposing their password', async () => {
-    await rejects(
-      getMongoBackupUri({
-        uri: 'https://user:never-print-this@mongo.test/bookshop',
-        mode: 'oplog',
-      }),
-      (error: unknown) => {
-        expect(String(error)).toContain('valid DB_MONGO_URL')
-        expect(String(error)).not.toContain('never-print-this')
-        expect((error as Error).cause).toBeUndefined()
+  it.each([
+    'https://user:never-print-this@mongo.test/bookshop',
+    'mongodb://user:never-print-this%ZZ@mongo.test/bookshop',
+    'mongodb://user:never-print-this@mongo.test:27017oops/bookshop',
+    'mongodb://user:never-print-this@mongo.test/bookshop%2Fother',
+    'mongodb://user:never-print-this@mongo.test/bookshop#fragment',
+    'mongodb+srv://user:never-print-this@mongo.test:27017/bookshop',
+  ])(
+    'rejects malformed URIs without exposing their password: %s',
+    async (uri) => {
+      await rejects(
+        getMongoBackupUri({
+          uri,
+          mode: 'oplog',
+        }),
+        (error: unknown) => {
+          expect(String(error)).toContain('valid DB_MONGO_URL')
+          expect(String(error)).not.toContain('never-print-this')
+          expect((error as Error).cause).toBeUndefined()
 
-        return true
-      },
-    )
-  })
+          return true
+        },
+      )
+    },
+  )
 })

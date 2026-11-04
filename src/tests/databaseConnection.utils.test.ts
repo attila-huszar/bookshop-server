@@ -11,6 +11,8 @@ describe('MongoDB connection settings', () => {
     'mongodb+srv://user:<db_password>@cluster.test/bookshop',
     'mongodb+srv://user:%3Cdb_password%3E@cluster.test/bookshop',
     'mongodb://<username>:password@localhost/bookshop',
+    'mongodb+srv://user:password@<cluster-hostname>/bookshop',
+    'mongodb+srv://user:password@%3Ccluster-hostname%3E/bookshop',
   ])('rejects placeholders before connecting: %s', (uri) => {
     expect(() => validateMongoUrl(uri)).toThrow('still contains a placeholder')
   })
@@ -19,6 +21,24 @@ describe('MongoDB connection settings', () => {
     'https://user:private-password@cluster.test/bookshop',
     'mongodb://user:private-password%ZZ@localhost/bookshop',
     'mongodb+srv://user:private-password@',
+    'mongodb://user:private-password@localhost:27017oops/bookshop',
+    'mongodb://user:private-password@localhost:0/bookshop',
+    'mongodb://user:private-password@localhost:65536/bookshop',
+    'mongodb://user:private-password@one.test,,two.test/bookshop',
+    'mongodb://user:private-password@::1/bookshop',
+    'mongodb://user:private-password@[not-ipv6]/bookshop',
+    'mongodb://user:private-password@localhost/bookshop#fragment',
+    'mongodb://user:private-password@localhost/bookshop/other',
+    'mongodb://user:private-password@localhost/bookshop%2Fother',
+    'mongodb://user:private-password@localhost/bookshop?authSource=%ZZ',
+    'mongodb://user:private-password:extra@localhost/bookshop',
+    'mongodb://user:private-password@extra@localhost/bookshop',
+    'mongodb://:private-password@localhost/bookshop',
+    'mongodb+srv://user:private-password@one.test,two.test/bookshop',
+    'mongodb+srv://user:private-password@cluster.test:27017/bookshop',
+    'mongodb+srv://user:private-password@[::1]/bookshop',
+    'mongodb://user:private-password@local host/bookshop',
+    'mongodb://user:private-password@localhost/bookshop\n',
   ])('rejects malformed URIs without exposing credentials: %s', (uri) => {
     let caught: unknown
 
@@ -38,6 +58,11 @@ describe('MongoDB connection settings', () => {
     'mongodb://localhost/bookshop',
     'mongodb://user:encoded%40password@one.test:27017,two.test:27017/bookshop?replicaSet=rs0',
     'mongodb+srv://user:encoded%23password@cluster.test/bookshop?authSource=admin',
+    'mongodb://user:@localhost/bookshop',
+    'mongodb://user@localhost/bookshop',
+    'mongodb://user:p%3Ass%2F%40%23%5B%5D%24@[::1]:27017,[2001:db8::1]:27018/bookshop',
+    'mongodb://user:secret@%2Ftmp%2Fmongodb-27017.sock/bookshop',
+    'mongodb://localhost?authSource=admin',
   ])('accepts valid supported MongoDB URIs: %s', (uri) => {
     expect(() => validateMongoUrl(uri)).not.toThrow()
   })

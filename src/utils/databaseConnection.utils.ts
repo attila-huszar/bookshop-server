@@ -1,9 +1,6 @@
 import { DB_REPO } from '@/types/enums'
 import { getErrorCode } from './error.utils'
-
-// Use CommonJS to bypass the package's broken ESM wrapper in Bun.
-const { ConnectionString } =
-  require('mongodb-connection-string-url') as typeof import('mongodb-connection-string-url')
+import { parseMongoURI } from './mongoUri.utils'
 
 export class DatabaseStartupError extends Error {
   override name = 'DatabaseStartupError'
@@ -13,22 +10,25 @@ export class DatabaseStartupError extends Error {
 }
 
 export function validateMongoUrl(uri: string): void {
-  let decoded: string
-
   try {
-    new ConnectionString(uri)
-    decoded = decodeURIComponent(uri)
-  } catch {
+    const decoded = decodeURIComponent(uri)
+
+    if (
+      /<(?:db[_-]?password|password|username|user|cluster[^>]*)>/i.test(decoded)
+    ) {
+      throw new DatabaseStartupError(
+        'DB_MONGO_URL still contains a placeholder. Replace the Atlas username/password placeholders in .env and percent-encode special characters.',
+      )
+    }
+
+    parseMongoURI(uri)
+  } catch (error) {
+    if (error instanceof DatabaseStartupError) {
+      throw error
+    }
+
     throw new DatabaseStartupError(
       'Invalid DB_MONGO_URL. Use a mongodb:// or mongodb+srv:// URI and percent-encode special characters in credentials.',
-    )
-  }
-
-  if (
-    /<(?:db[_-]?password|password|username|user|cluster[^>]*)>/i.test(decoded)
-  ) {
-    throw new DatabaseStartupError(
-      'DB_MONGO_URL still contains a placeholder. Replace the Atlas username/password placeholders in .env and percent-encode special characters.',
     )
   }
 }
