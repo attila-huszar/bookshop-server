@@ -11,6 +11,12 @@ const accessScript = Bun.fileURLToPath(
 const lifecycle = new URL('../utils/process.utils.ts', import.meta.url).href
 const supported =
   process.platform === 'linux' && Bun.which('flock') && Bun.which('setsid')
+const shells = ['/bin/sh']
+const dash = Bun.which('dash')
+
+if (dash && !shells.includes(dash)) {
+  shells.push(dash)
+}
 
 async function waitUntil(ready: () => boolean | Promise<boolean>) {
   for (let attempt = 0; attempt < 150; attempt++) {
@@ -24,7 +30,9 @@ async function waitUntil(ready: () => boolean | Promise<boolean>) {
   throw new Error('Timed out waiting for the database coordination fixture')
 }
 
-async function fixture(input: { watch?: boolean; failDrain?: boolean } = {}) {
+async function fixture(
+  input: { watch?: boolean; failDrain?: boolean; shell?: string } = {},
+) {
   const directory = await mkdtemp(join(tmpdir(), 'bookshop-writer-pause-'))
   const eventsFile = join(directory, 'events.txt')
   const source = join(directory, 'writer.ts')
@@ -56,7 +64,7 @@ async function fixture(input: { watch?: boolean; failDrain?: boolean } = {}) {
   )
   const writer = Bun.spawn(
     [
-      '/bin/sh',
+      input.shell ?? '/bin/sh',
       accessScript,
       'service',
       process.execPath,
@@ -283,10 +291,12 @@ describe.skipIf(!supported)('logical Mongo backup coordination', () => {
     }
   })
 
-  it.each([false, true])(
-    'drains writers before dumping and resumes afterward; watch: %s',
-    async (watch) => {
-      const context = await fixture({ watch })
+  it.each(
+    shells.flatMap((shell) => [false, true].map((watch) => ({ shell, watch }))),
+  )(
+    'drains writers before dumping and resumes afterward; shell: $shell, watch: $watch',
+    async ({ shell, watch }) => {
+      const context = await fixture({ shell, watch })
 
       try {
         await context.waitStarted(1)

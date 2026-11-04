@@ -80,7 +80,7 @@ stop_child() {
   if [ -n "$child" ]; then
     : >"$drain_file"
     : >"$drain_file.request"
-    kill -TERM -- "-$child" 2>/dev/null || true
+    kill -TERM "-$child" 2>/dev/null || true
   fi
 }
 
@@ -122,7 +122,7 @@ while [ "$stopping" = false ]; do
       if [ -f "$drain_file.request" ] && read -r drained <"$drain_file"; then
         case "$drained" in
           0|1)
-            kill -KILL -- "-$child" 2>/dev/null || true
+            kill -KILL "-$child" 2>/dev/null || true
             exit 0
             ;;
         esac
@@ -153,7 +153,7 @@ while [ "$stopping" = false ]; do
   done
 
   # Bun's watch process may exit before its application child finishes cleanup.
-  while kill -0 -- "-$child" 2>/dev/null; do
+  while kill -0 "-$child" 2>/dev/null; do
     sleep 0.1
   done
 
