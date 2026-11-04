@@ -2,9 +2,8 @@ import { describe, expect, it } from 'bun:test'
 import { mkdtemp, rm, rmdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 
-const projectRoot = fileURLToPath(new URL('../../', import.meta.url))
+const projectRoot = Bun.fileURLToPath(new URL('../../', import.meta.url))
 const databaseUrl = new URL('../db.ts', import.meta.url).href
 const sqliteUrl = new URL('../database/sqlite.ts', import.meta.url).href
 const envUrl = new URL('../config/env.ts', import.meta.url).href
@@ -264,7 +263,7 @@ describe('database bootstrap', () => {
 
 describe('database selection', () => {
   it.each([
-    [undefined, 'SQLITE'],
+    [undefined, 'MONGO'],
     ['SQLITE', 'SQLITE'],
     ['MONGO', 'MONGO'],
     ['MONGOO', null],

@@ -1,6 +1,7 @@
 import { describe, expect, it, mock } from 'bun:test'
 import { rejects } from 'node:assert/strict'
 import { getMongoBackupUri } from '@/scripts/shared/mongoBackupUri'
+import { MongoBackupMode } from '@/types/enums'
 
 type ResolveTxt = NonNullable<
   Parameters<typeof getMongoBackupUri>[0]['resolveTxt']
@@ -15,7 +16,11 @@ describe('MongoDB backup connection strings', () => {
     )
 
     expect(
-      await getMongoBackupUri({ uri, mode: 'logical', resolveTxt: lookup }),
+      await getMongoBackupUri({
+        uri,
+        mode: MongoBackupMode.Logical,
+        resolveTxt: lookup,
+      }),
     ).toBe(uri)
     expect(lookup).not.toHaveBeenCalled()
   })
@@ -96,7 +101,11 @@ describe('MongoDB backup connection strings', () => {
       )
 
       expect(
-        await getMongoBackupUri({ uri, mode: 'oplog', resolveTxt: lookup }),
+        await getMongoBackupUri({
+          uri,
+          mode: MongoBackupMode.Oplog,
+          resolveTxt: lookup,
+        }),
       ).toBe(expected)
       expect(lookup).not.toHaveBeenCalled()
     },
@@ -118,7 +127,11 @@ describe('MongoDB backup connection strings', () => {
         'mongodb+srv://user:secret@cluster.test/bookshop?retryWrites=true'
 
       expect(
-        await getMongoBackupUri({ uri, mode: 'oplog', resolveTxt: lookup }),
+        await getMongoBackupUri({
+          uri,
+          mode: MongoBackupMode.Oplog,
+          resolveTxt: lookup,
+        }),
       ).toBe(
         `mongodb+srv://user:secret@cluster.test/?retryWrites=true&authSource=${source}`,
       )
@@ -136,7 +149,7 @@ describe('MongoDB backup connection strings', () => {
       expect(
         await getMongoBackupUri({
           uri: 'mongodb+srv://user:secret@cluster.test/bookshop',
-          mode: 'oplog',
+          mode: MongoBackupMode.Oplog,
           resolveTxt: lookup,
         }),
       ).toBe('mongodb+srv://user:secret@cluster.test/?authSource=bookshop')
@@ -152,7 +165,7 @@ describe('MongoDB backup connection strings', () => {
       await rejects(
         getMongoBackupUri({
           uri: 'mongodb+srv://user:secret@cluster.test/bookshop',
-          mode: 'oplog',
+          mode: MongoBackupMode.Oplog,
           resolveTxt: () => Promise.resolve(records),
         }),
         /multiple DNS TXT|empty DNS authSource/,
@@ -166,7 +179,7 @@ describe('MongoDB backup connection strings', () => {
     await rejects(
       getMongoBackupUri({
         uri: 'mongodb+srv://user:never-print-this@cluster.test/bookshop',
-        mode: 'oplog',
+        mode: MongoBackupMode.Oplog,
         resolveTxt: () => Promise.reject(failure),
       }),
       (error: unknown) => {
@@ -193,7 +206,7 @@ describe('MongoDB backup connection strings', () => {
       await rejects(
         getMongoBackupUri({
           uri,
-          mode: 'oplog',
+          mode: MongoBackupMode.Oplog,
         }),
         (error: unknown) => {
           expect(String(error)).toContain('valid DB_MONGO_URL')

@@ -3,6 +3,11 @@ export const enum DB_REPO {
   MONGO = 'MONGO',
 }
 
+export const enum MongoBackupMode {
+  Logical = 'logical',
+  Oplog = 'oplog',
+}
+
 export enum UserRole {
   Admin = 'admin',
   User = 'user',

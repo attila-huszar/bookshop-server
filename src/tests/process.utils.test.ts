@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'bun:test'
-import { fileURLToPath } from 'node:url'
 
-const root = fileURLToPath(new URL('../../', import.meta.url))
+const root = Bun.fileURLToPath(new URL('../../', import.meta.url))
 const lifecycle = new URL('../utils/process.utils.ts', import.meta.url).href
 
 async function exercise(source: string, exitCode: number, markers: string[]) {

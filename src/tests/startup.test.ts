@@ -2,9 +2,8 @@ import { describe, expect, it } from 'bun:test'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 
-const projectRoot = fileURLToPath(new URL('../../', import.meta.url))
+const projectRoot = Bun.fileURLToPath(new URL('../../', import.meta.url))
 const mongooseUrl = import.meta.resolve('mongoose')
 const bullmqUrl = import.meta.resolve('bullmq')
 

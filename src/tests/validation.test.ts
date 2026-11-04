@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'bun:test'
-import { fileURLToPath } from 'node:url'
 import { SQLiteSyncDialect } from 'drizzle-orm/sqlite-core'
 import { bookQueryBuilder as sqliteBookQuery } from '@/repositories/drizzle/books.query'
 import { bookQueryBuilder as mongoBookQuery } from '@/repositories/mongoose/books.query'
@@ -348,7 +347,7 @@ describe('request validation', () => {
       `,
       ],
       {
-        cwd: fileURLToPath(new URL('../../', import.meta.url)),
+        cwd: Bun.fileURLToPath(new URL('../../', import.meta.url)),
         env: {
           ...process.env,
           DB_REPO: 'MONGO',

@@ -78,6 +78,8 @@ bun run setup
 
 Setup uses a temporary container to initialize the database selected by `DB_REPO` and seed the catalogue and admin account using `ADMIN_EMAIL`/`ADMIN_PASSWORD`. SQLite migrations run automatically when `DB_REPO=SQLITE`. Run it only for a fresh database.
 
+Mongo logical backups briefly pause the API and email worker while the dump runs. Compose coordinates its database writers automatically; stop external clients writing to the same database during that window. Rebuild/recreate the services after changing their Docker configuration.
+
 Start development separately:
 
 ```sh

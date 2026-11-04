@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'bun:test'
-import { fileURLToPath } from 'node:url'
 
-const projectRoot = fileURLToPath(new URL('../../', import.meta.url))
+const projectRoot = Bun.fileURLToPath(new URL('../../', import.meta.url))
 const sourceRoot = new URL('../', import.meta.url).href
 
 it('rejects an invalid database selector before importing an adapter', async () => {

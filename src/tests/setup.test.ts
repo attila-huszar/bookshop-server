@@ -3,12 +3,11 @@ import { describe, expect, it } from 'bun:test'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import authorsData from '@/database/seeds/authors.json'
 import booksData from '@/database/seeds/books.json'
 import newsData from '@/database/seeds/news.json'
 
-const projectRoot = fileURLToPath(new URL('../../', import.meta.url))
+const projectRoot = Bun.fileURLToPath(new URL('../../', import.meta.url))
 const databaseUrl = new URL('../db.ts', import.meta.url).href
 const seedsUrl = new URL('../database/seeds/index.ts', import.meta.url).href
 const migratorUrl = import.meta.resolve('drizzle-orm/bun-sqlite/migrator')

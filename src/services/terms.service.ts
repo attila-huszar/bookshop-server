@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import { termsDB } from '@/repositories'
 import {
   publishTermsSchema,
@@ -55,7 +54,7 @@ export async function publishTerms(input: unknown) {
   }
 
   return await termsDB.publishTerms({
-    version: randomUUID(),
+    version: crypto.randomUUID(),
     content,
     publishedAt: new Date().toISOString(),
   })

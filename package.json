@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "concurrently -k -n client,docker \"bun run --cwd ../bookshop-client dev:client\" \"bun run docker:dev\" --teardown \"docker compose stop\"",
     "docker:dev": "cross-env NODE_ENV=development BUN_RUN_MODE=--watch NGROK_AUTHTOKEN= docker compose up --build --abort-on-container-exit",
-    "setup": "docker compose run --build --rm --no-deps server bun src/database/setup.ts",
+    "setup": "docker compose run --build --rm --no-deps server /bin/sh docker/database-access.sh job bun src/database/setup.ts",
     "lint": "bun --bun eslint . --max-warnings 0",
     "typecheck": "bun --bun tsc --noEmit",
     "format": "prettier --write .",

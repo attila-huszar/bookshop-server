@@ -7,14 +7,15 @@ import { createGzip } from 'node:zlib'
 import type { BunFile } from 'bun'
 import { log } from '@/libs/logger'
 import { backupTiming } from '@/constants/backup'
-import { DB_REPO } from '@/types/enums'
-import { getMongoBackupUri, type MongoBackupMode } from './mongoBackupUri'
+import { DB_REPO, MongoBackupMode } from '@/types/enums'
+import { getMongoBackupUri } from './mongoBackupUri'
 
 type MongoArchiveInput = {
   uri: string
   mode?: MongoBackupMode
   consume: (archive: BunFile) => Promise<void>
   dump?: (command: string[]) => Promise<void>
+  pauseWrites?: (dump: (signal: AbortSignal) => Promise<void>) => Promise<void>
   signal?: AbortSignal
 }
 
@@ -48,14 +49,11 @@ export async function withMongoArchive(
 ): Promise<void> {
   input.signal?.throwIfAborted()
 
-  const mode = input.mode ?? 'oplog'
+  const mode = input.mode ?? MongoBackupMode.Oplog
   const uri = await getMongoBackupUri({ uri: input.uri, mode })
-  const dump =
-    input.dump ?? ((command: string[]) => dumpMongo(command, input.signal))
-
-  if (mode === 'logical') {
-    log.warn(
-      'Mongo logical backups do not capture oplog entries; pause all application, worker, maintenance and other writes for cross-collection consistency',
+  if (mode === MongoBackupMode.Logical && !input.pauseWrites) {
+    throw new Error(
+      'Logical Mongo backups require coordinated database writers',
     )
   }
 
@@ -76,11 +74,18 @@ export async function withMongoArchive(
         '--gzip',
       ]
 
-      if (mode === 'oplog') {
+      if (mode === MongoBackupMode.Oplog) {
         command.push('--oplog')
       }
 
-      await dump(command)
+      const dump = (signal: AbortSignal | undefined) =>
+        input.dump ? input.dump(command) : dumpMongo(command, signal)
+
+      if (mode === MongoBackupMode.Logical) {
+        await input.pauseWrites!(dump)
+      } else {
+        await dump(input.signal)
+      }
     },
     consume: input.consume,
   })

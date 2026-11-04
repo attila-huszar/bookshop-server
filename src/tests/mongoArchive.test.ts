@@ -3,6 +3,7 @@ import { rejects } from 'node:assert/strict'
 import { stat } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { withMongoArchive } from '@/scripts/shared/backupArchive'
+import { MongoBackupMode } from '@/types/enums'
 
 type ArchiveInput = Parameters<typeof withMongoArchive>[0]
 
@@ -10,10 +11,17 @@ function setup(expectedUri?: string) {
   let directory = ''
   const input = {
     uri: 'mongodb://backup-user:secret@mongo.test/?replicaSet=rs0&authSource=bookshop',
-    mode: 'oplog' as NonNullable<ArchiveInput['mode']>,
+    mode: MongoBackupMode.Oplog,
+    pauseWrites: mock<NonNullable<ArchiveInput['pauseWrites']>>(
+      async (dump) => {
+        await dump(new AbortController().signal)
+      },
+    ),
     dump: mock<NonNullable<ArchiveInput['dump']>>(async (command) => {
       expect(command[0]).toBe('mongodump')
-      expect(command.includes('--oplog')).toBe(input.mode === 'oplog')
+      expect(command.includes('--oplog')).toBe(
+        input.mode === MongoBackupMode.Oplog,
+      )
       expect(command).toContain('--gzip')
       const configFile = command
         .find((argument) => argument.startsWith('--config='))!
@@ -44,6 +52,53 @@ function setup(expectedUri?: string) {
 }
 
 describe('temporary Mongo archives', () => {
+  it('rejects logical backups without writer coordination', async () => {
+    const context = setup()
+
+    await rejects(
+      withMongoArchive({
+        ...context.input,
+        mode: MongoBackupMode.Logical,
+        uri: 'mongodb://mongo.test/bookshop',
+        pauseWrites: undefined,
+      }),
+      /coordinated database writers/,
+    )
+
+    expect(context.input.dump).not.toHaveBeenCalled()
+    expect(context.input.consume).not.toHaveBeenCalled()
+  })
+
+  it('pauses writers only for the logical dump and resumes them before upload', async () => {
+    const context = setup()
+    const events: string[] = []
+    context.input.mode = MongoBackupMode.Logical
+    context.input.uri = 'mongodb://mongo.test/bookshop'
+    const successfulDump = context.input.dump.getMockImplementation()!
+    context.input.dump.mockImplementationOnce(async (command) => {
+      events.push('dump')
+      await successfulDump(command)
+    })
+    context.input.pauseWrites.mockImplementationOnce(async (dump) => {
+      events.push('pause')
+
+      try {
+        await dump(new AbortController().signal)
+      } finally {
+        events.push('resume')
+      }
+    })
+    context.input.consume.mockImplementationOnce(() => {
+      events.push('upload')
+
+      return Promise.resolve()
+    })
+
+    await withMongoArchive(context.input)
+
+    expect(events).toEqual(['pause', 'dump', 'resume', 'upload'])
+  })
+
   it('skips upload and removes scratch files when interrupted after the dump', async () => {
     const context = setup()
     const controller = new AbortController()
@@ -192,7 +247,7 @@ describe('temporary Mongo archives', () => {
     async (uri) => {
       const context = setup()
       context.input.uri = uri
-      context.input.mode = 'logical'
+      context.input.mode = MongoBackupMode.Logical
 
       await withMongoArchive(context.input)
 
@@ -209,7 +264,7 @@ describe('temporary Mongo archives', () => {
   ])('rejects a logical dump without an explicit database: %s', async (uri) => {
     const context = setup()
     context.input.uri = uri
-    context.input.mode = 'logical'
+    context.input.mode = MongoBackupMode.Logical
 
     await rejects(withMongoArchive(context.input), /DB_MONGO_URL/)
 

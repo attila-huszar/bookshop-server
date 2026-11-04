@@ -2,7 +2,6 @@ import { describe, expect, it } from 'bun:test'
 import { chmod, mkdtemp, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 
 describe('cron container lifecycle', () => {
   it.skipIf(process.getuid?.() !== 0 || !Bun.which('crond'))(
@@ -47,7 +46,7 @@ describe('cron container lifecycle', () => {
           REVIEW_JOB_FILE: jobFile,
         }
         cron = Bun.spawn(['/bin/sh', 'docker/cron/entrypoint.sh'], {
-          cwd: fileURLToPath(new URL('../../', import.meta.url)),
+          cwd: Bun.fileURLToPath(new URL('../../', import.meta.url)),
           env: environment,
           stdout: 'pipe',
           stderr: 'pipe',

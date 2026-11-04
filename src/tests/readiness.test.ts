@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'bun:test'
-import { fileURLToPath } from 'node:url'
 import { createApp } from '@/app'
 
 describe('readiness and liveness', () => {
@@ -20,7 +19,7 @@ describe('readiness and liveness', () => {
 
   it('rejects an empty SQLite schema and becomes unready after close', async () => {
     const db = new URL('../db.ts', import.meta.url).href
-    const migrations = fileURLToPath(
+    const migrations = Bun.fileURLToPath(
       new URL('../database/migrations/', import.meta.url),
     )
     const child = Bun.spawn(
@@ -51,7 +50,7 @@ describe('readiness and liveness', () => {
     `,
       ],
       {
-        cwd: fileURLToPath(new URL('../../', import.meta.url)),
+        cwd: Bun.fileURLToPath(new URL('../../', import.meta.url)),
         env: { ...process.env, DB_REPO: 'SQLITE', DB_SQLITE_FILE: ':memory:' },
         stdout: 'pipe',
         stderr: 'pipe',

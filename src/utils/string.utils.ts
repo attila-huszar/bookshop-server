@@ -1,5 +1,3 @@
-import { createHash } from 'node:crypto'
-
 type SplitFullNameResult = {
   firstName: string | null
   lastName: string | null
@@ -26,5 +24,5 @@ export const getOrderRef = (paymentId: string): string =>
   paymentId.slice(-6).toUpperCase()
 
 export const shortHash = (value: string) => {
-  return createHash('sha256').update(value).digest('hex').slice(0, 12)
+  return Bun.CryptoHasher.hash('sha256', value, 'hex').slice(0, 12)
 }

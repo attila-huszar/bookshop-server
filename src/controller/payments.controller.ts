@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import { Hono } from 'hono'
 import { deleteCookie, setSignedCookie } from 'hono/cookie'
 import { env, PAYMENT_SESSION, paymentCookieOptions } from '@/config'
@@ -54,7 +53,7 @@ payments.post(API.payments.root, async (c) => {
   const clientIdempotencyKey =
     suppliedIdempotencyKey !== undefined && suppliedIdempotencyKey.length > 0
       ? suppliedIdempotencyKey
-      : randomUUID()
+      : crypto.randomUUID()
 
   const authUser = c.get('authUser')
   const publicUser = authUser ? publicUserResponse(authUser) : null

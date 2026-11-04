@@ -1,11 +1,11 @@
-import { fileURLToPath } from 'node:url'
 import { TimeMs } from '@/constants/time'
 
-export const backupScriptPath = fileURLToPath(
+export const backupScriptPath = Bun.fileURLToPath(
   new URL('../scripts/backup.ts', import.meta.url),
 )
 
 export const backupTiming = {
+  writerDrainTimeoutMs: TimeMs.OneMinute,
   processTimeoutMs: TimeMs.ThirtyMinutes,
   terminationGraceMs: TimeMs.FiveSeconds,
   connectionTimeoutMs: TimeMs.TenSeconds,

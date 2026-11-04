@@ -86,6 +86,12 @@ export async function runProcess(input: ProcessOptions): Promise<void> {
       }
 
       process.exitCode = exitCode
+
+      const drainFile = Bun.env.BOOKSHOP_PROCESS_DRAIN_FILE
+
+      if (drainFile) {
+        await writeFile(drainFile, `${exitCode}\n`, { mode: 0o600 })
+      }
     }
   }
 

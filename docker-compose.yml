@@ -2,6 +2,7 @@ x-app-environment: &app-environment
   DB_REPO: '${DB_REPO:?Set DB_REPO to MONGO or SQLITE in .env}'
   REDIS_URL: redis://redis:6379
   NODE_ENV: '${NODE_ENV:-development}'
+  BOOKSHOP_DATABASE_COORDINATION_DIR: /bookshop-server/runtime
 
 x-loki-options: &loki-options
   loki-url: 'http://127.0.0.1:3100/loki/api/v1/push'
@@ -41,7 +42,15 @@ services:
       <<: *app-environment
       PORT: '5000'
       NGROK_AUTHTOKEN: '${NGROK_AUTHTOKEN:-}'
-    command: ['bun', '${BUN_RUN_MODE:-run}', 'src/server.ts']
+    command:
+      [
+        '/bin/sh',
+        'docker/database-access.sh',
+        'service',
+        'bun',
+        '${BUN_RUN_MODE:-run}',
+        'src/server.ts',
+      ]
 
     logging:
       driver: loki
@@ -57,6 +66,7 @@ services:
     volumes:
       - ./src:/bookshop-server/src
       - sqlite_data:/bookshop-server/data
+      - database_runtime:/bookshop-server/runtime
 
   redis:
     image: redis:alpine
@@ -102,7 +112,15 @@ services:
     env_file: .env
     environment:
       <<: *app-environment
-    command: ['bun', '${BUN_RUN_MODE:-run}', 'src/worker.ts']
+    command:
+      [
+        '/bin/sh',
+        'docker/database-access.sh',
+        'service',
+        'bun',
+        '${BUN_RUN_MODE:-run}',
+        'src/worker.ts',
+      ]
     logging:
       driver: loki
       options:
@@ -111,6 +129,7 @@ services:
     volumes:
       - ./src:/bookshop-server/src
       - sqlite_data:/bookshop-server/data
+      - database_runtime:/bookshop-server/runtime
 
   cron:
     init: true
@@ -137,6 +156,7 @@ services:
       - ./src:/bookshop-server/src
       - ./docker/cron:/bookshop-server/docker/cron
       - sqlite_data:/bookshop-server/data
+      - database_runtime:/bookshop-server/runtime
 
   loki:
     image: grafana/loki
@@ -202,6 +222,7 @@ services:
       - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
 
 volumes:
+  database_runtime:
   redis_data:
   sqlite_data:
   loki-data:

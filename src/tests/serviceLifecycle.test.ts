@@ -3,10 +3,9 @@ import { describe, expect, it } from 'bun:test'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import authorsData from '@/database/seeds/authors.json'
 
-const root = fileURLToPath(new URL('../../', import.meta.url))
+const root = Bun.fileURLToPath(new URL('../../', import.meta.url))
 const bullmq = import.meta.resolve('bullmq')
 const env = {
   ...process.env,

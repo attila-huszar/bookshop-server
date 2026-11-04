@@ -1,6 +1,9 @@
 import { authTiming } from '@/constants/auth'
 import { backupRetentionPolicy } from '@/constants/backup'
-import { DB_REPO } from '@/types/enums'
+import { DB_REPO, MongoBackupMode } from '@/types/enums'
+
+const rawDbRepo = Bun.env.DB_REPO ?? DB_REPO.MONGO
+const rawMongoBackupMode = Bun.env.MONGO_BACKUP_MODE ?? MongoBackupMode.Logical
 
 export const env = {
   adminEmail: Bun.env.ADMIN_EMAIL,
@@ -22,12 +25,19 @@ export const env = {
   cookieMaxAge:
     Bun.env.COOKIE_MAX_AGE ?? String(authTiming.cookieMaxAgeSeconds),
 
-  // Entrypoints validate raw settings before importing database repositories.
-  dbRepo: (Bun.env.DB_REPO ?? DB_REPO.SQLITE) as DB_REPO,
+  // Parse on access so configuration failures stay inside managed startup.
+  get dbRepo(): DB_REPO {
+    return parseEnum('DB_REPO', rawDbRepo, [DB_REPO.SQLITE, DB_REPO.MONGO])
+  },
   dbSqliteFile: Bun.env.DB_SQLITE_FILE ?? 'data/db.sqlite',
   dbMongoUrl: Bun.env.DB_MONGO_URL,
-  mongoBackupMode: (Bun.env.MONGO_BACKUP_MODE ?? 'oplog') as
-    'oplog' | 'logical',
+  databaseCoordinationDirectory: Bun.env.BOOKSHOP_DATABASE_COORDINATION_DIR,
+  get mongoBackupMode(): MongoBackupMode {
+    return parseEnum('MONGO_BACKUP_MODE', rawMongoBackupMode, [
+      MongoBackupMode.Logical,
+      MongoBackupMode.Oplog,
+    ])
+  },
 
   backupRetentionDaily:
     Bun.env.BACKUP_RETENTION_DAILY ?? String(backupRetentionPolicy.daily),
@@ -56,4 +66,18 @@ export const env = {
   awsBucket: Bun.env.AWS_BUCKET,
 
   redisUrl: Bun.env.REDIS_URL,
+}
+
+function parseEnum<T extends string>(
+  name: string,
+  value: string,
+  choices: readonly T[],
+): T {
+  const match = choices.find((choice) => choice === value)
+
+  if (match === undefined) {
+    throw new Error(`Invalid ${name}: expected ${choices.join(' or ')}`)
+  }
+
+  return match
 }

@@ -12,6 +12,7 @@ import {
   withSqliteArchive,
 } from './shared/backupArchive'
 import { backupToStorage } from './shared/backupStorage'
+import { withDatabaseWritesPaused } from './shared/databasePause'
 import { createS3BackupStorage } from './shared/s3BackupStorage'
 
 async function main(context: ProcessContext): Promise<void> {
@@ -56,6 +57,12 @@ async function main(context: ProcessContext): Promise<void> {
         mode: env.mongoBackupMode,
         consume,
         signal: context.signal,
+        pauseWrites: (run) =>
+          withDatabaseWritesPaused({
+            directory: env.databaseCoordinationDirectory ?? '',
+            signal: context.signal,
+            run,
+          }),
       })
     }
 

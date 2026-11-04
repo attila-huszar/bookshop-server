@@ -1,4 +1,3 @@
-import { fileURLToPath } from 'node:url'
 import { TimeMs } from '@/constants/time'
 
 export const EMAIL = {
@@ -81,7 +80,7 @@ export const emailOutboxStatuses = [
 ] as const
 
 export const emailLogoFilename = 'bookshop-logo.png'
-export const emailLogoFilePath = fileURLToPath(
+export const emailLogoFilePath = Bun.fileURLToPath(
   new URL(`../resources/images/${emailLogoFilename}`, import.meta.url),
 )
 export const emailLogoMimeType = 'image/png'

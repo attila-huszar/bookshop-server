@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import type { BunFile } from 'bun'
 import { backupRetentionPolicy } from '@/constants/backup'
 import { DB_REPO } from '@/types/enums'
@@ -104,7 +103,7 @@ export async function backupToStorage(input: BackupInput): Promise<{
   const prefix = `backups/${input.backupType.toLowerCase()}/`
   const extension = archiveExtensions[input.backupType]
   const timestamp = new Date(now).toISOString().replace(/[:.]/g, '-')
-  const key = `${prefix}${timestamp}-${randomUUID()}${extension}`
+  const key = `${prefix}${timestamp}-${crypto.randomUUID()}${extension}`
   await input.withArchive((archive) =>
     input.storage.uploadAndVerify(key, archive),
   )

@@ -1,8 +1,7 @@
 import { Resolver } from 'node:dns/promises'
 import { getMongoUriOption, parseMongoURI } from '@/utils/db.utils'
 import { backupTiming } from '@/constants/backup'
-
-export type MongoBackupMode = 'logical' | 'oplog'
+import { MongoBackupMode } from '@/types/enums'
 
 type MongoBackupUriInput = {
   uri: string
@@ -76,7 +75,7 @@ export async function getMongoBackupUri(
 
   const database = connection.database
 
-  if (input.mode === 'logical') {
+  if (input.mode === MongoBackupMode.Logical) {
     if (!database) {
       throw new Error(
         'Logical Mongo backups require DB_MONGO_URL with an explicit database path',

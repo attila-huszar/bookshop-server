@@ -27,10 +27,6 @@ const requiredKeys: Record<ProcessRole, readonly (keyof typeof env)[]> = {
 }
 
 export function validateDatabaseEnv(): void {
-  if (env.dbRepo !== DB_REPO.SQLITE && env.dbRepo !== DB_REPO.MONGO) {
-    throw new Error('Invalid DB_REPO: expected SQLITE or MONGO')
-  }
-
   if (env.dbRepo === DB_REPO.MONGO) {
     if (!env.dbMongoUrl) {
       throw new Error('MongoDB requires DB_MONGO_URL')
@@ -71,11 +67,9 @@ export function validateEnv(role: ProcessRole): typeof env {
     throw new Error('MAILER_PORT must be an integer between 1 and 65535')
   }
   if (role === 'backup') {
-    if (
-      env.dbRepo === DB_REPO.MONGO &&
-      !['logical', 'oplog'].includes(env.mongoBackupMode)
-    ) {
-      throw new Error('Invalid MONGO_BACKUP_MODE: expected logical or oplog')
+    if (env.dbRepo === DB_REPO.MONGO) {
+      // Reading this property validates the setting only for Mongo backups.
+      void env.mongoBackupMode
     }
     if (
       !['true', 'false'].includes(Bun.env.BACKUP_RETENTION_DRY_RUN ?? 'false')
