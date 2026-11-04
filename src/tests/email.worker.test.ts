@@ -12,7 +12,8 @@ import {
   mockWorkerConstructor,
 } from './test-setup'
 
-const { emailWorker } = await import('@/workers/email.worker')
+const { createEmailWorker } = await import('@/workers/emailWorker')
+const emailWorker = createEmailWorker()
 
 type EmailJobResult = { status: 'sent' | 'skipped' }
 type EmailJob = Job<SendEmailProps, EmailJobResult>

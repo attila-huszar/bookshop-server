@@ -114,14 +114,16 @@ describe('database bootstrap', () => {
           import assert from 'node:assert/strict'
           import { mock } from 'bun:test'
           const connect = mock(async () => undefined)
+          const close = mock(async () => undefined)
           await mock.module('mongoose', () => ({
-            default: { connect, connection: { db: undefined } },
+            default: { connect, connection: { db: undefined, close } },
           }))
           const db = await import(${JSON.stringify(databaseUrl)})
           assert.equal(connect.mock.calls.length, 0)
           await assert.rejects(db.connectDatabase(), { message: ${JSON.stringify(errorMessage)} })
           await assert.rejects(db.connectDatabase(), { message: ${JSON.stringify(errorMessage)} })
           assert.equal(connect.mock.calls.length, ${connectionAttempts})
+          assert.equal(close.mock.calls.length, ${connectionAttempts > 0 ? 2 : 0})
           if (${connectionAttempts} > 0) {
             assert.equal(connect.mock.calls[0][0], ${JSON.stringify(uri)})
           }
@@ -142,6 +144,95 @@ describe('database bootstrap', () => {
       expect({ exitCode, stderr }).toEqual({ exitCode: 0, stderr: '' })
     },
   )
+
+  it('closes failed MongoDB connections before retries and discards credential-bearing errors', async () => {
+    const child = Bun.spawn(
+      [
+        process.execPath,
+        '--no-env-file',
+        '-e',
+        `
+          import assert from 'node:assert/strict'
+          import { mock } from 'bun:test'
+          const connect = mock(async () => {
+            throw Object.assign(new Error('mongodb://user:private-password@host.test/bookshop'), { code: 18 })
+          })
+          const close = mock(async () => undefined)
+          await mock.module('mongoose', () => ({ default: { connect, connection: { close } } }))
+          const db = await import(${JSON.stringify(databaseUrl)})
+          for (let attempt = 0; attempt < 2; attempt++) {
+            await assert.rejects(db.connectDatabase(), (error) => {
+              assert.equal(error.name, 'DatabaseStartupError')
+              assert.match(error.message, /authentication failed/)
+              assert.equal(error.cause, undefined)
+              assert.ok(!error.stack.includes('private-password'))
+              return true
+            })
+          }
+          assert.equal(connect.mock.calls.length, 2)
+          assert.equal(close.mock.calls.length, 2)
+        `,
+      ],
+      {
+        cwd: projectRoot,
+        env: {
+          ...process.env,
+          DB_REPO: 'MONGO',
+          DB_MONGO_URL: 'mongodb://user:private-password@host.test/bookshop',
+        },
+        stdout: 'pipe',
+        stderr: 'pipe',
+      },
+    )
+    const [exitCode, stderr] = await Promise.all([
+      child.exited,
+      new Response(child.stderr).text(),
+    ])
+
+    expect({ exitCode, stderr }).toEqual({ exitCode: 0, stderr: '' })
+  })
+
+  it('closes and clears SQLite handles after failed initialization', async () => {
+    const child = Bun.spawn(
+      [
+        process.execPath,
+        '--no-env-file',
+        '-e',
+        `
+          import assert from 'node:assert/strict'
+          import { mock } from 'bun:test'
+          import { Database } from 'bun:sqlite'
+          const close = mock(() => undefined)
+          const originalClose = Database.prototype.close
+          Database.prototype.run = () => {
+            throw Object.assign(new Error('readonly'), { code: 'SQLITE_READONLY' })
+          }
+          Database.prototype.close = function () {
+            close()
+            originalClose.call(this)
+          }
+          const db = await import(${JSON.stringify(databaseUrl)})
+          for (let attempt = 0; attempt < 2; attempt++) {
+            await assert.rejects(db.connectDatabase(), /SQLite is not writable/)
+            assert.equal(db.sqliteClient, undefined)
+          }
+          assert.equal(close.mock.calls.length, 2)
+        `,
+      ],
+      {
+        cwd: projectRoot,
+        env: { ...process.env, DB_REPO: 'SQLITE', DB_SQLITE_FILE: ':memory:' },
+        stdout: 'pipe',
+        stderr: 'pipe',
+      },
+    )
+    const [exitCode, stderr] = await Promise.all([
+      child.exited,
+      new Response(child.stderr).text(),
+    ])
+
+    expect({ exitCode, stderr }).toEqual({ exitCode: 0, stderr: '' })
+  })
 
   it('opens and reopens an in-memory SQLite database without a directory', async () => {
     await checkBootstrap(':memory:')
@@ -172,7 +263,10 @@ describe('database selection', () => {
   ] as const)(
     'validates DB_REPO=%s before selecting an adapter',
     async (value, expected) => {
-      const childEnv = { ...process.env }
+      const childEnv: NodeJS.ProcessEnv = {
+        ...process.env,
+        DB_MONGO_URL: 'mongodb://localhost/bookshop',
+      }
 
       if (value === undefined) {
         delete childEnv.DB_REPO
@@ -187,6 +281,8 @@ describe('database selection', () => {
           '-e',
           `
         const { env } = await import(${JSON.stringify(envUrl)})
+        const { validateDatabaseEnv } = await import(new URL('./validateEnv.ts', ${JSON.stringify(envUrl)}).href)
+        validateDatabaseEnv()
         console.log(env.dbRepo)
       `,
         ],

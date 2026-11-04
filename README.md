@@ -76,14 +76,17 @@ From either repository, initialize a fresh database and start the app:
 bun run dev:setup
 ```
 
-For later starts, use `bun run dev`. Setup seeds the catalogue and an admin account using `ADMIN_EMAIL`/`ADMIN_PASSWORD`; run it only for a fresh database. The dev command starts Vite and the Docker services with API/worker reloads. Ctrl+C stops the session and preserves stored data.
+Setup first runs a temporary container to migrate SQLite (when selected) and seed the catalogue and admin account using `ADMIN_EMAIL`/`ADMIN_PASSWORD`, then starts development. Run it only for a fresh database. To initialize without starting the app, use `bun run setup` from the server directory.
 
-| Service      | Local URL                    |
-| ------------ | ---------------------------- |
-| Shop         | http://localhost:5173        |
-| API          | http://localhost:5000/api    |
-| Health check | http://localhost:5000/health |
-| Grafana      | http://localhost/grafana/    |
+For later starts, use `bun run dev`; normal startup and container restarts never seed the database. The dev command starts Vite and the Docker services with API/worker reloads. Ctrl+C stops the session and preserves stored data.
+
+| Service   | Local URL                      |
+| --------- | ------------------------------ |
+| Shop      | <http://localhost:5173>        |
+| API       | <http://localhost:5000/api>    |
+| Liveness  | <http://localhost:5000/health> |
+| Readiness | <http://localhost:5000/ready>  |
+| Grafana   | <http://localhost/grafana/>    |
 
 Grafana's default login is `admin` / `admin`. In Explore, query logs by the `job` label, such as `server` or `worker`.
 

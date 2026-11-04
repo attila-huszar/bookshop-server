@@ -5,7 +5,7 @@ import {
 } from '@/utils/reconciliation.utils'
 import { extractPaymentIntentFields } from '@/utils/stripe.utils'
 import { log } from '@/libs/logger'
-import { stripe } from '@/libs/stripe'
+import { getStripe } from '@/libs/stripe'
 import {
   reconciliationRequestPolicy,
   terminalStatuses,
@@ -127,7 +127,8 @@ async function shouldIgnorePaymentIntentEvent(
   ) {
     // Stripe timestamps have second precision. Check conflicts from the same
     // second or from before the latest reconciliation against the live intent.
-    const currentIntent = await stripe.paymentIntents.retrieve(paymentIntentId)
+    const currentIntent =
+      await getStripe().paymentIntents.retrieve(paymentIntentId)
 
     if (currentIntent.status !== nextStatus) {
       void log.debug(
@@ -195,7 +196,7 @@ export async function reconcileOrderPayment(
     let paymentId = order.paymentId
 
     if (!paymentId) {
-      const matches = await stripe.paymentIntents.search(
+      const matches = await getStripe().paymentIntents.search(
         {
           query: `metadata['orderId']:'${order.id}' AND metadata['checkoutRequestId']:'${order.checkoutRequestId}'`,
           limit: 2,
@@ -219,7 +220,7 @@ export async function reconcileOrderPayment(
     }
 
     // Re-fetch on every CAS retry; never overwrite a newer webhook with an old response.
-    const intent = await stripe.paymentIntents.retrieve(
+    const intent = await getStripe().paymentIntents.retrieve(
       paymentId,
       {},
       reconciliationRequestOptions,
@@ -295,7 +296,7 @@ export async function reconcileOrderPayment(
   )
 }
 
-export async function reconcileStaleOrders(): Promise<{
+export async function reconcileStaleOrders(signal?: AbortSignal): Promise<{
   checked: number
   failed: number
 }> {
@@ -316,6 +317,7 @@ export async function reconcileStaleOrders(): Promise<{
 
   for (const order of orders) {
     if (
+      signal?.aborted ||
       checked >= reconciliationPolicy.batchSize ||
       Date.now() - startedAt >= reconciliationPolicy.runBudgetMs
     ) {

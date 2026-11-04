@@ -1,12 +1,19 @@
-import { connectDatabase } from '@/db'
-import { seedAuthors, seedBooks, seedNews, seedUsers } from './seeds'
+import { validateEnv } from '@/config/validateEnv'
+import { runProcess } from '@/utils/processLifecycle.utils'
+import { processTiming } from '@/constants/process'
 
-export async function seedDatabase() {
+export async function seedDatabase(signal?: AbortSignal) {
+  const { seedAuthors, seedBooks, seedNews, seedUsers } =
+    await import('./seeds')
   console.info('🌱 Starting database seed...')
 
+  signal?.throwIfAborted()
   const authors = await seedAuthors()
+  signal?.throwIfAborted()
   const books = await seedBooks()
+  signal?.throwIfAborted()
   const news = await seedNews()
+  signal?.throwIfAborted()
   const users = await seedUsers()
 
   console.info('✅ Database seeded successfully!')
@@ -14,14 +21,18 @@ export async function seedDatabase() {
 }
 
 if (import.meta.main) {
-  void (async () => {
-    try {
-      await connectDatabase()
-      await seedDatabase()
-      process.exit(0)
-    } catch (error) {
-      console.error('❌ Database seed failed:', error)
-      process.exit(1)
-    }
-  })()
+  await runProcess({
+    name: 'Database seed',
+    shutdownMs: processTiming.apiShutdownMs,
+    once: true,
+    start: async (context) => {
+      validateEnv('seed')
+      const db = await import('@/db')
+      context.defer('database', db.closeDatabase)
+      await context.wait(db.connectDatabase())
+      await db.assertDatabaseSchema()
+      context.signal.throwIfAborted()
+      await seedDatabase(context.signal)
+    },
+  })
 }

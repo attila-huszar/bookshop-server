@@ -1,23 +1,25 @@
-import { outboxDB } from '@/repositories'
+import type { Queue } from 'bullmq'
+import type { outboxDB } from '@/repositories'
 import { log } from '@/libs/logger'
-import { emailQueue } from '@/queues/emailQueue'
 import { emailJobOptions, outboxPolicy } from '@/constants/email'
 
 type Dependencies = {
   repository: typeof outboxDB
-  queue: Pick<typeof emailQueue, 'add'>
+  queue: Pick<Queue, 'add'>
 }
 
 /** At-least-once publication. Stable BullMQ IDs deduplicate relay retries. */
 export async function publishPendingEmails(
-  { repository, queue }: Dependencies = {
-    repository: outboxDB,
-    queue: emailQueue,
-  },
+  { repository, queue }: Dependencies,
+  shouldStop: () => boolean = () => false,
 ): Promise<number> {
   let published = 0
 
   for (let count = 0; count < outboxPolicy.batchSize; count++) {
+    if (shouldStop()) {
+      break
+    }
+
     const leaseToken = crypto.randomUUID()
     const entry = await repository.claimEmail(new Date(), leaseToken)
 
@@ -58,13 +60,15 @@ export async function publishPendingEmails(
   return published
 }
 
-export function startOutboxRelay(): { close: () => Promise<void> } {
+export function startOutboxRelay(dependencies: Dependencies): {
+  close: () => Promise<void>
+} {
   let stopped = false
   let lastFailureLoggedAt: number | undefined
   let timer: ReturnType<typeof setTimeout> | undefined
   let running: Promise<void> = Promise.resolve()
   const tick = () => {
-    running = publishPendingEmails()
+    running = publishPendingEmails(dependencies, () => stopped)
       .then(
         () => {
           if (lastFailureLoggedAt !== undefined) {

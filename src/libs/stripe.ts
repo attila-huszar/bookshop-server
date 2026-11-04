@@ -1,4 +1,10 @@
 import { Stripe } from 'stripe'
 import { env } from '@/config'
 
-export const stripe = new Stripe(env.stripeSecret!)
+let client: Stripe | undefined
+
+export function getStripe(): Stripe {
+  client ??= new Stripe(env.stripeSecret!)
+
+  return client
+}

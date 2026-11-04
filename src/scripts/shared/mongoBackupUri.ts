@@ -1,12 +1,10 @@
 import { Resolver } from 'node:dns/promises'
-import { createRequire } from 'node:module'
 import type { ConnectionString as ParsedConnectionString } from 'mongodb-connection-string-url'
 import { backupTiming } from '@/constants/backup'
 
-// The package's ESM wrapper loses its exports in Bun; use its CJS entrypoint.
-const { ConnectionString } = createRequire(import.meta.url)(
-  'mongodb-connection-string-url',
-) as typeof import('mongodb-connection-string-url')
+// Use CommonJS to bypass the package's broken ESM wrapper in Bun.
+const { ConnectionString } =
+  require('mongodb-connection-string-url') as typeof import('mongodb-connection-string-url')
 
 export type MongoBackupMode = 'logical' | 'oplog'
 

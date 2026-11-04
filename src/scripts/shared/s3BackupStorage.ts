@@ -14,6 +14,7 @@ import { backupUploadPolicy } from '@/constants/backup'
 import type { BackupStorage } from './backupStorage'
 
 type ChecksumInput = {
+  signal?: AbortSignal
   archive: BunFile
   partSize: number
   metadata: Pick<
@@ -22,10 +23,14 @@ type ChecksumInput = {
   >
 }
 
-async function hashArchive(archive: BunFile): Promise<Buffer> {
+async function hashArchive(
+  archive: BunFile,
+  signal?: AbortSignal,
+): Promise<Buffer> {
   const hash = new Bun.CryptoHasher('sha256')
 
   for await (const chunk of archive.stream()) {
+    signal?.throwIfAborted()
     hash.update(chunk)
   }
 
@@ -52,14 +57,17 @@ export async function verifyBackupChecksum(
   let checksum: string
 
   if (metadata.ChecksumType === 'FULL_OBJECT') {
-    checksum = (await hashArchive(archive)).toString('base64')
+    checksum = (await hashArchive(archive, input.signal)).toString('base64')
   } else if (metadata.ChecksumType === 'COMPOSITE') {
     const composite = new Bun.CryptoHasher('sha256')
     let parts = 0
 
     for (let offset = 0; offset < archive.size; offset += partSize) {
       composite.update(
-        await hashArchive(archive.slice(offset, offset + partSize)),
+        await hashArchive(
+          archive.slice(offset, offset + partSize),
+          input.signal,
+        ),
       )
       parts += 1
     }
@@ -79,11 +87,16 @@ export async function verifyBackupChecksum(
 export function createS3BackupStorage(input: {
   client: S3Client
   bucket: string
+  signal?: AbortSignal
 }): BackupStorage {
-  const { client, bucket } = input
+  const { client, bucket, signal } = input
 
   return {
     uploadAndVerify: async (key, archive) => {
+      signal?.throwIfAborted()
+      const controller = new AbortController()
+      const onAbort = () => controller.abort()
+      signal?.addEventListener('abort', onAbort, { once: true })
       const partSize = Math.max(
         backupUploadPolicy.partSizeBytes,
         Math.ceil(archive.size / backupUploadPolicy.maxParts),
@@ -103,33 +116,37 @@ export function createS3BackupStorage(input: {
         queueSize: backupUploadPolicy.concurrency,
         // Own cleanup also covers completion failures after all parts settle.
         leavePartsOnError: true,
+        abortController: controller,
       })
 
-      const uploaded = await upload.done().catch(async (error: unknown) => {
-        if (upload.uploadId) {
-          await client
-            .send(
-              new AbortMultipartUploadCommand({
-                Bucket: bucket,
-                Key: key,
-                UploadId: upload.uploadId,
-              }),
-            )
-            .catch((cleanupError: unknown) => {
-              if (cleanupError instanceof NoSuchUpload) {
-                return
-              }
+      const uploaded = await upload
+        .done()
+        .finally(() => signal?.removeEventListener('abort', onAbort))
+        .catch(async (error: unknown) => {
+          if (upload.uploadId) {
+            await client
+              .send(
+                new AbortMultipartUploadCommand({
+                  Bucket: bucket,
+                  Key: key,
+                  UploadId: upload.uploadId,
+                }),
+              )
+              .catch((cleanupError: unknown) => {
+                if (cleanupError instanceof NoSuchUpload) {
+                  return
+                }
 
-              log.warn('Failed to abort an incomplete backup upload', {
-                error: cleanupError,
-                key,
-                uploadId: upload.uploadId,
+                log.warn('Failed to abort an incomplete backup upload', {
+                  error: cleanupError,
+                  key,
+                  uploadId: upload.uploadId,
+                })
               })
-            })
-        }
+          }
 
-        throw error
-      })
+          throw error
+        })
 
       const uploadedObject = {
         Bucket: bucket,
@@ -143,8 +160,9 @@ export function createS3BackupStorage(input: {
             ...uploadedObject,
             ChecksumMode: 'ENABLED',
           }),
+          { abortSignal: signal },
         )
-        await verifyBackupChecksum({ archive, metadata, partSize })
+        await verifyBackupChecksum({ archive, metadata, partSize, signal })
       } catch (error) {
         await client
           .send(new DeleteObjectCommand(uploadedObject))
@@ -167,6 +185,7 @@ export function createS3BackupStorage(input: {
           Prefix: prefix,
           ContinuationToken: token,
         }),
+        { abortSignal: signal },
       )
 
       return {
@@ -179,7 +198,9 @@ export function createS3BackupStorage(input: {
       }
     },
     remove: async (key) => {
-      await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }))
+      await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }), {
+        abortSignal: signal,
+      })
     },
   }
 }

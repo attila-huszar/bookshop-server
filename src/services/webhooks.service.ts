@@ -1,7 +1,7 @@
 import { env } from '@/config'
 import { extractPaymentIntentFields } from '@/utils/stripe.utils'
 import { log } from '@/libs/logger'
-import { stripe } from '@/libs/stripe'
+import { getStripe } from '@/libs/stripe'
 import { BadRequest } from '@/errors/BadRequest'
 import { Internal } from '@/errors/Internal'
 import {
@@ -129,7 +129,7 @@ export async function verifyAndHandleStripeWebhook(
   let event: StripeEvent
 
   try {
-    event = await stripe.webhooks.constructEventAsync(
+    event = await getStripe().webhooks.constructEventAsync(
       payload,
       signature,
       env.stripeWebhookSecret,

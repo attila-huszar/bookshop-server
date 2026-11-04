@@ -1,37 +1,31 @@
-import { closeDatabase, connectDatabase } from '@/db'
-import { runMaintenance } from '@/services/maintenance.service'
-import { log } from '@/libs/logger'
+import { validateEnv } from '@/config/validateEnv'
+import { runProcess } from '@/utils/processLifecycle.utils'
 import { processTiming } from '@/constants/process'
 
-async function main(): Promise<void> {
-  let exitCode = 0
-  const timeout = setTimeout(() => {
-    log.error('Maintenance exceeded its nine-minute time limit')
-    process.exit(1)
-  }, processTiming.maintenanceTimeoutMs)
-
-  try {
-    await connectDatabase()
-
-    if (!(await runMaintenance())) {
-      exitCode = 1
-    }
-  } catch (error) {
-    exitCode = 1
-    log.error('Maintenance script failed', { error })
-  } finally {
-    try {
-      await closeDatabase()
-    } catch (error) {
-      exitCode = 1
-      log.error('Error during shutdown', { error })
-    }
-  }
-
-  clearTimeout(timeout)
-  process.exit(exitCode)
-}
-
 if (import.meta.main) {
-  void main()
+  await runProcess({
+    name: 'Maintenance',
+    shutdownMs: processTiming.apiShutdownMs,
+    once: true,
+    start: async (context) => {
+      validateEnv('maintenance')
+      const deadline = setTimeout(
+        () =>
+          context.fail(
+            new Error('Maintenance exceeded its nine-minute time limit'),
+          ),
+        processTiming.maintenanceTimeoutMs,
+      )
+      context.defer('maintenance deadline', () => clearTimeout(deadline))
+      const db = await import('@/db')
+      context.defer('database', db.closeDatabase)
+      await context.wait(db.connectDatabase())
+      await db.assertDatabaseSchema()
+      context.signal.throwIfAborted()
+      const { runMaintenance } = await import('@/services/maintenance.service')
+      if (!(await runMaintenance(undefined, context.signal))) {
+        throw new Error('One or more maintenance tasks failed')
+      }
+    },
+  })
 }

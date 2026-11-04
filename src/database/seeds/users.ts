@@ -2,25 +2,25 @@ import { env } from '@/config'
 import { defaultCountry } from '@/constants/localization'
 import { DB_REPO, type UserInsert, UserRole } from '@/types'
 
-const admin: UserInsert = {
-  uuid: crypto.randomUUID(),
-  firstName: 'Admin',
-  lastName: 'Admin',
-  email: env.adminEmail!,
-  password: Bun.password.hashSync(env.adminPassword!),
-  role: UserRole.Admin,
-  verified: true,
-  country: defaultCountry,
-  address: null,
-  phone: null,
-  avatar: null,
-  verificationToken: null,
-  verificationExpires: null,
-  passwordResetToken: null,
-  passwordResetExpires: null,
-}
-
 export async function seedUsers() {
+  const admin: UserInsert = {
+    uuid: crypto.randomUUID(),
+    firstName: 'Admin',
+    lastName: 'Admin',
+    email: env.adminEmail!,
+    password: Bun.password.hashSync(env.adminPassword!),
+    role: UserRole.Admin,
+    verified: true,
+    country: defaultCountry,
+    address: null,
+    phone: null,
+    avatar: null,
+    verificationToken: null,
+    verificationExpires: null,
+    passwordResetToken: null,
+    passwordResetExpires: null,
+  }
+
   if (env.dbRepo === DB_REPO.SQLITE) {
     const { getTableName } = await import('drizzle-orm')
     const { usersTable } = await import('@/models/sqlite')

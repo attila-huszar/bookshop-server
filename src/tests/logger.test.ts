@@ -2,6 +2,36 @@ import { describe, expect, it } from 'bun:test'
 import { resolve } from 'node:path'
 
 describe('structured logging', () => {
+  it('redacts URI credentials and configured secrets while preserving diagnostic codes', () => {
+    const result = Bun.spawnSync({
+      cmd: [
+        process.execPath,
+        '--no-env-file',
+        '-e',
+        `
+        const { log } = await import('./src/libs/logger.ts')
+        log.error('Connection failed', { error: Object.assign(
+          new Error('mongodb://user:private-password@host.test/db configured-private-secret'),
+          { code: 11000, stage: 'schema', originalName: 'MongoServerError' },
+        ) })
+      `,
+      ],
+      cwd: resolve(import.meta.dir, '../..'),
+      env: {
+        ...process.env,
+        LOG_LEVEL: 'error',
+        MAILER_PASS: 'configured-private-secret',
+      },
+    })
+    expect(result.exitCode).toBe(0)
+    const output = result.stdout.toString()
+    expect(output).not.toContain('private-password')
+    expect(output).not.toContain('configured-private-secret')
+    expect(output).toContain('[redacted]')
+    expect(output).toContain('11000')
+    expect(output).toContain('schema')
+  })
+
   it('preserves nested error causes, including non-error causes', () => {
     const result = Bun.spawnSync({
       cmd: [

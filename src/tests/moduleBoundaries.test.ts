@@ -4,6 +4,31 @@ import { fileURLToPath } from 'node:url'
 const projectRoot = fileURLToPath(new URL('../../', import.meta.url))
 const sourceRoot = new URL('../', import.meta.url).href
 
+it('rejects an invalid database selector before importing an adapter', async () => {
+  const child = Bun.spawn(
+    [
+      process.execPath,
+      '--no-env-file',
+      '-e',
+      `
+    import assert from 'node:assert/strict'
+    await assert.rejects(import(new URL('repositories/index.ts', ${JSON.stringify(sourceRoot)}).href), /Invalid DB_REPO/)
+  `,
+    ],
+    {
+      cwd: projectRoot,
+      env: { ...process.env, DB_REPO: 'MONGOO' },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
+  )
+  const [exitCode, stderr] = await Promise.all([
+    child.exited,
+    new Response(child.stderr).text(),
+  ])
+  expect({ exitCode, stderr }).toEqual({ exitCode: 0, stderr: '' })
+})
+
 const scenarios = [
   {
     name: 'email helpers, mail transport and errors',
@@ -29,14 +54,18 @@ const scenarios = [
   },
   {
     name: 'email worker',
-    modules: ['workers/email.worker.ts'],
+    modules: [
+      'workers/email.worker.ts',
+      'workers/emailWorker.ts',
+      'queues/emailQueue.ts',
+    ],
     paymentClient: false,
-    workerClients: true,
+    workerClients: false,
   },
   {
     name: 'API composition root',
-    modules: ['app.ts'],
-    paymentClient: true,
+    modules: ['app.ts', 'http/app.ts'],
+    paymentClient: false,
     workerClients: false,
   },
 ]

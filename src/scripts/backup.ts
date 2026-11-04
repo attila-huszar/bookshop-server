@@ -6,14 +6,17 @@ import { createGzip } from 'node:zlib'
 import { S3Client } from '@aws-sdk/client-s3'
 import type { BunFile } from 'bun'
 import { env } from '@/config/env'
+import { validateEnv } from '@/config/validateEnv'
+import { type ProcessContext, runProcess } from '@/utils/processLifecycle.utils'
 import { log } from '@/libs/logger'
 import { backupTiming } from '@/constants/backup'
+import { processTiming } from '@/constants/process'
 import { DB_REPO } from '@/types/enums'
 import {
   waitForProcessExitWithTimeout,
   withBackupArchive,
 } from './shared/backupHelpers'
-import { BackupRetentionError, backupToStorage } from './shared/backupStorage'
+import { backupToStorage } from './shared/backupStorage'
 import {
   getMongoBackupUri,
   type MongoBackupMode,
@@ -25,16 +28,26 @@ type MongoArchiveInput = {
   mode?: MongoBackupMode
   consume: (archive: BunFile) => Promise<void>
   dump?: (command: string[]) => Promise<void>
+  signal?: AbortSignal
 }
 
-async function dumpMongo(command: string[]): Promise<void> {
+async function dumpMongo(
+  command: string[],
+  signal?: AbortSignal,
+): Promise<void> {
+  signal?.throwIfAborted()
   const dumpProcess = Bun.spawn({
     cmd: command,
     env: process.env,
     stdout: 'inherit',
     stderr: 'inherit',
   })
-  const code = await waitForProcessExitWithTimeout('mongodump', dumpProcess)
+  const code = await waitForProcessExitWithTimeout(
+    'mongodump',
+    dumpProcess,
+    undefined,
+    signal,
+  )
 
   if (code !== 0) {
     throw new Error(`mongodump exited with code ${code}`)
@@ -72,7 +85,7 @@ export async function withMongoArchive(
         command.push('--oplog')
       }
 
-      await (input.dump ?? dumpMongo)(command)
+      await (input.dump ?? ((args) => dumpMongo(args, input.signal)))(command)
     },
     consume: input.consume,
   })
@@ -81,12 +94,14 @@ export async function withMongoArchive(
 type SqliteArchiveInput = {
   source: string
   consume: (archive: BunFile) => Promise<void>
+  signal?: AbortSignal
 }
 
 export async function withSqliteArchive(
   input: SqliteArchiveInput,
 ): Promise<void> {
   const source = resolve(input.source)
+  input.signal?.throwIfAborted()
 
   if (!(await Bun.file(source).exists())) {
     throw new Error(`SQLite file not found: ${source}`)
@@ -109,6 +124,8 @@ export async function withSqliteArchive(
       const code = await waitForProcessExitWithTimeout(
         'sqlite3 backup',
         backupProcess,
+        undefined,
+        input.signal,
       )
 
       if (code !== 0) {
@@ -125,81 +142,81 @@ export async function withSqliteArchive(
   })
 }
 
-async function main(): Promise<void> {
+async function main(context: ProcessContext): Promise<void> {
   const backupType = env.dbRepo
   const label = backupType === DB_REPO.SQLITE ? 'SQLite' : 'Mongo'
-  let client: S3Client | undefined
-
-  try {
-    if (
-      !env.awsBucket ||
-      !env.awsRegion ||
-      !env.awsAccessKeyId ||
-      !env.awsSecretAccessKey
-    ) {
-      throw new Error(
-        `${label} backups require the AWS S3 bucket, region and credentials`,
-      )
-    }
-
-    client = new S3Client({
-      region: env.awsRegion,
-      credentials: {
-        accessKeyId: env.awsAccessKeyId,
-        secretAccessKey: env.awsSecretAccessKey,
-      },
-      requestChecksumCalculation: 'WHEN_SUPPORTED',
-      requestHandler: {
-        connectionTimeout: backupTiming.connectionTimeoutMs,
-        socketTimeout: backupTiming.socketTimeoutMs,
-        requestTimeout: backupTiming.requestTimeoutMs,
-        throwOnRequestTimeout: true,
-      },
-    })
-    const result = await backupToStorage({
-      backupType,
-      retention: {
-        daily: Number(env.backupRetentionDaily),
-        weekly: Number(env.backupRetentionWeekly),
-        monthly: Number(env.backupRetentionMonthly),
-      },
-      dryRun: env.backupRetentionDryRun,
-      withArchive: (consume) =>
-        backupType === DB_REPO.MONGO
-          ? withMongoArchive({
-              uri: env.dbMongoUrl ?? '',
-              mode: env.mongoBackupMode,
-              consume,
-            })
-          : withSqliteArchive({ source: env.dbSqliteFile, consume }),
-      storage: createS3BackupStorage({ client, bucket: env.awsBucket }),
-    })
-    log.info(`${label} backup uploaded and verified`, {
-      bucket: env.awsBucket,
-      key: result.key,
-      removedOldBackups: result.removed,
-      retainedBackups: result.retained,
-      prunableBackups: result.prunable.length,
-      pruneCandidates: env.backupRetentionDryRun ? result.prunable : undefined,
-      retentionDryRun: env.backupRetentionDryRun,
-    })
-  } catch (error) {
-    log.error(
-      error instanceof BackupRetentionError
-        ? error.message
-        : `${label} backup failed`,
-      {
-        error,
-        bucket: env.awsBucket,
-        key: error instanceof BackupRetentionError ? error.key : undefined,
-      },
+  if (
+    !env.awsBucket ||
+    !env.awsRegion ||
+    !env.awsAccessKeyId ||
+    !env.awsSecretAccessKey
+  ) {
+    throw new Error(
+      `${label} backups require the AWS S3 bucket, region and credentials`,
     )
-    process.exitCode = 1
-  } finally {
-    client?.destroy()
   }
+
+  validateEnv('backup')
+  context.signal.throwIfAborted()
+
+  const client = new S3Client({
+    region: env.awsRegion,
+    credentials: {
+      accessKeyId: env.awsAccessKeyId,
+      secretAccessKey: env.awsSecretAccessKey,
+    },
+    requestChecksumCalculation: 'WHEN_SUPPORTED',
+    requestHandler: {
+      connectionTimeout: backupTiming.connectionTimeoutMs,
+      socketTimeout: backupTiming.socketTimeoutMs,
+      requestTimeout: backupTiming.requestTimeoutMs,
+      throwOnRequestTimeout: true,
+    },
+  })
+  context.defer('S3 client', () => client.destroy())
+  const result = await backupToStorage({
+    backupType,
+    retention: {
+      daily: Number(env.backupRetentionDaily),
+      weekly: Number(env.backupRetentionWeekly),
+      monthly: Number(env.backupRetentionMonthly),
+    },
+    dryRun: env.backupRetentionDryRun,
+    withArchive: (consume) =>
+      backupType === DB_REPO.MONGO
+        ? withMongoArchive({
+            uri: env.dbMongoUrl ?? '',
+            mode: env.mongoBackupMode,
+            consume,
+            signal: context.signal,
+          })
+        : withSqliteArchive({
+            source: env.dbSqliteFile,
+            consume,
+            signal: context.signal,
+          }),
+    storage: createS3BackupStorage({
+      client,
+      bucket: env.awsBucket,
+      signal: context.signal,
+    }),
+  })
+  log.info(`${label} backup uploaded and verified`, {
+    bucket: env.awsBucket,
+    key: result.key,
+    removedOldBackups: result.removed,
+    retainedBackups: result.retained,
+    prunableBackups: result.prunable.length,
+    pruneCandidates: env.backupRetentionDryRun ? result.prunable : undefined,
+    retentionDryRun: env.backupRetentionDryRun,
+  })
 }
 
 if (import.meta.main) {
-  void main()
+  await runProcess({
+    name: 'Database backup',
+    shutdownMs: processTiming.apiShutdownMs,
+    once: true,
+    start: main,
+  })
 }

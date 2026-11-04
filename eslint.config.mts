@@ -41,6 +41,10 @@ export default defineConfig(
       ...tseslint.configs.stylisticTypeChecked,
     ],
     rules: {
+      '@typescript-eslint/no-require-imports': [
+        'error',
+        { allow: ['^mongodb-connection-string-url$'] },
+      ],
       '@typescript-eslint/no-unused-vars': [
         'error',
         {

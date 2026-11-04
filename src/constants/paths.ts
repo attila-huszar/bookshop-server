@@ -1,6 +1,7 @@
 export const API = {
   root: '/',
   health: '/health',
+  ready: '/ready',
   favicon: '/favicon.ico',
   api: '/api',
   webhooks: {

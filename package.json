@@ -4,9 +4,10 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently -k -n client,docker \"bun run --cwd ../bookshop-client dev:client\" \"bun run docker:dev\" --teardown \"docker compose stop\"",
-    "dev:setup": "cross-env SETUP=true bun run dev",
+    "dev:setup": "bun run setup && bun run dev",
     "docker:dev": "cross-env NODE_ENV=development BUN_RUN_MODE=--watch NGROK_AUTHTOKEN= docker compose up --build --abort-on-container-exit",
-    "docker:setup": "cross-env SETUP=true docker compose up --build",
+    "docker:setup": "bun run setup && docker compose up --build",
+    "setup": "docker compose run --build --rm server bun src/database/setup.ts",
     "lint": "bun --bun eslint . --max-warnings 0",
     "typecheck": "bun --bun tsc --noEmit",
     "format": "prettier --write .",

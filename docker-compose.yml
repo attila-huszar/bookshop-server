@@ -22,6 +22,7 @@ x-loki-options: &loki-options
 services:
   server:
     init: true
+    stop_grace_period: 15s
     build:
       context: .
       dockerfile: Dockerfile
@@ -39,7 +40,6 @@ services:
     environment:
       <<: *app-environment
       PORT: '5000'
-      SETUP: '${SETUP:-}'
       NGROK_AUTHTOKEN: '${NGROK_AUTHTOKEN:-}'
     entrypoint: ['sh', 'docker/entrypoint.sh']
     command: ['bun', '${BUN_RUN_MODE:-run}', 'src/app.ts']
@@ -50,7 +50,7 @@ services:
         <<: *loki-options
         loki-external-labels: 'job=server'
     healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://127.0.0.1:5000/health']
+      test: ['CMD', 'curl', '-f', 'http://127.0.0.1:5000/ready']
       interval: 30s
       timeout: 5s
       retries: 3
@@ -115,6 +115,7 @@ services:
 
   cron:
     init: true
+    stop_grace_period: 15s
     build:
       context: .
       dockerfile: Dockerfile

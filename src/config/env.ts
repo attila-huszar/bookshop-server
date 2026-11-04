@@ -1,4 +1,3 @@
-import { z } from 'zod'
 import { authTiming } from '@/constants/auth'
 import { backupRetentionPolicy } from '@/constants/backup'
 import { DB_REPO } from '@/types/enums'
@@ -23,18 +22,12 @@ export const env = {
   cookieMaxAge:
     Bun.env.COOKIE_MAX_AGE ?? String(authTiming.cookieMaxAgeSeconds),
 
-  dbRepo: z
-    .enum([DB_REPO.SQLITE, DB_REPO.MONGO], {
-      error: 'Invalid DB_REPO: expected SQLITE or MONGO',
-    })
-    .default(DB_REPO.SQLITE)
-    .parse(Bun.env.DB_REPO),
+  // Entrypoints validate raw settings before importing database repositories.
+  dbRepo: (Bun.env.DB_REPO ?? DB_REPO.SQLITE) as DB_REPO,
   dbSqliteFile: Bun.env.DB_SQLITE_FILE ?? 'data/db.sqlite',
   dbMongoUrl: Bun.env.DB_MONGO_URL,
-  mongoBackupMode: z
-    .enum(['oplog', 'logical'])
-    .default('oplog')
-    .parse(Bun.env.MONGO_BACKUP_MODE),
+  mongoBackupMode: (Bun.env.MONGO_BACKUP_MODE ?? 'oplog') as
+    'oplog' | 'logical',
 
   backupRetentionDaily:
     Bun.env.BACKUP_RETENTION_DAILY ?? String(backupRetentionPolicy.daily),
@@ -42,11 +35,7 @@ export const env = {
     Bun.env.BACKUP_RETENTION_WEEKLY ?? String(backupRetentionPolicy.weekly),
   backupRetentionMonthly:
     Bun.env.BACKUP_RETENTION_MONTHLY ?? String(backupRetentionPolicy.monthly),
-  backupRetentionDryRun:
-    z
-      .enum(['true', 'false'])
-      .default('false')
-      .parse(Bun.env.BACKUP_RETENTION_DRY_RUN) === 'true',
+  backupRetentionDryRun: Bun.env.BACKUP_RETENTION_DRY_RUN === 'true',
 
   jwtAccessSecret: Bun.env.ACCESS_TOKEN_SECRET,
   jwtRefreshSecret: Bun.env.REFRESH_TOKEN_SECRET,

@@ -9,7 +9,7 @@ import {
 } from '@/validation'
 import { calculatePriceCents, toCents } from '@/utils/pricing.utils'
 import { orderResponse } from '@/utils/response.utils'
-import { stripe } from '@/libs/stripe'
+import { getStripe } from '@/libs/stripe'
 import { defaultCurrency } from '@/constants/payment'
 import { BadRequest, Internal, NotFound } from '@/errors'
 import { Unauthorized } from '@/errors/Unauthorized'
@@ -119,7 +119,7 @@ export async function retrievePaymentIntent(
 ) {
   const { validatedId } = await resolveAuthorizedPayment(paymentId, access)
 
-  return await stripe.paymentIntents.retrieve(validatedId)
+  return await getStripe().paymentIntents.retrieve(validatedId)
 }
 
 export async function getPaymentTerms(
@@ -284,8 +284,8 @@ export async function startCheckoutPayment(
   try {
     // Use the persisted snapshot on retries, not current prices or user details.
     paymentIntent = order.paymentId
-      ? await stripe.paymentIntents.retrieve(order.paymentId)
-      : await stripe.paymentIntents.create(
+      ? await getStripe().paymentIntents.retrieve(order.paymentId)
+      : await getStripe().paymentIntents.create(
           {
             amount: toCents(order.total),
             currency: order.currency.toLowerCase(),
@@ -361,5 +361,5 @@ export async function cancelPaymentIntent(
     )
   }
 
-  return await stripe.paymentIntents.cancel(validatedId)
+  return await getStripe().paymentIntents.cancel(validatedId)
 }

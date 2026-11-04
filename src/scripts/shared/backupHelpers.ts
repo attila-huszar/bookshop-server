@@ -56,8 +56,11 @@ export async function waitForProcessExitWithTimeout(
   processName: string,
   spawnedProcess: SpawnedProcess,
   timeoutMs: number = backupTiming.processTimeoutMs,
+  signal?: AbortSignal,
 ): Promise<number> {
   let timeoutId: ReturnType<typeof setTimeout> | undefined
+  let graceId: ReturnType<typeof setTimeout> | undefined
+  let onAbort: () => void = () => undefined
 
   const timeoutPromise = new Promise<never>((_, reject) => {
     timeoutId = setTimeout(() => {
@@ -66,7 +69,18 @@ export async function waitForProcessExitWithTimeout(
   })
 
   try {
-    return await Promise.race([spawnedProcess.exited, timeoutPromise])
+    return await Promise.race([
+      spawnedProcess.exited,
+      timeoutPromise,
+      new Promise<never>((_, reject) => {
+        onAbort = () => reject(new Error(`${processName} interrupted`))
+        if (signal?.aborted) {
+          onAbort()
+        } else {
+          signal?.addEventListener('abort', onAbort, { once: true })
+        }
+      }),
+    ])
   } catch (error: unknown) {
     try {
       spawnedProcess.kill('SIGTERM')
@@ -76,9 +90,12 @@ export async function waitForProcessExitWithTimeout(
 
     const exited = await Promise.race([
       spawnedProcess.exited.then(() => true),
-      new Promise<false>((resolve) =>
-        setTimeout(() => resolve(false), backupTiming.terminationGraceMs),
-      ),
+      new Promise<false>((resolve) => {
+        graceId = setTimeout(
+          () => resolve(false),
+          backupTiming.terminationGraceMs,
+        )
+      }),
     ])
 
     if (!exited) {
@@ -87,6 +104,7 @@ export async function waitForProcessExitWithTimeout(
       } catch {
         // Ignore if the process has already exited.
       }
+      await spawnedProcess.exited
     }
 
     throw error
@@ -94,5 +112,7 @@ export async function waitForProcessExitWithTimeout(
     if (timeoutId) {
       clearTimeout(timeoutId)
     }
+    clearTimeout(graceId)
+    signal?.removeEventListener('abort', onAbort)
   }
 }

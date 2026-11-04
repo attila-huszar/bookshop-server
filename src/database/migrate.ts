@@ -1,15 +1,27 @@
-import { migrate } from 'drizzle-orm/bun-sqlite/migrator'
-import { connectDatabase, sqlite } from '@/db'
-import { MIGRATIONS_DIR } from '@/constants/paths'
+import { validateEnv } from '@/config/validateEnv'
+import { runProcess } from '@/utils/processLifecycle.utils'
+import { processTiming } from '@/constants/process'
+
+export async function migrateDatabase(): Promise<void> {
+  const { migrate } = await import('drizzle-orm/bun-sqlite/migrator')
+  const { sqlite } = await import('@/db')
+  const { MIGRATIONS_DIR } = await import('@/constants/paths')
+  migrate(sqlite, { migrationsFolder: MIGRATIONS_DIR })
+}
 
 if (import.meta.main) {
-  try {
-    await connectDatabase()
-    migrate(sqlite, { migrationsFolder: MIGRATIONS_DIR })
-    console.info('Database migrated ✅')
-    process.exit(0)
-  } catch (error) {
-    console.error('❌ Database migration failed:', error)
-    process.exit(1)
-  }
+  await runProcess({
+    name: 'Database migration',
+    shutdownMs: processTiming.apiShutdownMs,
+    once: true,
+    start: async (context) => {
+      validateEnv('migrate')
+      const db = await import('@/db')
+      context.defer('database', db.closeDatabase)
+      await context.wait(db.connectDatabase())
+      context.signal.throwIfAborted()
+      await migrateDatabase()
+      console.info('Database migrated ✅')
+    },
+  })
 }

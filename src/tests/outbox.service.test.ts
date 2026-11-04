@@ -37,10 +37,31 @@ beforeEach(() => {
   mockEmailQueue.add.mockResolvedValue({ id: entry.id })
 })
 describe('outbox relay', () => {
+  it('finishes its current publication without claiming another intent after close', async () => {
+    const claim = Promise.withResolvers<EmailOutboxEntry>()
+    mockOutboxDB.claimEmail
+      .mockReset()
+      .mockReturnValueOnce(claim.promise)
+      .mockResolvedValue(entry)
+    const relay = startOutboxRelay({
+      repository: mockOutboxDB,
+      queue: mockEmailQueue,
+    })
+    const closing = relay.close()
+    claim.resolve(entry)
+    await closing
+    expect(mockOutboxDB.claimEmail).toHaveBeenCalledTimes(1)
+    expect(mockEmailQueue.add).toHaveBeenCalledTimes(1)
+    expect(mockOutboxDB.completeEmail).toHaveBeenCalledTimes(1)
+  })
+
   it('continues polling during an outage without logging every retry', async () => {
     jest.useFakeTimers()
     mockOutboxDB.claimEmail.mockReset().mockRejectedValue(new Error('Offline'))
-    const relay = startOutboxRelay()
+    const relay = startOutboxRelay({
+      repository: mockOutboxDB,
+      queue: mockEmailQueue,
+    })
     const settlePoll = async () => {
       // Drain publication and timer scheduling before advancing the next poll.
       for (let step = 0; step < 6; step++) {

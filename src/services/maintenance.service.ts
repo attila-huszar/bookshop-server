@@ -5,6 +5,7 @@ import { reconcileStaleOrders } from './orders.service'
 
 export async function runMaintenance(
   cleanupImages = cleanupUnusedImages,
+  signal?: AbortSignal,
 ): Promise<boolean> {
   const tasks = [
     {
@@ -38,7 +39,7 @@ export async function runMaintenance(
     {
       name: 'order reconciliation',
       run: async () => {
-        const { failed } = await reconcileStaleOrders()
+        const { failed } = await reconcileStaleOrders(signal)
 
         if (failed > 0) {
           throw new Error(`${failed} order(s) could not be reconciled`)
@@ -59,6 +60,10 @@ export async function runMaintenance(
   let succeeded = true
 
   for (const task of tasks) {
+    if (signal?.aborted) {
+      break
+    }
+
     try {
       await task.run()
     } catch (error) {
