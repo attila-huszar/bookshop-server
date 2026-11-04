@@ -2,10 +2,14 @@
 
 set -e
 
-if [ ! -f "${CRON_FILE:-}" ]; then
-  echo "CRON_FILE is empty or file does not exist"
-  exit 1
-fi
+case "${DB_REPO:-}" in
+  MONGO) CRON_FILE=/bookshop-server/docker/cron/mongo.crontab ;;
+  SQLITE) CRON_FILE=/bookshop-server/docker/cron/sqlite.crontab ;;
+  *)
+    echo "Invalid DB_REPO: expected SQLITE or MONGO" >&2
+    exit 1
+    ;;
+esac
 
 CRONTAB_DIR="${CRONTAB_DIR:-/tmp/crontabs}"
 CRON_USER="$(id -un)"

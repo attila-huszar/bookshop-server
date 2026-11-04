@@ -56,7 +56,7 @@ docker plugin install grafana/loki-docker-driver:latest --alias loki --grant-all
 Configure the environment files:
 
 - Server: set `ADMIN_EMAIL`/`ADMIN_PASSWORD`, cookie/JWT secrets, `STRIPE_SECRET` (test key), SMTP credentials, and AWS S3 settings for image uploads and database backups.
-- Database: set `COMPOSE_PROFILES=sqlite` (default) or `mongo` in the server `.env`. The Mongo profile uses Atlas: replace `<db_password>` in `DB_MONGO_URL` with the URL-encoded database-user password, and allow the application's outgoing IP in Atlas Network Access. The app, workers and backups share this connection setting. Keep `MONGO_BACKUP_MODE=logical` for Atlas M0.
+- Database: keep `DB_REPO=MONGO` in the server `.env` for Atlas, or set `DB_REPO=SQLITE` for SQLite. Replace `<db_password>` in `DB_MONGO_URL` with the URL-encoded database-user password, and allow the application's outgoing IP in Atlas Network Access. The app, worker and backups share these settings. Keep `MONGO_BACKUP_MODE=logical` for Atlas M0.
 - Client: set `VITE_STRIPE_PUBLIC_KEY` to the publishable test key from the same Stripe account. Default URLs are `VITE_BASE_URL=http://localhost:5173` and `VITE_SERVER_URL=http://localhost:5000/api`; keep the server's `CLIENT_BASE_URL` aligned.
 - Checkout terms: publish English and Hungarian terms in the admin CMS under **Terms and Conditions** before testing payments.
 

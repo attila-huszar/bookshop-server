@@ -1,3 +1,8 @@
+x-app-environment: &app-environment
+  DB_REPO: '${DB_REPO:?Set DB_REPO to MONGO or SQLITE in .env}'
+  REDIS_URL: redis://redis:6379
+  NODE_ENV: '${NODE_ENV:-development}'
+
 x-loki-options: &loki-options
   loki-url: 'http://127.0.0.1:3100/loki/api/v1/push'
   loki-retries: '3'
@@ -21,7 +26,6 @@ services:
       context: .
       dockerfile: Dockerfile
       target: server
-    profiles: ['sqlite']
     ports:
       - '${PORT:-5000}:5000'
     networks:
@@ -33,11 +37,9 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      DB_REPO: SQLITE
+      <<: *app-environment
       PORT: '5000'
-      REDIS_URL: redis://redis:6379
       SETUP: '${SETUP:-}'
-      NODE_ENV: '${NODE_ENV:-development}'
       NGROK_AUTHTOKEN: '${NGROK_AUTHTOKEN:-}'
     entrypoint: ['sh', 'docker/entrypoint.sh']
     command: ['bun', '${BUN_RUN_MODE:-run}', 'src/app.ts']
@@ -56,47 +58,6 @@ services:
     volumes:
       - ./src:/bookshop-server/src
       - sqlite_data:/bookshop-server/data
-
-  server-with-mongo:
-    init: true
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: server
-    profiles: ['mongo']
-    ports:
-      - '${PORT:-5000}:5000'
-    networks:
-      default:
-        aliases: [api]
-    depends_on:
-      loki:
-        condition: service_started
-    restart: unless-stopped
-    env_file: .env
-    environment:
-      DB_REPO: MONGO
-      PORT: '5000'
-      REDIS_URL: redis://redis:6379
-      SETUP: '${SETUP:-}'
-      NODE_ENV: '${NODE_ENV:-development}'
-      NGROK_AUTHTOKEN: '${NGROK_AUTHTOKEN:-}'
-    entrypoint: ['sh', 'docker/entrypoint.sh']
-    command: ['bun', '${BUN_RUN_MODE:-run}', 'src/app.ts']
-
-    logging:
-      driver: loki
-      options:
-        <<: *loki-options
-        loki-external-labels: 'job=server-with-mongo'
-    healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://127.0.0.1:5000/health']
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 60s
-    volumes:
-      - ./src:/bookshop-server/src
 
   redis:
     image: redis:alpine
@@ -131,7 +92,6 @@ services:
       context: .
       dockerfile: Dockerfile
       target: worker
-    profiles: ['sqlite']
     depends_on:
       redis:
         condition: service_healthy
@@ -142,9 +102,7 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      DB_REPO: SQLITE
-      REDIS_URL: redis://redis:6379
-      NODE_ENV: '${NODE_ENV:-development}'
+      <<: *app-environment
     command: ['bun', '${BUN_RUN_MODE:-run}', 'src/workers/email.worker.ts']
     logging:
       driver: loki
@@ -155,43 +113,12 @@ services:
       - ./src:/bookshop-server/src
       - sqlite_data:/bookshop-server/data
 
-  worker-with-mongo:
-    init: true
-    stop_grace_period: 50s
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: worker
-    profiles: ['mongo']
-    depends_on:
-      redis:
-        condition: service_healthy
-      server-with-mongo:
-        condition: service_healthy
-      loki:
-        condition: service_started
-    restart: unless-stopped
-    env_file: .env
-    environment:
-      DB_REPO: MONGO
-      REDIS_URL: redis://redis:6379
-      NODE_ENV: '${NODE_ENV:-development}'
-    command: ['bun', '${BUN_RUN_MODE:-run}', 'src/workers/email.worker.ts']
-    logging:
-      driver: loki
-      options:
-        <<: *loki-options
-        loki-external-labels: 'job=worker-with-mongo'
-    volumes:
-      - ./src:/bookshop-server/src
-
   cron:
     init: true
     build:
       context: .
       dockerfile: Dockerfile
       target: cron
-    profiles: ['sqlite']
     depends_on:
       server:
         condition: service_healthy
@@ -200,9 +127,7 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      DB_REPO: SQLITE
-      CRON_FILE: /bookshop-server/docker/cron/sqlite.crontab
-      REDIS_URL: redis://redis:6379
+      <<: *app-environment
     logging:
       driver: loki
       options:
@@ -212,33 +137,6 @@ services:
       - ./src:/bookshop-server/src
       - ./docker/cron:/bookshop-server/docker/cron
       - sqlite_data:/bookshop-server/data
-
-  cron-with-mongo:
-    init: true
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: cron
-    profiles: ['mongo']
-    depends_on:
-      server-with-mongo:
-        condition: service_healthy
-      loki:
-        condition: service_started
-    restart: unless-stopped
-    env_file: .env
-    environment:
-      DB_REPO: MONGO
-      CRON_FILE: /bookshop-server/docker/cron/mongo.crontab
-      REDIS_URL: redis://redis:6379
-    logging:
-      driver: loki
-      options:
-        <<: *loki-options
-        loki-external-labels: 'job=cron-with-mongo'
-    volumes:
-      - ./src:/bookshop-server/src
-      - ./docker/cron:/bookshop-server/docker/cron
 
   loki:
     image: grafana/loki
