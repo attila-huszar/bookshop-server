@@ -9,9 +9,9 @@ const mongooseUrl = import.meta.resolve('mongoose')
 const bullmqUrl = import.meta.resolve('bullmq')
 
 describe.each([
-  { entrypoint: 'src/app.ts', message: 'Server startup failed' },
+  { entrypoint: 'src/server.ts', message: 'Server startup failed' },
   {
-    entrypoint: 'src/workers/email.worker.ts',
+    entrypoint: 'src/worker.ts',
     message: 'Email worker startup failed',
   },
 ])('$entrypoint startup', (entrypoint) => {
@@ -43,24 +43,43 @@ describe.each([
         preload,
         `
           import { mock } from 'bun:test'
+
           const mongoose = (await import(${JSON.stringify(mongooseUrl)})).default
+
           mongoose.connect = async () => {
             throw Object.assign(new Error('mongodb://user:private-password@private-host/bookshop'), {
               code: ${JSON.stringify(scenario.code)},
             })
           }
-          mongoose.connection.close = async () => { console.log('Database closed') }
+          mongoose.connection.close = async () => {
+            console.log('Database closed')
+          }
+
           await mock.module(${JSON.stringify(bullmqUrl)}, () => ({
             Queue: class {
-              on() { return this }
-              async close() { console.log('Queue closed') }
+              on() {
+                return this
+              }
+
+              async close() {
+                console.log('Queue closed')
+              }
             },
             Worker: class {
-              on() { return this }
-              async run() { throw new Error('Unexpected worker processing') }
-              async close() { console.log('Worker closed') }
+              on() {
+                return this
+              }
+
+              async run() {
+                throw new Error('Unexpected worker processing')
+              }
+
+              async close() {
+                console.log('Worker closed')
+              }
             },
           }))
+
           setTimeout(() => process.exit(2), 10000).unref()
         `,
       )

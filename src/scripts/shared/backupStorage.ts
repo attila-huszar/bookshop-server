@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { BunFile } from 'bun'
 import { backupRetentionPolicy } from '@/constants/backup'
 import { DB_REPO } from '@/types/enums'
-import type { WithBackupArchive } from './backupHelpers'
+import type { WithBackupArchive } from './backupArchive'
 
 const archiveExtensions = {
   [DB_REPO.MONGO]: '.archive.gz',

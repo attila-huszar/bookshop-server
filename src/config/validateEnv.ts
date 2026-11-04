@@ -1,9 +1,9 @@
-import { validateMongoUrl } from '@/utils/databaseConnection.utils'
+import { validateMongoUrl } from '@/utils/db.utils'
 import { DB_REPO } from '@/types/enums'
 import { env } from './env'
 
-export type ProcessRole =
-  'api' | 'worker' | 'maintenance' | 'backup' | 'seed' | 'migrate'
+export type ProcessRole = 'api' | 'worker' | 'maintenance' | 'backup' | 'setup'
+
 const storageKeys = [
   'awsAccessKeyId',
   'awsSecretAccessKey',
@@ -23,8 +23,7 @@ const requiredKeys: Record<ProcessRole, readonly (keyof typeof env)[]> = {
   worker: ['redisUrl', 'mailerUser', 'mailerPass'],
   maintenance: ['stripeSecret', ...storageKeys],
   backup: storageKeys,
-  seed: ['adminEmail', 'adminPassword'],
-  migrate: [],
+  setup: ['adminEmail', 'adminPassword'],
 }
 
 export function validateDatabaseEnv(): void {
@@ -84,9 +83,5 @@ export function validateEnv(role: ProcessRole): typeof env {
       throw new Error('BACKUP_RETENTION_DRY_RUN must be true or false')
     }
   }
-  if (role === 'migrate' && env.dbRepo !== DB_REPO.SQLITE) {
-    throw new Error('SQLite migrations require DB_REPO=SQLITE')
-  }
-
   return env
 }

@@ -4,7 +4,7 @@ import {
   accountEmailIntent,
   createEmailIntent,
   orderPaidEmails,
-} from '@/utils/email-job.utils'
+} from '@/utils/emailOutbox.utils'
 import { EMAIL } from '@/constants/email'
 import { AdminNotification, type EmailOutboxDraft, type Order } from '@/types'
 

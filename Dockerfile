@@ -15,11 +15,11 @@ COPY . .
 
 FROM base AS server
 USER bun
-CMD ["bun", "src/app.ts"]
+CMD ["bun", "src/server.ts"]
 
 FROM base AS worker
 USER bun
-CMD ["bun", "src/workers/email.worker.ts"]
+CMD ["bun", "src/worker.ts"]
 
 FROM base AS cron
 RUN apk add --no-cache sqlite mongodb-tools

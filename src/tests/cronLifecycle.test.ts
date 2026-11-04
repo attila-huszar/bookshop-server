@@ -21,10 +21,8 @@ describe('cron container lifecycle', () => {
           '#!/bin/sh\ntrap "exit 0" TERM INT\nwhile :; do sleep 1; done\n',
         )
         await chmod(daemon, 0o755)
-        const source = new URL(
-          '../utils/processLifecycle.utils.ts',
-          import.meta.url,
-        ).href
+        const source = new URL('../utils/process.utils.ts', import.meta.url)
+          .href
         const jobFile = join(directory, 'job.ts')
         await Bun.write(
           jobFile,

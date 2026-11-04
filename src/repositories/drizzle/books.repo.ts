@@ -8,7 +8,7 @@ import {
   or,
   sql,
 } from 'drizzle-orm'
-import { sqlite } from '@/db'
+import { sqlite } from '@/database/sqlite'
 import { authorsTable, booksTable } from '@/models/sqlite'
 import { catalogueFilterDefaults } from '@/constants/catalogue'
 import { PAGINATION } from '@/constants/pagination'

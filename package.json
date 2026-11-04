@@ -1,19 +1,15 @@
 {
   "name": "bookshop-server",
-  "module": "app.ts",
+  "module": "src/server.ts",
   "type": "module",
   "scripts": {
     "dev": "concurrently -k -n client,docker \"bun run --cwd ../bookshop-client dev:client\" \"bun run docker:dev\" --teardown \"docker compose stop\"",
-    "dev:setup": "bun run setup && bun run dev",
     "docker:dev": "cross-env NODE_ENV=development BUN_RUN_MODE=--watch NGROK_AUTHTOKEN= docker compose up --build --abort-on-container-exit",
-    "docker:setup": "bun run setup && docker compose up --build",
-    "setup": "docker compose run --build --rm server bun src/database/setup.ts",
+    "setup": "docker compose run --build --rm --no-deps server bun src/database/setup.ts",
     "lint": "bun --bun eslint . --max-warnings 0",
     "typecheck": "bun --bun tsc --noEmit",
     "format": "prettier --write .",
-    "format:check": "prettier --check .",
-    "migrate": "bun src/database/migrate.ts",
-    "seed": "bun src/database/seed.ts"
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1161.0",

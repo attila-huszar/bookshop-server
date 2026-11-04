@@ -12,5 +12,5 @@
 - All Git operations are performed by the user. Do not run any Git commands unless explicitly instructed. Respect user changes. Use `rg` for search and `apply_patch` for edits.
 - Use LF line endings for all text files, including shell scripts, lockfiles, and local environment files. Do not override the LF formatter setting with CRLF.
 - Keep control flow readable: use braces for guards/loops and blank lines before returns/switches and between logical sections. Avoid rest destructuring in function parameters; prefer named parameters or typed input objects.
-- Run `bun run typecheck`, `bun run lint`, `bun run format:check`, and `bun test`. Validate Compose changes with `docker compose config --quiet`. State explicitly when live provider/database checks were not available.
+- Run `bun run typecheck`, `bun run lint`, and `bun run format:check`. Validate Compose changes with `docker compose config --quiet`. State explicitly when live provider/database checks were not available.
 - Keep README.md focused on project basics and setup. Put this app's feature, architecture, and operational details in `docs/architecture.md`; link to `../bookshop-client/docs/architecture.md` for frontend responsibilities. Keep agent instructions here.

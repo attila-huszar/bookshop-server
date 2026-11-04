@@ -7,8 +7,13 @@ let currentListener: NgrokListener | undefined
 let forwardPromise: Promise<NgrokListener> | undefined
 
 export function ngrokForward(): Promise<NgrokListener | undefined> {
-  if (currentListener) return Promise.resolve(currentListener)
-  if (forwardPromise) return forwardPromise
+  if (currentListener) {
+    return Promise.resolve(currentListener)
+  }
+
+  if (forwardPromise) {
+    return forwardPromise
+  }
 
   forwardPromise = ngrok
     .forward({
@@ -19,6 +24,7 @@ export function ngrokForward(): Promise<NgrokListener | undefined> {
     .then((listener) => {
       currentListener = listener
       console.log(`Ingress established at: ${listener.url()}`)
+
       return listener
     })
     .finally(() => {
@@ -32,7 +38,10 @@ export async function closeNgrokTunnel(): Promise<void> {
   await forwardPromise?.catch(() => undefined)
 
   const listenerToClose = currentListener
-  if (!listenerToClose) return
+
+  if (!listenerToClose) {
+    return
+  }
 
   await listenerToClose.close()
 

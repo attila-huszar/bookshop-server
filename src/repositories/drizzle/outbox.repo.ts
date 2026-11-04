@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, isNull, lte, or, sql } from 'drizzle-orm'
-import { sqlite } from '@/db'
+import { sqlite } from '@/database/sqlite'
 import { emailOutboxTable } from '@/models/sqlite/emailOutboxTable'
 import { outboxPolicy } from '@/constants/email'
 import {
@@ -119,6 +119,7 @@ export async function getEmailOutbox(query: EmailOutboxQuery, now: Date) {
     else 'pending' end`
   const recipient = sql<string>`json_extract(${emailOutboxTable.payload}, '$.toAddress')`
   const paymentId = sql<string>`coalesce(json_extract(${emailOutboxTable.payload}, '$.paymentId'), json_extract(${emailOutboxTable.payload}, '$.order.paymentId'), '')`
+
   const filters = and(
     query.paymentId ? sql`${paymentId} = ${query.paymentId}` : undefined,
     query.type
@@ -129,6 +130,7 @@ export async function getEmailOutbox(query: EmailOutboxQuery, now: Date) {
       ? sql`(instr(lower(${recipient}), lower(${query.search})) > 0 or instr(lower(${paymentId}), lower(${query.search})) > 0)`
       : undefined,
   )
+
   const entries = await sqlite
     .select()
     .from(emailOutboxTable)
@@ -136,6 +138,7 @@ export async function getEmailOutbox(query: EmailOutboxQuery, now: Date) {
     .orderBy(desc(emailOutboxTable.createdAt), desc(emailOutboxTable.id))
     .limit(query.limit)
     .offset((query.page - 1) * query.limit)
+
   const [count] = await sqlite
     .select({ total: sql<number>`count(*)` })
     .from(emailOutboxTable)

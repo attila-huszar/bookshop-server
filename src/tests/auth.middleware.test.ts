@@ -9,7 +9,7 @@ import {
   mockValidate,
 } from './test-setup'
 
-const { createApp } = await import('@/http/app')
+const { createApp } = await import('@/app')
 const app = createApp()
 const previousSecret = env.jwtAccessSecret
 const account: User = {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 import { rejects } from 'node:assert/strict'
-import { waitForProcessExitWithTimeout } from '@/scripts/shared/backupHelpers'
+import { waitForProcessExitWithTimeout } from '@/scripts/shared/backupArchive'
 
 describe('backup child processes', () => {
   it('terminates and reaps a dump process when the job is interrupted', async () => {

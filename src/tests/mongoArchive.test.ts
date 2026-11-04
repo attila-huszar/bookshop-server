@@ -2,7 +2,7 @@ import { describe, expect, it, mock } from 'bun:test'
 import { rejects } from 'node:assert/strict'
 import { stat } from 'node:fs/promises'
 import { dirname } from 'node:path'
-import { withMongoArchive } from '@/scripts/backup'
+import { withMongoArchive } from '@/scripts/shared/backupArchive'
 
 type ArchiveInput = Parameters<typeof withMongoArchive>[0]
 
@@ -44,6 +44,24 @@ function setup(expectedUri?: string) {
 }
 
 describe('temporary Mongo archives', () => {
+  it('skips upload and removes scratch files when interrupted after the dump', async () => {
+    const context = setup()
+    const controller = new AbortController()
+    const successfulDump = context.input.dump.getMockImplementation()!
+    context.input.dump.mockImplementationOnce(async (command) => {
+      await successfulDump(command)
+      controller.abort(new Error('Backup interrupted'))
+    })
+
+    await rejects(
+      withMongoArchive({ ...context.input, signal: controller.signal }),
+      /Backup interrupted/,
+    )
+
+    expect(context.input.consume).not.toHaveBeenCalled()
+    await rejects(stat(context.directory()), { code: 'ENOENT' })
+  })
+
   it('waits for a completed dump, consumes the file, then removes all temporary files', async () => {
     const context = setup()
 

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'bun:test'
 import { AdminNotification, type Order } from '@/types'
 
-const { getEmailHtml, getEmailSubject } = await import('@/utils/email.utils')
+const { getEmailHtml, getEmailSubject } =
+  await import('@/utils/emailTemplate.utils')
 
 const order: Order = {
   checkoutRequestId: 'checkout-email-test',

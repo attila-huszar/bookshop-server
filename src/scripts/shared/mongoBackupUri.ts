@@ -1,5 +1,5 @@
 import { Resolver } from 'node:dns/promises'
-import { getMongoUriOption, parseMongoURI } from '@/utils/mongoUri.utils'
+import { getMongoUriOption, parseMongoURI } from '@/utils/db.utils'
 import { backupTiming } from '@/constants/backup'
 
 export type MongoBackupMode = 'logical' | 'oplog'
@@ -28,7 +28,9 @@ async function resolveAuthSource(
       timeout: backupTiming.connectionTimeoutMs,
       tries: 2,
     })
-    records = await (lookup ?? ((host) => resolver.resolveTxt(host)))(hostname)
+    records = lookup
+      ? await lookup(hostname)
+      : await resolver.resolveTxt(hostname)
   } catch (error) {
     if (
       error instanceof Error &&
@@ -90,19 +92,21 @@ export async function getMongoBackupUri(
 
   const options = connection.searchParams
   const mechanism = getMongoUriOption(options, 'authMechanism') ?? ''
-
-  if (
+  const hasCredentials = Boolean(connection.username) || Boolean(mechanism)
+  const needsAuthSource =
     getMongoUriOption(options, 'authSource') === null &&
-    (connection.username || mechanism) &&
+    hasCredentials &&
     !externalAuthMechanisms.has(mechanism)
-  ) {
+
+  if (needsAuthSource) {
     const source = connection.isSRV
       ? await resolveAuthSource(connection.hosts[0]!, input.resolveTxt)
       : undefined
+
     options.set('authSource', source ?? database)
   }
 
   const query = options.toString()
 
-  return `${connection.origin}/${query ? `?${query}` : ''}`
+  return query ? `${connection.baseUri}/?${query}` : `${connection.baseUri}/`
 }

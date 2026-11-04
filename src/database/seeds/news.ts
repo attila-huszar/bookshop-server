@@ -6,7 +6,7 @@ export async function seedNews() {
   if (env.dbRepo === DB_REPO.SQLITE) {
     const { getTableName } = await import('drizzle-orm')
     const { newsTable } = await import('@/models/sqlite')
-    const { sqlite } = await import('@/db')
+    const { sqlite } = await import('@/database/sqlite')
 
     await sqlite.insert(newsTable).values(newsData)
 
@@ -20,6 +20,7 @@ export async function seedNews() {
       await import('@/models/mongo')
 
     await NewsModel.create(newsData)
+
     const highestId = await getHighestId(NewsModel)
     await setSequence(NewsModel, highestId)
 

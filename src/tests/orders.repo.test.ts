@@ -8,7 +8,7 @@ import { env } from '@/config'
 import { emailOutboxTable } from '@/models/sqlite/emailOutboxTable'
 import { ordersTable } from '@/models/sqlite/ordersTable'
 import { orderInsertSchema, orderUpdateSchema } from '@/validation/orderSchemas'
-import { emailOutboxResponse } from '@/utils/email-outbox.utils'
+import { emailOutboxResponse } from '@/utils/emailOutbox.utils'
 import {
   AdminNotification,
   type UserRegistrationInsert,
@@ -19,7 +19,7 @@ const database = new Database(':memory:')
 const sqlite = drizzle(database)
 
 migrate(sqlite, { migrationsFolder: 'src/database/migrations' })
-await mock.module('@/db', () => ({
+await mock.module('@/database/sqlite', () => ({
   sqlite,
   connectDatabase: mock(),
   closeDatabase: mock(),

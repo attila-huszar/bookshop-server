@@ -1,6 +1,132 @@
 import { DB_REPO } from '@/types/enums'
 import { getErrorCode } from './error.utils'
-import { parseMongoURI } from './mongoUri.utils'
+
+type ParsedMongoURI = {
+  baseUri: string
+  isSRV: boolean
+  username?: string
+  hosts: string[]
+  database: string
+  searchParams: URLSearchParams
+}
+
+const mongoUriPattern =
+  /^(mongodb(?:\+srv)?):\/\/([^/?#]+)(?:\/([^?#]*))?(?:\?([^#]*))?$/
+
+export function parseMongoURI(uri: string): ParsedMongoURI {
+  try {
+    const match = mongoUriPattern.exec(uri)
+
+    if (!match || /[\s\\\p{Cc}]/u.test(uri)) {
+      throw new Error('Invalid MongoDB URI syntax')
+    }
+
+    // URLSearchParams tolerates malformed escapes; configuration must not.
+    decodeURIComponent(uri)
+
+    const [, protocol = '', authority = '', path = '', query = ''] = match
+    const isSRV = protocol === 'mongodb+srv'
+    const credentialSeparator = authority.lastIndexOf('@')
+    const username =
+      credentialSeparator === -1
+        ? undefined
+        : parseUsername(authority.slice(0, credentialSeparator))
+
+    const hosts = authority.slice(credentialSeparator + 1).split(',')
+
+    if (isSRV && hosts.length !== 1) {
+      throw new Error('MongoDB SRV requires a single host')
+    }
+
+    for (const host of hosts) {
+      validateHost(host, isSRV)
+    }
+
+    const database = decodeURIComponent(path)
+
+    if (/[/\\\0]/.test(database)) {
+      throw new Error('Invalid MongoDB database path')
+    }
+
+    return {
+      // Preserve the original authority, including encoded credentials and hosts.
+      baseUri: `${protocol}://${authority}`,
+      isSRV,
+      username,
+      hosts,
+      database,
+      searchParams: new URLSearchParams(query),
+    }
+  } catch {
+    // Native parsing errors may include the input URI and its credentials.
+    throw new Error('Invalid MongoDB connection string')
+  }
+}
+
+function parseUsername(credentials: string): string {
+  const parts = credentials.split(':')
+  const [encodedUsername = '', encodedPassword = ''] = parts
+
+  if (!encodedUsername || parts.length > 2 || /[@[\]$]/.test(credentials)) {
+    throw new Error('Invalid MongoDB credentials')
+  }
+
+  const username = decodeURIComponent(encodedUsername)
+  const password = decodeURIComponent(encodedPassword)
+
+  if (username.includes('\0') || password.includes('\0')) {
+    throw new Error('Invalid MongoDB credentials')
+  }
+
+  return username
+}
+
+function validateHost(host: string, isSRV: boolean): void {
+  const decoded = decodeURIComponent(host)
+
+  if (!isSRV && decoded.startsWith('/') && decoded.endsWith('.sock')) {
+    if (decoded.includes('\0')) {
+      throw new Error('Invalid MongoDB socket path')
+    }
+
+    return
+  }
+
+  const match = /^(\[[^\]]+\]|[^:[\]]+)(?::([0-9]+))?$/.exec(host)
+
+  if (!match) {
+    throw new Error('Invalid MongoDB host')
+  }
+
+  const [, hostname = '', port] = match
+
+  if (isSRV && (port !== undefined || hostname.startsWith('['))) {
+    throw new Error('Invalid MongoDB SRV host')
+  }
+
+  // Use a special URL scheme so the native parser validates IPv6 and ports.
+  // Keep the original host for serialization, including its encoded form.
+  new URL(`http://${host}`)
+
+  if (port && Number(port) === 0) {
+    throw new Error('Invalid MongoDB port')
+  }
+}
+
+export function getMongoUriOption(
+  options: URLSearchParams,
+  name: string,
+): string | null {
+  const normalized = name.toLowerCase()
+
+  for (const [key, value] of options) {
+    if (key.toLowerCase() === normalized) {
+      return value
+    }
+  }
+
+  return null
+}
 
 export class DatabaseStartupError extends Error {
   override name = 'DatabaseStartupError'
@@ -115,21 +241,26 @@ export function databaseStartupError(
   // Keep safe diagnostics and original frames, never driver messages or causes.
   const failure = new DatabaseStartupError(hint)
   const rawCode = getErrorCode(error)
+
   if (
     typeof rawCode === 'number' ||
     (typeof rawCode === 'string' && /^[A-Z][A-Z0-9_]*$/.test(rawCode))
   ) {
     failure.code = rawCode
   }
+
   failure.stage = stage
+
   if (error instanceof Error) {
     failure.originalName = /^[A-Za-z]+Error$/.test(error.name)
       ? error.name
       : 'Error'
+
     const frames = error.stack
       ?.split('\n')
       .filter((line) => /^\s+at /.test(line))
       .join('\n')
+
     if (frames) {
       failure.stack = `${failure.name}: ${failure.message}\n${frames}`
     }

@@ -1,6 +1,6 @@
 import { describe, expect, it, mock } from 'bun:test'
 import { rejects } from 'node:assert/strict'
-import { withBackupArchive } from '@/scripts/shared/backupHelpers'
+import { withBackupArchive } from '@/scripts/shared/backupArchive'
 import {
   BackupRetentionError,
   backupToStorage,

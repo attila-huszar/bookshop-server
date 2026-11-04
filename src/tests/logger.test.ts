@@ -10,10 +10,16 @@ describe('structured logging', () => {
         '-e',
         `
         const { log } = await import('./src/libs/logger.ts')
-        log.error('Connection failed', { error: Object.assign(
+
+        const error = Object.assign(
           new Error('mongodb://user:private-password@host.test/db configured-private-secret'),
           { code: 11000, stage: 'schema', originalName: 'MongoServerError' },
-        ) })
+        )
+
+        log.error(
+          'Connection failed redis://user:message-private-password@redis.test/0 configured-private-secret',
+          { error },
+        )
       `,
       ],
       cwd: resolve(import.meta.dir, '../..'),
@@ -23,9 +29,13 @@ describe('structured logging', () => {
         MAILER_PASS: 'configured-private-secret',
       },
     })
+
     expect(result.exitCode).toBe(0)
+
     const output = result.stdout.toString()
+
     expect(output).not.toContain('private-password')
+    expect(output).not.toContain('message-private-password')
     expect(output).not.toContain('configured-private-secret')
     expect(output).toContain('[redacted]')
     expect(output).toContain('11000')

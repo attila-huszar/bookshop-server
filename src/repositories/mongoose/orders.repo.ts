@@ -3,7 +3,7 @@ import { TermsDocumentModel } from '@/models/mongo/TermsDocumentModel'
 import {
   orderPaidEmails,
   orderReconciliationFailure,
-} from '@/utils/email-job.utils'
+} from '@/utils/emailOutbox.utils'
 import { getErrorCode } from '@/utils/error.utils'
 import { terminalStatuses } from '@/constants/payment'
 import { BadRequest } from '@/errors'

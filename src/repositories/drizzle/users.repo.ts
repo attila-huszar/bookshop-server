@@ -1,8 +1,8 @@
 import { and, eq, gt, inArray, isNotNull, isNull, lt } from 'drizzle-orm'
-import { sqlite } from '@/db'
+import { sqlite } from '@/database/sqlite'
 import { usersTable } from '@/models/sqlite'
 import { emailOutboxTable } from '@/models/sqlite/emailOutboxTable'
-import { accountEmailIntent } from '@/utils/email-job.utils'
+import { accountEmailIntent } from '@/utils/emailOutbox.utils'
 import { EMAIL } from '@/constants/email'
 import type {
   PasswordResetTokenUpdate,

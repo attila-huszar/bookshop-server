@@ -1,8 +1,10 @@
+import { Database } from 'bun:sqlite'
 import { describe, expect, it } from 'bun:test'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import authorsData from '@/database/seeds/authors.json'
 
 const root = fileURLToPath(new URL('../../', import.meta.url))
 const bullmq = import.meta.resolve('bullmq')
@@ -35,14 +37,17 @@ const env = {
 
 async function prepare(directory: string) {
   const config = { ...env, DB_SQLITE_FILE: join(directory, 'db.sqlite') }
+
   const child = Bun.spawn(
-    [process.execPath, '--no-env-file', 'src/database/migrate.ts'],
+    [process.execPath, '--no-env-file', 'src/database/setup.ts'],
     { cwd: root, env: config, stdout: 'pipe', stderr: 'pipe' },
   )
+
   const [code, stderr] = await Promise.all([
     child.exited,
     new Response(child.stderr).text(),
   ])
+
   expect({ code, stderr }).toEqual({ code: 0, stderr: '' })
 
   return config
@@ -51,35 +56,66 @@ async function prepare(directory: string) {
 describe('service lifecycle integration', () => {
   it('does not repeat setup when a restart retains the old SETUP flag', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'bookshop-setup-lifecycle-'))
+
     try {
-      const database = join(directory, 'untouched.sqlite')
-      const script = fileURLToPath(
-        new URL('../../docker/entrypoint.sh', import.meta.url),
+      const config = await prepare(directory)
+      const preload = join(directory, 'stop-after-start.ts')
+      await Bun.write(
+        preload,
+        `
+        const serve = Bun.serve
+        Bun.serve = options => {
+          const server = serve(options)
+
+          setTimeout(() => process.emit('SIGTERM'), 10)
+
+          return server
+        }
+
+        setTimeout(() => process.exit(99), 5000).unref()
+      `,
       )
+
       const child = Bun.spawn(
         [
-          '/bin/sh',
-          script,
           process.execPath,
           '--no-env-file',
-          '-e',
-          'console.log("NORMAL_START")',
+          '--preload',
+          preload,
+          'src/server.ts',
         ],
         {
           cwd: root,
-          env: { ...env, DB_SQLITE_FILE: database, SETUP: 'true' },
+          env: {
+            ...config,
+            SETUP: 'true',
+            ADMIN_EMAIL: '',
+            ADMIN_PASSWORD: '',
+          },
           stdout: 'pipe',
           stderr: 'pipe',
         },
       )
+
       const [code, stdout, stderr] = await Promise.all([
         child.exited,
         new Response(child.stdout).text(),
         new Response(child.stderr).text(),
       ])
+
       expect({ code, stderr }).toEqual({ code: 0, stderr: '' })
-      expect(stdout.trim()).toBe('NORMAL_START')
-      expect(await Bun.file(database).exists()).toBe(false)
+      expect(stdout).toContain('Server started')
+      expect(stdout).not.toContain('Starting database seed')
+
+      const database = new Database(config.DB_SQLITE_FILE, { readonly: true })
+
+      try {
+        expect(
+          database.query('SELECT COUNT(*) AS total FROM authors').get(),
+        ).toEqual({ total: authorsData.length })
+      } finally {
+        database.close()
+      }
     } finally {
       await rm(directory, { recursive: true, force: true })
     }
@@ -87,17 +123,17 @@ describe('service lifecycle integration', () => {
 
   it.each([
     {
-      entrypoint: 'src/app.ts',
+      entrypoint: 'src/server.ts',
       overrides: { STRIPE_SECRET: '' },
       field: 'STRIPE_SECRET',
     },
     {
-      entrypoint: 'src/app.ts',
+      entrypoint: 'src/server.ts',
       overrides: { DB_REPO: 'INVALID' },
       field: 'DB_REPO',
     },
     {
-      entrypoint: 'src/workers/email.worker.ts',
+      entrypoint: 'src/worker.ts',
       overrides: { REDIS_URL: '' },
       field: 'REDIS_URL',
     },
@@ -113,11 +149,13 @@ describe('service lifecycle integration', () => {
           stderr: 'pipe',
         },
       )
+
       const [code, stdout, stderr] = await Promise.all([
         child.exited,
         new Response(child.stdout).text(),
         new Response(child.stderr).text(),
       ])
+
       expect({ code, stderr }).toEqual({ code: 1, stderr: '' })
       expect(stdout).toContain('startup failed')
       expect(stdout).toContain(scenario.field)
@@ -128,6 +166,7 @@ describe('service lifecycle integration', () => {
   it('finishes an active HTTP request before closing the database on SIGTERM', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'bookshop-api-lifecycle-'))
     let child: ReturnType<typeof Bun.spawn> | undefined
+
     try {
       const config = await prepare(directory)
       const preload = join(directory, 'http-preload.ts')
@@ -135,58 +174,92 @@ describe('service lifecycle integration', () => {
         preload,
         `
         const serve = Bun.serve
-        Bun.serve = options => serve({ ...options, fetch: async req => {
-          if (new URL(req.url).pathname === '/slow') {
-            console.log('REQUEST_STARTED')
-            await new Promise(resolve => setTimeout(resolve, 200))
-            const db = await import(${JSON.stringify(new URL('../db.ts', import.meta.url).href)})
-            db.sqliteClient.query('SELECT 1').get()
-            return new Response('completed')
-          }
-          return options.fetch(req)
-        } })
+        Bun.serve = (options) => serve({
+          ...options,
+          fetch: async (req) => {
+            if (new URL(req.url).pathname === '/slow') {
+              console.log('REQUEST_STARTED')
+
+              // Exercise the registered handler without force-killing Windows.
+              if (process.platform === 'win32') {
+                setTimeout(() => process.emit('SIGTERM'), 10)
+              }
+
+              await new Promise((resolve) => setTimeout(resolve, 200))
+
+              const { sqliteClient } = await import(${JSON.stringify(new URL('../database/sqlite.ts', import.meta.url).href)})
+              sqliteClient.query('SELECT 1').get()
+
+              return new Response('completed')
+            }
+
+            return options.fetch(req)
+          },
+        })
+
         setTimeout(() => process.exit(99), 10000).unref()
       `,
       )
       child = Bun.spawn(
-        [process.execPath, '--no-env-file', '--preload', preload, 'src/app.ts'],
+        [
+          process.execPath,
+          '--no-env-file',
+          '--preload',
+          preload,
+          'src/server.ts',
+        ],
         { cwd: root, env: config, stdout: 'pipe', stderr: 'pipe' },
       )
       const reader = (child.stdout as ReadableStream<Uint8Array>).getReader()
       const decoder = new TextDecoder()
+
       let output = ''
       let port: number | undefined
+
       while (port === undefined) {
         const chunk = await reader.read()
         expect(chunk.done).toBe(false)
+
         if (chunk.done) {
           throw new Error(output)
         }
+
         output += decoder.decode(chunk.value)
+
         for (const line of output.split('\n')) {
           try {
-            port ??= (JSON.parse(line) as { meta?: { port?: number } }).meta
-              ?.port
+            const event = JSON.parse(line) as { meta?: { port?: number } }
+            port ??= event.meta?.port
           } catch {
             /* Wait for a complete JSON line. */
           }
         }
       }
+
       expect((await fetch(`http://127.0.0.1:${port}/ready`)).status).toBe(200)
+
       const response = fetch(`http://127.0.0.1:${port}/slow`)
+
       while (!output.includes('REQUEST_STARTED')) {
         const chunk = await reader.read()
+
         if (chunk.done) {
           throw new Error(output)
         }
+
         output += decoder.decode(chunk.value)
       }
-      child.kill('SIGTERM')
+
+      if (process.platform !== 'win32') {
+        child.kill('SIGTERM')
+      }
+
       expect(await (await response).text()).toBe('completed')
       expect(await child.exited).toBe(0)
       expect(await new Response(child.stderr as ReadableStream).text()).toBe('')
     } finally {
       child?.kill()
+      await child?.exited
       await rm(directory, { recursive: true, force: true })
     }
   })
@@ -195,6 +268,7 @@ describe('service lifecycle integration', () => {
     const directory = await mkdtemp(
       join(tmpdir(), 'bookshop-worker-lifecycle-'),
     )
+
     try {
       const config = await prepare(directory)
       const preload = join(directory, 'worker-preload.ts')
@@ -202,44 +276,75 @@ describe('service lifecycle integration', () => {
         preload,
         `
         import { mock } from 'bun:test'
+
         let interval
+
         await mock.module(${JSON.stringify(bullmq)}, () => ({
-          Queue: class { on() { return this }; async close() {} },
+          Queue: class {
+            on() {
+              return this
+            }
+
+            async close() {}
+          },
           Worker: class {
-            on() { return this }
+            on() {
+              return this
+            }
+
             async waitUntilReady() {}
-            async close() { console.log('WORKER_DRAIN_STARTED'); clearInterval(interval) }
+
+            async close() {
+              console.log('WORKER_DRAIN_STARTED')
+              clearInterval(interval)
+            }
+
             run() {
               interval = setInterval(() => {}, 1000)
-              setTimeout(() => process.kill(process.pid, 'SIGTERM'), 10)
+
+              setTimeout(() => {
+                if (process.platform === 'win32') {
+                  process.emit('SIGTERM')
+                } else {
+                  process.kill(process.pid, 'SIGTERM')
+                }
+              }, 10)
+
               return new Promise(() => {})
             }
           },
         }))
+
         await mock.module(${JSON.stringify(new URL('../services/outbox.service.ts', import.meta.url).href)}, () => ({
-          startOutboxRelay: () => ({ close: async () => {
-            await new Promise(resolve => setTimeout(resolve, 100))
-            console.log('RELAY_DRAIN_FINISHED')
-          } }),
+          startOutboxRelay: () => ({
+            close: async () => {
+              await new Promise((resolve) => setTimeout(resolve, 100))
+              console.log('RELAY_DRAIN_FINISHED')
+            },
+          }),
         }))
+
         setTimeout(() => process.exit(99), 10000).unref()
       `,
       )
+
       const child = Bun.spawn(
         [
           process.execPath,
           '--no-env-file',
           '--preload',
           preload,
-          'src/workers/email.worker.ts',
+          'src/worker.ts',
         ],
         { cwd: root, env: config, stdout: 'pipe', stderr: 'pipe' },
       )
+
       const [code, stdout, stderr] = await Promise.all([
         child.exited,
         new Response(child.stdout).text(),
         new Response(child.stderr).text(),
       ])
+
       expect({ code, stderr }).toEqual({ code: 0, stderr: '' })
       expect(stdout.indexOf('WORKER_DRAIN_STARTED')).toBeGreaterThan(-1)
       expect(stdout.indexOf('RELAY_DRAIN_FINISHED')).toBeGreaterThan(

@@ -1,5 +1,5 @@
 import { validateEnv } from '@/config/validateEnv'
-import { runProcess } from '@/utils/processLifecycle.utils'
+import { runProcess } from '@/utils/process.utils'
 import { processTiming } from '@/constants/process'
 
 if (import.meta.main) {

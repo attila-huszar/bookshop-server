@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'bun:test'
 import { rejects } from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { withBackupArchive } from '@/scripts/shared/backupHelpers'
+import { Readable } from 'node:stream'
+import { withBackupArchive } from '@/scripts/shared/backupArchive'
 import {
   createS3BackupStorage,
   verifyBackupChecksum,
@@ -109,6 +110,107 @@ describe('backup SHA-256 verification', () => {
 })
 
 describe('S3 backup adapter', () => {
+  it('cancels active upload requests and waits for them before aborting multipart storage', async () => {
+    const controller = new AbortController()
+    const requests: string[] = []
+    let activeParts = 0
+    const client = new S3Client({
+      region: 'us-east-1',
+      maxAttempts: 1,
+      credentials: { accessKeyId: 'test', secretAccessKey: 'test' },
+    })
+
+    // Exercise the SDK uploader and request pipeline with a controlled transport.
+    client.config.requestHandler = {
+      handle: async (
+        request: { method: string },
+        options?: { abortSignal?: unknown },
+      ) => {
+        requests.push(request.method)
+
+        if (request.method === 'POST') {
+          return {
+            response: {
+              statusCode: 200,
+              headers: { 'content-type': 'application/xml' },
+              body: Readable.from([
+                '<InitiateMultipartUploadResult><UploadId>fixture-upload</UploadId></InitiateMultipartUploadResult>',
+              ]),
+            },
+          }
+        }
+
+        if (request.method === 'PUT') {
+          const requestSignal = options?.abortSignal
+          expect(requestSignal).toBe(controller.signal)
+
+          if (!(requestSignal instanceof AbortSignal)) {
+            throw new Error('Upload request has no abort signal')
+          }
+
+          activeParts += 1
+          const interrupted = Promise.withResolvers<never>()
+          const onAbort = () =>
+            interrupted.reject(
+              Object.assign(new Error('Upload request interrupted'), {
+                name: 'AbortError',
+              }),
+            )
+
+          if (requestSignal.aborted) {
+            onAbort()
+          } else {
+            requestSignal.addEventListener('abort', onAbort, {
+              once: true,
+            })
+          }
+
+          controller.abort()
+
+          return interrupted.promise.finally(() => {
+            activeParts -= 1
+          })
+        }
+
+        expect(request.method).toBe('DELETE')
+        expect(activeParts).toBe(0)
+        expect(options?.abortSignal).toBeUndefined()
+
+        return {
+          response: { statusCode: 204, headers: {}, body: Readable.from([]) },
+        }
+      },
+    }
+
+    const storage = createS3BackupStorage({
+      client,
+      bucket: 'test-bucket',
+      signal: controller.signal,
+    })
+
+    try {
+      await withFile(
+        Buffer.alloc(backupUploadPolicy.partSizeBytes + 1, 42),
+        async (archive) => {
+          await rejects(
+            storage.uploadAndVerify(
+              'backups/sqlite/cancelled.sqlite.gz',
+              archive,
+            ),
+            /Upload request interrupted/,
+          )
+        },
+      )
+
+      expect(activeParts).toBe(0)
+      expect(requests).toContain('PUT')
+      expect(requests.at(-1)).toBe('DELETE')
+      expect(requests.filter((method) => method === 'DELETE')).toHaveLength(1)
+    } finally {
+      client.destroy()
+    }
+  })
+
   it.each([
     { outcome: 'success', size: backupUploadPolicy.partSizeBytes + 1 },
     { outcome: 'success', size: backupUploadPolicy.partSizeBytes * 2 },

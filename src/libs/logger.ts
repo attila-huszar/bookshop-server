@@ -23,7 +23,7 @@ export class Logger {
 
     const logOutput = {
       level: log.level,
-      message: log.message,
+      message: this.serialize(log.message),
       meta: this.serialize(log.meta),
       source: this.source,
     }
@@ -35,25 +35,11 @@ export class Logger {
     value: unknown,
     ancestors = new WeakSet<object>(),
   ): unknown {
+    if (typeof value === 'string') {
+      return this.redact(value)
+    }
+
     if (value === null || typeof value !== 'object') {
-      if (typeof value === 'string') {
-        let sanitized = value.replace(
-          /((?:mongodb(?:\+srv)?|rediss?|https?):\/\/)[^\s/@]*@/gi,
-          '$1[redacted]@',
-        )
-        for (const [key, secret] of Object.entries(Bun.env)) {
-          if (
-            /PASSWORD|PASS$|SECRET|TOKEN|KEY/.test(key) &&
-            secret &&
-            secret.length >= 4
-          ) {
-            sanitized = sanitized.replaceAll(secret, '[redacted]')
-          }
-        }
-
-        return sanitized
-      }
-
       return value
     }
 
@@ -65,20 +51,34 @@ export class Logger {
 
     try {
       if (value instanceof Error) {
-        return {
+        const serialized: Record<string, unknown> = {
           name: value.name,
           message: this.serialize(value.message, ancestors),
           stack: this.serialize(value.stack, ancestors),
-          ...('code' in value &&
-            (typeof value.code === 'number' ||
-              (typeof value.code === 'string' &&
-                /^[A-Z][A-Z0-9_]*$/.test(value.code))) && { code: value.code }),
-          ...('stage' in value && { stage: value.stage }),
-          ...('originalName' in value && { originalName: value.originalName }),
-          ...(value.cause !== undefined && {
-            cause: this.serialize(value.cause, ancestors),
-          }),
         }
+
+        const code = 'code' in value ? value.code : undefined
+
+        if (
+          typeof code === 'number' ||
+          (typeof code === 'string' && /^[A-Z][A-Z0-9_]*$/.test(code))
+        ) {
+          serialized.code = code
+        }
+
+        if ('stage' in value) {
+          serialized.stage = value.stage
+        }
+
+        if ('originalName' in value) {
+          serialized.originalName = value.originalName
+        }
+
+        if (value.cause !== undefined) {
+          serialized.cause = this.serialize(value.cause, ancestors)
+        }
+
+        return serialized
       }
 
       if (Array.isArray(value)) {
@@ -94,6 +94,25 @@ export class Logger {
     } finally {
       ancestors.delete(value)
     }
+  }
+
+  private redact(value: string): string {
+    let sanitized = value.replace(
+      /((?:mongodb(?:\+srv)?|rediss?|https?):\/\/)[^\s/@]*@/gi,
+      '$1[redacted]@',
+    )
+
+    for (const [key, secret] of Object.entries(Bun.env)) {
+      if (
+        /PASSWORD|PASS$|SECRET|TOKEN|KEY/.test(key) &&
+        secret &&
+        secret.length >= 4
+      ) {
+        sanitized = sanitized.replaceAll(secret, '[redacted]')
+      }
+    }
+
+    return sanitized
   }
 
   debug(message: string, meta?: unknown) {

@@ -16,8 +16,6 @@ import type {
 import { calculatePriceCents } from './pricing.utils'
 import { getOrderRef } from './string.utils'
 
-const baseLink = env.clientBaseUrl!
-
 const interpolate = (template: string, vars: Record<string, string>) =>
   template.replace(/{{\s*(\w+)\s*}}/g, (_, key: string) => vars[key] ?? '')
 
@@ -132,7 +130,7 @@ export async function getEmailHtml(props: SendEmailProps): Promise<string> {
     const { template, variables } = emailTemplate(props)
     const mjmlString = interpolate(template, {
       ...variables,
-      baseLink,
+      baseLink: env.clientBaseUrl!,
       cid: emailLogoContentId,
     })
     const parsed = await mjml2html(mjmlString)

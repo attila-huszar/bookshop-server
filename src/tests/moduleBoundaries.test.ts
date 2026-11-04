@@ -32,7 +32,11 @@ it('rejects an invalid database selector before importing an adapter', async () 
 const scenarios = [
   {
     name: 'email helpers, mail transport and errors',
-    modules: ['utils/email.utils.ts', 'libs/nodemailer.ts', 'errors/index.ts'],
+    modules: [
+      'utils/emailTemplate.utils.ts',
+      'libs/nodemailer.ts',
+      'errors/index.ts',
+    ],
     paymentClient: false,
     workerClients: false,
   },
@@ -54,17 +58,13 @@ const scenarios = [
   },
   {
     name: 'email worker',
-    modules: [
-      'workers/email.worker.ts',
-      'workers/emailWorker.ts',
-      'queues/emailQueue.ts',
-    ],
+    modules: ['worker.ts', 'workers/emailWorker.ts', 'queues/emailQueue.ts'],
     paymentClient: false,
     workerClients: false,
   },
   {
     name: 'API composition root',
-    modules: ['app.ts', 'http/app.ts'],
+    modules: ['server.ts', 'app.ts'],
     paymentClient: false,
     workerClients: false,
   },
@@ -111,15 +111,19 @@ describe.each(['SQLITE', 'MONGO'])('%s module boundaries', (dbRepo) => {
                 on() { return this }
               },
             }))
+
             for (const path of scenario.modules) {
               await import(new URL(path, ${JSON.stringify(sourceRoot)}).href)
             }
+
             const mongoose = (await import('mongoose')).default
-            const db = await import(new URL('db.ts', ${JSON.stringify(sourceRoot)}).href)
+            const sqlite = await import(new URL('database/sqlite.ts', ${JSON.stringify(sourceRoot)}).href)
+
             assert.equal(mongoose.connection.readyState, 0)
-            assert.equal(db.sqliteClient, undefined)
+            assert.equal(sqlite.sqliteClient, undefined)
             assert.equal(queues, scenario.workerClients ? 1 : 0)
             assert.equal(workers, scenario.workerClients ? 1 : 0)
+
             clearTimeout(deadline)
             process.exit(0)
           `,

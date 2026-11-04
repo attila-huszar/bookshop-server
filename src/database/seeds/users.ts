@@ -24,7 +24,7 @@ export async function seedUsers() {
   if (env.dbRepo === DB_REPO.SQLITE) {
     const { getTableName } = await import('drizzle-orm')
     const { usersTable } = await import('@/models/sqlite')
-    const { sqlite } = await import('@/db')
+    const { sqlite } = await import('@/database/sqlite')
 
     await sqlite.insert(usersTable).values(admin)
 
@@ -39,6 +39,7 @@ export async function seedUsers() {
 
     const { id, createdAt, updatedAt, ...adminData } = admin
     const createdUser = await UserModel.create(adminData)
+
     const highestId = await getHighestId(UserModel)
     await setSequence(UserModel, highestId)
 

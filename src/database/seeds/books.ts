@@ -7,7 +7,7 @@ export async function seedBooks() {
   if (env.dbRepo === DB_REPO.SQLITE) {
     const { getTableName } = await import('drizzle-orm')
     const { booksTable } = await import('@/models/sqlite')
-    const { sqlite } = await import('@/db')
+    const { sqlite } = await import('@/database/sqlite')
 
     const seedValues: BookInsert[] = booksData.map((book) => ({
       id: book.id,
@@ -41,11 +41,15 @@ export async function seedBooks() {
       .select({ _id: true, id: true })
       .lean()
 
-    authors.forEach((author) => {
+    for (const author of authors) {
       const id = author.id
-      if (!id) return
+
+      if (!id) {
+        continue
+      }
+
       authorIdMap[id] = author._id.toHexString()
-    })
+    }
 
     const mongoSeedValues = booksData.map((book) => ({
       id: book.id,
@@ -64,6 +68,7 @@ export async function seedBooks() {
     }))
 
     await BookModel.create(mongoSeedValues)
+
     const highestId = await getHighestId(BookModel)
     await setSequence(BookModel, highestId)
 

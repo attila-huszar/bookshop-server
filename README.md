@@ -70,15 +70,21 @@ stripe listen --forward-to http://localhost:5000/webhooks/stripe
 
 Set the printed signing secret as `STRIPE_WEBHOOK_SECRET` in the server `.env` before starting.
 
-From either repository, initialize a fresh database and start the app:
+From either repository, initialize a fresh database once:
 
 ```sh
-bun run dev:setup
+bun run setup
 ```
 
-Setup first runs a temporary container to migrate SQLite (when selected) and seed the catalogue and admin account using `ADMIN_EMAIL`/`ADMIN_PASSWORD`, then starts development. Run it only for a fresh database. To initialize without starting the app, use `bun run setup` from the server directory.
+Setup uses a temporary container to initialize the database selected by `DB_REPO` and seed the catalogue and admin account using `ADMIN_EMAIL`/`ADMIN_PASSWORD`. SQLite migrations run automatically when `DB_REPO=SQLITE`. Run it only for a fresh database.
 
-For later starts, use `bun run dev`; normal startup and container restarts never seed the database. The dev command starts Vite and the Docker services with API/worker reloads. Ctrl+C stops the session and preserves stored data.
+Start development separately:
+
+```sh
+bun run dev
+```
+
+Use `bun run dev` for subsequent starts too. Normal startup and container restarts never seed the database. The dev command starts Vite and the Docker services with API/worker reloads. Ctrl+C stops the session and preserves stored data.
 
 | Service   | Local URL                      |
 | --------- | ------------------------------ |
@@ -90,6 +96,6 @@ For later starts, use `bun run dev`; normal startup and container restarts never
 
 Grafana's default login is `admin` / `admin`. In Explore, query logs by the `job` label, such as `server` or `worker`.
 
-For a backend-only session, run `bun run docker:setup` on a fresh database or `docker compose up --build` on subsequent starts, from the server directory. To enable an HTTPS tunnel in this mode, set `NGROK_AUTHTOKEN`; the ngrok URL is logged at startup.
+For a backend-only session, run `docker compose up --build` from the server directory after setup. To enable an HTTPS tunnel in this mode, set `NGROK_AUTHTOKEN`; the ngrok URL is logged at startup.
 
 See [Architecture and checkout flow](docs/architecture.md) for database, payment, and email implementation details.

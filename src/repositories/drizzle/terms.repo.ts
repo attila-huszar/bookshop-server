@@ -1,5 +1,5 @@
 import { and, desc, eq, notExists, sql } from 'drizzle-orm'
-import { sqlite } from '@/db'
+import { sqlite } from '@/database/sqlite'
 import { ordersTable } from '@/models/sqlite/ordersTable'
 import { termsDocumentsTable } from '@/models/sqlite/termsDocumentsTable'
 import { termsDocumentResponse } from '@/utils/terms.utils'

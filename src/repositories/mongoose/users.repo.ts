@@ -1,5 +1,5 @@
 import { EmailOutboxModel, UserModel } from '@/models/mongo'
-import { accountEmailIntent } from '@/utils/email-job.utils'
+import { accountEmailIntent } from '@/utils/emailOutbox.utils'
 import { EMAIL } from '@/constants/email'
 import type {
   PasswordResetTokenUpdate,

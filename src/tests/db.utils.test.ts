@@ -3,7 +3,7 @@ import {
   DatabaseStartupError,
   databaseStartupError,
   validateMongoUrl,
-} from '@/utils/databaseConnection.utils'
+} from '@/utils/db.utils'
 import { DB_REPO } from '@/types/enums'
 
 describe('MongoDB connection settings', () => {
@@ -78,7 +78,7 @@ describe('database startup diagnostics', () => {
     expect(error.code).toBe(11000)
     expect(error.originalName).toBe('MongoServerError')
     expect(error.stage).toBe('schema')
-    expect(error.stack).toContain('databaseConnection.utils.test.ts')
+    expect(error.stack).toContain('db.utils.test.ts')
     expect(error.stack).not.toContain('private-password')
     expect(error.cause).toBeUndefined()
   })

@@ -4,7 +4,7 @@ import nodemailer, {
   type Transporter,
 } from 'nodemailer'
 import { env } from '@/config'
-import { getEmailHtml, getEmailSubject } from '@/utils/email.utils'
+import { getEmailHtml, getEmailSubject } from '@/utils/emailTemplate.utils'
 import {
   emailLogoContentId,
   emailLogoFilename,

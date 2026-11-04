@@ -91,19 +91,30 @@ export function createS3BackupStorage(input: {
 }): BackupStorage {
   const { client, bucket, signal } = input
 
+  // Upload.done() races its controller against active requests. Cancel the
+  // requests themselves so it waits for every uploader before cleanup runs.
+  // Scope the signal to upload commands; cleanup uses the original client.
+  const uploadClient = new Proxy(client, {
+    get(target, property, receiver): unknown {
+      if (property === 'send') {
+        return (command: Parameters<S3Client['send']>[0]) =>
+          target.send(command, { abortSignal: signal })
+      }
+
+      return Reflect.get(target, property, receiver)
+    },
+  })
+
   return {
     uploadAndVerify: async (key, archive) => {
       signal?.throwIfAborted()
-      const controller = new AbortController()
-      const onAbort = () => controller.abort()
-      signal?.addEventListener('abort', onAbort, { once: true })
       const partSize = Math.max(
         backupUploadPolicy.partSizeBytes,
         Math.ceil(archive.size / backupUploadPolicy.maxParts),
       )
 
       const upload = new Upload({
-        client,
+        client: uploadClient,
         params: {
           Bucket: bucket,
           Key: key,
@@ -116,37 +127,33 @@ export function createS3BackupStorage(input: {
         queueSize: backupUploadPolicy.concurrency,
         // Own cleanup also covers completion failures after all parts settle.
         leavePartsOnError: true,
-        abortController: controller,
       })
 
-      const uploaded = await upload
-        .done()
-        .finally(() => signal?.removeEventListener('abort', onAbort))
-        .catch(async (error: unknown) => {
-          if (upload.uploadId) {
-            await client
-              .send(
-                new AbortMultipartUploadCommand({
-                  Bucket: bucket,
-                  Key: key,
-                  UploadId: upload.uploadId,
-                }),
-              )
-              .catch((cleanupError: unknown) => {
-                if (cleanupError instanceof NoSuchUpload) {
-                  return
-                }
+      const uploaded = await upload.done().catch(async (error: unknown) => {
+        if (upload.uploadId) {
+          await client
+            .send(
+              new AbortMultipartUploadCommand({
+                Bucket: bucket,
+                Key: key,
+                UploadId: upload.uploadId,
+              }),
+            )
+            .catch((cleanupError: unknown) => {
+              if (cleanupError instanceof NoSuchUpload) {
+                return
+              }
 
-                log.warn('Failed to abort an incomplete backup upload', {
-                  error: cleanupError,
-                  key,
-                  uploadId: upload.uploadId,
-                })
+              log.warn('Failed to abort an incomplete backup upload', {
+                error: cleanupError,
+                key,
+                uploadId: upload.uploadId,
               })
-          }
+            })
+        }
 
-          throw error
-        })
+        throw error
+      })
 
       const uploadedObject = {
         Bucket: bucket,

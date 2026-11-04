@@ -12,14 +12,14 @@ import {
   notInArray,
   or,
 } from 'drizzle-orm'
-import { sqlite } from '@/db'
+import { sqlite } from '@/database/sqlite'
 import { ordersTable } from '@/models/sqlite'
 import { emailOutboxTable } from '@/models/sqlite/emailOutboxTable'
 import { termsDocumentsTable } from '@/models/sqlite/termsDocumentsTable'
 import {
   orderPaidEmails,
   orderReconciliationFailure,
-} from '@/utils/email-job.utils'
+} from '@/utils/emailOutbox.utils'
 import { terminalStatuses } from '@/constants/payment'
 import type {
   CmsOrderUpdate,
@@ -310,6 +310,7 @@ export async function recordReconciliationFailure(
       }
 
       const failure = orderReconciliationFailure(order, reason)
+
       tx.update(ordersTable)
         .set(failure.fields)
         .where(eq(ordersTable.id, order.id))

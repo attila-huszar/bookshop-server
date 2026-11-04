@@ -5,7 +5,7 @@ import { mkdtemp, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { gunzipSync } from 'node:zlib'
-import { withSqliteArchive } from '@/scripts/backup'
+import { withSqliteArchive } from '@/scripts/shared/backupArchive'
 
 describe('SQLite backup archives', () => {
   it.skipIf(!Bun.which('sqlite3'))(
