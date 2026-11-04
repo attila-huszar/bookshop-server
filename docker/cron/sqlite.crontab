@@ -3,7 +3,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 TZ=UTC
 
 # Every 10 minutes: reconcile orders and clean up expired account data
-*/10 * * * * /bin/sh /bookshop-server/docker/cron/jobs/maintenance.sh >> /proc/1/fd/1 2>&1
+*/10 * * * * su -p -s /bin/sh bun -c 'exec /bin/sh /bookshop-server/docker/cron/jobs/maintenance.sh' >> /proc/1/fd/1 2>&1
 
 # Daily at 02:00 UTC: upload and verify a SQLite backup in S3
-0 2 * * * /bin/sh /bookshop-server/docker/cron/jobs/backup_sqlite.sh >> /proc/1/fd/1 2>&1
+0 2 * * * su -p -s /bin/sh bun -c 'exec /bin/sh /bookshop-server/docker/cron/jobs/backup_sqlite.sh' >> /proc/1/fd/1 2>&1

@@ -221,7 +221,9 @@ Recovery is manual. Download with authenticated S3 access and verify the stored 
 
 Development is coordinated directly by the package scripts: either repo's `dev` command starts local Vite plus Docker Compose. The same Compose file switches API/worker reloads on through `BUN_RUN_MODE=--watch`; ordinary Docker startup defaults to `run`. Initialization is explicit (`dev:setup`), and shutdown stops containers without deleting volumes. See [local development](../README.md#local-development) for commands and port configuration.
 
-The shared Docker image creates `data` with `bun:bun` ownership before copying application sources. Source and dependency files stay root-owned and readable by the server/worker user. Ownership changes touch only the writable data directories, avoiding a recursive pass over `node_modules` and allowing the directory setup layer to stay cached across source changes.
+The shared Docker image creates `data` with `bun:bun` ownership before copying application sources; fresh SQLite volumes inherit this ownership. Source and dependency files stay root-owned and readable by the server/worker user. Existing volumes retain their ownership across rebuilds and are not automatically repaired. Keep persistent `DB_SQLITE_FILE` paths under `/bookshop-server/data` (the default is `data/db.sqlite`).
+
+The API, worker and scheduled database jobs all run as `bun:bun`, so SQLite files retain a common owner across processes. BusyBox `crond` and its crontab remain root-owned; each scheduled command uses the built-in `su` with `-p` to preserve the job environment and switch to `bun` after root opens the container log redirect. For manual database commands through the cron container, use `docker compose run --rm --no-deps --user bun:bun cron bun <script>` to preserve the same ownership.
 
 Automated tests cover real in-memory SQLite transactions/rollbacks, Mongo shared-session/error propagation, reconciliation races, guest access, first-paid behavior, relay leases/retries, and response boundaries. Mongo unit tests do not replace a live replica-set smoke test; Redis and SMTP should also be exercised with an isolated test environment.
 
