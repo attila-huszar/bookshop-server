@@ -62,7 +62,7 @@ export function getTransporter(): MailTransporter | null {
   transporter
     .verify()
     .then(() => {
-      log.info('📧 SMTP transporter verified')
+      log.debug('📧 SMTP transporter verified')
     })
     .catch((error: unknown) => {
       log.error('❌ SMTP transporter verification failed', error)

@@ -43,7 +43,10 @@ export async function runProcess(input: ProcessOptions): Promise<void> {
     shutdown = Promise.resolve().then(finishShutdown)
 
     controller.abort()
-    log.info(`${input.name} shutting down`)
+
+    if (!input.once || exitCode !== 0) {
+      log.info(`${input.name} shutting down`)
+    }
 
     return shutdown
   }
@@ -113,6 +116,10 @@ export async function runProcess(input: ProcessOptions): Promise<void> {
     },
     wait: (task) => waitForStartup(task, controller.signal),
     fail: (error) => {
+      if (controller.signal.aborted) {
+        return
+      }
+
       log.error(`${input.name} stopped unexpectedly`, { error })
       void stop(1)
     },

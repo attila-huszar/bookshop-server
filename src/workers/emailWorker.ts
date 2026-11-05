@@ -152,7 +152,7 @@ export function createEmailWorker() {
           }
         : {}
 
-    log.info(
+    log.debug(
       result.status === 'skipped'
         ? 'Obsolete email skipped'
         : 'Email sent successfully',
@@ -192,11 +192,12 @@ export function createEmailWorker() {
   })
 
   emailWorker.on('ready', () => {
+    const recovered = redisConnectionErrorShown
     redisConnectionErrorShown = false
-    log.info('✅ Email worker ready', {
-      queue: emailQueueName,
-      concurrency: emailWorkerConcurrency,
-    })
+
+    log.debug(
+      `✅ Email worker ${recovered ? 'Redis connection recovered' : 'ready'}`,
+    )
   })
 
   return emailWorker

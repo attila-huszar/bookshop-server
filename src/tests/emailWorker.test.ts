@@ -27,6 +27,12 @@ const completed = mockWorker.on.mock.calls.find(
 const failed = mockWorker.on.mock.calls.find(
   ([event]) => event === 'failed',
 )?.[1] as (job: EmailJob | undefined, error: Error) => void
+const ready = mockWorker.on.mock.calls.find(
+  ([event]) => event === 'ready',
+)?.[1] as () => void
+const workerError = mockWorker.on.mock.calls.find(
+  ([event]) => event === 'error',
+)?.[1] as (error: Error) => void
 
 const verification: SendEmailProps = {
   type: 'verification',
@@ -72,6 +78,7 @@ const alertJob = {
 
 describe('Email Worker', () => {
   beforeEach(() => {
+    ready()
     mockSendMail.mockReset()
     mockOutboxDB.updateEmailDelivery.mockReset().mockResolvedValue(undefined)
     mockOrdersDB.getOrderById.mockReset()
@@ -79,6 +86,8 @@ describe('Email Worker', () => {
     mockUsersDB.getActiveUserBy.mockResolvedValue(currentAccount())
     mockLogger.info.mockClear()
     mockLogger.error.mockClear()
+    mockLogger.debug.mockClear()
+    mockLogger.warn.mockClear()
     mockWorker.close.mockClear()
   })
 
@@ -222,7 +231,7 @@ describe('Email Worker', () => {
 
     completed(verificationJob, result)
 
-    expect(mockLogger.info).toHaveBeenCalledWith('Obsolete email skipped', {
+    expect(mockLogger.debug).toHaveBeenCalledWith('Obsolete email skipped', {
       jobId: '12345',
       type: 'verification',
     })
@@ -239,12 +248,12 @@ describe('Email Worker', () => {
 
     expect(mockOrdersDB.getOrderById).toHaveBeenCalledWith(1)
     expect(mockSendMail).not.toHaveBeenCalled()
-    expect(mockLogger.info).toHaveBeenCalledWith(
+    expect(mockLogger.debug).toHaveBeenCalledWith(
       'Obsolete email skipped',
       expect.objectContaining({ jobId: 'paid-alert', paymentId: 'pi_paid' }),
     )
     expect(
-      mockLogger.info.mock.calls.some(
+      mockLogger.debug.mock.calls.some(
         ([message]) => message === 'Email sent successfully',
       ),
     ).toBe(false)
@@ -283,12 +292,38 @@ describe('Email Worker', () => {
     )
   })
 
-  it('logs success from the real completion handler', () => {
+  it('keeps successful delivery details at debug level', () => {
     completed(verificationJob, { status: 'sent' })
-    expect(mockLogger.info).toHaveBeenCalledWith('Email sent successfully', {
+    expect(mockLogger.debug).toHaveBeenCalledWith('Email sent successfully', {
       jobId: '12345',
       type: 'verification',
     })
+    expect(mockLogger.info).not.toHaveBeenCalled()
+  })
+
+  it('keeps readiness and Redis recovery at debug level', () => {
+    ready()
+    expect(mockLogger.debug).toHaveBeenCalledWith('✅ Email worker ready')
+    expect(mockLogger.info).not.toHaveBeenCalled()
+
+    const error = Object.assign(new Error('Redis unavailable'), {
+      code: 'ECONNREFUSED',
+    })
+    workerError(error)
+    workerError(error)
+    expect(mockLogger.warn).toHaveBeenCalledTimes(1)
+
+    ready()
+    ready()
+    expect(mockLogger.info).not.toHaveBeenCalled()
+    expect(mockLogger.debug).toHaveBeenCalledWith(
+      '✅ Email worker Redis connection recovered',
+    )
+    expect(
+      mockLogger.debug.mock.calls.filter(
+        ([message]) => message === '✅ Email worker Redis connection recovered',
+      ),
+    ).toHaveLength(1)
   })
 
   it('propagates sending failures instead of returning a sent outcome', async () => {

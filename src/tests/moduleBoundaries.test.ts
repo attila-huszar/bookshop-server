@@ -30,6 +30,12 @@ it('rejects an invalid database selector before importing an adapter', async () 
 
 const scenarios = [
   {
+    name: 'database setup entrypoints',
+    modules: ['database/setup.ts', 'scripts/setup.ts'],
+    paymentClient: false,
+    workerClients: false,
+  },
+  {
     name: 'email helpers, mail transport and errors',
     modules: [
       'utils/emailTemplate.utils.ts',

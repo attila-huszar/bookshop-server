@@ -1,6 +1,5 @@
 import mjml2html from 'mjml'
 import { env } from '@/config'
-import { log } from '@/libs/logger'
 import { EMAIL, emailLogoContentId } from '@/constants/email'
 import adminPaymentNotification from '@/resources/emailTemplates/adminPaymentNotification.mjml' with { type: 'text' }
 import orderConfirmation from '@/resources/emailTemplates/orderConfirmation.mjml' with { type: 'text' }
@@ -126,21 +125,15 @@ function emailTemplate(props: SendEmailProps): {
 }
 
 export async function getEmailHtml(props: SendEmailProps): Promise<string> {
-  try {
-    const { template, variables } = emailTemplate(props)
-    const mjmlString = interpolate(template, {
-      ...variables,
-      baseLink: env.clientBaseUrl!,
-      cid: emailLogoContentId,
-    })
-    const parsed = await mjml2html(mjmlString)
+  const { template, variables } = emailTemplate(props)
+  const mjmlString = interpolate(template, {
+    ...variables,
+    baseLink: env.clientBaseUrl!,
+    cid: emailLogoContentId,
+  })
+  const parsed = await mjml2html(mjmlString)
 
-    return parsed.html
-  } catch (error) {
-    log.error('Error generating email HTML', { type: props.type, error })
-
-    throw error
-  }
+  return parsed.html
 }
 
 const adminPhaseLabelMap: Record<AdminNotification, string> = {

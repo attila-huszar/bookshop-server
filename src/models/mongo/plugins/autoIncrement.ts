@@ -1,5 +1,4 @@
 import mongoose, { type ClientSession, type Model, type Schema } from 'mongoose'
-import { log } from '@/libs/logger'
 
 type AutoIncrementDoc = {
   isNew: boolean
@@ -19,19 +18,13 @@ async function getNextSequence<T>(
   model: Model<T>,
   session?: ClientSession | null,
 ): Promise<number> {
-  try {
-    const counter = await CounterModel.findByIdAndUpdate(
-      model.modelName,
-      { $inc: { seq: 1 } },
-      { returnDocument: 'after', upsert: true, ...(session && { session }) },
-    )
+  const counter = await CounterModel.findByIdAndUpdate(
+    model.modelName,
+    { $inc: { seq: 1 } },
+    { returnDocument: 'after', upsert: true, ...(session && { session }) },
+  )
 
-    return counter.seq
-  } catch (error) {
-    log.error('Failed to get next sequence', { model, error })
-
-    throw error
-  }
+  return counter.seq
 }
 
 export async function setSequence<T>(
@@ -40,7 +33,7 @@ export async function setSequence<T>(
 ): Promise<void> {
   await CounterModel.findByIdAndUpdate(
     model.modelName,
-    { seq: value },
+    { $max: { seq: value } },
     { upsert: true },
   )
 }

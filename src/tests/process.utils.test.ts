@@ -75,7 +75,7 @@ describe('process lifecycle', () => {
   })
 
   it('closes resources in reverse order after a one-off job', async () => {
-    await exercise(
+    const output = await exercise(
       `await runProcess({
         name: 'Job',
         once: true,
@@ -87,6 +87,22 @@ describe('process lifecycle', () => {
       })`,
       0,
       ['HTTP_CLOSED', 'DATABASE_CLOSED'],
+    )
+
+    expect(output).not.toContain('shutting down')
+  })
+
+  it('keeps failure and shutdown diagnostics for a failed one-off job', async () => {
+    await exercise(
+      `await runProcess({
+        name: 'Job', once: true, shutdownMs: 1000,
+        start: async context => {
+          context.defer('resource', () => console.log('RESOURCE_CLOSED'))
+          throw new Error('Job failed to complete')
+        },
+      })`,
+      1,
+      ['Job failed', 'Job shutting down', 'RESOURCE_CLOSED'],
     )
   })
 
@@ -141,6 +157,24 @@ describe('process lifecycle', () => {
     )
   })
 
+  it('does not report dependency cancellation as a new failure during shutdown', async () => {
+    const output = await exercise(
+      `await runProcess({
+        name: 'Service', shutdownMs: 1000,
+        start: async context => {
+          context.defer('database', () => console.log('DATABASE_CLOSED'))
+          context.signal.addEventListener('abort', () => context.fail(new Error('Dependency cancelled')))
+          setTimeout(() => signalSelf('SIGTERM'), 10)
+          await context.wait(new Promise(() => {}))
+        },
+      })`,
+      0,
+      ['Service shutting down', 'DATABASE_CLOSED'],
+    )
+
+    expect(output).not.toContain('stopped unexpectedly')
+  })
+
   it('force-closes and exits unsuccessfully when draining never completes', async () => {
     await exercise(
       `await runProcess({
@@ -190,5 +224,6 @@ describe('process lifecycle', () => {
     )
 
     expect(output.match(/DATABASE_CLOSED/g)).toHaveLength(1)
+    expect(output.match(/stopped unexpectedly/g)).toHaveLength(1)
   })
 })

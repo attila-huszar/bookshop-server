@@ -2,6 +2,30 @@ import { describe, expect, it } from 'bun:test'
 import { resolve } from 'node:path'
 
 describe('structured logging', () => {
+  it('drops invalid log records and returns failed safe validation without printing warnings', () => {
+    const result = Bun.spawnSync({
+      cmd: [
+        process.execPath,
+        '--no-env-file',
+        '-e',
+        `
+        import assert from 'node:assert/strict'
+        import { z } from 'zod'
+        const { safeValidate } = await import('./src/validation/validate.ts')
+        const { log } = await import('./src/libs/logger.ts')
+        assert.equal(safeValidate(z.string(), 42), null)
+        log.error('')
+      `,
+      ],
+      cwd: resolve(import.meta.dir, '../..'),
+      env: { ...process.env, LOG_LEVEL: 'error' },
+    })
+
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout.toString()).toBe('')
+    expect(result.stderr.toString()).toBe('')
+  })
+
   it('redacts URI credentials and configured secrets while preserving diagnostic codes', () => {
     const result = Bun.spawnSync({
       cmd: [

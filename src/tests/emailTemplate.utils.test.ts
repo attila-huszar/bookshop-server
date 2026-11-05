@@ -4,6 +4,37 @@ import { AdminNotification, type Order } from '@/types'
 const { getEmailHtml, getEmailSubject } =
   await import('@/utils/emailTemplate.utils')
 
+it('propagates template failures without duplicating the email worker error log', () => {
+  const child = Bun.spawnSync({
+    cmd: [
+      process.execPath,
+      '--no-env-file',
+      '-e',
+      `
+      import assert from 'node:assert/strict'
+      import { mock } from 'bun:test'
+      const failure = new Error('Template conversion failed')
+      await mock.module('mjml', () => ({ default: async () => { throw failure } }))
+      const { getEmailHtml } = await import('./src/utils/emailTemplate.utils.ts')
+      await assert.rejects(getEmailHtml({
+        type: 'verification', toAddress: 'test@example.test', toName: 'Test',
+        tokenLink: 'https://bookshop.test/verify?token=test-token',
+      }), error => error === failure)
+    `,
+    ],
+    cwd: Bun.fileURLToPath(new URL('../../', import.meta.url)),
+    env: {
+      ...process.env,
+      LOG_LEVEL: 'info',
+      CLIENT_BASE_URL: 'https://bookshop.test',
+    },
+  })
+
+  expect(child.exitCode).toBe(0)
+  expect(child.stdout.toString()).toBe('')
+  expect(child.stderr.toString()).toBe('')
+})
+
 const order: Order = {
   checkoutRequestId: 'checkout-email-test',
   termsAcceptance: null,

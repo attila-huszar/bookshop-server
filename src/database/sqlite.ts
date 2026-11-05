@@ -56,7 +56,7 @@ export async function assertSchema(): Promise<void> {
 
   if (missing.length > 0) {
     throw new DatabaseStartupError(
-      `SQLite schema is incomplete (${missing.join(', ')}). Run npm run setup to initialize a fresh demo database.`,
+      `SQLite schema is incomplete (${missing.join(', ')}). Set DB_REPO=SQLITE and run npm run setup to initialize the Docker database.`,
     )
   }
 }

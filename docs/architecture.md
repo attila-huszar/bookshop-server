@@ -31,7 +31,9 @@ Startup and shutdown are bounded. Signal handlers cover asynchronous startup, cl
 
 MongoDB requires a replica set and initializes collections/indexes before transactions. Transaction operations execute sequentially on the same session. Compose connects to the configured external MongoDB deployment and provisions no local MongoDB server.
 
-`database/setup.ts` initializes a fresh demo database: SQLite migrations precede schema validation and seeding; MongoDB connection/model initialization precedes seeding. Authors are seeded before books, followed by news and the admin account. Setup does not clear existing data or provide an idempotent reseed. Ordinary API startup validates the schema and never seeds.
+`database/setup.ts` initializes the demo database: SQLite migrations precede schema validation and seeding; MongoDB connection/model initialization precedes seeding. Authors are seeded before books, followed by news and the admin account. Catalogue seeds insert only missing fixed IDs, preserving existing records and allowing retries after partial completion. MongoDB counters advance to at least the highest stored ID and never move backward. The configured admin email is matched case-insensitively: an existing active admin is preserved, including credentials; a non-admin or deleted account is a conflict, never promoted or restored by setup. Setup reports inserted/existing counts and never clears data. Ordinary API startup validates the schema and never seeds.
+
+The `setup` command uses the same explicit `DB_REPO` selection as normal services. Its host entrypoint, `scripts/setup.ts`, validates configuration and launches `database/setup.ts` with Bun for MongoDB or in a temporary container for SQLite. The database entrypoint only owns connection, migrations, seeding, and cleanup; it never launches Docker. Separate entrypoints prevent recursive container launches without command-line mode flags. SQLite uses the same volume as API, worker, and cron. Both processes use the shared lifecycle manager for cancellation and cleanup. Missing or blank variables fail before connecting or launching Docker. Host MongoDB runs must occur with other writers stopped and outside backup windows because they do not participate in Compose's writer coordination.
 
 ## Authentication and account lifecycle
 
@@ -102,6 +104,8 @@ Sharp validates and normalizes uploaded images to WebP with input, pixel, and pr
 
 Compose sends service logs to Loki under `job` labels; browser reports pass through the API with `source="frontend"`. Grafana provides inspection, and Cronitor monitors scheduled runs. Loki's own Docker logs use the local driver. Container logs rotate, and shipping retries/timeouts are bounded.
 
+At the default info level, logs emphasize service lifecycle, recovery, meaningful maintenance/payment activity, and failures. Successful one-off jobs clean up without a shutdown message; interruptions and failures remain visible. Routine email delivery/skip and transport readiness details use debug, while delivery outcomes remain in the outbox records. Helpers propagate errors to their request/job owner rather than logging and rethrowing them. Expected 4xx responses are quiet in both the application and proxy access logs; proxy 5xx responses remain errors.
+
 ## Database backups
 
 The backup job creates a private temporary archive, uploads it to S3, verifies its size and SHA-256 checksum for the uploaded version, then applies retention. Multipart checksums match the uploader's part boundaries. Failed verification never triggers pruning. Cancellation terminates dump children and settles cancelled upload requests before cleanup; cleanup requests remain independent of job cancellation.
@@ -128,8 +132,8 @@ Recovery is manual into an isolated target. Verify checksums and restored data/i
 
 ## Runtime and development
 
-Compose runs API, worker, cron, Redis, and the logging stack. Either repo's `dev` command starts local Vite plus Compose; `setup` initializes a fresh database separately. Startup/restarts do not repeat setup, and shutdown preserves volumes. See the [README](../README.md#local-development) for commands.
+Compose runs API, worker, cron, Redis, and the logging stack. Either repo's `dev` command starts local Vite plus Compose; `setup` initializes missing demo data separately. Startup/restarts do not repeat setup, and shutdown preserves stored data. See the [README](../README.md#local-development) for commands.
 
-SQLite persists under `/bookshop-server/data` in the shared volume. API, worker, and scheduled database jobs run as `bun:bun`; root-owned cron switches users before executing jobs. Existing volume ownership must permit that shared access. Manual database jobs should also run as `bun:bun`.
+SQLite persists in the Docker-managed `sqlite_data` volume, mounted at `/bookshop-server/data` for API, worker, and cron, including SQLite's WAL/shared-memory files. Keep `DB_SQLITE_FILE` under `data` so all writers use that persistent storage. API, worker, and scheduled database jobs run as `bun:bun`; root-owned cron switches users before executing jobs. Image-created directories belong to `bun`, and fresh volumes inherit that ownership; no host UID/GID mapping or root startup repair is required. A host-local SQLite file is separate from the volume and does not initialize the Docker database.
 
 This demo has no fulfillment, inventory reservation, refund, or dispute workflows. Live replica-set, Redis/SMTP, webhook, and restore checks remain separate from mocked provider tests.

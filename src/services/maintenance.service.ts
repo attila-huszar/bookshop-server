@@ -28,6 +28,8 @@ export async function runMaintenance(
         if (deletedUsers.length > 0) {
           void log.info('Expired unverified users soft deleted', {
             totalDeleted: deletedUsers.length,
+          })
+          log.debug('Expired registration cleanup details', {
             users: deletedUsers.map((user) => ({
               userId: user.id,
               email: user.email,

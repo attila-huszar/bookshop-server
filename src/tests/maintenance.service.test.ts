@@ -15,6 +15,7 @@ describe('Maintenance tasks', () => {
     mockOrdersDB.getOrdersForReconciliation.mockResolvedValue([])
     mockLogger.info.mockReset()
     mockLogger.error.mockReset()
+    mockLogger.debug.mockReset()
   })
 
   it('runs cleanup and reconciliation quietly when nothing is due', async () => {
@@ -29,7 +30,7 @@ describe('Maintenance tasks', () => {
     expect(cleanupImages).toHaveBeenCalledTimes(1)
   })
 
-  it('logs cleanup counts and the identities of expired registrations', async () => {
+  it('keeps cleanup counts at info and registration details at debug', async () => {
     mockUsersDB.cleanupExpiredPasswordResetTokens.mockResolvedValue(3)
     mockUsersDB.cleanupUnverifiedUsers.mockResolvedValue([
       {
@@ -49,8 +50,11 @@ describe('Maintenance tasks', () => {
     )
     expect(mockLogger.info).toHaveBeenCalledWith(
       'Expired unverified users soft deleted',
+      { totalDeleted: 2 },
+    )
+    expect(mockLogger.debug).toHaveBeenCalledWith(
+      'Expired registration cleanup details',
       {
-        totalDeleted: 2,
         users: [
           { userId: 7, email: 'expired@example.com' },
           { userId: 8, email: 'another-expired@example.com' },
@@ -58,6 +62,15 @@ describe('Maintenance tasks', () => {
       },
     )
     expect(mockLogger.info).toHaveBeenCalledTimes(2)
+    expect(JSON.stringify(mockLogger.debug.mock.calls)).not.toContain(
+      'private-hash',
+    )
+    expect(JSON.stringify(mockLogger.debug.mock.calls)).not.toContain(
+      'private-verification-token',
+    )
+    expect(JSON.stringify(mockLogger.debug.mock.calls)).not.toContain(
+      'private-reset-token',
+    )
   })
 
   it('continues other tasks when one cleanup fails', async () => {

@@ -38,8 +38,25 @@ export function validateDatabaseEnv(): void {
 }
 
 export function validateEnv(role: ProcessRole): typeof env {
-  validateDatabaseEnv()
-  const missing = requiredKeys[role].filter((key) => !env[key])
+  if (role === 'setup' && !Bun.env.DB_REPO) {
+    throw new Error('Set DB_REPO to MONGO or SQLITE in the server .env file.')
+  }
+
+  if (role !== 'setup') {
+    validateDatabaseEnv()
+  }
+
+  const keys = [...requiredKeys[role]]
+
+  if (role === 'setup') {
+    keys.push(env.dbRepo === DB_REPO.MONGO ? 'dbMongoUrl' : 'dbSqliteFile')
+  }
+
+  const missing = keys.filter((key) => {
+    const value = env[key]
+
+    return typeof value === 'string' ? !value.trim() : !value
+  })
   if (missing.length > 0) {
     const fields = missing.map((key) => {
       if (key === 'jwtAccessSecret') {
@@ -52,9 +69,14 @@ export function validateEnv(role: ProcessRole): typeof env {
       return key.replace(/[A-Z]/g, (letter) => `_${letter}`).toUpperCase()
     })
     throw new Error(
-      `Missing required ${role} configuration: ${fields.join(', ')}. Check .env.`,
+      `Missing required ${role} configuration: ${fields.join(', ')}. Check the server .env file or environment variables.`,
     )
   }
+
+  if (role === 'setup') {
+    validateDatabaseEnv()
+  }
+
   if (role === 'api' && (!/^\d+$/.test(env.port) || Number(env.port) > 65535)) {
     throw new Error('PORT must be an integer between 0 and 65535')
   }

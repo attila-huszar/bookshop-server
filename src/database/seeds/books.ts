@@ -1,13 +1,14 @@
-import { env } from '@/config'
+import { env } from '@/config/env'
 import { calculatePriceCents, toCents } from '@/utils/pricing.utils'
 import { type BookInsert, DB_REPO } from '@/types'
 import booksData from './books.json'
+import { seedMongo } from './mongo'
+import { seedSqlite } from './sqlite'
 
 export async function seedBooks() {
   if (env.dbRepo === DB_REPO.SQLITE) {
     const { getTableName } = await import('drizzle-orm')
     const { booksTable } = await import('@/models/sqlite')
-    const { sqlite } = await import('@/database/sqlite')
 
     const seedValues: BookInsert[] = booksData.map((book) => ({
       id: book.id,
@@ -25,16 +26,14 @@ export async function seedBooks() {
       newRelease: book.newRelease ?? false,
     }))
 
-    await sqlite.insert(booksTable).values(seedValues)
-
     return {
-      [getTableName(booksTable)]: seedValues.length,
+      [getTableName(booksTable)]: await seedSqlite(booksTable, seedValues),
     }
   }
 
   if (env.dbRepo === DB_REPO.MONGO) {
-    const { AuthorModel, BookModel, getHighestId, setSequence } =
-      await import('@/models/mongo')
+    const { AuthorModel } = await import('@/models/mongo/AuthorModel')
+    const { BookModel } = await import('@/models/mongo/BookModel')
 
     const authorIdMap: Record<number, string> = {}
     const authors = await AuthorModel.find()
@@ -67,13 +66,11 @@ export async function seedBooks() {
       newRelease: book.newRelease ?? false,
     }))
 
-    await BookModel.create(mongoSeedValues)
-
-    const highestId = await getHighestId(BookModel)
-    await setSequence(BookModel, highestId)
-
     return {
-      [BookModel.collection.collectionName]: mongoSeedValues.length,
+      [BookModel.collection.collectionName]: await seedMongo(
+        BookModel,
+        mongoSeedValues,
+      ),
     }
   }
 }

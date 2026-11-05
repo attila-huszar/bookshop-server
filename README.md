@@ -70,13 +70,19 @@ stripe listen --forward-to http://localhost:5000/webhooks/stripe
 
 Set the printed signing secret as `STRIPE_WEBHOOK_SECRET` in the server `.env` before starting.
 
-From either repository, initialize a fresh database once:
+From either repository, initialize the database selected by the server's `DB_REPO`:
 
 ```sh
 bun run setup
 ```
 
-Setup uses a temporary container to initialize the database selected by `DB_REPO` and seed the catalogue and admin account using `ADMIN_EMAIL`/`ADMIN_PASSWORD`. SQLite migrations run automatically when `DB_REPO=SQLITE`. Run it only for a fresh database.
+With `DB_REPO=MONGO`, setup runs directly with Bun and the installed server dependencies, without building or starting a backend container. It uses `DB_MONGO_URL` from the server `.env`. Stop Compose and other database writers first and keep the run outside backup windows, since host runs do not join Compose's backup coordination.
+
+With `DB_REPO=SQLITE`, setup builds the backend image if needed and runs in a temporary container. It applies migrations and seeds SQLite in the `sqlite_data` Docker volume shared by API, worker, and cron. Docker and its Loki logging plugin must be available. No host user/group settings are needed.
+
+Setup requires an explicit `DB_REPO` and the configured `ADMIN_EMAIL`/`ADMIN_PASSWORD`; MongoDB also requires `DB_MONGO_URL`. SQLite defaults to `DB_SQLITE_FILE=data/db.sqlite` inside the container; keep the file under `data` so it persists in the shared volume. A host-local SQLite file is separate from this volume. Missing or invalid database selection and missing or blank required values produce clear errors before setup connects or launches Docker.
+
+Setup inserts missing catalogue records and the configured admin. Reruns preserve existing records and passwords, and can resume an interrupted setup. An existing non-admin or deleted account using `ADMIN_EMAIL` causes an explicit error.
 
 Mongo logical backups briefly pause the API and email worker while the dump runs. Compose coordinates its database writers automatically; stop external clients writing to the same database during that window. Rebuild/recreate the services after changing their Docker configuration.
 
