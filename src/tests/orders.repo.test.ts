@@ -1399,7 +1399,40 @@ describe('SQLite transactional account emails', () => {
     await users.createUser(user)
     await users.updateUserBy('uuid', user.uuid, { firstName: 'Updated' })
 
+    expect(await users.getActiveUserBy('uuid', user.uuid)).toMatchObject({
+      verificationToken: user.verificationToken,
+      verificationExpires: user.verificationExpires,
+    })
     expect(await sqlite.select().from(emailOutboxTable)).toHaveLength(0)
+  })
+
+  it('consumes the verification token when CMS verifies an account', async () => {
+    await users.createUserWithVerification(user)
+    await users.setPasswordResetToken(user.uuid, {
+      token: 'reset-token',
+      expiresAt: new Date(Date.now() + 60_000),
+    })
+
+    expect(
+      await users.updateUserBy('uuid', user.uuid, { verified: true }),
+    ).toMatchObject({
+      verified: true,
+      verificationToken: null,
+      verificationExpires: null,
+      passwordResetToken: 'reset-token',
+    })
+    expect(await users.verifyUserByToken(user.verificationToken)).toBeNull()
+
+    // Toggling verification off must not make the old email usable again.
+    expect(
+      await users.updateUserBy('uuid', user.uuid, { verified: false }),
+    ).toMatchObject({
+      verified: false,
+      verificationToken: null,
+      verificationExpires: null,
+    })
+    expect(await users.verifyUserByToken(user.verificationToken)).toBeNull()
+    expect(await sqlite.select().from(emailOutboxTable)).toHaveLength(2)
   })
 
   it('does not create an intent when the reset recipient no longer exists', async () => {

@@ -47,7 +47,7 @@ if (import.meta.main) {
         void server.stop(true)
       })
 
-      log.info('🚀 Server started', {
+      log.info('Server started', {
         hostname: server.hostname,
         port: server.port,
       })

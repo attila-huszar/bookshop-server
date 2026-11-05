@@ -303,7 +303,7 @@ describe('database setup command', () => {
 
       expect(repeated.exitCode).toBe(0)
       expect(repeated.stdout).toContain('Database setup completed')
-      expect(repeated.stdout).toContain('inserted: 0')
+      expect(repeated.stdout).toContain('"inserted":0')
       expect(snapshotSqlite(filename)).toEqual(snapshot)
     } finally {
       await rm(directory, { recursive: true, force: true })

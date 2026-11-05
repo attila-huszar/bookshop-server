@@ -1,11 +1,10 @@
 import { Queue } from 'bullmq'
 import { env } from '@/config'
-import { getRedisConnectionHint } from '@/utils/redis.utils'
+import { monitorRedisRecovery } from '@/utils/redis.utils'
 import { log } from '@/libs/logger'
 import { emailQueueName, emailQueuePolicy } from '@/constants/email'
 
 export function createEmailQueue() {
-  let redisConnectionErrorShown = false
   const emailQueue = new Queue(emailQueueName, {
     connection: {
       url: env.redisUrl,
@@ -15,22 +14,18 @@ export function createEmailQueue() {
     },
   })
 
+  const handleRedisError = monitorRedisRecovery({
+    name: 'Email queue',
+    backend: emailQueue.backend,
+    redisUrl: env.redisUrl,
+    isClosing: () => emailQueue.closing !== undefined,
+  })
+
   emailQueue.on('error', (error) => {
-    const hint = getRedisConnectionHint(error, env.redisUrl)
-
-    if (hint) {
-      if (redisConnectionErrorShown) {
-        return
-      }
-
-      redisConnectionErrorShown = true
-
-      log.warn('🚫 Redis is not reachable for email queue', { hint })
-
+    if (handleRedisError(error)) {
       return
     }
 
-    redisConnectionErrorShown = false
     log.error('Email queue error', { error })
   })
 

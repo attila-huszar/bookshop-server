@@ -31,7 +31,6 @@ export const optionalAuthMiddleware: MiddlewareHandler<{
 
       if (user) {
         c.set('authUser', user)
-        log.debug('Payment access resolved for registered user', { uuid })
       }
     }
   }

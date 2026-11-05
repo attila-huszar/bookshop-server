@@ -200,7 +200,7 @@ async function validatePasswordResetToken(token: string): Promise<void> {
   const user = await usersDB.getActiveUserBy('passwordResetToken', token)
   const expiresAt = user?.passwordResetExpires?.getTime() ?? 0
 
-  if (!user?.passwordResetToken || !(expiresAt > Date.now())) {
+  if (!(expiresAt > Date.now())) {
     throw new BadRequest(
       'Password reset token validation failed: token is invalid or expired',
       AuthErrorCode.InvalidToken,

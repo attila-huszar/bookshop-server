@@ -1,4 +1,5 @@
 import { mock } from 'bun:test'
+import { EventEmitter } from 'node:events'
 import { env } from '@/config'
 import * as validation from '@/validation'
 import type {
@@ -109,6 +110,11 @@ export const mockLogger = {
 }
 
 export const mockEmailQueue = {
+  backend: {
+    connection: Object.assign(new EventEmitter(), {
+      status: 'initializing' as const,
+    }),
+  },
   add: mock(),
   on: mock(),
   close: mock(() => Promise.resolve()),
@@ -116,6 +122,14 @@ export const mockEmailQueue = {
 }
 
 export const mockWorker = {
+  backend: {
+    connection: Object.assign(new EventEmitter(), {
+      status: 'initializing' as const,
+    }),
+    blockingConnection: Object.assign(new EventEmitter(), {
+      status: 'initializing' as const,
+    }),
+  },
   on: mock(),
   close: mock(() => Promise.resolve()),
 }

@@ -1,6 +1,7 @@
 import * as db from '@/db'
 import { validateEnv } from '@/config/validateEnv'
 import { runProcess } from '@/utils/process.utils'
+import { log } from '@/libs/logger'
 import { MIGRATIONS_DIR } from '@/constants/paths'
 import { processTiming } from '@/constants/process'
 import { DB_REPO } from '@/types/enums'
@@ -32,7 +33,7 @@ if (import.meta.main) {
       await db.assertDatabaseSchema()
       context.signal.throwIfAborted()
 
-      console.info('🌱 Starting database seed...')
+      log.debug('Starting database seed', { database: config.dbRepo })
 
       const summary: Record<string, { inserted: number; existing: number }> = {}
 
@@ -44,8 +45,10 @@ if (import.meta.main) {
 
       context.signal.throwIfAborted()
 
-      console.info('✅ Database setup completed!')
-      console.info(summary)
+      log.info('Database setup completed', {
+        database: config.dbRepo,
+        summary,
+      })
     },
   })
 }

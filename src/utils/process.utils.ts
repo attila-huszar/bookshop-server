@@ -53,7 +53,9 @@ export async function runProcess(input: ProcessOptions): Promise<void> {
 
   async function finishShutdown(): Promise<void> {
     const deadline = setTimeout(() => {
-      log.error(`${input.name} shutdown timed out`)
+      log.error(`❌ ${input.name} shutdown timed out`, {
+        shutdownMs: input.shutdownMs,
+      })
 
       for (const close of forceClosers) {
         try {
@@ -75,7 +77,7 @@ export async function runProcess(input: ProcessOptions): Promise<void> {
         } catch (error) {
           exitCode = 1
 
-          log.error(`${input.name} cleanup failed`, {
+          log.error(`❌ ${input.name} cleanup failed`, {
             resource: cleanup.name,
             error,
           })
@@ -120,7 +122,7 @@ export async function runProcess(input: ProcessOptions): Promise<void> {
         return
       }
 
-      log.error(`${input.name} stopped unexpectedly`, { error })
+      log.error(`❌ ${input.name} stopped unexpectedly`, { error })
       void stop(1)
     },
   }
@@ -147,9 +149,10 @@ export async function runProcess(input: ProcessOptions): Promise<void> {
     }
   } catch (error) {
     if (!controller.signal.aborted) {
-      log.error(`${input.name}${input.once ? ' failed' : ' startup failed'}`, {
-        error,
-      })
+      log.error(
+        `❌ ${input.name}${input.once ? ' failed' : ' startup failed'}`,
+        { error },
+      )
 
       await stop(1)
     } else {

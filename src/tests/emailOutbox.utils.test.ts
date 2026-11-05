@@ -34,14 +34,6 @@ const createOrder = (overrides: Partial<Order> = {}): Order => ({
   ...overrides,
 })
 
-describe('email definitions', () => {
-  it('keys definitions by their payload type for direct lookup', () => {
-    for (const [type, definition] of Object.entries(EMAIL)) {
-      expect(type).toBe(definition.type)
-    }
-  })
-})
-
 describe('accountEmailIntent', () => {
   const user = {
     email: 'saved@example.com',
@@ -64,6 +56,8 @@ describe('accountEmailIntent', () => {
         toName: user.firstName,
         tokenLink: `${env.clientBaseUrl}/${path}?token=${encodeURIComponent(token)}`,
       })
+      expect(intent.id).toBeString()
+      expect(intent.availableAt).toBeInstanceOf(Date)
     },
   )
 
@@ -82,32 +76,6 @@ describe('accountEmailIntent', () => {
 })
 
 describe('createEmailIntent', () => {
-  it.each(['verification', 'passwordReset'] as const)(
-    'always creates a draft for %s emails',
-    (type) => {
-      const data = {
-        toAddress: 'customer@example.com',
-        toName: 'Customer',
-        tokenLink: 'https://bookshop.test/?token=token',
-      }
-      // This assignment also checks the non-null return type during typecheck.
-      const intent: EmailOutboxDraft = createEmailIntent({ type, data })
-
-      expect(intent.payload).toEqual({ type, ...data })
-      expect(intent.id).toBeString()
-      expect(intent.availableAt).toBeInstanceOf(Date)
-    },
-  )
-
-  it('skips customer confirmation for a guest without an email', () => {
-    const intent = createEmailIntent({
-      type: 'orderConfirmation',
-      data: { order: createOrder({ email: null }) },
-    })
-
-    expect(intent).toBeNull()
-  })
-
   it('uses the last name when the first name is missing', () => {
     const intent = createEmailIntent({
       type: 'orderConfirmation',

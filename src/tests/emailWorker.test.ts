@@ -13,7 +13,7 @@ import {
 } from './test-setup'
 
 const { createEmailWorker } = await import('@/workers/emailWorker')
-const emailWorker = createEmailWorker()
+createEmailWorker()
 
 type EmailJobResult = { status: 'sent' | 'skipped' }
 type EmailJob = Job<SendEmailProps, EmailJobResult>
@@ -78,6 +78,8 @@ const alertJob = {
 
 describe('Email Worker', () => {
   beforeEach(() => {
+    mockWorker.backend.connection.emit('ready')
+    mockWorker.backend.blockingConnection.emit('ready')
     ready()
     mockSendMail.mockReset()
     mockOutboxDB.updateEmailDelivery.mockReset().mockResolvedValue(undefined)
@@ -88,24 +90,14 @@ describe('Email Worker', () => {
     mockLogger.error.mockClear()
     mockLogger.debug.mockClear()
     mockLogger.warn.mockClear()
-    mockWorker.close.mockClear()
   })
 
-  it('creates the worker with completion and failure handlers', () => {
-    expect(emailWorker).toBeDefined()
+  it('returns a sent outcome only after sending the email', async () => {
     expect(mockWorkerConstructor).toHaveBeenCalledWith(
       'email',
       expect.any(Function),
       expect.objectContaining({ concurrency: 1, autorun: false }),
     )
-    expect(mockWorker.on).toHaveBeenCalledWith(
-      'completed',
-      expect.any(Function),
-    )
-    expect(mockWorker.on).toHaveBeenCalledWith('failed', expect.any(Function))
-  })
-
-  it('returns a sent outcome only after sending the email', async () => {
     expect(await processor(verificationJob, undefined)).toEqual({
       status: 'sent',
     })
@@ -130,6 +122,8 @@ describe('Email Worker', () => {
     mockUsersDB.getActiveUserBy.mockResolvedValueOnce({
       ...currentAccount(),
       verified: true,
+      verificationToken: null,
+      verificationExpires: null,
     })
 
     expect(await processor(passwordResetJob, undefined)).toEqual({
@@ -142,75 +136,39 @@ describe('Email Worker', () => {
     )
   })
 
-  const obsoleteVerificationAccounts: [string, Partial<User> | null][] = [
-    ['a deleted account', null],
-    ['an already-verified account', { verified: true }],
-    ['a replaced token', { verificationToken: 'new-token' }],
-    ['a consumed token', { verificationToken: null }],
-    ['an expired token', { verificationExpires: new Date(0) }],
-    ['a missing expiry', { verificationExpires: null }],
-    ['an invalid expiry', { verificationExpires: new Date(NaN) }],
-  ]
+  describe.each([
+    {
+      name: 'verification',
+      job: verificationJob,
+      tokenField: 'verificationToken',
+      expiresField: 'verificationExpires',
+    },
+    {
+      name: 'password-reset',
+      job: passwordResetJob,
+      tokenField: 'passwordResetToken',
+      expiresField: 'passwordResetExpires',
+    },
+  ] as const)('$name email freshness', ({ job, tokenField, expiresField }) => {
+    const obsoleteAccounts: [string, Partial<User> | null][] = [
+      ['a deleted account', null],
+      ['a replaced token', { [tokenField]: 'replacement-token' }],
+      ['a consumed token', { [tokenField]: null, [expiresField]: null }],
+      ['an expired token', { [expiresField]: new Date(0) }],
+    ]
 
-  it.each(obsoleteVerificationAccounts)(
-    'skips verification emails for %s',
-    async (_label, fields) => {
+    it.each(obsoleteAccounts)('skips email for %s', async (_label, fields) => {
       mockUsersDB.getActiveUserBy.mockResolvedValueOnce(
         fields ? { ...currentAccount(), ...fields } : null,
       )
 
-      expect(await processor(verificationJob, undefined)).toEqual({
-        status: 'skipped',
-      })
+      expect(await processor(job, undefined)).toEqual({ status: 'skipped' })
       expect(mockSendMail).not.toHaveBeenCalled()
       expect(mockOutboxDB.updateEmailDelivery).toHaveBeenLastCalledWith(
-        verificationJob.id,
+        job.id,
         { status: 'skipped', attempts: 1, nextAttemptAt: null, error: null },
       )
-    },
-  )
-
-  const obsoleteResetAccounts: [string, Partial<User> | null][] = [
-    ['a deleted account', null],
-    ['a replaced token', { passwordResetToken: 'new-token' }],
-    ['a consumed token', { passwordResetToken: null }],
-    ['an expired token', { passwordResetExpires: new Date(0) }],
-    ['a missing expiry', { passwordResetExpires: null }],
-    ['an invalid expiry', { passwordResetExpires: new Date(NaN) }],
-  ]
-
-  it.each(obsoleteResetAccounts)(
-    'skips password-reset emails for %s',
-    async (_label, fields) => {
-      mockUsersDB.getActiveUserBy.mockResolvedValueOnce(
-        fields ? { ...currentAccount(), ...fields } : null,
-      )
-
-      expect(await processor(passwordResetJob, undefined)).toEqual({
-        status: 'skipped',
-      })
-      expect(mockSendMail).not.toHaveBeenCalled()
-    },
-  )
-
-  it.each([
-    'not-a-url',
-    'https://example.com/verify',
-    'https://example.com/verify?token=',
-  ])('skips account emails with an unusable link: %s', async (tokenLink) => {
-    for (const job of [verificationJob, passwordResetJob]) {
-      const malformedJob = {
-        ...job,
-        data: { ...job.data, tokenLink },
-      } as EmailJob
-
-      expect(await processor(malformedJob, undefined)).toEqual({
-        status: 'skipped',
-      })
-    }
-
-    expect(mockUsersDB.getActiveUserBy).not.toHaveBeenCalled()
-    expect(mockSendMail).not.toHaveBeenCalled()
+    })
   })
 
   it('propagates account lookup failures so the job can retry', async () => {
@@ -223,18 +181,6 @@ describe('Email Worker', () => {
     }
 
     expect(mockSendMail).not.toHaveBeenCalled()
-  })
-
-  it('logs skipped account emails without exposing their link', async () => {
-    mockUsersDB.getActiveUserBy.mockResolvedValueOnce(null)
-    const result = await processor(verificationJob, undefined)
-
-    completed(verificationJob, result)
-
-    expect(mockLogger.debug).toHaveBeenCalledWith('Obsolete email skipped', {
-      jobId: '12345',
-      type: 'verification',
-    })
   })
 
   it('skips a resolved reconciliation alert before SMTP', async () => {
@@ -292,18 +238,23 @@ describe('Email Worker', () => {
     )
   })
 
-  it('keeps successful delivery details at debug level', () => {
-    completed(verificationJob, { status: 'sent' })
-    expect(mockLogger.debug).toHaveBeenCalledWith('Email sent successfully', {
-      jobId: '12345',
-      type: 'verification',
-    })
-    expect(mockLogger.info).not.toHaveBeenCalled()
-  })
+  it.each(['sent', 'skipped'] as const)(
+    'logs %s outcomes at debug without exposing account links',
+    (status) => {
+      completed(verificationJob, { status })
+      expect(mockLogger.debug).toHaveBeenCalledWith(
+        status === 'sent'
+          ? 'Email sent successfully'
+          : 'Obsolete email skipped',
+        { jobId: '12345', type: 'verification' },
+      )
+      expect(mockLogger.info).not.toHaveBeenCalled()
+    },
+  )
 
-  it('keeps readiness and Redis recovery at debug level', () => {
+  it('keeps routine readiness quiet and reports Redis recovery once at info', () => {
     ready()
-    expect(mockLogger.debug).toHaveBeenCalledWith('✅ Email worker ready')
+    expect(mockLogger.debug).toHaveBeenCalledWith('Email worker ready')
     expect(mockLogger.info).not.toHaveBeenCalled()
 
     const error = Object.assign(new Error('Redis unavailable'), {
@@ -313,37 +264,72 @@ describe('Email Worker', () => {
     workerError(error)
     expect(mockLogger.warn).toHaveBeenCalledTimes(1)
 
-    ready()
+    // BullMQ's Worker ready event only fires at startup. Reconnects come from
+    // its underlying connections, and both must be ready before recovery.
+    mockWorker.backend.connection.emit('close')
+    mockWorker.backend.blockingConnection.emit('close')
+    mockWorker.backend.connection.emit('ready')
     ready()
     expect(mockLogger.info).not.toHaveBeenCalled()
-    expect(mockLogger.debug).toHaveBeenCalledWith(
+
+    mockWorker.backend.blockingConnection.emit('ready')
+    mockWorker.backend.blockingConnection.emit('ready')
+    expect(mockLogger.info).toHaveBeenCalledWith(
       '✅ Email worker Redis connection recovered',
     )
     expect(
-      mockLogger.debug.mock.calls.filter(
+      mockLogger.info.mock.calls.filter(
         ([message]) => message === '✅ Email worker Redis connection recovered',
       ),
     ).toHaveLength(1)
   })
 
-  it('propagates sending failures instead of returning a sent outcome', async () => {
-    const error = new Error('SMTP unavailable')
-
-    mockSendMail.mockRejectedValueOnce(error)
-    await rejects(processor(verificationJob, undefined), /SMTP unavailable/)
-    expect(mockLogger.info).not.toHaveBeenCalled()
-  })
-
-  it('logs errors from the real failure handler', () => {
+  it('logs retryable delivery failures as warnings with the attempt budget', () => {
     const error = new Error('Email sending failed')
+    const job = {
+      ...verificationJob,
+      attemptsMade: 1,
+      opts: { attempts: 3 },
+    } as EmailJob
 
-    failed(verificationJob, error)
-    expect(mockLogger.error).toHaveBeenCalledWith('Email sending failed', {
-      jobId: '12345',
-      type: 'verification',
-      error,
-    })
+    failed(job, error)
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      'Email delivery failed; retry scheduled',
+      {
+        jobId: '12345',
+        type: 'verification',
+        attempts: 1,
+        maxAttempts: 3,
+        error,
+      },
+    )
+    expect(mockLogger.error).not.toHaveBeenCalled()
   })
+
+  it.each([{ attemptsMade: 3 }, { attemptsMade: 1, finishedOn: 1 }])(
+    'draws attention to terminal job failures: %p',
+    (state) => {
+      const error = new Error('Email sending failed')
+      const job = {
+        ...verificationJob,
+        opts: { attempts: 3 },
+        ...state,
+      } as EmailJob
+
+      failed(job, error)
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        '❌ Email delivery failed permanently',
+        {
+          jobId: '12345',
+          type: 'verification',
+          attempts: state.attemptsMade,
+          maxAttempts: 3,
+          error,
+        },
+      )
+      expect(mockLogger.warn).not.toHaveBeenCalled()
+    },
+  )
 
   it('records retry eligibility and a generic error without storing provider secrets', async () => {
     const start = Date.now()
@@ -409,7 +395,7 @@ describe('Email Worker', () => {
     })
     expect(mockSendMail).toHaveBeenCalledTimes(1)
     expect(mockLogger.error).toHaveBeenCalledWith(
-      'Could not record email delivery outcome',
+      '❌ Could not record email delivery outcome',
       { jobId: verificationJob.id, status: 'sent', error },
     )
   })

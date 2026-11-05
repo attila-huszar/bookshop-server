@@ -37,7 +37,7 @@ export function errorHandler(c: Context, error: unknown) {
   )
 
   if (failure.status >= 500) {
-    void log.error('Request failed', {
+    log.error('Request failed', {
       error: error instanceof Error ? error : String(error),
       code: failure.body.code,
       status: failure.status,

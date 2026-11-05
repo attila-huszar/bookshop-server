@@ -73,9 +73,14 @@ export async function updateUserBy(
   value: string | number,
   fields: UserUpdate,
 ): Promise<User | null> {
+  const updates =
+    fields.verified === true
+      ? { ...fields, verificationToken: null, verificationExpires: null }
+      : fields
+
   const [user] = await sqlite
     .update(usersTable)
-    .set(fields)
+    .set(updates)
     .where(and(eq(usersTable[field], value), isNull(usersTable.deletedAt)))
     .returning()
 

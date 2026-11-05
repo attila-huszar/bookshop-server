@@ -14,7 +14,7 @@ export async function runMaintenance(
         const totalUpdated = await usersDB.cleanupExpiredPasswordResetTokens()
 
         if (totalUpdated > 0) {
-          void log.info('Expired password reset tokens cleaned up', {
+          log.info('Expired password reset tokens cleaned up', {
             totalUpdated,
           })
         }
@@ -26,7 +26,7 @@ export async function runMaintenance(
         const deletedUsers = await usersDB.cleanupUnverifiedUsers()
 
         if (deletedUsers.length > 0) {
-          void log.info('Expired unverified users soft deleted', {
+          log.info('Expired unverified users soft deleted', {
             totalDeleted: deletedUsers.length,
           })
           log.debug('Expired registration cleanup details', {
@@ -54,7 +54,7 @@ export async function runMaintenance(
         const removed = await cleanupImages()
 
         if (removed > 0) {
-          void log.info('Unused uploaded images cleaned up', { removed })
+          log.info('Unused uploaded images cleaned up', { removed })
         }
       },
     },
@@ -70,7 +70,7 @@ export async function runMaintenance(
       await task.run()
     } catch (error) {
       succeeded = false
-      void log.error('Maintenance task failed', { task: task.name, error })
+      log.error('Maintenance task failed', { task: task.name, error })
     }
   }
 

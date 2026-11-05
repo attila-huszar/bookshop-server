@@ -112,6 +112,7 @@ describe('Webhooks Service', () => {
     mockStripe.webhooks.constructEventAsync.mockReset()
     mockStripe.paymentIntents.retrieve.mockReset()
     mockLogger.info.mockReset()
+    mockLogger.debug.mockReset()
     mockLogger.warn.mockReset()
     mockLogger.error.mockReset()
     mockExtractPaymentIntentFields.mockReset()
@@ -202,9 +203,14 @@ describe('Webhooks Service', () => {
     })
     expect(mockOrdersDB.getOrder).not.toHaveBeenCalled()
     expect(mockOrdersDB.recordReconciliationFailure).not.toHaveBeenCalled()
-    expect(mockLogger.warn).toHaveBeenCalledWith(
-      '[STRIPE] Unhandled webhook event type: payment_intent.future_event',
+    expect(mockLogger.debug).toHaveBeenCalledWith(
+      '[STRIPE] Ignoring unsupported webhook event',
+      {
+        eventType: 'payment_intent.future_event',
+        eventId: 'evt_unknown_payment_intent',
+      },
     )
+    expect(mockLogger.warn).not.toHaveBeenCalled()
   })
 
   it('ignores older webhook events by event.created', async () => {
@@ -609,7 +615,7 @@ describe('Webhooks Service', () => {
     })
     expect(mockOrdersDB.recordReconciliationFailure).not.toHaveBeenCalled()
     expect(mockLogger.error).toHaveBeenCalledWith(
-      '[CRITICAL] Webhook order update save failed',
+      '❌ [STRIPE] Webhook order update save failed',
       expect.objectContaining({
         issueCode: IssueCode.WEBHOOK_ORDER_SAVE_FAILED,
         saveFailureReason: 'threw',
@@ -658,7 +664,7 @@ describe('Webhooks Service', () => {
     })
     expect(mockOrdersDB.recordReconciliationFailure).not.toHaveBeenCalled()
     expect(mockLogger.error).toHaveBeenCalledWith(
-      '[CRITICAL] Webhook order update save failed',
+      '❌ [STRIPE] Webhook order update save failed',
       expect.objectContaining({
         issueCode: IssueCode.WEBHOOK_ORDER_SAVE_FAILED,
         saveFailureReason: 'returned_null',
@@ -770,8 +776,7 @@ describe('Webhooks Service', () => {
 
     const missingOrderErrorLog = mockLogger.error.mock.calls.find(
       ([message]) =>
-        message ===
-        '[CRITICAL] Missing order for Stripe payment_intent webhook',
+        message === '❌ [STRIPE] Missing order for payment_intent webhook',
     )
 
     expect(missingOrderErrorLog).toBeDefined()
@@ -817,8 +822,7 @@ describe('Webhooks Service', () => {
 
     const missingOrderErrorLog = mockLogger.error.mock.calls.find(
       ([message]) =>
-        message ===
-        '[CRITICAL] Missing order for Stripe payment_intent webhook',
+        message === '❌ [STRIPE] Missing order for payment_intent webhook',
     )
 
     expect(missingOrderErrorLog).toBeDefined()

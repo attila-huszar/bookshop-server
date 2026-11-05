@@ -981,10 +981,17 @@ describe('Mongo transactional account emails', () => {
   })
 
   it('verifies only the current unexpired token of an active account', async () => {
-    query.exec.mockResolvedValueOnce({ ...storedUser, verified: true })
+    query.exec.mockResolvedValueOnce({
+      ...storedUser,
+      verified: true,
+      verificationToken: null,
+      verificationExpires: null,
+    })
 
     expect(await users.verifyUserByToken('verification-token')).toMatchObject({
       verified: true,
+      verificationToken: null,
+      verificationExpires: null,
     })
     expect(UserModel.findOneAndUpdate).toHaveBeenCalledWith(
       {
@@ -1039,6 +1046,26 @@ describe('Mongo transactional account emails', () => {
     expect(UserModel.findOneAndUpdate).toHaveBeenCalledWith(
       { uuid: user.uuid, deletedAt: null },
       { firstName: 'Updated' },
+      { returnDocument: 'after' },
+    )
+    expect(EmailOutboxModel.insertMany).not.toHaveBeenCalled()
+  })
+
+  it('clears the verification token in the same CMS verification update', async () => {
+    const verifiedUser = {
+      ...storedUser,
+      verified: true,
+      verificationToken: null,
+      verificationExpires: null,
+    }
+    query.exec.mockResolvedValueOnce(verifiedUser)
+
+    expect(
+      await users.updateUserBy('uuid', user.uuid, { verified: true }),
+    ).toEqual(verifiedUser)
+    expect(UserModel.findOneAndUpdate).toHaveBeenCalledWith(
+      { uuid: user.uuid, deletedAt: null },
+      { verified: true, verificationToken: null, verificationExpires: null },
       { returnDocument: 'after' },
     )
     expect(EmailOutboxModel.insertMany).not.toHaveBeenCalled()

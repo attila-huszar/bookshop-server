@@ -39,7 +39,7 @@ The `setup` command uses the same explicit `DB_REPO` selection as normal service
 
 Authenticated requests and token refresh require an active, non-deleted account; verification is checked separately. Logout clears session cookies independently of account lookup. Signed guest payment cookies remain separate from account sessions.
 
-Verification and password-reset tokens are consumed through conditional updates requiring the current token, future expiry, and active account. Repeated or superseded tokens cannot change the account.
+Verification and password-reset tokens are consumed through conditional updates requiring the current token, future expiry, and active account. Marking an account verified, including through CMS, clears its verification token and expiry in the same write. The email worker checks the queued token against the current token and expiry. Repeated or superseded tokens cannot change the account.
 
 Users and orders support reversible CMS soft deletion. Deleted account emails remain reserved, and deletion protects the last active admin. Restoring an account retains its identity, password, and verification state. Catalogue deletion is permanent; payment history and order reconciliation remain available after order soft deletion.
 
@@ -86,6 +86,8 @@ API / webhook / reconciliation
 
 An intent insert failure rolls back the associated state change. A Redis outage leaves committed intents available for retry. Relay leases use unique tokens so a stale publisher cannot acknowledge a replacement lease. Republishing the same job ID deduplicates queue acceptance while the job remains in Redis. Publication retries back off with bounded provider requests; SMTP jobs have a fixed retry limit.
 
+Redis reconnects automatically. Recovery monitoring observes the queue connection and both worker connections, reports recovery only when all required connections are ready, and stays quiet during intentional shutdown. SMTP pools replace failed connections; send results determine transport health, and the next successful send reports recovery after a transport failure. Outbox polling continues through database/Redis outages and does not report recovery on a poll that still schedules a failed publication for retry.
+
 Registration, password resets, first-paid transitions, and reconciliation alerts own their email intents inside repository transactions. Generic account/CMS edits and PaymentIntent linking do not send emails. Payloads contain only the data needed for rendering.
 
 The consumer skips obsolete account tokens and resolved reconciliation alerts. Lookup failures remain retryable. CMS email history is scoped to an exact payment ID and separates queue publication from SMTP processing; summaries exclude bodies, account links, and lease tokens. Queue acknowledgement is not proof of delivery.
@@ -105,6 +107,8 @@ Sharp validates and normalizes uploaded images to WebP with input, pixel, and pr
 Compose sends service logs to Loki under `job` labels; browser reports pass through the API with `source="frontend"`. Grafana provides inspection, and Cronitor monitors scheduled runs. Loki's own Docker logs use the local driver. Container logs rotate, and shipping retries/timeouts are bounded.
 
 At the default info level, logs emphasize service lifecycle, recovery, meaningful maintenance/payment activity, and failures. Successful one-off jobs clean up without a shutdown message; interruptions and failures remain visible. Routine email delivery/skip and transport readiness details use debug, while delivery outcomes remain in the outbox records. Helpers propagate errors to their request/job owner rather than logging and rethrowing them. Expected 4xx responses are quiet in both the application and proxy access logs; proxy 5xx responses remain errors.
+
+Expected payment failures are business outcomes at info; ignored stale/duplicate/unsupported webhooks and reconciliation batch summaries use debug. Retryable email delivery failures use warn, and terminal failures use error, with attempt counts for diagnosis. Application logs use structured metadata for identifiers and error details. Emoji are reserved for operational attention: ⚠️ for dependency outages, ❌ for delivery/process failures, blocked email infrastructure, or payment integrity failures requiring investigation, and ✅ for recovery from a reported outage. Routine startup, readiness, delivery, setup, and payment success messages have no emoji.
 
 ## Database backups
 
@@ -133,6 +137,8 @@ Recovery is manual into an isolated target. Verify checksums and restored data/i
 ## Runtime and development
 
 Compose runs API, worker, cron, Redis, and the logging stack. Either repo's `dev` command starts local Vite plus Compose; `setup` initializes missing demo data separately. Startup/restarts do not repeat setup, and shutdown preserves stored data. See the [README](../README.md#local-development) for commands.
+
+MongoDB reconnects after runtime outages, with API readiness unavailable until reconnection; failed process startup is retried by Compose's restart policy. The optional ngrok tunnel retries initial transport failures with capped backoff and cancels pending retries during shutdown; established sessions use SDK reconnection. Explicit ngrok provider rejections require intervention instead of repeated startup attempts. SQLite lock contention uses a bounded busy timeout. Payment recovery remains owned by Stripe webhook retries and scheduled reconciliation rather than replaying checkout or SMTP side effects.
 
 SQLite persists in the Docker-managed `sqlite_data` volume, mounted at `/bookshop-server/data` for API, worker, and cron, including SQLite's WAL/shared-memory files. Keep `DB_SQLITE_FILE` under `data` so all writers use that persistent storage. API, worker, and scheduled database jobs run as `bun:bun`; root-owned cron switches users before executing jobs. Image-created directories belong to `bun`, and fresh volumes inherit that ownership; no host UID/GID mapping or root startup repair is required. A host-local SQLite file is separate from the volume and does not initialize the Docker database.
 

@@ -64,7 +64,7 @@ describe('outbox relay', () => {
     })
     const settlePoll = async () => {
       // Drain publication and timer scheduling before advancing the next poll.
-      for (let step = 0; step < 6; step++) {
+      for (let step = 0; step < 10; step++) {
         await Promise.resolve()
       }
     }
@@ -85,11 +85,18 @@ describe('outbox relay', () => {
       await settlePoll()
       expect(mockLogger.error).toHaveBeenCalledTimes(2)
 
+      // A caught publication failure resolves the poll, but is not recovery.
+      mockOutboxDB.claimEmail.mockResolvedValue(entry)
+      mockEmailQueue.add.mockRejectedValueOnce(new Error('Redis unavailable'))
+      jest.advanceTimersByTime(2000)
+      await settlePoll()
+      expect(mockLogger.info).not.toHaveBeenCalled()
+
       mockOutboxDB.claimEmail.mockResolvedValue(null)
       jest.advanceTimersByTime(2000)
       await settlePoll()
       expect(mockLogger.info).toHaveBeenCalledWith(
-        'Outbox relay polling recovered',
+        '✅ Outbox relay polling recovered',
       )
 
       mockOutboxDB.claimEmail.mockRejectedValue(new Error('Offline again'))
@@ -108,7 +115,7 @@ describe('outbox relay', () => {
         repository: mockOutboxDB,
         queue: mockEmailQueue,
       }),
-    ).toBe(1)
+    ).toEqual({ published: 1, retryScheduled: false })
     expect(mockEmailQueue.add).toHaveBeenCalledWith(
       'verification',
       entry.payload,
@@ -131,7 +138,7 @@ describe('outbox relay', () => {
         repository: mockOutboxDB,
         queue: mockEmailQueue,
       }),
-    ).toBe(0)
+    ).toEqual({ published: 0, retryScheduled: true })
     expect(mockOutboxDB.completeEmail).not.toHaveBeenCalled()
     expect(mockOutboxDB.retryEmail).toHaveBeenCalledWith(
       entry.id,

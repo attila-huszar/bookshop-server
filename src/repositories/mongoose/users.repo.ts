@@ -81,9 +81,14 @@ export async function updateUserBy(
   value: string | number,
   fields: UserUpdate,
 ): Promise<User | null> {
+  const updates =
+    fields.verified === true
+      ? { ...fields, verificationToken: null, verificationExpires: null }
+      : fields
+
   const user = await UserModel.findOneAndUpdate(
     { [field]: value, deletedAt: null },
-    fields,
+    updates,
     {
       returnDocument: 'after',
     },

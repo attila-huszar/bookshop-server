@@ -7,7 +7,6 @@ export const EMAIL = {
     path: 'verification',
     tokenField: 'verificationToken',
     expiresField: 'verificationExpires',
-    skipIfVerified: true,
   },
   passwordReset: {
     type: 'passwordReset',
@@ -15,7 +14,6 @@ export const EMAIL = {
     path: 'password-reset',
     tokenField: 'passwordResetToken',
     expiresField: 'passwordResetExpires',
-    skipIfVerified: false,
   },
   orderConfirmation: {
     type: 'orderConfirmation',

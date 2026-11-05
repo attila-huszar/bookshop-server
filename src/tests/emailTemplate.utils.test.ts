@@ -201,16 +201,11 @@ describe('email subjects', () => {
     tokenLink: 'https://bookshop.test/verification?token=test-token',
   }
 
-  it('uses the registered verification subject', () => {
-    expect(getEmailSubject({ type: 'verification', ...recipient })).toBe(
-      'Bookshop - Verify your email address',
-    )
-  })
-
-  it('uses the registered password-reset subject', () => {
-    expect(getEmailSubject({ type: 'passwordReset', ...recipient })).toBe(
-      'Bookshop - Forgotten Password',
-    )
+  it.each([
+    ['verification', 'Bookshop - Verify your email address'],
+    ['passwordReset', 'Bookshop - Forgotten Password'],
+  ] as const)('uses the registered %s subject', (type, subject) => {
+    expect(getEmailSubject({ type, ...recipient })).toBe(subject)
   })
 
   it('uses the registered order-confirmation subject', () => {

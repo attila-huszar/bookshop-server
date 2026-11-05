@@ -1,7 +1,7 @@
 import { type Job, Worker } from 'bullmq'
 import { env } from '@/config'
 import { ordersDB, outboxDB, usersDB } from '@/repositories'
-import { getRedisConnectionHint } from '@/utils/redis.utils'
+import { monitorRedisRecovery } from '@/utils/redis.utils'
 import { log } from '@/libs/logger'
 import { sendMail } from '@/libs/nodemailer'
 import {
@@ -18,120 +18,10 @@ import {
 
 type EmailJobResult = { status: 'sent' | 'skipped' }
 
-async function deliverEmail(email: SendEmailProps): Promise<EmailJobResult> {
-  if (
-    email.type === EMAIL.verification.type ||
-    email.type === EMAIL.passwordReset.type
-  ) {
-    const token = URL.canParse(email.tokenLink)
-      ? new URL(email.tokenLink).searchParams.get('token')
-      : null
-
-    if (!token) {
-      return { status: 'skipped' }
-    }
-
-    // The queued link is a snapshot; a later request may replace its token.
-    const user = await usersDB.getActiveUserBy('email', email.toAddress)
-    const definition = EMAIL[email.type]
-    const currentToken = user?.[definition.tokenField]
-    const expiresAt = user?.[definition.expiresField]
-
-    if (
-      !user ||
-      (definition.skipIfVerified && user.verified) ||
-      currentToken !== token ||
-      !expiresAt ||
-      !(new Date(expiresAt).getTime() > Date.now())
-    ) {
-      return { status: 'skipped' }
-    }
-  }
-
-  if (
-    email.type === EMAIL.adminPaymentNotification.type &&
-    email.notificationType === AdminNotification.Error
-  ) {
-    const order = email.reconciliation
-      ? await ordersDB.getOrderById(email.reconciliation.orderId)
-      : null
-
-    if (
-      !email.reconciliation ||
-      order?.reconciliationAlertId !== email.reconciliation.alertId
-    ) {
-      return { status: 'skipped' }
-    }
-  }
-
-  await sendMail(email)
-
-  return { status: 'sent' }
-}
-
-async function recordOutcome(
-  id: string,
-  update: EmailDeliveryUpdate,
-): Promise<void> {
-  try {
-    await outboxDB.updateEmailDelivery(id, update)
-  } catch (error) {
-    // A tracking outage must not retry an email already accepted by SMTP.
-    log.error('Could not record email delivery outcome', {
-      jobId: id,
-      status: update.status,
-      error,
-    })
-  }
-}
-
 export function createEmailWorker() {
-  let redisConnectionErrorShown = false
   const emailWorker = new Worker<SendEmailProps, EmailJobResult>(
     emailQueueName,
-    async (
-      job: Job<SendEmailProps, EmailJobResult>,
-    ): Promise<EmailJobResult> => {
-      if (!job.id) {
-        throw new Error('Email job ID is required')
-      }
-
-      const attempts = (job.attemptsMade ?? 0) + 1
-      let result: EmailJobResult
-
-      try {
-        await outboxDB.updateEmailDelivery(job.id, {
-          status: 'sending',
-          attempts,
-          nextAttemptAt: null,
-          error: null,
-        })
-        result = await deliverEmail(job.data)
-      } catch (error) {
-        const retrying =
-          attempts < (job.opts?.attempts ?? emailJobOptions.attempts)
-        // Estimated eligibility time; BullMQ owns actual retry scheduling.
-        const retryDelay = emailJobOptions.backoff.delay * 2 ** (attempts - 1)
-
-        await recordOutcome(job.id, {
-          status: retrying ? 'retrying' : 'failed',
-          attempts,
-          nextAttemptAt: retrying ? new Date(Date.now() + retryDelay) : null,
-          error: 'Email delivery failed',
-        })
-
-        throw error
-      }
-
-      await recordOutcome(job.id, {
-        status: result.status,
-        attempts,
-        nextAttemptAt: null,
-        error: null,
-      })
-
-      return result
-    },
+    processEmailJob,
     {
       connection: {
         url: env.redisUrl,
@@ -165,40 +55,148 @@ export function createEmailWorker() {
   })
 
   emailWorker.on('failed', (job, error) => {
-    log.error('Email sending failed', {
+    const attempts = job?.attemptsMade
+    const maxAttempts = job?.opts?.attempts ?? emailJobOptions.attempts
+    const retrying =
+      job !== undefined &&
+      job.finishedOn == null &&
+      (attempts ?? 0) < maxAttempts
+    const meta = {
       jobId: job?.id,
       type: job?.name,
+      attempts,
+      maxAttempts,
       error,
-    })
+    }
+
+    if (retrying) {
+      log.warn('Email delivery failed; retry scheduled', meta)
+    } else {
+      log.error('❌ Email delivery failed permanently', meta)
+    }
+  })
+
+  const handleRedisError = monitorRedisRecovery({
+    name: 'Email worker',
+    backend: emailWorker.backend,
+    redisUrl: env.redisUrl,
+    isClosing: () => emailWorker.closing !== undefined,
   })
 
   emailWorker.on('error', (error) => {
-    const hint = getRedisConnectionHint(error, env.redisUrl)
-
-    if (hint) {
-      if (redisConnectionErrorShown) {
-        return
-      }
-
-      redisConnectionErrorShown = true
-
-      log.warn('⚠️ Redis is not reachable for email worker', { hint })
-
+    if (handleRedisError(error)) {
       return
     }
 
-    redisConnectionErrorShown = false
     log.error('Email worker error', { error })
   })
 
   emailWorker.on('ready', () => {
-    const recovered = redisConnectionErrorShown
-    redisConnectionErrorShown = false
-
-    log.debug(
-      `✅ Email worker ${recovered ? 'Redis connection recovered' : 'ready'}`,
-    )
+    log.debug('Email worker ready')
   })
 
   return emailWorker
+}
+
+async function processEmailJob(
+  job: Job<SendEmailProps, EmailJobResult>,
+): Promise<EmailJobResult> {
+  if (!job.id) {
+    throw new Error('Email job ID is required')
+  }
+
+  const attempts = (job.attemptsMade ?? 0) + 1
+  let result: EmailJobResult
+
+  try {
+    await outboxDB.updateEmailDelivery(job.id, {
+      status: 'sending',
+      attempts,
+      nextAttemptAt: null,
+      error: null,
+    })
+    const sent = await deliverEmail(job.data)
+    result = { status: sent ? 'sent' : 'skipped' }
+  } catch (error) {
+    const retrying = attempts < (job.opts?.attempts ?? emailJobOptions.attempts)
+    // Estimated eligibility time; BullMQ owns actual retry scheduling.
+    const retryDelay = emailJobOptions.backoff.delay * 2 ** (attempts - 1)
+
+    await recordOutcome(job.id, {
+      status: retrying ? 'retrying' : 'failed',
+      attempts,
+      nextAttemptAt: retrying ? new Date(Date.now() + retryDelay) : null,
+      error: 'Email delivery failed',
+    })
+
+    throw error
+  }
+
+  await recordOutcome(job.id, {
+    status: result.status,
+    attempts,
+    nextAttemptAt: null,
+    error: null,
+  })
+
+  return result
+}
+
+async function deliverEmail(email: SendEmailProps): Promise<boolean> {
+  if (
+    email.type === EMAIL.verification.type ||
+    email.type === EMAIL.passwordReset.type
+  ) {
+    const token = new URL(email.tokenLink).searchParams.get('token')
+
+    // The queued link is a snapshot; a later request may replace its token.
+    const user = await usersDB.getActiveUserBy('email', email.toAddress)
+    const definition = EMAIL[email.type]
+    const currentToken = user?.[definition.tokenField]
+    const expiresAtMs = user?.[definition.expiresField]?.getTime() ?? 0
+
+    const isAccountEmailObsolete =
+      currentToken !== token || !(expiresAtMs > Date.now())
+
+    if (isAccountEmailObsolete) {
+      return false
+    }
+  }
+
+  if (
+    email.type === EMAIL.adminPaymentNotification.type &&
+    email.notificationType === AdminNotification.Error
+  ) {
+    const order = email.reconciliation
+      ? await ordersDB.getOrderById(email.reconciliation.orderId)
+      : null
+
+    const isReconciliationAlertObsolete =
+      !email.reconciliation ||
+      order?.reconciliationAlertId !== email.reconciliation.alertId
+
+    if (isReconciliationAlertObsolete) {
+      return false
+    }
+  }
+
+  await sendMail(email)
+
+  return true
+}
+
+async function recordOutcome(
+  id: string,
+  update: EmailDeliveryUpdate,
+): Promise<void> {
+  try {
+    await outboxDB.updateEmailDelivery(id, update)
+  } catch (error) {
+    // A tracking outage must not retry an email already accepted by SMTP.
+    log.error('❌ Could not record email delivery outcome', {
+      jobId: id,
+      status: update.status,
+      error,
+    })
+  }
 }

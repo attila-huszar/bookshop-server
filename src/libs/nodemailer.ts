@@ -1,5 +1,4 @@
 import nodemailer, {
-  type SendMailOptions,
   type SMTPPoolSentMessageInfo,
   type Transporter,
 } from 'nodemailer'
@@ -18,8 +17,17 @@ import { log } from './logger'
 type MailTransporter = Transporter<SMTPPoolSentMessageInfo>
 
 let transporter: MailTransporter | null = null
+let smtpUnavailable = false
 
-function createTransporter(): MailTransporter {
+export function getTransporter(): MailTransporter | null {
+  if (transporter) {
+    return transporter
+  }
+
+  if (!env.mailerUser || !env.mailerPass) {
+    return null
+  }
+
   const {
     maxConnections,
     maxMessages,
@@ -28,7 +36,7 @@ function createTransporter(): MailTransporter {
     socketTimeoutMs: socketTimeout,
   } = smtpPolicy
 
-  return nodemailer.createTransport({
+  transporter = nodemailer.createTransport({
     pool: true,
     maxConnections,
     maxMessages,
@@ -46,78 +54,61 @@ function createTransporter(): MailTransporter {
       pass: env.mailerPass,
     },
   })
-}
-
-export function getTransporter(): MailTransporter | null {
-  if (transporter) {
-    return transporter
-  }
-
-  if (!env.mailerUser || !env.mailerPass) {
-    return null
-  }
-
-  transporter = createTransporter()
-
-  transporter
-    .verify()
-    .then(() => {
-      log.debug('📧 SMTP transporter verified')
-    })
-    .catch((error: unknown) => {
-      log.error('❌ SMTP transporter verification failed', error)
-    })
 
   return transporter
-}
-
-export function closeMailer(): void {
-  const activeTransporter = transporter
-
-  transporter = null
-
-  if (!activeTransporter) {
-    return
-  }
-
-  activeTransporter.close()
 }
 
 export async function sendMail(
   props: SendEmailProps,
 ): Promise<SMTPPoolSentMessageInfo> {
   try {
-    if (!env.mailerUser || !env.mailerPass) {
+    const activeTransporter = getTransporter()
+
+    if (!activeTransporter) {
       throw new Error(
         'SMTP credentials are not configured (MAILER_USER / MAILER_PASS)',
       )
     }
 
-    const transporter = getTransporter()
+    const result = await activeTransporter
+      .sendMail({
+        from: `${env.mailerName} <${env.mailerUser}>`,
+        to: props.toAddress,
+        subject: getEmailSubject(props),
+        html: await getEmailHtml(props),
+        attachments: [
+          {
+            filename: emailLogoFilename,
+            path: emailLogoFilePath,
+            contentType: emailLogoMimeType,
+            cid: emailLogoContentId,
+          },
+        ],
+      })
+      .catch((error: unknown) => {
+        if (transporter === activeTransporter) {
+          smtpUnavailable = true
+        }
 
-    if (!transporter) {
-      throw new Error('SMTP transporter is unavailable')
+        throw error
+      })
+
+    if (transporter === activeTransporter && smtpUnavailable) {
+      smtpUnavailable = false
+      log.info('✅ SMTP email delivery recovered')
     }
 
-    const attachments: SendMailOptions['attachments'] = [
-      {
-        filename: emailLogoFilename,
-        path: emailLogoFilePath,
-        contentType: emailLogoMimeType,
-        cid: emailLogoContentId,
-      },
-    ]
-
-    const mailOptions: SendMailOptions = {
-      from: `${env.mailerName} <${env.mailerUser}>`,
-      to: props.toAddress,
-      subject: getEmailSubject(props),
-      html: await getEmailHtml(props),
-      attachments,
-    }
-
-    return await transporter.sendMail(mailOptions)
+    return result
   } catch (error) {
     throw new Error(`Failed to send ${props.type} email`, { cause: error })
   }
+}
+
+export function closeMailer(): void {
+  const activeTransporter = transporter
+
+  transporter = null
+  smtpUnavailable = false
+
+  activeTransporter?.close()
 }

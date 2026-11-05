@@ -87,7 +87,7 @@ async function shouldIgnorePaymentIntentEvent(
     lastStripeEventCreated !== null &&
     eventCreated < lastStripeEventCreated
   ) {
-    void log.debug(
+    log.debug(
       '[STRIPE] Ignoring stale webhook event by created timestamp',
       context,
     )
@@ -99,7 +99,7 @@ async function shouldIgnorePaymentIntentEvent(
     lastStripeEventCreated === eventCreated &&
     lastStripeEventId === eventId
   ) {
-    void log.debug('[STRIPE] Ignoring duplicate webhook event', context)
+    log.debug('[STRIPE] Ignoring duplicate webhook event', context)
 
     return true
   }
@@ -109,7 +109,7 @@ async function shouldIgnorePaymentIntentEvent(
     terminalStatuses.includes(order.paymentStatus) &&
     order.paymentStatus !== nextStatus
   ) {
-    void log.warn('[STRIPE] Ignoring out-of-order terminal status transition', {
+    log.debug('[STRIPE] Ignoring out-of-order terminal status transition', {
       ...context,
       fromStatus: order.paymentStatus,
       toStatus: nextStatus,
@@ -131,7 +131,7 @@ async function shouldIgnorePaymentIntentEvent(
       await getStripe().paymentIntents.retrieve(paymentIntentId)
 
     if (currentIntent.status !== nextStatus) {
-      void log.debug(
+      log.debug(
         '[STRIPE] Ignoring stale status after checking current intent',
         {
           ...context,
@@ -279,7 +279,7 @@ export async function reconcileOrderPayment(
         order.paymentStatus !== updatedOrder.paymentStatus ||
         (order.paidAt == null && updatedOrder.paidAt != null)
       ) {
-        void log.info('[STRIPE] Reconciled order payment', {
+        log.info('[STRIPE] Reconciled order payment', {
           orderId,
           paymentId,
           fromStatus: order.paymentStatus,
@@ -333,7 +333,7 @@ export async function reconcileStaleOrders(signal?: AbortSignal): Promise<{
       await reconcileOrderPayment(order.id)
     } catch (error) {
       failed++
-      void log.error('[STRIPE] Order reconciliation failed', {
+      log.error('[STRIPE] Order reconciliation failed', {
         error,
         orderId: order.id,
         paymentId: order.paymentId,
@@ -346,8 +346,8 @@ export async function reconcileStaleOrders(signal?: AbortSignal): Promise<{
           attemptedAt,
         )
       } catch (recordError) {
-        void log.error(
-          '[STRIPE] Could not persist reconciliation failure or alert',
+        log.error(
+          '❌ [STRIPE] Could not persist reconciliation failure or alert',
           { error: recordError, orderId: order.id, paymentId: order.paymentId },
         )
       }
@@ -357,7 +357,7 @@ export async function reconcileStaleOrders(signal?: AbortSignal): Promise<{
   const result = { checked, failed }
 
   if (checked > 0) {
-    void log.info('[STRIPE] Order reconciliation completed', result)
+    log.debug('[STRIPE] Order reconciliation completed', result)
   }
 
   return result
@@ -370,7 +370,7 @@ function reportWebhookSaveFailure(
   reason: 'threw' | 'returned_null',
   error?: unknown,
 ): void {
-  void log.error('[CRITICAL] Webhook order update save failed', {
+  log.error('❌ [STRIPE] Webhook order update save failed', {
     issueCode: IssueCode.WEBHOOK_ORDER_SAVE_FAILED,
     entity: 'order',
     operation: 'update',
@@ -444,7 +444,7 @@ export async function applyPaymentIntentWebhookToOrder(
     }
   }
 
-  void log.warn('[STRIPE] Could not apply webhook after concurrent updates', {
+  log.warn('[STRIPE] Could not apply webhook after concurrent updates', {
     paymentId: paymentIntentId,
     ...eventMeta,
   })

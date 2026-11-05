@@ -7,6 +7,7 @@ import { DB_REPO } from '@/types/enums'
 
 let initialized = false
 let monitoring = false
+let disconnected = false
 
 export async function connect(): Promise<void> {
   if (!env.dbMongoUrl) {
@@ -44,6 +45,7 @@ export function isReady(): boolean {
 
 export async function close(): Promise<void> {
   initialized = false
+  disconnected = false
 
   await mongoose.connection.close()
 }
@@ -62,10 +64,18 @@ function monitorConnection(): void {
   })
 
   mongoose.connection.on('disconnected', () => {
-    if (initialized) {
+    if (initialized && !disconnected) {
+      disconnected = true
       log.warn(
-        'MongoDB disconnected; readiness is unavailable until reconnection',
+        '⚠️ MongoDB disconnected; readiness is unavailable until reconnection',
       )
+    }
+  })
+
+  mongoose.connection.on('connected', () => {
+    if (initialized && disconnected) {
+      disconnected = false
+      log.info('✅ MongoDB connection recovered; readiness restored')
     }
   })
 

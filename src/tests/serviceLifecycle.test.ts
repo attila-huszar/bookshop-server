@@ -280,6 +280,8 @@ describe('service lifecycle integration', () => {
 
         await mock.module(${JSON.stringify(bullmq)}, () => ({
           Queue: class {
+            backend = { connection: { status: 'initializing', on() {} } }
+
             on() {
               return this
             }
@@ -287,6 +289,11 @@ describe('service lifecycle integration', () => {
             async close() {}
           },
           Worker: class {
+            backend = {
+              connection: { status: 'initializing', on() {} },
+              blockingConnection: { status: 'initializing', on() {} },
+            }
+
             on() {
               return this
             }

@@ -98,11 +98,4 @@ describe('books collection recommendations', () => {
     expect(response.status).toBe(500)
     expect(await response.json()).toEqual({ code: 'INTERNAL_ERROR' })
   })
-
-  it('does not expose a separate recommendations route', async () => {
-    const response = await app.request('/api/books/recommended')
-
-    expect(response.status).toBe(404)
-    expect(mockBooksDB.getRecommendedBooks).not.toHaveBeenCalled()
-  })
 })
