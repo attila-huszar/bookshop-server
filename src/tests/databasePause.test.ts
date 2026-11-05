@@ -11,11 +11,17 @@ const accessScript = Bun.fileURLToPath(
 const lifecycle = new URL('../utils/process.utils.ts', import.meta.url).href
 const supported =
   process.platform === 'linux' && Bun.which('flock') && Bun.which('setsid')
-const shells = ['/bin/sh']
+const shells = [{ shell: '/bin/sh', command: ['/bin/sh'] }]
 const dash = Bun.which('dash')
 
-if (dash && !shells.includes(dash)) {
-  shells.push(dash)
+if (dash && dash !== '/bin/sh') {
+  shells.push({ shell: dash, command: [dash] })
+}
+
+const busybox = Bun.which('busybox')
+
+if (busybox) {
+  shells.push({ shell: 'BusyBox ash', command: [busybox, 'sh'] })
 }
 
 async function waitUntil(ready: () => boolean | Promise<boolean>) {
@@ -31,7 +37,7 @@ async function waitUntil(ready: () => boolean | Promise<boolean>) {
 }
 
 async function fixture(
-  input: { watch?: boolean; failDrain?: boolean; shell?: string } = {},
+  input: { watch?: boolean; failDrain?: boolean; shell?: string[] } = {},
 ) {
   const directory = await mkdtemp(join(tmpdir(), 'bookshop-writer-pause-'))
   const eventsFile = join(directory, 'events.txt')
@@ -64,7 +70,7 @@ async function fixture(
   )
   const writer = Bun.spawn(
     [
-      input.shell ?? '/bin/sh',
+      ...(input.shell ?? ['/bin/sh']),
       accessScript,
       'service',
       process.execPath,
@@ -98,6 +104,74 @@ async function fixture(
         return lines.filter((line) => line === 'STARTED').length === count
       }),
     close: async () => {
+      writer.kill('SIGTERM')
+      const deadline = setTimeout(() => writer.kill('SIGKILL'), 3000)
+
+      try {
+        await writer.exited
+      } finally {
+        clearTimeout(deadline)
+        await rm(directory, { recursive: true, force: true })
+      }
+    },
+  }
+}
+
+async function stubbornFixture(shell: string[], leaderExits: boolean) {
+  const directory = await mkdtemp(join(tmpdir(), 'bookshop-stubborn-writer-'))
+  const pidFile = join(directory, 'writer.pid')
+  const descendantFile = join(directory, 'descendant.pid')
+  const source = join(directory, 'writer.sh')
+  await Bun.write(
+    source,
+    [
+      'trap "" TERM',
+      'echo $$ > "$1"',
+      ...(leaderExits
+        ? [
+            '/bin/sh -c \'trap "" TERM; echo $$ > "$1"; while :; do sleep 0.1; done\' writer "$2" &',
+            "trap 'exit 0' TERM",
+          ]
+        : []),
+      'while :; do sleep 0.1; done',
+    ].join('\n'),
+  )
+  const writer = Bun.spawn(
+    [
+      ...shell,
+      accessScript,
+      'service',
+      ...shell,
+      source,
+      pidFile,
+      descendantFile,
+    ],
+    {
+      env: {
+        ...process.env,
+        DB_REPO: 'MONGO',
+        BOOKSHOP_DATABASE_COORDINATION_DIR: directory,
+        BOOKSHOP_DATABASE_DRAIN_TIMEOUT_SECONDS: '1',
+      },
+      stdout: 'ignore',
+      stderr: 'pipe',
+    },
+  )
+  const readyFile = leaderExits ? descendantFile : pidFile
+
+  return {
+    directory,
+    writer,
+    waitStarted: () => waitUntil(() => Bun.file(readyFile).exists()),
+    close: async () => {
+      if (await Bun.file(pidFile).exists()) {
+        try {
+          process.kill(-Number(await Bun.file(pidFile).text()), 'SIGKILL')
+        } catch {
+          // The drain deadline may already have terminated the process group.
+        }
+      }
+
       writer.kill('SIGTERM')
       const deadline = setTimeout(() => writer.kill('SIGKILL'), 3000)
 
@@ -292,11 +366,13 @@ describe.skipIf(!supported)('logical Mongo backup coordination', () => {
   })
 
   it.each(
-    shells.flatMap((shell) => [false, true].map((watch) => ({ shell, watch }))),
+    shells.flatMap((shell) =>
+      [false, true].map((watch) => ({ ...shell, watch })),
+    ),
   )(
     'drains writers before dumping and resumes afterward; shell: $shell, watch: $watch',
-    async ({ shell, watch }) => {
-      const context = await fixture({ shell, watch })
+    async ({ command, watch }) => {
+      const context = await fixture({ shell: command, watch })
 
       try {
         await context.waitStarted(1)
@@ -310,6 +386,59 @@ describe.skipIf(!supported)('logical Mongo backup coordination', () => {
         })
         await context.waitStarted(2)
       } finally {
+        await context.close()
+      }
+    },
+  )
+
+  it.each(
+    shells.flatMap((shell) =>
+      [false, true].map((leaderExits) => ({ ...shell, leaderExits })),
+    ),
+  )(
+    'fails the backup and bounds an unresponsive writer group; shell: $shell, leader exits: $leaderExits',
+    async ({ command, leaderExits }) => {
+      const context = await stubbornFixture(command, leaderExits)
+      const controller = new AbortController()
+      const deadline = setTimeout(
+        () => controller.abort(new Error('Fixture coordination deadline')),
+        3000,
+      )
+      let dumped = false
+
+      try {
+        await context.waitStarted()
+        await rejects(
+          withDatabaseWritesPaused({
+            directory: context.directory,
+            signal: controller.signal,
+            run: () => {
+              dumped = true
+
+              return Promise.resolve()
+            },
+          }),
+          /clean drain|coordination ended unexpectedly/,
+        )
+        expect(dumped).toBe(false)
+        expect(await context.writer.exited).toBe(1)
+        expect(await new Response(context.writer.stderr).text()).toContain(
+          'drain timed out after 1s',
+        )
+        const probe = Bun.spawn(
+          [
+            'flock',
+            '-n',
+            '-x',
+            join(context.directory, 'writers.lock'),
+            'true',
+          ],
+          { stdout: 'ignore', stderr: 'ignore' },
+        )
+        expect(await probe.exited).toBe(0)
+      } finally {
+        clearTimeout(deadline)
+        controller.abort()
         await context.close()
       }
     },

@@ -32,16 +32,16 @@ if [ "$mode" = backup ]; then
   # an application still using the database. Reject this dump and clear it.
   for record in "$directory"/drain.*; do
     case "$record" in
-      *.request) continue ;;
+      *.request|*.failed) continue ;;
     esac
 
     if [ ! -f "$record" ]; then
       continue
     fi
 
-    if ! read -r drained <"$record" || [ "$drained" != 0 ]; then
+    if [ -f "$record.failed" ] || ! read -r drained <"$record" || [ "$drained" != 0 ]; then
       : >"$directory/drain-failed"
-      rm -f "$record" "$record.request"
+      rm -f "$record" "$record.request" "$record.failed"
     fi
   done
 
@@ -61,12 +61,22 @@ if [ "$mode" != service ] && [ "$mode" != job ]; then
   exit 1
 fi
 
+# Leave time for the worker's 45-second shutdown before the backup's
+# 60-second acquisition deadline. Tests can select a shorter deadline.
+drain_timeout="${BOOKSHOP_DATABASE_DRAIN_TIMEOUT_SECONDS:-50}"
+case "$drain_timeout" in
+  ''|0*|*[!0-9]*)
+    echo "BOOKSHOP_DATABASE_DRAIN_TIMEOUT_SECONDS must be a positive integer" >&2
+    exit 1
+    ;;
+esac
+
 supervisor=$$
 drain_file=''
 
 cleanup_record() {
   if [ -n "$drain_file" ]; then
-    rm -f "$drain_file" "$drain_file.request"
+    rm -f "$drain_file" "$drain_file.request" "$drain_file.failed"
   fi
 }
 
@@ -107,7 +117,7 @@ while [ "$stopping" = false ]; do
   fi
 
   : >"$drain_file"
-  rm -f "$drain_file.request"
+  rm -f "$drain_file.request" "$drain_file.failed"
 
   # The child also inherits the writer lease, protecting a supervisor crash.
   BOOKSHOP_PROCESS_DRAIN_FILE="$drain_file" setsid "$@" 8>&- &
@@ -115,8 +125,14 @@ while [ "$stopping" = false ]; do
 
   (
     exec 8>&- 9>&-
+    remaining=$((drain_timeout * 5))
 
-    while kill -0 "$child" 2>/dev/null; do
+    # Keep supervising descendants if the group leader exits first.
+    while kill -0 "$child" 2>/dev/null || kill -0 "-$child" 2>/dev/null; do
+      if ! kill -0 "$child" 2>/dev/null && [ ! -f "$drain_file.request" ]; then
+        : >"$drain_file.request"
+      fi
+
       # --watch can stay alive after the application has drained. Its lifecycle
       # acknowledgement makes terminating the remaining watcher safe.
       if [ -f "$drain_file.request" ] && read -r drained <"$drain_file"; then
@@ -126,6 +142,17 @@ while [ "$stopping" = false ]; do
             exit 0
             ;;
         esac
+      fi
+
+      if [ -f "$drain_file.request" ]; then
+        if [ "$remaining" -le 0 ]; then
+          : >"$drain_file.failed"
+          echo "Database writer drain timed out after ${drain_timeout}s" >&2
+          kill -KILL "-$child" 2>/dev/null || true
+          exit 1
+        fi
+
+        remaining=$((remaining - 1))
       fi
 
       if [ "$mode" = service ] && ! flock -n -s "$directory/pause.lock" true; then
@@ -154,6 +181,11 @@ while [ "$stopping" = false ]; do
 
   # Bun's watch process may exit before its application child finishes cleanup.
   while kill -0 "-$child" 2>/dev/null; do
+    if [ -f "$drain_file.failed" ]; then
+      : >"$directory/drain-failed"
+      exit 1
+    fi
+
     sleep 0.1
   done
 
@@ -166,6 +198,10 @@ while [ "$stopping" = false ]; do
     case "$drained" in
       0|1) code="$drained" ;;
     esac
+  fi
+
+  if [ -f "$drain_file.failed" ]; then
+    code=1
   fi
 
   if [ "$code" -ne 0 ] && ! flock -n -s "$directory/pause.lock" true; then
