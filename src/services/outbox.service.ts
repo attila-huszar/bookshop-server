@@ -1,23 +1,25 @@
-import { outboxDB } from '@/repositories'
-import { log } from '@/libs'
-import { emailQueue } from '@/queues/emailQueue'
-import { emailJobOptions } from '@/constants/email'
+import type { Queue } from 'bullmq'
+import type { outboxDB } from '@/repositories'
+import { log } from '@/libs/logger'
+import { emailJobOptions, outboxPolicy } from '@/constants/email'
 
 type Dependencies = {
   repository: typeof outboxDB
-  queue: Pick<typeof emailQueue, 'add'>
+  queue: Pick<Queue, 'add'>
 }
 
 /** At-least-once publication. Stable BullMQ IDs deduplicate relay retries. */
 export async function publishPendingEmails(
-  { repository, queue }: Dependencies = {
-    repository: outboxDB,
-    queue: emailQueue,
-  },
-): Promise<number> {
+  { repository, queue }: Dependencies,
+  shouldStop: () => boolean = () => false,
+): Promise<{ published: number; retryScheduled: boolean }> {
   let published = 0
 
-  for (let count = 0; count < 50; count++) {
+  for (let count = 0; count < outboxPolicy.batchSize; count++) {
+    if (shouldStop()) {
+      break
+    }
+
     const leaseToken = crypto.randomUUID()
     const entry = await repository.claimEmail(new Date(), leaseToken)
 
@@ -32,11 +34,13 @@ export async function publishPendingEmails(
       })
       await repository.completeEmail(entry.id, leaseToken)
       published++
-    } catch {
+    } catch (error) {
       // Provider errors may contain credentials; persist only a generic failure.
       const delay = Math.min(
-        60 * 60_000,
-        5000 * 2 ** Math.min(entry.attempts, 10),
+        outboxPolicy.maxRetryMs,
+        outboxPolicy.initialRetryMs *
+          outboxPolicy.retryMultiplier **
+            Math.min(entry.attempts, outboxPolicy.maxRetryExponent),
       )
 
       await repository.retryEmail(
@@ -47,46 +51,59 @@ export async function publishPendingEmails(
       )
       log.warn('Outbox publication will be retried', {
         id: entry.id,
+        type: entry.payload.type,
         attempts: entry.attempts,
+        retryDelayMs: delay,
+        error,
       })
-      break
+      return { published, retryScheduled: true }
     }
   }
 
-  return published
+  return { published, retryScheduled: false }
 }
 
-export function startOutboxRelay(): { close: () => Promise<void> } {
+export function startOutboxRelay(dependencies: Dependencies): {
+  close: () => Promise<void>
+} {
   let stopped = false
   let lastFailureLoggedAt: number | undefined
   let timer: ReturnType<typeof setTimeout> | undefined
   let running: Promise<void> = Promise.resolve()
-  const tick = () => {
-    running = publishPendingEmails()
-      .then(
-        () => {
-          if (lastFailureLoggedAt !== undefined) {
-            log.info('Outbox relay polling recovered')
-            lastFailureLoggedAt = undefined
-          }
-        },
-        () => {
-          const now = Date.now()
 
-          if (
-            lastFailureLoggedAt === undefined ||
-            now - lastFailureLoggedAt >= 60_000
-          ) {
-            log.error('Outbox relay failed; retrying on the next poll')
-            lastFailureLoggedAt = now
-          }
-        },
+  function tick(): void {
+    running = poll()
+  }
+
+  async function poll(): Promise<void> {
+    try {
+      const { retryScheduled } = await publishPendingEmails(
+        dependencies,
+        () => stopped,
       )
-      .finally(() => {
-        if (!stopped) {
-          timer = setTimeout(tick, 2000)
-        }
-      })
+
+      if (!retryScheduled && lastFailureLoggedAt !== undefined) {
+        log.info('✅ Outbox relay polling recovered')
+        lastFailureLoggedAt = undefined
+      }
+    } catch (error) {
+      const now = Date.now()
+
+      if (
+        lastFailureLoggedAt === undefined ||
+        now >= lastFailureLoggedAt + outboxPolicy.failureLogMs
+      ) {
+        log.error('❌ Outbox relay failed; retrying on the next poll', {
+          error,
+          retryDelayMs: outboxPolicy.pollMs,
+        })
+        lastFailureLoggedAt = now
+      }
+    } finally {
+      if (!stopped) {
+        timer = setTimeout(tick, outboxPolicy.pollMs)
+      }
+    }
   }
 
   tick()

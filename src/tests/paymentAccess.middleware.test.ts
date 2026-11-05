@@ -116,7 +116,7 @@ describe('paymentAccessMiddleware', () => {
     })
 
     expect(response.status).toBe(500)
-    expect(await response.json()).toEqual({ error: 'Internal server error' })
+    expect(await response.json()).toEqual({ code: 'INTERNAL_ERROR' })
     expect(mockUsersDB.getActiveUserBy).toHaveBeenCalledTimes(1)
   })
 })

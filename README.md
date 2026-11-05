@@ -55,9 +55,10 @@ docker plugin install grafana/loki-docker-driver:latest --alias loki --grant-all
 
 Configure the environment files:
 
-- Server: set `ADMIN_EMAIL`/`ADMIN_PASSWORD`, cookie/JWT secrets, `STRIPE_SECRET` (test key), SMTP credentials, and AWS S3 settings for avatar uploads.
-- Database: set exactly one `COMPOSE_PROFILES` value in the server `.env`: `sqlite` (default) or `mongo`.
+- Server: set `ADMIN_EMAIL`/`ADMIN_PASSWORD`, cookie/JWT secrets, `STRIPE_SECRET` (test key), SMTP credentials, and AWS S3 settings for image uploads and database backups.
+- Database: keep `DB_REPO=MONGO` in the server `.env` for Atlas, or set `DB_REPO=SQLITE` for SQLite. Replace `<db_password>` in `DB_MONGO_URL` with the URL-encoded database-user password, and allow the application's outgoing IP in Atlas Network Access. The app, worker and backups share these settings. Keep `MONGO_BACKUP_MODE=logical` for Atlas M0.
 - Client: set `VITE_STRIPE_PUBLIC_KEY` to the publishable test key from the same Stripe account. Default URLs are `VITE_BASE_URL=http://localhost:5173` and `VITE_SERVER_URL=http://localhost:5000/api`; keep the server's `CLIENT_BASE_URL` aligned.
+- Checkout terms: publish English and Hungarian terms in the admin CMS under **Terms and Conditions** before testing payments.
 
 ## Local development
 
@@ -69,23 +70,40 @@ stripe listen --forward-to http://localhost:5000/webhooks/stripe
 
 Set the printed signing secret as `STRIPE_WEBHOOK_SECRET` in the server `.env` before starting.
 
-From either repository, initialize a fresh database and start the app:
+From either repository, initialize the database selected by the server's `DB_REPO`:
 
 ```sh
-bun run dev:setup
+bun run setup
 ```
 
-For later starts, use `bun run dev`. Setup seeds the catalogue and an admin account using `ADMIN_EMAIL`/`ADMIN_PASSWORD`; run it only for a fresh database. The dev command starts Vite and the Docker services with API/worker reloads. Ctrl+C stops the session and preserves stored data.
+With `DB_REPO=MONGO`, setup runs directly with Bun and the installed server dependencies, without building or starting a backend container. It uses `DB_MONGO_URL` from the server `.env`. Stop Compose and other database writers first and keep the run outside backup windows, since host runs do not join Compose's backup coordination.
 
-| Service      | Local URL                    |
-| ------------ | ---------------------------- |
-| Shop         | http://localhost:5173        |
-| API          | http://localhost:5000/api    |
-| Health check | http://localhost:5000/health |
-| Grafana      | http://localhost/grafana/    |
+With `DB_REPO=SQLITE`, setup builds the backend image if needed and runs in a temporary container. It applies migrations and seeds SQLite in the `sqlite_data` Docker volume shared by API, worker, and cron. Docker and its Loki logging plugin must be available. No host user/group settings are needed.
+
+Setup requires an explicit `DB_REPO` and the configured `ADMIN_EMAIL`/`ADMIN_PASSWORD`; MongoDB also requires `DB_MONGO_URL`. SQLite defaults to `DB_SQLITE_FILE=data/db.sqlite` inside the container; keep the file under `data` so it persists in the shared volume. A host-local SQLite file is separate from this volume. Missing or invalid database selection and missing or blank required values produce clear errors before setup connects or launches Docker.
+
+Setup inserts missing catalogue records and the configured admin. Reruns preserve existing records and passwords, and can resume an interrupted setup. An existing non-admin or deleted account using `ADMIN_EMAIL` causes an explicit error.
+
+Mongo logical backups briefly pause the API and email worker while the dump runs. Compose coordinates its database writers automatically; stop external clients writing to the same database during that window. Rebuild/recreate the services after changing their Docker configuration.
+
+Start development separately:
+
+```sh
+bun run dev
+```
+
+Use `bun run dev` for subsequent starts too. Normal startup and container restarts never seed the database. The dev command starts Vite and the Docker services with API/worker reloads. Ctrl+C stops the session and preserves stored data.
+
+| Service   | Local URL                      |
+| --------- | ------------------------------ |
+| Shop      | <http://localhost:5173>        |
+| API       | <http://localhost:5000/api>    |
+| Liveness  | <http://localhost:5000/health> |
+| Readiness | <http://localhost:5000/ready>  |
+| Grafana   | <http://localhost/grafana/>    |
 
 Grafana's default login is `admin` / `admin`. In Explore, query logs by the `job` label, such as `server` or `worker`.
 
-For a backend-only session, run `bun run docker:setup` on a fresh database or `docker compose up --build` on subsequent starts, from the server directory. To enable an HTTPS tunnel in this mode, set `NGROK_AUTHTOKEN`; the ngrok URL is logged at startup.
+For a backend-only session, run `docker compose up --build` from the server directory after setup. To enable an HTTPS tunnel in this mode, set `NGROK_AUTHTOKEN`; the ngrok URL is logged at startup.
 
 See [Architecture and checkout flow](docs/architecture.md) for database, payment, and email implementation details.

@@ -1,5 +1,9 @@
-import { z } from 'zod'
-import { DB_REPO } from '@/types/enums'
+import { authTiming } from '@/constants/auth'
+import { backupRetentionPolicy } from '@/constants/backup'
+import { DB_REPO, MongoBackupMode } from '@/types/enums'
+
+const rawDbRepo = Bun.env.DB_REPO ?? DB_REPO.MONGO
+const rawMongoBackupMode = Bun.env.MONGO_BACKUP_MODE ?? MongoBackupMode.Logical
 
 export const env = {
   adminEmail: Bun.env.ADMIN_EMAIL,
@@ -18,25 +22,37 @@ export const env = {
   port: Bun.env.PORT ?? '5000',
 
   cookieSecret: Bun.env.COOKIE_SECRET,
-  cookieMaxAge: Bun.env.COOKIE_MAX_AGE ?? '1209600',
+  cookieMaxAge:
+    Bun.env.COOKIE_MAX_AGE ?? String(authTiming.cookieMaxAgeSeconds),
 
-  dbRepo: z
-    .enum([DB_REPO.SQLITE, DB_REPO.MONGO], {
-      error: 'Invalid DB_REPO: expected SQLITE or MONGO',
-    })
-    .default(DB_REPO.SQLITE)
-    .parse(Bun.env.DB_REPO),
+  // Parse on access so configuration failures stay inside managed startup.
+  get dbRepo(): DB_REPO {
+    return parseEnum('DB_REPO', rawDbRepo, [DB_REPO.SQLITE, DB_REPO.MONGO])
+  },
   dbSqliteFile: Bun.env.DB_SQLITE_FILE ?? 'data/db.sqlite',
-  dbMongoUrl:
-    Bun.env.DB_MONGO_URL ?? 'mongodb://mongodb:27017/bookshop?replicaSet=rs0',
+  dbMongoUrl: Bun.env.DB_MONGO_URL,
+  databaseCoordinationDirectory: Bun.env.BOOKSHOP_DATABASE_COORDINATION_DIR,
+  get mongoBackupMode(): MongoBackupMode {
+    return parseEnum('MONGO_BACKUP_MODE', rawMongoBackupMode, [
+      MongoBackupMode.Logical,
+      MongoBackupMode.Oplog,
+    ])
+  },
 
-  backupDir: Bun.env.BACKUP_DIR ?? 'data/backups',
-  backupRetentionDays: Bun.env.BACKUP_RETENTION_DAYS ?? '7',
+  backupRetentionDaily:
+    Bun.env.BACKUP_RETENTION_DAILY ?? String(backupRetentionPolicy.daily),
+  backupRetentionWeekly:
+    Bun.env.BACKUP_RETENTION_WEEKLY ?? String(backupRetentionPolicy.weekly),
+  backupRetentionMonthly:
+    Bun.env.BACKUP_RETENTION_MONTHLY ?? String(backupRetentionPolicy.monthly),
+  backupRetentionDryRun: Bun.env.BACKUP_RETENTION_DRY_RUN === 'true',
 
   jwtAccessSecret: Bun.env.ACCESS_TOKEN_SECRET,
   jwtRefreshSecret: Bun.env.REFRESH_TOKEN_SECRET,
-  jwtAccessExpiration: Bun.env.ACCESS_TOKEN_EXPIRATION ?? '900',
-  jwtRefreshExpiration: Bun.env.REFRESH_TOKEN_EXPIRATION ?? '1209600',
+  jwtAccessExpiration:
+    Bun.env.ACCESS_TOKEN_EXPIRATION ?? String(authTiming.accessTokenSeconds),
+  jwtRefreshExpiration:
+    Bun.env.REFRESH_TOKEN_EXPIRATION ?? String(authTiming.refreshTokenSeconds),
 
   ngrokAuthToken: Bun.env.NGROK_AUTHTOKEN ?? '',
   ngrokDomain: Bun.env.NGROK_DOMAIN ?? '',
@@ -50,4 +66,18 @@ export const env = {
   awsBucket: Bun.env.AWS_BUCKET,
 
   redisUrl: Bun.env.REDIS_URL,
+}
+
+function parseEnum<T extends string>(
+  name: string,
+  value: string,
+  choices: readonly T[],
+): T {
+  const match = choices.find((choice) => choice === value)
+
+  if (match === undefined) {
+    throw new Error(`Invalid ${name}: expected ${choices.join(' or ')}`)
+  }
+
+  return match
 }

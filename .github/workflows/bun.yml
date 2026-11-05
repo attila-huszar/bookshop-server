@@ -5,16 +5,19 @@ on:
   pull_request:
     branches: ['master']
 
+permissions:
+  contents: read
+
 jobs:
   ci:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
       - run: bun install
       - run: bun lint
       - run: bunx tsc -b
-      - run: bun test
+      - run: bun --no-env-file test

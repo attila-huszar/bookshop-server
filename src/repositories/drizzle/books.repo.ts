@@ -1,7 +1,17 @@
-import { count, eq, getTableColumns, inArray, max, min, sql } from 'drizzle-orm'
-import { sqlite } from '@/db'
+import {
+  count,
+  eq,
+  getTableColumns,
+  inArray,
+  max,
+  min,
+  or,
+  sql,
+} from 'drizzle-orm'
+import { sqlite } from '@/database/sqlite'
 import { authorsTable, booksTable } from '@/models/sqlite'
-import { PAGINATION } from '@/constants'
+import { catalogueFilterDefaults } from '@/constants/catalogue'
+import { PAGINATION } from '@/constants/pagination'
 import type {
   Book,
   BookInsert,
@@ -31,14 +41,11 @@ const {
 
 export async function getBooks(query?: BookQuery): Promise<{
   booksRecords: BookWithAuthor[]
-  booksCount: string
+  booksCount: number
 }> {
-  const page = Math.min(
-    Math.max(1, Number(query?.page) || 1),
-    PAGINATION.MAX_PAGE,
-  )
+  const page = Math.min(Math.max(1, query?.page ?? 1), PAGINATION.MAX_PAGE)
   const limit = Math.min(
-    Math.max(1, Number(query?.limit) || PAGINATION.DEFAULT_LIMIT),
+    Math.max(1, query?.limit ?? PAGINATION.DEFAULT_LIMIT),
     PAGINATION.MAX_LIMIT,
   )
   const offset = (page - 1) * limit
@@ -52,8 +59,6 @@ export async function getBooks(query?: BookQuery): Promise<{
   if (!total) {
     throw new Error('Failed to get book count')
   }
-
-  const booksCount = total.count.toString()
 
   const booksRecords = await sqlite
     .select({
@@ -79,7 +84,7 @@ export async function getBooks(query?: BookQuery): Promise<{
     .limit(limit)
     .offset(offset)
 
-  return { booksRecords, booksCount }
+  return { booksRecords, booksCount: total.count }
 }
 
 export async function getBookById(
@@ -109,42 +114,6 @@ export async function getBookById(
     .limit(1)
 
   return book ?? null
-}
-
-export async function getBookSearchOptions(): Promise<{
-  genre: string[]
-  price: [number, number]
-  publishYear: [number, number]
-}> {
-  const minMaxFields = await sqlite
-    .select({
-      minPrice: min(discountPrice),
-      maxPrice: max(discountPrice),
-      minYear: min(publishYear),
-      maxYear: max(publishYear),
-    })
-    .from(booksTable)
-
-  const genresResult = await sqlite.selectDistinct({ genre }).from(booksTable)
-
-  const genres = genresResult
-    .map((row) => row.genre)
-    .filter((genre) => genre !== null)
-
-  const minMaxField = minMaxFields[0]
-
-  if (!minMaxField) {
-    throw new Error('Failed to get min/max values')
-  }
-
-  return {
-    price: [minMaxField.minPrice ?? 0, minMaxField.maxPrice ?? 500],
-    publishYear: [
-      minMaxField.minYear ?? 1000,
-      minMaxField.maxYear ?? new Date().getFullYear(),
-    ],
-    genre: genres,
-  }
 }
 
 export async function getAllBooks(): Promise<Book[]> {
@@ -184,7 +153,45 @@ export async function hardDeleteBooks(
   return bookIds
 }
 
-/** Sample real rows: catalogue IDs may have gaps after CMS deletions. */
+export async function getBookSearchOptions(): Promise<{
+  genre: string[]
+  price: [number, number]
+  publishYear: [number, number]
+}> {
+  const minMaxFields = await sqlite
+    .select({
+      minPrice: min(discountPrice),
+      maxPrice: max(discountPrice),
+      minYear: min(publishYear),
+      maxYear: max(publishYear),
+    })
+    .from(booksTable)
+
+  const genresResult = await sqlite.selectDistinct({ genre }).from(booksTable)
+
+  const genres = genresResult
+    .map((row) => row.genre)
+    .filter((genre) => genre !== null)
+
+  const minMaxField = minMaxFields[0]
+
+  if (!minMaxField) {
+    throw new Error('Failed to get min/max values')
+  }
+
+  return {
+    price: [
+      minMaxField.minPrice ?? 0,
+      minMaxField.maxPrice ?? catalogueFilterDefaults.maxPrice,
+    ],
+    publishYear: [
+      minMaxField.minYear ?? catalogueFilterDefaults.minYear,
+      minMaxField.maxYear ?? new Date().getFullYear(),
+    ],
+    genre: genres,
+  }
+}
+
 export async function getRecommendedBooks(): Promise<BookWithAuthor[]> {
   return await sqlite
     .select({ ...getTableColumns(booksTable), author: authorsTable.name })
@@ -192,4 +199,27 @@ export async function getRecommendedBooks(): Promise<BookWithAuthor[]> {
     .leftJoin(authorsTable, eq(authorId, authorsTable.id))
     .orderBy(sql`random()`)
     .limit(4)
+}
+
+export async function getImageUrls(): Promise<string[]> {
+  const records = await sqlite.select({ imgUrl }).from(booksTable)
+
+  return records.map((record) => record.imgUrl)
+}
+
+export async function searchBooks(
+  search: string,
+  limit: number,
+): Promise<BookWithAuthor[]> {
+  const pattern = `%${search.replace(/[\\%_]/g, '\\$&')}%`
+  const titleMatches = sql`${title} LIKE ${pattern} ESCAPE ${'\\'}`
+  const authorMatches = sql`${authorsTable.name} LIKE ${pattern} ESCAPE ${'\\'}`
+
+  return sqlite
+    .select({ ...getTableColumns(booksTable), author: authorsTable.name })
+    .from(booksTable)
+    .leftJoin(authorsTable, eq(authorId, authorsTable.id))
+    .where(or(titleMatches, authorMatches))
+    .orderBy(sql`CASE WHEN ${titleMatches} THEN 0 ELSE 1 END`, id)
+    .limit(limit)
 }

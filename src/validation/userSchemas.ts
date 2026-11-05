@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { usersTable } from '@/models/sqlite'
 import { UserRole } from '@/types'
 import type { SchemaRefinements } from '@/types'
+import { ValidationRule } from '@/types/enums'
 import { emailSchema, passwordSchema } from './authSchemas'
 import {
   addressSchema,
@@ -61,6 +62,7 @@ export const profileUpdateSchema = userUpdateSchema
   .strict()
   .refine((value) => !value.password || Boolean(value.currentPassword), {
     message: 'Current password is required to change your password',
+    params: { rule: ValidationRule.CurrentPasswordRequired },
     path: ['currentPassword'],
   })
 

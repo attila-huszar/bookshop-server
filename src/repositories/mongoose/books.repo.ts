@@ -3,7 +3,8 @@ import type {
   BookDocPopulatedWithAuthorId,
   BookDocPopulatedWithAuthorName,
 } from '@/models/mongo/BookModel'
-import { PAGINATION } from '@/constants'
+import { catalogueFilterDefaults } from '@/constants/catalogue'
+import { PAGINATION } from '@/constants/pagination'
 import type {
   Book,
   BookInsert,
@@ -23,14 +24,11 @@ type AggregateResult = {
 
 export async function getBooks(query?: BookQuery): Promise<{
   booksRecords: BookWithAuthor[]
-  booksCount: string
+  booksCount: number
 }> {
-  const page = Math.min(
-    Math.max(1, Number(query?.page) || 1),
-    PAGINATION.MAX_PAGE,
-  )
+  const page = Math.min(Math.max(1, query?.page ?? 1), PAGINATION.MAX_PAGE)
   const limit = Math.min(
-    Math.max(1, Number(query?.limit) || PAGINATION.DEFAULT_LIMIT),
+    Math.max(1, query?.limit ?? PAGINATION.DEFAULT_LIMIT),
     PAGINATION.MAX_LIMIT,
   )
   const offset = (page - 1) * limit
@@ -44,7 +42,7 @@ export async function getBooks(query?: BookQuery): Promise<{
       .exec()
 
     if (!author) {
-      return { booksRecords: [], booksCount: '0' }
+      return { booksRecords: [], booksCount: 0 }
     }
 
     filter = { ...filter, authorId: author._id }
@@ -63,7 +61,7 @@ export async function getBooks(query?: BookQuery): Promise<{
     author: book.authorId?.name ?? null,
   }))
 
-  return { booksRecords: booksWithAuthor, booksCount: booksCount.toString() }
+  return { booksRecords: booksWithAuthor, booksCount }
 }
 
 export async function getBookById(
@@ -83,35 +81,6 @@ export async function getBookById(
   return {
     ...book,
     author,
-  }
-}
-
-export async function getBookSearchOptions(): Promise<{
-  genre: string[]
-  price: [number, number]
-  publishYear: [number, number]
-}> {
-  const prices = await BookModel.aggregate<AggregateResult>([
-    {
-      $group: {
-        _id: null,
-        minPrice: { $min: '$discountPrice' },
-        maxPrice: { $max: '$discountPrice' },
-        minYear: { $min: '$publishYear' },
-        maxYear: { $max: '$publishYear' },
-      },
-    },
-  ])
-  const genres = await BookModel.distinct('genre')
-  const minMax = prices[0]
-
-  return {
-    price: [minMax?.minPrice ?? 0, minMax?.maxPrice ?? 500],
-    publishYear: [
-      minMax?.minYear ?? 1000,
-      minMax?.maxYear ?? new Date().getFullYear(),
-    ],
-    genre: genres.filter((g): g is string => g != null),
   }
 }
 
@@ -218,6 +187,38 @@ export async function hardDeleteBooks(
   return bookIds
 }
 
+export async function getBookSearchOptions(): Promise<{
+  genre: string[]
+  price: [number, number]
+  publishYear: [number, number]
+}> {
+  const prices = await BookModel.aggregate<AggregateResult>([
+    {
+      $group: {
+        _id: null,
+        minPrice: { $min: '$discountPrice' },
+        maxPrice: { $max: '$discountPrice' },
+        minYear: { $min: '$publishYear' },
+        maxYear: { $max: '$publishYear' },
+      },
+    },
+  ])
+  const genres = await BookModel.distinct('genre')
+  const minMax = prices[0]
+
+  return {
+    price: [
+      minMax?.minPrice ?? 0,
+      minMax?.maxPrice ?? catalogueFilterDefaults.maxPrice,
+    ],
+    publishYear: [
+      minMax?.minYear ?? catalogueFilterDefaults.minYear,
+      minMax?.maxYear ?? new Date().getFullYear(),
+    ],
+    genre: genres.filter((g): g is string => g != null),
+  }
+}
+
 export async function getRecommendedBooks(): Promise<BookWithAuthor[]> {
   const records = await BookModel.aggregate<BookDocPopulatedWithAuthorName>([
     { $sample: { size: 4 } },
@@ -229,4 +230,51 @@ export async function getRecommendedBooks(): Promise<BookWithAuthor[]> {
     ...book,
     author: book.authorId?.name ?? null,
   }))
+}
+
+export async function getImageUrls(): Promise<string[]> {
+  const records = await BookModel.find().select({ imgUrl: 1 }).lean().exec()
+
+  return records.map((record) => record.imgUrl)
+}
+
+export async function searchBooks(
+  search: string,
+  limit: number,
+): Promise<BookWithAuthor[]> {
+  const pattern = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const match = { $regex: pattern, $options: 'i' }
+
+  return BookModel.aggregate<BookWithAuthor>([
+    {
+      $lookup: {
+        from: AuthorModel.collection.name,
+        localField: 'authorId',
+        foreignField: '_id',
+        as: 'searchAuthor',
+      },
+    },
+    { $match: { $or: [{ title: match }, { 'searchAuthor.name': match }] } },
+    {
+      $set: {
+        searchTitleMatch: {
+          $regexMatch: { input: '$title', regex: pattern, options: 'i' },
+        },
+        author: {
+          $ifNull: [{ $arrayElemAt: ['$searchAuthor.name', 0] }, null],
+        },
+      },
+    },
+    { $sort: { searchTitleMatch: -1, id: 1 } },
+    { $limit: limit },
+    {
+      $project: {
+        searchAuthor: 0,
+        searchTitleMatch: 0,
+        authorId: 0,
+        _id: 0,
+        __v: 0,
+      },
+    },
+  ]).exec()
 }

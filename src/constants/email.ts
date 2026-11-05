@@ -1,4 +1,4 @@
-import { fileURLToPath } from 'node:url'
+import { TimeMs } from '@/constants/time'
 
 export const EMAIL = {
   verification: {
@@ -7,7 +7,6 @@ export const EMAIL = {
     path: 'verification',
     tokenField: 'verificationToken',
     expiresField: 'verificationExpires',
-    skipIfVerified: true,
   },
   passwordReset: {
     type: 'passwordReset',
@@ -15,7 +14,6 @@ export const EMAIL = {
     path: 'password-reset',
     tokenField: 'passwordResetToken',
     expiresField: 'passwordResetExpires',
-    skipIfVerified: false,
   },
   orderConfirmation: {
     type: 'orderConfirmation',
@@ -32,11 +30,35 @@ export const emailJobOptions = {
   attempts: 3,
   backoff: {
     type: 'exponential',
-    delay: 5000,
+    delay: TimeMs.FiveSeconds,
   },
-}
+} as const
 
 export const emailWorkerConcurrency = 1
+
+export const outboxPolicy = {
+  leaseMs: TimeMs.OneMinute,
+  batchSize: 50,
+  pollMs: TimeMs.TwoSeconds,
+  initialRetryMs: TimeMs.FiveSeconds,
+  maxRetryMs: TimeMs.OneHour,
+  maxRetryExponent: 10,
+  retryMultiplier: 2,
+  failureLogMs: TimeMs.OneMinute,
+} as const
+
+export const smtpPolicy = {
+  maxConnections: 5,
+  maxMessages: 100,
+  connectionTimeoutMs: TimeMs.TenSeconds,
+  greetingTimeoutMs: TimeMs.TenSeconds,
+  socketTimeoutMs: TimeMs.ThirtySeconds,
+} as const
+
+export const emailQueuePolicy = {
+  commandTimeoutMs: TimeMs.TenSeconds,
+  maxRetriesPerRequest: 1,
+} as const
 
 export const emailDeliveryStatuses = [
   'queued',
@@ -56,7 +78,7 @@ export const emailOutboxStatuses = [
 ] as const
 
 export const emailLogoFilename = 'bookshop-logo.png'
-export const emailLogoFilePath = fileURLToPath(
+export const emailLogoFilePath = Bun.fileURLToPath(
   new URL(`../resources/images/${emailLogoFilename}`, import.meta.url),
 )
 export const emailLogoMimeType = 'image/png'

@@ -1,6 +1,6 @@
 import mongoose from 'mongoose'
 import type { News } from '@/types'
-import { autoIncrementPlugin } from './'
+import { autoIncrementPlugin } from './plugins/autoIncrement'
 
 const newsSchema = new mongoose.Schema<News>(
   {

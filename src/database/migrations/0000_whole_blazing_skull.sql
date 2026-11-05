@@ -1,3 +1,12 @@
+CREATE TABLE `terms_documents` (
+	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+	`version` text NOT NULL,
+	`content` text NOT NULL,
+	`published_at` integer NOT NULL
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `terms_documents_version_unique` ON `terms_documents` (`version`);
+--> statement-breakpoint
 CREATE TABLE `authors` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
 	`name` text NOT NULL,
@@ -42,6 +51,7 @@ CREATE TABLE `orders` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
 	`payment_id` text,
 	`checkout_request_id` text NOT NULL,
+	`terms_acceptance` text,
 	`payment_status` text DEFAULT 'processing' NOT NULL,
 	`last_stripe_event_created` integer,
 	`last_stripe_event_id` text,

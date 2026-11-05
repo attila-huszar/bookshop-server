@@ -18,9 +18,14 @@ import {
   uploadUserAvatar,
   verifyUser,
 } from '@/services/users.service'
-import { signAccessToken, signRefreshToken, verifyJWTRefresh } from '@/utils'
+import {
+  signAccessToken,
+  signRefreshToken,
+  verifyJWTRefresh,
+} from '@/utils/jwt.utils'
 import { publicUserResponse } from '@/utils/response.utils'
-import { API } from '@/constants'
+import { authTiming } from '@/constants/auth'
+import { API, COUNTRY_CODES_FILE } from '@/constants/paths'
 import type {
   AuthJWTPayload,
   AuthVariables,
@@ -66,9 +71,9 @@ users.post(API.users.verification, async (c) => {
 
 users.post(API.users.passwordResetRequest, async (c) => {
   const request = await c.req.json<PasswordResetRequest>()
-  const { message } = await passwordResetRequest(request)
+  await passwordResetRequest(request)
 
-  return c.json({ message })
+  return c.json({ success: true })
 })
 
 users.post(API.users.passwordResetToken, async (c) => {
@@ -80,9 +85,9 @@ users.post(API.users.passwordResetToken, async (c) => {
 
 users.post(API.users.passwordResetSubmit, async (c) => {
   const request = await c.req.json<PasswordResetSubmit>()
-  const { message } = await passwordResetSubmit(request)
+  await passwordResetSubmit(request)
 
-  return c.json({ message })
+  return c.json({ success: true })
 })
 
 users.get(API.users.profile, (c) => {
@@ -136,7 +141,7 @@ users.post(API.users.refresh, async (c) => {
   const expTimestamp = jwtPayload.exp ?? 0
   const timestamp = Math.floor(Date.now() / 1000)
 
-  if (expTimestamp - 259200 < timestamp) {
+  if (expTimestamp - authTiming.refreshRenewalSeconds < timestamp) {
     const refreshToken = await signRefreshToken(jwtPayload.uuid, timestamp)
 
     await setSignedCookie(
@@ -170,7 +175,7 @@ users.get(API.users.country, (c) => {
 })
 
 users.get(API.users.countryCodes, async (c) => {
-  const file = Bun.file('./src/resources/country-codes.json')
+  const file = Bun.file(COUNTRY_CODES_FILE)
   const content: unknown = await file.json()
 
   return c.json(content)

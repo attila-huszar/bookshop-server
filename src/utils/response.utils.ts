@@ -7,6 +7,7 @@ import type {
   PublicUser,
   User,
 } from '@/types'
+import { calculatePriceCents, toCents } from './pricing.utils'
 
 /** API contracts expose customer data, not persistence/reconciliation internals. */
 export function orderResponse(order: Order) {
@@ -85,7 +86,6 @@ function bookFields(book: Omit<Book, 'authorId' | 'createdAt' | 'updatedAt'>) {
     rating,
     price,
     discount,
-    discountPrice,
     topSellers,
     newRelease,
   } = book
@@ -98,9 +98,9 @@ function bookFields(book: Omit<Book, 'authorId' | 'createdAt' | 'updatedAt'>) {
     description,
     publishYear,
     rating,
-    price,
+    price: toCents(price) / 100,
     discount,
-    discountPrice,
+    discountPrice: calculatePriceCents(price, discount) / 100,
     topSellers,
     newRelease,
   }

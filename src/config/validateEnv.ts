@@ -1,40 +1,103 @@
+import { validateMongoUrl } from '@/utils/db.utils'
+import { DB_REPO } from '@/types/enums'
 import { env } from './env'
 
-type EnvKey = keyof typeof env
+export type ProcessRole = 'api' | 'worker' | 'maintenance' | 'backup' | 'setup'
 
-const requiredKeys: EnvKey[] = [
-  'adminEmail',
-  'adminPassword',
-  'clientBaseUrl',
-  'cookieSecret',
-  'jwtAccessSecret',
-  'jwtRefreshSecret',
-  'stripeSecret',
+const storageKeys = [
   'awsAccessKeyId',
   'awsSecretAccessKey',
   'awsRegion',
   'awsBucket',
-]
+] as const
+const requiredKeys: Record<ProcessRole, readonly (keyof typeof env)[]> = {
+  api: [
+    'clientBaseUrl',
+    'cookieSecret',
+    'jwtAccessSecret',
+    'jwtRefreshSecret',
+    'stripeSecret',
+    'stripeWebhookSecret',
+    ...storageKeys,
+  ],
+  worker: ['redisUrl', 'mailerUser', 'mailerPass'],
+  maintenance: ['stripeSecret', ...storageKeys],
+  backup: storageKeys,
+  setup: ['adminEmail', 'adminPassword'],
+}
 
-export function validateEnv(): void {
-  const missing = requiredKeys.filter((key) => !env[key])
-
-  if (missing.length > 0) {
-    const isDev = Bun.env.NODE_ENV !== 'production'
-
-    if (isDev) {
-      console.error('\n🚨 ENVIRONMENT CONFIGURATION ERROR 🚨')
-      console.error('Missing required environment variables:')
-      missing.forEach((key) => console.error(`  - ${key}`))
-      console.error(
-        '\nPlease add these to your .env file and restart the server.\n',
-      )
-    } else {
-      missing.forEach((key) =>
-        console.error(`❌ Missing required env var: ${key}`),
-      )
+export function validateDatabaseEnv(): void {
+  if (env.dbRepo === DB_REPO.MONGO) {
+    if (!env.dbMongoUrl) {
+      throw new Error('MongoDB requires DB_MONGO_URL')
     }
-
-    process.exit(1)
+    validateMongoUrl(env.dbMongoUrl)
+  } else if (!env.dbSqliteFile.trim()) {
+    throw new Error('DB_SQLITE_FILE must not be empty')
   }
+}
+
+export function validateEnv(role: ProcessRole): typeof env {
+  if (role === 'setup' && !Bun.env.DB_REPO) {
+    throw new Error('Set DB_REPO to MONGO or SQLITE in the server .env file.')
+  }
+
+  if (role !== 'setup') {
+    validateDatabaseEnv()
+  }
+
+  const keys = [...requiredKeys[role]]
+
+  if (role === 'setup') {
+    keys.push(env.dbRepo === DB_REPO.MONGO ? 'dbMongoUrl' : 'dbSqliteFile')
+  }
+
+  const missing = keys.filter((key) => {
+    const value = env[key]
+
+    return typeof value === 'string' ? !value.trim() : !value
+  })
+  if (missing.length > 0) {
+    const fields = missing.map((key) => {
+      if (key === 'jwtAccessSecret') {
+        return 'ACCESS_TOKEN_SECRET'
+      }
+      if (key === 'jwtRefreshSecret') {
+        return 'REFRESH_TOKEN_SECRET'
+      }
+
+      return key.replace(/[A-Z]/g, (letter) => `_${letter}`).toUpperCase()
+    })
+    throw new Error(
+      `Missing required ${role} configuration: ${fields.join(', ')}. Check the server .env file or environment variables.`,
+    )
+  }
+
+  if (role === 'setup') {
+    validateDatabaseEnv()
+  }
+
+  if (role === 'api' && (!/^\d+$/.test(env.port) || Number(env.port) > 65535)) {
+    throw new Error('PORT must be an integer between 0 and 65535')
+  }
+  if (
+    role === 'worker' &&
+    (!/^\d+$/.test(env.mailerPort) ||
+      Number(env.mailerPort) < 1 ||
+      Number(env.mailerPort) > 65535)
+  ) {
+    throw new Error('MAILER_PORT must be an integer between 1 and 65535')
+  }
+  if (role === 'backup') {
+    if (env.dbRepo === DB_REPO.MONGO) {
+      // Reading this property validates the setting only for Mongo backups.
+      void env.mongoBackupMode
+    }
+    if (
+      !['true', 'false'].includes(Bun.env.BACKUP_RETENTION_DRY_RUN ?? 'false')
+    ) {
+      throw new Error('BACKUP_RETENTION_DRY_RUN must be true or false')
+    }
+  }
+  return env
 }

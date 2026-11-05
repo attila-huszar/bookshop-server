@@ -14,8 +14,12 @@ describe('Stripe utilities', () => {
     const guestKey = getPaymentIdempotencyKey('client-key', request, null)
     const accountKey = getPaymentIdempotencyKey('client-key', request, user)
 
-    expect(guestKey).toMatch(/^bookshop:[a-f0-9]{64}$/)
-    expect(accountKey).toMatch(/^bookshop:[a-f0-9]{64}$/)
+    expect(guestKey).toBe(
+      'bookshop:98d38957149bb4c9f9d14af2a4dd5962383b535c82c50463733bd15541be0f6c',
+    )
+    expect(accountKey).toBe(
+      'bookshop:f1600385efe820fe92d37b75d1f920a5e054472d5d45993a6f81fa6b13fb5b50',
+    )
     expect(guestKey).toBe(getPaymentIdempotencyKey('client-key', request, null))
     expect(accountKey).toBe(
       getPaymentIdempotencyKey('client-key', request, user),

@@ -1,85 +1,79 @@
-import type { Database } from 'bun:sqlite'
-import { mkdir } from 'node:fs/promises'
-import { dirname, resolve } from 'node:path'
-import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite'
-import mongoose from 'mongoose'
-import { env } from './config'
-import { DB_REPO } from './types/enums'
+import { env } from '@/config/env'
+import { validateDatabaseEnv } from '@/config/validateEnv'
+import { DatabaseStartupError, databaseStartupError } from '@/utils/db.utils'
+import { DB_REPO } from '@/types/enums'
 
-export let sqliteClient: Database | undefined
-export let sqlite: BunSQLiteDatabase
+type DatabaseAdapter = {
+  connect: () => Promise<void>
+  assertSchema?: () => Promise<void>
+  isReady: () => boolean
+  close: () => void | Promise<void>
+}
+
+let adapter: DatabaseAdapter | undefined
 let connected = false
+let connecting: Promise<void> | undefined
+let schemaReady = false
 
 /** Entrypoints own connections; importing application code performs no network I/O. */
 export async function connectDatabase(): Promise<void> {
+  validateDatabaseEnv()
+
   if (connected) {
     return
   }
 
-  if (env.dbRepo === DB_REPO.SQLITE) {
-    const { drizzle } = await import('drizzle-orm/bun-sqlite')
-    const { Database } = await import('bun:sqlite')
+  connecting ??= initializeDatabase()
+  const attempt = connecting
 
-    if (env.dbSqliteFile !== ':memory:') {
-      await mkdir(dirname(resolve(env.dbSqliteFile)), { recursive: true })
+  try {
+    await attempt
+  } finally {
+    if (connecting === attempt) {
+      connecting = undefined
     }
+  }
+}
 
-    sqliteClient = new Database(env.dbSqliteFile)
-    sqliteClient.run(
-      'PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000; PRAGMA foreign_keys = ON',
-    )
-    sqlite = drizzle({ client: sqliteClient, casing: 'snake_case' })
-  } else {
-    await mongoose.connect(env.dbMongoUrl, {
-      serverSelectionTimeoutMS: 10_000,
-      socketTimeoutMS: 10_000,
-    })
-    const mongoDb = mongoose.connection.db
+async function initializeDatabase(): Promise<void> {
+  try {
+    adapter ??=
+      env.dbRepo === DB_REPO.SQLITE
+        ? await import('./database/sqlite')
+        : await import('./database/mongo')
 
-    if (!mongoDb) {
-      throw new Error('MongoDB connection is not initialized')
-    }
+    await adapter.connect()
+    connected = true
+  } catch (error) {
+    await disposeDatabase().catch(() => undefined)
 
-    const hello = await mongoDb.admin().command({ hello: 1 })
+    throw databaseStartupError(error, env.dbRepo, 'connection')
+  }
+}
 
-    if (!hello.setName) {
-      throw new Error(
-        'MongoDB requires a replica set for transactional email outbox writes',
-      )
-    }
+export async function assertDatabaseSchema(): Promise<void> {
+  schemaReady = false
 
-    const {
-      AuthorModel,
-      BookModel,
-      UserModel,
-      OrderModel,
-      NewsModel,
-      EmailOutboxModel,
-    } = await import('./models/mongo')
-
-    await Promise.all([
-      AuthorModel.init(),
-      BookModel.init(),
-      UserModel.init(),
-      OrderModel.init(),
-      NewsModel.init(),
-      EmailOutboxModel.init(),
-      mongoose.model('Counter').init(),
-    ])
+  if (!connected || !adapter) {
+    throw new DatabaseStartupError('Database is not connected')
   }
 
-  connected = true
+  await adapter.assertSchema?.()
+  schemaReady = true
+}
+
+export function isDatabaseReady(): boolean {
+  return connected && schemaReady && (adapter?.isReady() ?? false)
+}
+
+async function disposeDatabase(): Promise<void> {
+  connected = false
+  schemaReady = false
+
+  await adapter?.close()
 }
 
 export async function closeDatabase(): Promise<void> {
-  if (sqliteClient) {
-    sqliteClient.close()
-    sqliteClient = undefined
-  }
-
-  if (env.dbRepo === DB_REPO.MONGO) {
-    await mongoose.connection.close()
-  }
-
-  connected = false
+  await connecting?.catch(() => undefined)
+  await disposeDatabase()
 }

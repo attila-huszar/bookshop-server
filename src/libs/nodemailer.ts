@@ -1,32 +1,48 @@
 import nodemailer, {
-  type SendMailOptions,
   type SMTPPoolSentMessageInfo,
   type Transporter,
 } from 'nodemailer'
 import { env } from '@/config'
-import { getEmailHtml, getEmailSubject } from '@/utils/email.utils'
+import { getEmailHtml, getEmailSubject } from '@/utils/emailTemplate.utils'
 import {
   emailLogoContentId,
   emailLogoFilename,
   emailLogoFilePath,
   emailLogoMimeType,
-  userMessage,
-} from '@/constants'
+  smtpPolicy,
+} from '@/constants/email'
 import type { SendEmailProps } from '@/types'
 import { log } from './logger'
 
 type MailTransporter = Transporter<SMTPPoolSentMessageInfo>
 
 let transporter: MailTransporter | null = null
+let smtpUnavailable = false
 
-function createTransporter(): MailTransporter {
-  return nodemailer.createTransport({
+export function getTransporter(): MailTransporter | null {
+  if (transporter) {
+    return transporter
+  }
+
+  if (!env.mailerUser || !env.mailerPass) {
+    return null
+  }
+
+  const {
+    maxConnections,
+    maxMessages,
+    connectionTimeoutMs: connectionTimeout,
+    greetingTimeoutMs: greetingTimeout,
+    socketTimeoutMs: socketTimeout,
+  } = smtpPolicy
+
+  transporter = nodemailer.createTransport({
     pool: true,
-    maxConnections: 5,
-    maxMessages: 100,
-    connectionTimeout: 10_000,
-    greetingTimeout: 10_000,
-    socketTimeout: 30_000,
+    maxConnections,
+    maxMessages,
+    connectionTimeout,
+    greetingTimeout,
+    socketTimeout,
 
     service: env.mailerService,
     host: env.mailerHost,
@@ -38,78 +54,61 @@ function createTransporter(): MailTransporter {
       pass: env.mailerPass,
     },
   })
-}
-
-export function getTransporter(): MailTransporter | null {
-  if (transporter) {
-    return transporter
-  }
-
-  if (!env.mailerUser || !env.mailerPass) {
-    return null
-  }
-
-  transporter = createTransporter()
-
-  transporter
-    .verify()
-    .then(() => {
-      log.info('📧 SMTP transporter verified')
-    })
-    .catch((error: unknown) => {
-      log.error('❌ SMTP transporter verification failed', error)
-    })
 
   return transporter
-}
-
-export function closeMailer(): void {
-  const activeTransporter = transporter
-
-  transporter = null
-
-  if (!activeTransporter) {
-    return
-  }
-
-  activeTransporter.close()
 }
 
 export async function sendMail(
   props: SendEmailProps,
 ): Promise<SMTPPoolSentMessageInfo> {
   try {
-    if (!env.mailerUser || !env.mailerPass) {
+    const activeTransporter = getTransporter()
+
+    if (!activeTransporter) {
       throw new Error(
-        '🚫 Mailer is not configured in .env (MAILER_USER / MAILER_PASS missing)',
+        'SMTP credentials are not configured (MAILER_USER / MAILER_PASS)',
       )
     }
 
-    const transporter = getTransporter()
+    const result = await activeTransporter
+      .sendMail({
+        from: `${env.mailerName} <${env.mailerUser}>`,
+        to: props.toAddress,
+        subject: getEmailSubject(props),
+        html: await getEmailHtml(props),
+        attachments: [
+          {
+            filename: emailLogoFilename,
+            path: emailLogoFilePath,
+            contentType: emailLogoMimeType,
+            cid: emailLogoContentId,
+          },
+        ],
+      })
+      .catch((error: unknown) => {
+        if (transporter === activeTransporter) {
+          smtpUnavailable = true
+        }
 
-    if (!transporter) {
-      throw new Error('❌ SMTP transporter unavailable')
+        throw error
+      })
+
+    if (transporter === activeTransporter && smtpUnavailable) {
+      smtpUnavailable = false
+      log.info('✅ SMTP email delivery recovered')
     }
 
-    const attachments: SendMailOptions['attachments'] = [
-      {
-        filename: emailLogoFilename,
-        path: emailLogoFilePath,
-        contentType: emailLogoMimeType,
-        cid: emailLogoContentId,
-      },
-    ]
-
-    const mailOptions: SendMailOptions = {
-      from: `${env.mailerName} <${env.mailerUser}>`,
-      to: props.toAddress,
-      subject: getEmailSubject(props),
-      html: await getEmailHtml(props),
-      attachments,
-    }
-
-    return await transporter.sendMail(mailOptions)
+    return result
   } catch (error) {
-    throw new Error(userMessage.emailSendFailed, { cause: error })
+    throw new Error(`Failed to send ${props.type} email`, { cause: error })
   }
+}
+
+export function closeMailer(): void {
+  const activeTransporter = transporter
+
+  transporter = null
+  smtpUnavailable = false
+
+  activeTransporter?.close()
 }

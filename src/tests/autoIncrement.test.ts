@@ -7,10 +7,12 @@ import {
   mock,
   spyOn,
 } from 'bun:test'
+import { rejects } from 'node:assert/strict'
 import mongoose, { type ClientSession, Mongoose } from 'mongoose'
+import { mockLogger } from './test-setup'
 
 const testMongoose = new Mongoose()
-const { autoIncrementPlugin } =
+const { autoIncrementPlugin, setSequence } =
   await import('@/models/mongo/plugins/autoIncrement')
 
 const schema = new testMongoose.Schema({ id: { type: Number, required: true } })
@@ -27,6 +29,25 @@ beforeEach(() => {
 })
 
 describe('Mongo auto-increment IDs', () => {
+  it('propagates allocation errors without duplicating the caller error log', async () => {
+    const error = new Error('Counter storage unavailable')
+    const reports = mockLogger.error.mock.calls.length
+    allocateId.mockRejectedValueOnce(error)
+
+    await rejects(new Model().validate(), (thrown) => thrown === error)
+    expect(mockLogger.error.mock.calls).toHaveLength(reports)
+  })
+
+  it('advances seed counters without decreasing an existing sequence', async () => {
+    await setSequence(Model, 42)
+
+    expect(allocateId).toHaveBeenCalledWith(
+      'AutoIncrementTest',
+      { $max: { seq: 42 } },
+      { upsert: true },
+    )
+  })
+
   it('assigns a required ID before validating a new document', async () => {
     const document = new Model()
 

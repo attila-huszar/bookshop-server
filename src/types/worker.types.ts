@@ -1,4 +1,4 @@
-import type { EMAIL } from '@/constants'
+import type { EMAIL } from '@/constants/email'
 import type { AdminNotification } from './enums'
 import type { Order } from './orders.types'
 

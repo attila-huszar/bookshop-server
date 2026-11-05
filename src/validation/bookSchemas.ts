@@ -5,27 +5,46 @@ import {
 } from 'drizzle-zod'
 import { z } from 'zod'
 import { booksTable } from '@/models/sqlite'
+import { toCents } from '@/utils/pricing.utils'
+import { validationLimits } from '@/constants/validation'
 import type { SchemaRefinements } from '@/types'
+import { ValidationRule } from '@/types/enums'
 import { idSchema } from './commonSchemas'
 
 export const bookSelectSchema = createSelectSchema(booksTable)
 const bookFields = {
-  title: z.string().trim().min(2).max(100),
+  title: z
+    .string()
+    .trim()
+    .min(validationLimits.book.titleMinLength)
+    .max(validationLimits.book.titleMaxLength),
   authorId: idSchema,
-  genre: z.string().trim().min(2).max(50),
+  genre: z
+    .string()
+    .trim()
+    .min(validationLimits.book.genreMinLength)
+    .max(validationLimits.book.genreMaxLength),
   imgUrl: z.url(),
-  description: z.string().trim().min(10).max(500),
+  description: z
+    .string()
+    .trim()
+    .min(validationLimits.book.descriptionMinLength)
+    .max(validationLimits.book.descriptionMaxLength),
   publishYear: z.int().positive(),
   rating: z
     .number()
-    .min(1)
-    .max(5)
-    .refine(
-      (value) => Math.abs(value * 10 - Math.round(value * 10)) < 1e-8,
-      'Max 1 decimal',
-    ),
-  price: z.number().positive(),
-  discount: z.int().min(0).max(100),
+    .min(validationLimits.book.ratingMin)
+    .max(validationLimits.book.ratingMax)
+    .refine((value) => Math.abs(value * 10 - Math.round(value * 10)) < 1e-8, {
+      message: 'Max 1 decimal',
+      params: { rule: ValidationRule.Decimal },
+    }),
+  price: z
+    .number()
+    .positive()
+    .transform((price) => toCents(price) / 100)
+    .pipe(z.number().positive()),
+  discount: z.int().min(0).max(validationLimits.discountMaxPercent),
   discountPrice: z.number().nonnegative(),
 } satisfies SchemaRefinements<typeof booksTable.$inferInsert>
 

@@ -1,12 +1,15 @@
 import { beforeEach, describe, expect, it } from 'bun:test'
 import { rejects } from 'node:assert/strict'
+import { Hono } from 'hono'
 import { loginSchema } from '@/validation/authSchemas'
 import { profileUpdateSchema } from '@/validation/userSchemas'
-import { authMessage, userMessage } from '@/constants'
 import { BadRequest, Forbidden, Unauthorized } from '@/errors'
+import { errorHandler } from '@/errors/errorHandler'
 import {
+  AuthErrorCode,
   type PasswordResetTokenUpdate,
   type User,
+  UserErrorCode,
   type UserRegistrationInsert,
   UserRole,
 } from '@/types'
@@ -18,6 +21,10 @@ import {
 } from './test-setup'
 
 const usersService = await import('../services/users.service')
+const { users } = await import('../controller/users.controller')
+const app = new Hono()
+  .onError((error, context) => errorHandler(context, error))
+  .route('/', users)
 
 beforeEach(() => {
   mockValidate.mockReset()
@@ -26,9 +33,62 @@ beforeEach(() => {
   mockUsersDB.createUser.mockReset()
   mockUsersDB.createUserWithVerification.mockReset()
   mockUsersDB.setPasswordResetToken.mockReset()
+  mockUsersDB.verifyUserByToken.mockReset()
+  mockUsersDB.resetPasswordByToken.mockReset()
   mockUsersDB.updateUserBy.mockReset()
   mockSignAccessToken.mockReset()
   mockSignRefreshToken.mockReset()
+})
+
+describe('password reset responses', () => {
+  beforeEach(() => {
+    mockValidate.mockImplementation(
+      (schema: { parse: (value: unknown) => unknown }, value: unknown) =>
+        schema.parse(value),
+    )
+  })
+
+  it.each([true, false])(
+    'returns the same success response when the account exists: %s',
+    async (exists) => {
+      const user = { uuid: 'user-uuid', email: 'reader@example.com' }
+      mockUsersDB.getActiveUserBy.mockResolvedValueOnce(exists ? user : null)
+      mockUsersDB.setPasswordResetToken.mockResolvedValueOnce(user)
+
+      const response = await app.request('/users/password-reset-request', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email: user.email }),
+      })
+
+      expect(response.status).toBe(200)
+      expect(await response.json()).toEqual({ success: true })
+      expect(mockUsersDB.setPasswordResetToken).toHaveBeenCalledTimes(
+        exists ? 1 : 0,
+      )
+    },
+  )
+
+  it('returns success after consuming a valid reset token', async () => {
+    const token = '11111111-1111-4111-8111-111111111111'
+    mockUsersDB.getActiveUserBy.mockResolvedValueOnce({
+      passwordResetToken: token,
+      passwordResetExpires: new Date(Date.now() + 60_000),
+    })
+    mockUsersDB.resetPasswordByToken.mockResolvedValueOnce({
+      email: 'reader@example.com',
+    })
+
+    const response = await app.request('/users/password-reset-submit', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ token, password: 'NewPass123!' }),
+    })
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ success: true })
+    expect(mockUsersDB.resetPasswordByToken).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe('Users Service', () => {
@@ -156,9 +216,9 @@ describe('Users Service', () => {
       }
 
       expect(resultError).toBeInstanceOf(Unauthorized)
-      expect((resultError as Error).message).toBe(
-        authMessage.credentialsInvalid,
-      )
+      expect(resultError).toMatchObject({
+        code: AuthErrorCode.InvalidCredentials,
+      })
     })
 
     it('should throw error for unverified user', async () => {
@@ -168,7 +228,7 @@ describe('Users Service', () => {
       }
       const mockUser = {
         email: 'test@example.com',
-        password: 'hashed-password',
+        password: Bun.password.hashSync('password123'),
         verified: false,
       }
 
@@ -184,7 +244,24 @@ describe('Users Service', () => {
       }
 
       expect(resultError).toBeInstanceOf(Forbidden)
-      expect((resultError as Error).message).toBe(userMessage.verifyFirst)
+      expect(resultError).toMatchObject({ code: AuthErrorCode.EmailUnverified })
+    })
+
+    it('checks the password before reporting an unverified email address', async () => {
+      const request = { email: 'test@example.com', password: 'wrong' }
+
+      mockValidate.mockReturnValueOnce(request)
+      mockUsersDB.getActiveUserBy.mockResolvedValueOnce({
+        verified: false,
+        password: Bun.password.hashSync('password123'),
+      })
+
+      await rejects(usersService.loginUser(request), {
+        name: Unauthorized.name,
+        code: AuthErrorCode.InvalidCredentials,
+      })
+      expect(mockSignAccessToken).not.toHaveBeenCalled()
+      expect(mockSignRefreshToken).not.toHaveBeenCalled()
     })
   })
 
@@ -242,7 +319,7 @@ describe('Users Service', () => {
 
       await rejects(usersService.registerUser(formData), {
         name: BadRequest.name,
-        message: userMessage.emailTaken,
+        code: UserErrorCode.EmailAlreadyExists,
       })
       expect(mockUsersDB.emailExists).toHaveBeenCalledWith('test@example.com')
       expect(mockUsersDB.getActiveUserBy).not.toHaveBeenCalled()
@@ -253,32 +330,29 @@ describe('Users Service', () => {
   describe('verifyUser', () => {
     it('should verify user successfully', async () => {
       const verificationRequest = { token: 'verification-token' }
-      const mockUser = {
-        email: 'test@example.com',
-        verificationToken: 'verification-token',
-      }
       const updatedUser = { email: 'test@example.com' }
 
       mockValidate.mockReturnValueOnce(verificationRequest)
-      mockUsersDB.getActiveUserBy.mockResolvedValueOnce(mockUser)
-      mockUsersDB.updateUserBy.mockResolvedValueOnce(updatedUser)
+      mockUsersDB.verifyUserByToken.mockResolvedValueOnce(updatedUser)
 
       const result = await usersService.verifyUser(verificationRequest)
 
-      expect(mockUsersDB.getActiveUserBy).toHaveBeenCalledWith(
-        'verificationToken',
+      expect(mockUsersDB.verifyUserByToken).toHaveBeenCalledWith(
         'verification-token',
       )
-      expect(mockUsersDB.updateUserBy).toHaveBeenCalledWith(
-        'email',
-        'test@example.com',
-        expect.objectContaining({
-          verified: true,
-          verificationToken: null,
-          verificationExpires: null,
-        }),
-      )
+      expect(mockUsersDB.getActiveUserBy).not.toHaveBeenCalled()
+      expect(mockUsersDB.updateUserBy).not.toHaveBeenCalled()
       expect(result).toEqual({ email: 'test@example.com' })
+    })
+
+    it('rejects a token that cannot be consumed instead of reporting a server error', async () => {
+      mockValidate.mockReturnValueOnce({ token: 'used-token' })
+      mockUsersDB.verifyUserByToken.mockResolvedValueOnce(null)
+
+      await rejects(usersService.verifyUser({ token: 'used-token' }), {
+        name: BadRequest.name,
+        code: AuthErrorCode.InvalidToken,
+      })
     })
   })
 
@@ -308,10 +382,10 @@ describe('Users Service', () => {
       expect(reset.token).toBeString()
       expect(reset.expiresAt).toBeInstanceOf(Date)
       expect(mockUsersDB.updateUserBy).not.toHaveBeenCalled()
-      expect(result).toHaveProperty('message')
+      expect(result).toBeUndefined()
     })
 
-    it('should return success message for non-existent user', async () => {
+    it('completes normally for a non-existent user without recording a reset token', async () => {
       const request = { email: 'nonexistent@example.com' }
 
       mockValidate.mockReturnValueOnce(request)
@@ -319,8 +393,90 @@ describe('Users Service', () => {
 
       const result = await usersService.passwordResetRequest(request)
 
-      expect(result).toHaveProperty('message')
+      expect(result).toBeUndefined()
       expect(mockUsersDB.setPasswordResetToken).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('password reset tokens', () => {
+    const token = 'reset-token'
+
+    it.each([
+      { name: 'missing', expiry: null },
+      { name: 'expired', expiry: new Date(0) },
+      { name: 'invalid', expiry: new Date('invalid') },
+    ])(
+      'rejects $name expiry during both preview and submission',
+      async ({ expiry }) => {
+        mockUsersDB.getActiveUserBy.mockResolvedValue({
+          passwordResetToken: token,
+          passwordResetExpires: expiry,
+        })
+        const request = { token, password: 'new123' }
+
+        for (const operation of [
+          usersService.passwordResetToken,
+          usersService.passwordResetSubmit,
+        ]) {
+          mockValidate.mockReturnValueOnce(request)
+          await rejects(operation(request), {
+            name: BadRequest.name,
+            code: AuthErrorCode.InvalidToken,
+          })
+        }
+
+        expect(mockUsersDB.resetPasswordByToken).not.toHaveBeenCalled()
+      },
+    )
+
+    it('previews an active token without consuming it', async () => {
+      mockValidate.mockReturnValueOnce({ token })
+      mockUsersDB.getActiveUserBy.mockResolvedValueOnce({
+        passwordResetToken: token,
+        passwordResetExpires: new Date(Date.now() + 60_000),
+      })
+
+      expect(await usersService.passwordResetToken({ token })).toEqual({
+        token,
+      })
+      expect(mockUsersDB.resetPasswordByToken).not.toHaveBeenCalled()
+    })
+
+    it('hashes the password and consumes only the submitted token', async () => {
+      const request = { token, password: 'new123' }
+
+      mockValidate.mockReturnValueOnce(request)
+      mockUsersDB.getActiveUserBy.mockResolvedValueOnce({
+        passwordResetToken: token,
+        passwordResetExpires: new Date(Date.now() + 60_000),
+      })
+      mockUsersDB.resetPasswordByToken.mockResolvedValueOnce({
+        email: 'test@example.com',
+      })
+
+      expect(await usersService.passwordResetSubmit(request)).toBeUndefined()
+      const [savedToken, password] = mockUsersDB.resetPasswordByToken.mock
+        .calls[0] as [string, string]
+
+      expect(savedToken).toBe(token)
+      expect(await Bun.password.verify(request.password, password)).toBe(true)
+      expect(mockUsersDB.updateUserBy).not.toHaveBeenCalled()
+    })
+
+    it('rejects a token replaced or consumed while hashing the password', async () => {
+      const request = { token, password: 'new123' }
+
+      mockValidate.mockReturnValueOnce(request)
+      mockUsersDB.getActiveUserBy.mockResolvedValueOnce({
+        passwordResetToken: token,
+        passwordResetExpires: new Date(Date.now() + 60_000),
+      })
+      mockUsersDB.resetPasswordByToken.mockResolvedValueOnce(null)
+
+      await rejects(usersService.passwordResetSubmit(request), {
+        name: BadRequest.name,
+        code: AuthErrorCode.InvalidToken,
+      })
     })
   })
 

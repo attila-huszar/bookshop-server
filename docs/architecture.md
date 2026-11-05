@@ -1,163 +1,145 @@
-# Architecture and checkout flow
+# Backend architecture
 
-## Purpose and boundaries
+The Bun/Hono backend owns the API, database access, payments, background email, and scheduled jobs. Custom Stripe PaymentIntents and interchangeable SQLite/Drizzle and MongoDB/Mongoose adapters are deliberate learning goals. Browser state and interface behavior belong to the [frontend](../../bookshop-client/docs/architecture.md).
 
-This is a learning/demo bookshop, not a production commerce platform. Custom Stripe PaymentIntents, SQLite/Drizzle, and MongoDB/Mongoose are deliberate learning choices. The goal is to make failure handling and responsibilities explicit without introducing microservices or a dependency-injection framework.
+## Process and ownership boundaries
 
-The API owns authentication, catalogue validation, checkout snapshots, and customer corrections. Stripe owns payment state. The email worker owns outbox publication and SMTP. The maintenance process owns periodic cleanup and reconciliation. HTTP controllers translate requests/responses; services enforce use-case rules; repositories own database-specific operations and atomic writes.
+| Component              | Responsibility                                             |
+| ---------------------- | ---------------------------------------------------------- |
+| `server.ts` / `app.ts` | API lifecycle / Hono routes                                |
+| `worker.ts`            | Email relay, BullMQ processing, Redis and SMTP connections |
+| Cron jobs              | Maintenance, payment reconciliation, and backups           |
+| Controllers / services | HTTP contracts / use-case rules                            |
+| Repositories           | Database-specific operations and transaction boundaries    |
 
-Database selection happens once in the repository entrypoint. Each adapter imports its own SQLite tables or Mongo models directly; no second model selector or model-union casts are needed. Invalid `DB_REPO` values fail during configuration parsing. Missing CMS update targets return `null` from either adapter, and the service translates that into a 404. Cleanup operations return affected counts rather than account records.
+Entrypoints validate configuration for their role and explicitly acquire resources. Module imports do not open database connections or construct provider clients. Direct imports keep rendering and worker dependencies out of API/repository flows; `repositories/index.ts` selects the database adapter.
 
-Entrypoints explicitly connect/close the database. Importing database/application modules does not open database connections. Queue connections belong to the worker process, not the API. Hono's root error handler maps expected domain failures and validation failures to JSON responses; request logs omit headers and token-bearing query strings.
+Startup and shutdown are bounded. Signal handlers cover asynchronous startup, cleanup follows reverse acquisition order, and shutdown drains API requests or active email work before closing dependencies. Cron stops scheduling and signals its active jobs. Failed or interrupted one-off jobs exit unsuccessfully.
 
-The reconciliation runner records failures through `ordersDB.recordReconciliationFailure`. Each order has a consecutive failure count and a current alert ID, alongside its attempt/success timestamps. After three failed checks, the repository saves that alert ID and its error email intent in one transaction. Successful reconciliation clears both failure fields. Webhook failures log and return an error for Stripe's retry; they do not increment the counter or send error emails. Services do not pass email drafts to repositories. State-changing use cases still commit intents in their repository transaction. The worker's `outbox.service.ts` publishes committed intents to BullMQ; API services must not import that relay. User profile and CMS allowlists live together in `response.utils.ts` as `publicUserResponse` and `adminUserResponse`.
+`/health` reports liveness. `/ready` requires a connected database and complete schema and becomes unavailable during shutdown. Compose gates dependent services on readiness. Redis and SMTP outages do not make API database/outbox writes unavailable.
+
+## Databases and setup
+
+`DB_REPO` selects `SQLITE` or `MONGO` across API, worker, cron, and scripts. `db.ts` coordinates connection attempts, readiness, and failed-startup cleanup. The selected adapter owns its connection and schema initialization; invalid configuration fails without switching databases.
+
+| Concern                       | SQLite / Drizzle                       | MongoDB / Mongoose                         |
+| ----------------------------- | -------------------------------------- | ------------------------------------------ |
+| Atomic state and email intent | Synchronous SQL transaction            | Explicit shared-session transaction        |
+| Concurrent writes             | Unique indexes and conditional updates | Unique indexes and conditional updates     |
+| Outbox claim                  | Immediate transaction                  | Atomic `findOneAndUpdate`                  |
+| Numeric IDs                   | Auto-increment                         | Counter allocation in the insert's session |
+
+MongoDB requires a replica set and initializes collections/indexes before transactions. Transaction operations execute sequentially on the same session. Compose connects to the configured external MongoDB deployment and provisions no local MongoDB server.
+
+`database/setup.ts` initializes the demo database: SQLite migrations precede schema validation and seeding; MongoDB connection/model initialization precedes seeding. Authors are seeded before books, followed by news and the admin account. Catalogue seeds insert only missing fixed IDs, preserving existing records and allowing retries after partial completion. MongoDB counters advance to at least the highest stored ID and never move backward. The configured admin email is matched case-insensitively: an existing active admin is preserved, including credentials; a non-admin or deleted account is a conflict, never promoted or restored by setup. Setup reports inserted/existing counts and never clears data. Ordinary API startup validates the schema and never seeds.
+
+The `setup` command uses the same explicit `DB_REPO` selection as normal services. Its host entrypoint, `scripts/setup.ts`, validates configuration and launches `database/setup.ts` with Bun for MongoDB or in a temporary container for SQLite. The database entrypoint only owns connection, migrations, seeding, and cleanup; it never launches Docker. Separate entrypoints prevent recursive container launches without command-line mode flags. SQLite uses the same volume as API, worker, and cron. Both processes use the shared lifecycle manager for cancellation and cleanup. Missing or blank variables fail before connecting or launching Docker. Host MongoDB runs must occur with other writers stopped and outside backup windows because they do not participate in Compose's writer coordination.
+
+## Authentication and account lifecycle
+
+Authenticated requests and token refresh require an active, non-deleted account; verification is checked separately. Logout clears session cookies independently of account lookup. Signed guest payment cookies remain separate from account sessions.
+
+Verification and password-reset tokens are consumed through conditional updates requiring the current token, future expiry, and active account. Marking an account verified, including through CMS, clears its verification token and expiry in the same write. The email worker checks the queued token against the current token and expiry. Repeated or superseded tokens cannot change the account.
+
+Users and orders support reversible CMS soft deletion. Deleted account emails remain reserved, and deletion protects the last active admin. Restoring an account retains its identity, password, and verification state. Catalogue deletion is permanent; payment history and order reconciliation remain available after order soft deletion.
 
 ## Custom checkout
 
-1. The client keeps a random client idempotency key for the active checkout attempt. Identical retries reuse it; a different cart or a fresh attempt gets a different key.
-2. The server combines that key, principal scope (account UUID or guest), and request contents into a SHA-256-derived checkout request ID.
-3. The server reads catalogue prices and builds an immutable order snapshot. A price conflict returns 409 before creating a new draft. Checkout recovery explicitly refreshes book prices, bypassing cached query results.
-4. A unique checkout request ID makes racing requests resolve to the same persisted draft. Replays use that snapshot, not today's prices.
-5. Stripe creates the PaymentIntent using the checkout request ID as its SDK idempotency key. Metadata contains the numeric order ID and unique checkout request ID.
-6. Linking the PaymentIntent saves its reference without sending an admin email. Stripe creation and database persistence cannot share a transaction; a timeout is not proof of Stripe failure. Retry or reconciliation recovers the link.
-7. The browser's Stripe Payment Element confirms the payment. The payment token stays in memory; browser storage keeps only safe identifiers, not the Stripe client secret.
-8. Signed PaymentIntent webhooks update the local snapshot. The first successful payment sets `paidAt` and saves the customer confirmation and admin New order intents in the same database transaction. A guest without an email receives no customer email.
-9. The return page reads Stripe status using the authorized payment endpoint. Its success display is not authority to mark an order paid. Webhooks/reconciliation do that independently.
+1. The client supplies an idempotency key for its current attempt. The server binds it to the principal and request contents to derive a unique checkout request ID.
+2. Catalogue prices produce an immutable order snapshot. USD unit and discounted unit prices round to cents before multiplying quantities; totals sum integer cents. A mismatch with the client's expected amount returns 409 before draft creation.
+3. Concurrent requests resolve to the same persisted draft. Retries reuse its snapshot and checkout request ID, including as Stripe's idempotency key.
+4. Stripe creates a PaymentIntent carrying both `orderId` and `checkoutRequestId`. Linking it to the draft is recoverable across timeouts; Stripe and database writes cannot share a transaction. Both metadata fields prevent unrelated payments from matching reused demo order IDs.
+5. The client records terms acceptance, then confirms through the Payment Element. Signed webhooks or reconciliation update the local payment snapshot.
+6. The first successful payment sets `paidAt` and commits customer confirmation and admin notification intents in the same transaction. A guest without an email has no customer confirmation intent.
 
-Guest payment access uses the signed payment-session cookie; authenticated access is also supported. Account order history currently matches the account's email, including guest purchases made with that email. Explicit account ownership and a guest-claim workflow would be a separate production feature.
+Stripe owns payment state. The browser's success display and CMS edits cannot mark an order paid. Once set, `paidAt` is never cleared or silently downgraded.
 
-### Identifiers
+Payment retrieval and terms acceptance require account authorization or the signed guest payment-session cookie. Account order history matches the account email, including guest purchases using that address; there is no explicit guest-claim workflow.
 
-| Identifier                 | Owner           | Purpose                                                                                    |
-| -------------------------- | --------------- | ------------------------------------------------------------------------------------------ |
-| Client idempotency key     | Browser         | Retry one checkout attempt                                                                 |
-| Checkout request ID        | Server/database | Principal-and-request-bound checkout identity; unique order key; Stripe idempotency option |
-| Order ID                   | Database        | Human-readable local order reference                                                       |
-| PaymentIntent ID           | Stripe          | Authoritative payment identity linked to the order                                         |
-| Event ID and creation time | Stripe          | Webhook duplicate/staleness checks, not reconciliation timestamps                          |
-| Outbox/job ID              | Server          | Deduplicate publication of a particular email intent                                       |
+### Terms publication and acceptance
 
-Metadata deliberately keeps both `orderId` and `checkoutRequestId`: the first identifies the local order; the second prevents old Stripe test payments from matching reused numeric IDs after demo database resets. There is no unused `metadata.requestId`. Stripe's SDK `idempotencyKey` and `client_secret` names remain vendor wire/API fields.
+Terms are immutable, versioned English/Hungarian documents stored in the selected database. Publishing changed content creates a revision; identical content reuses the current version. Public endpoints expose current and archived documents.
 
-## Payment invariants and recovery
+Checkout's terms endpoint returns the current document reference and persisted order summary. Acceptance records the version, language, and server timestamp once. Unpublished or changed terms, unauthorized access, and ended checkouts are rejected. The client must resolve changed terms before confirming payment.
 
-CMS orders and users use reversible soft deletion: a nullable `deletedAt` field, set by the admin-only DELETE endpoints and cleared by PATCH `/api/cms/restore/orders` or `/api/cms/restore/users`. Both adapters update only records whose deletion state changes and return an affected count. Repeating a command preserves the original timestamp and changes no records. The CMS reads one list per entity and filters active/deleted views locally. Only CMS responses expose `deletedAt`; ordinary correction schemas cannot change it. Orders retain checkout/payment, customer-history, reconciliation, and email access. There are no order or user hard-delete endpoints. Catalogue deletion remains permanent and is named **Hard delete**.
+CMS may delete only versions unused by any order, including unpaid or soft-deleted orders. Atomic reference checks protect concurrent acceptance/deletion. Deleting the last revision blocks checkout. Terms acceptance is excluded from general order/CMS writes. Confirmation emails do not include the archived terms document; merchant-specific legal content is outside this demo.
 
-User repositories expose `getActiveUserBy` for lookups that always exclude soft-deleted records. Updates and token reset writes also require an active record. Registration uses the separate boolean `emailExists` check, which includes soft-deleted accounts so their addresses remain reserved without returning their account data. Here, active means not soft-deleted; verification is checked separately. Required and optional authentication load the active user once per request into typed `authUser` context. Admin authorization and profile/order/avatar/payment handlers reuse that record, and response mappers keep it internal. Profile writes still require an active record at the repository boundary. Refresh independently checks the active account before issuing tokens. Logout clears both session cookies without a token or account lookup. Signed guest payment cookies remain independent. Pending verification/reset emails are skipped when the recipient lookup finds no active account. CMS deletion protects the last active admin, and unverified-account maintenance soft deletes expired registrations. Restoring a user retains its identity, password and verification status; admins can correct an expired unverified registration in the CMS.
+## Payment recovery
 
-Stripe statuses are not assigned invented numeric ranks. A failed attempt can return to `requires_payment_method` and then move through another confirmation attempt. The application never clears `paidAt` or silently downgrades a paid order.
+Webhooks verify signatures and process recognized PaymentIntent events in this application's metadata scope. Duplicate/stale events are rejected or resolved against a fresh Stripe read. Webhooks and reconciliation use conditional database updates with bounded re-reads on concurrent changes.
 
-Webhooks reject stale/duplicate events; same-second or pre-reconciliation conflicts may require a fresh Stripe read. Reconciliation always retrieves Stripe's current PaymentIntent and verifies identity, metadata, amount, and currency. Both paths use optimistic conditional updates against the persisted payment snapshot; concurrent winners cause bounded re-reads rather than blind overwrites. Single-order reconciliation and its bounded batch runner live together in `orders.service.ts`; maintenance invokes the batch runner.
+Maintenance runs every ten minutes and reconciles a bounded batch of existing orders. It retrieves Stripe's current state and validates identity, metadata, amount, and currency. Unlinked drafts are recoverable through their metadata; missing or ambiguous matches remain visible for retry or investigation. Completely missing local orders require manual investigation.
 
-Only recognized PaymentIntent events in this application's metadata scope are processed. Unrelated PaymentIntents and non-PaymentIntent events are acknowledged without changing orders. This follows Stripe's webhook constraints around retries and unordered delivery. See [Stripe webhooks](https://docs.stripe.com/webhooks).
-
-Maintenance runs every ten minutes. A run checks at most 100 orders, oldest attempt first. Orders modified in the last five minutes are left alone. Routine pending checks are paced at thirty minutes; terminal audits are paced daily. Failed orders retry with at least five minutes between attempts, normally ten minutes under cron. All reconciliation bookkeeping stays on the order; there is no separate issue store or retry loop. Unlinked drafts are searched by both metadata keys, then the matched intent is retrieved. No match is left for a later check because Stripe Search is eventually consistent; ambiguous matches and violated financial invariants require investigation.
-
-Reconciliation never creates, confirms, captures, cancels, or refunds payments. It preserves real webhook event markers and writes its own check timestamp. The cron wrapper prevents overlapping runs in its container; the script has a nine-minute hard deadline and stops starting Stripe checks after eight minutes.
-
-Empty maintenance runs are silent: cleanup summaries require affected records, and reconciliation summaries require at least one checked order. The expired-registration summary includes `totalDeleted` and a `users` list containing only each affected account's `userId` and `email`. SQLite returns these identities from the update; Mongo selects and soft deletes them in one transaction, and logs only after commit. Cronitor still tracks each wrapped run, and failures remain logged. BusyBox `crond` uses `-l 9` to suppress routine daemon messages while retaining errors and job output.
+Reconciliation never creates, confirms, captures, cancels, or refunds payments. It preserves webhook event markers and records its own attempt timestamps. Three consecutive failed checks atomically save an alert ID and email intent; successful reconciliation clears the failure state. Webhook failures rely on Stripe retries and do not increment that counter.
 
 ## Transactional email outbox
 
-The database-to-Redis boundary uses the [transactional outbox pattern](https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html):
-
 ```text
-API/webhook/reconciliation
+API / webhook / reconciliation
   -> database transaction: state change + email intent
   -> commit
-       |
-email worker's relay (polls every 2 seconds)
-  -> lease one due intent for 60 seconds
-  -> publish to BullMQ using the intent's stable ID
-  -> mark processed only after Redis accepts the job
-       |
-BullMQ email processor
-  -> render payload snapshot
-  -> send using SMTP
+  -> worker relay leases intent
+  -> BullMQ accepts stable job ID
+  -> relay acknowledges publication
+  -> email processor renders snapshot and sends through SMTP
 ```
 
-The explicit user repository operations `createUserWithVerification` and `setPasswordResetToken` build email intents from the saved user through a pure payload helper and insert them in the same transaction. Services validate input and generate tokens; generic user creation/updates (including CMS writes) do not create emails. Order linking is silent; the winning first-paid update saves the customer confirmation and admin New order intents. An order failure update saves one error intent atomically after three consecutive failed checks. Conditional updates reject duplicate, superseded, or already recovered attempts; duplicate webhooks do not count as failed checks.
+An intent insert failure rolls back the associated state change. A Redis outage leaves committed intents available for retry. Relay leases use unique tokens so a stale publisher cannot acknowledge a replacement lease. Republishing the same job ID deduplicates queue acceptance while the job remains in Redis. Publication retries back off with bounded provider requests; SMTP jobs have a fixed retry limit.
 
-A failed intent insert rolls back its associated state change. A Redis outage after a successful database commit leaves the intent available for a later relay attempt. Publication failures back off exponentially, capped at one hour; producer retries/timeouts are bounded. SMTP jobs separately have three attempts with exponential backoff.
+Redis reconnects automatically. Recovery monitoring observes the queue connection and both worker connections, reports recovery only when all required connections are ready, and stays quiet during intentional shutdown. SMTP pools replace failed connections; send results determine transport health, and the next successful send reports recovery after a transport failure. Outbox polling continues through database/Redis outages and does not report recovery on a poll that still schedules a failed publication for retry.
 
-Each lease has a unique token. An expired lease can be reclaimed after a crash; an old publisher cannot acknowledge or release its successor's lease. If Redis accepted a job but the database acknowledgement failed, the relay republishes the same ID. [BullMQ job IDs](https://docs.bullmq.io/guide/jobs/job-ids) deduplicate that replay while the job remains in Redis.
+Registration, password resets, first-paid transitions, and reconciliation alerts own their email intents inside repository transactions. Generic account/CMS edits and PaymentIntent linking do not send emails. Payloads contain only the data needed for rendering.
 
-`processedAt` means accepted by the queue; it is **not** proof that SMTP delivered an email. Admin notifications have two phases: New order after the first paid transition, and Reconciliation failed after three failed checks. Successful reconciliation clears the order's alert ID, and the consumer skips error jobs whose ID no longer matches the order or whose order was deleted. A paid marker alone does not suppress an audit alert. One alert/job ID remains active until recovery; new failures after recovery can create a fresh alert. The first-paid admin job ID uses `admin-new-` and its payload, subject and title say New order.
+The consumer skips obsolete account tokens and resolved reconciliation alerts. Lookup failures remain retryable. CMS email history is scoped to an exact payment ID and separates queue publication from SMTP processing; summaries exclude bodies, account links, and lease tokens. Queue acknowledgement is not proof of delivery.
 
-The admin-only `GET /api/cms/email-outbox` returns paginated, filtered summaries. The CMS Orders tab requests a history only when expanded and supplies the order's exact `paymentId`; both adapters match admin notifications' `paymentId` and customer confirmations' `order.paymentId`. Recipient/type/status filters apply within that order, so similar payment IDs and account emails cannot mix into its history. Delivery fields are independent of relay leases: publication sets Queued only if the worker has not already recorded an outcome, so a fast SMTP send cannot be overwritten by a later relay acknowledgement. The worker saves Sending before processing and then Sent/Skipped, or Retrying/Failed after an exception. Delivery attempts count processor runs; next retry times estimate BullMQ's configured exponential backoff, not the exact execution time. Publication/delivery errors are generic. Reconciliation reasons describe controlled invariant failures or safe Stripe error categories, without copying raw SQL/provider messages, credentials, or token-bearing links. CMS summaries expose that reason separately from delivery errors. Historical processed rows display Processed rather than guessing whether they were sent or discarded.
+Publication is at least once. A crash after SMTP acceptance but before job acknowledgement can cause a duplicate send. Redis uses persistent AOF storage and no eviction; retained jobs provide deduplication history. Loss of processed Redis jobs has no automatic outbox replay, and manual replay may duplicate email. Database/provider outages can also prevent alerts from being recorded or sent.
 
-A failure to save the initial Sending record prevents SMTP processing and is retryable. A failure to save Sent/Skipped is logged without failing the completed job, avoiding an extra send caused solely by tracking failure; the last saved status may then remain Sending. The CMS does not offer resend/delete actions, and its summaries never include email bodies, account links, or lease tokens.
+## API response and error contracts
 
-Before sending verification or password-reset emails, the consumer checks that the recipient still exists, the queued link matches their current token, and that token has not expired. Verification emails are also skipped for already-verified accounts. Database lookup failures remain retryable job failures, not reasons to discard an email. These checks reduce stale sends but cannot make the database check and SMTP send atomic.
+Repositories return internal records; response allowlists expose public/CMS fields and normalize dates/nulls. User responses exclude password hashes and account tokens. CMS order writes accept customer/shipping corrections only; payment state, paid markers, totals, currency, items, and terms acceptance are protected.
 
-Reconciliation can recover an existing unlinked draft through Stripe metadata. Webhooks for payments with no matching local order return an error for Stripe retries and remain visible in structured logs. Completely missing orders are not stored, polled, or automatically emailed by this demo; inspect logs and Stripe Dashboard manually. Existing orders still alert for financial mismatches, conflicting paid status, ambiguous matches, and database/provider failures after three failed checks. The error template highlights the reason and links to the matching test/live dashboard, with the continuing retry policy.
+API failures use stable application codes and HTTP statuses. Validation responses expose sanitized Zod metadata for localization, without raw input, private parameters, or internal messages. Expected 4xx responses remain quiet; server failures are logged with safe diagnostics. Logs redact credentials and omit query strings, cookies, and authorization headers.
 
-Database/outbox outages can prevent failure counts or email intents from being saved. Logs and the failed maintenance result/Cronitor remain the fallback; the design does not promise email during an outage of its own dependencies.
+## Image storage and observability
 
-The customer mail payload is a JSON-safe snapshot of the needed payment/items/shipping data, not a full database order with internal timestamps or checkout fields.
+Sharp validates and normalizes uploaded images to WebP with input, pixel, and processing limits. Random S3 keys separate avatar/product images by database. Maintenance removes generated images older than 24 hours only when unreferenced, including by soft-deleted users; it rechecks references before deletion and excludes external URLs and other namespaces.
 
-Intent construction assigns stable order-email IDs once and shares the item-summary allowlist. Rendering selects the template and its variables, then uses one interpolation/MJML/error-handling path. Order repositories return the saved order or `null`; first-paid detection stays inside the transaction that saves confirmation intents, rather than leaking unused flags to callers.
+Compose sends service logs to Loki under `job` labels; browser reports pass through the API with `source="frontend"`. Application loggers emit indented JSON at every level, including errors; the Loki pipeline joins multiline entries before extracting labels. Grafana provides inspection, and Cronitor monitors scheduled runs. Loki's own Docker logs use the local driver. Container logs rotate, and shipping retries/timeouts are bounded.
 
-`EMAIL` in `constants/email.ts` defines all supported email kinds, static subjects, and account-link paths/token fields. Payload types derive their discriminants from that registry; the intent builders, repositories, renderer, and worker use the same definitions. Admin subjects remain dynamic because they include the order reference and notification phase.
+At the default info level, logs emphasize service lifecycle, recovery, meaningful maintenance/payment activity, and failures. Successful one-off jobs clean up without a shutdown message; interruptions and failures remain visible. Routine email delivery/skip and transport readiness details use debug, while delivery outcomes remain in the outbox records. Helpers propagate errors to their request/job owner rather than logging and rethrowing them. Expected 4xx responses are quiet in both the application and proxy access logs; proxy 5xx responses remain errors.
 
-### Delivery limits
+Expected payment failures are business outcomes at info; ignored stale/duplicate/unsupported webhooks and reconciliation batch summaries use debug. Retryable email delivery failures use warn, and terminal failures use error, with attempt counts for diagnosis. Application logs use structured metadata for identifiers and error details. Emoji are reserved for operational attention: ⚠️ for dependency outages, ❌ for delivery/process failures, blocked email infrastructure, or payment integrity failures requiring investigation, and ✅ for recovery from a reported outage. Routine startup, readiness, delivery, setup, and payment success messages have no emoji.
 
-This is at-least-once publication, not exactly-once SMTP. A process can die after SMTP accepted a message but before BullMQ acknowledged completion; a retry can send a duplicate. Stable job IDs do not prevent that window.
+## Database backups
 
-Redis uses a persistent volume, no-eviction policy, and AOF with `appendfsync always`, prioritizing durability over write throughput. These are demo defaults, not high availability. See [Redis persistence](https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/).
+The backup job creates a private temporary archive, uploads it to S3, verifies its size and SHA-256 checksum for the uploaded version, then applies retention. Multipart checksums match the uploader's part boundaries. Failed verification never triggers pruning. Cancellation terminates dump children and settles cancelled upload requests before cleanup; cleanup requests remain independent of job cancellation.
 
-Outbox rows and completed/failed jobs are retained for inspection and deduplication. Removing jobs removes their deduplication history. Retention, failed-job retry tooling, alerting on outbox age, and broker-disaster recovery need an explicit operational policy before production. Losing the Redis volume after a row was processed is not automatically repaired by the relay; manual re-drive may duplicate email. Protect database backups and queue storage because they contain customer data and verification/reset links.
+| Database/mode   | Archive and consistency                                                                          |
+| --------------- | ------------------------------------------------------------------------------------------------ |
+| SQLite          | Online `sqlite3 .backup`, including committed WAL data, compressed as `.sqlite.gz`               |
+| Mongo `logical` | Database-scoped `mongodump` archive; all writers must be paused for cross-collection consistency |
+| Mongo `oplog`   | Full replica-set archive with oplog capture; requires a deployment supporting oplog access       |
 
-## The two database implementations
+`MONGO_BACKUP_MODE` defaults to `logical`, suitable for Atlas M0, and requires an explicit database in `DB_MONGO_URL`. Logical backups drain and stop API/worker processes, and wait for active maintenance/setup jobs before dumping. The API and worker remain offline for the entire dump, then restart before S3 upload and retention. New writers wait outside the database. A failed drain or timeout aborts the backup; dump failure/cancellation also releases the pause. Oplog backups preserve authentication while removing the database path and do not pause writers; there is no fallback between modes.
 
-| Concern                      | SQLite / Drizzle                    | MongoDB / Mongoose                            |
-| ---------------------------- | ----------------------------------- | --------------------------------------------- |
-| Atomic state + email         | Synchronous SQL transaction         | Explicit shared-session transaction           |
-| Concurrent checkout creation | Unique index + conflict winner read | Unique index + duplicate-key winner read      |
-| Concurrent payment update    | Conditional UPDATE                  | Conditional findOneAndUpdate                  |
-| Relay claim                  | Immediate transaction               | Atomic findOneAndUpdate                       |
-| Numeric IDs                  | SQLite auto-increment               | Counter allocation using the insert's session |
+Compose coordinates writers on one host through a shared local runtime volume. This is not a distributed deployment contract; network filesystems and multiple hosts require a separately validated coordination design. Direct/manual writers must use `docker/database-access.sh job`; external clients must be stopped separately.
 
-MongoDB transactions require a replica set for this demo. Compose initializes a single-node `rs0`, and startup initializes collections/indexes before transaction use. Operations inside a transaction are awaited sequentially, not placed in `Promise.all`. See [Mongoose transactions](https://mongoosejs.com/docs/transactions.html).
+Writer processes inherit their shared lock so a supervisor crash cannot permit a dump while the application still runs. Descendants must stay in the supervised process group and finish database work before acknowledging shutdown; detached database writers are unsupported. The application acknowledges cleanup with a newline-terminated exit status. The shell enforces a 50-second drain deadline, terminates an unresponsive group, and rejects the dump. `BOOKSHOP_DATABASE_DRAIN_TIMEOUT_SECONDS` can shorten or adjust that deadline; it must leave room for the application's shutdown bound and expire before the backup's 60-second acquisition timeout. Kernel locks release when their holders exit, and the cleanup acknowledgement supports Bun's development watcher.
 
-The single-node replica set is for exercising transactions, not failover. Only one database profile is active at a time. Initial SQLite migrations and Mongo schemas are edited in place because demo databases are recreated; this is not a production migration strategy.
+Archives are private objects under `backups/sqlite/` or `backups/mongo/`. Cron wrappers prevent overlapping runs in their container and impose a deadline. Scratch files are removed after success or failure; abandoned multipart uploads also require bucket lifecycle cleanup.
 
-## Client state and API contracts
+Retention defaults to 7 occupied UTC days, 4 Monday-start weeks, and 12 calendar months, keeping the latest backup in each period. The union of those selections, the current upload, and all archives less than 24 hours old are protected. Only recognized objects for the selected database are pruned. Listing must finish before deletion; listing failure deletes nothing, and deletion failure stops cleanup. `BACKUP_RETENTION_DRY_RUN=true` uploads/verifies a backup and reports deletion candidates without deleting them.
 
-RTK Query owns books, author references, news, account orders, and CMS data. Mounted query hooks retain subscriptions; loaders warm the same cache. CMS mutations invalidate public and CMS query tags together. Thin thunk adapters preserve loader/Search/form dispatch contracts but do not own entity caches; mutation adapters dispose of their result entries.
+The [bucket lifecycle template](backup-lifecycle.json) aborts incomplete uploads after one day and expires noncurrent versions after 30 days. It must be installed separately; backup jobs do not manage bucket policies or lifecycle rules. Versioned-bucket pruning creates delete markers, so retained old versions remain until lifecycle expiration. S3 permissions must cover listing, upload, verification, deletion, and multipart abort, with version/KMS permissions where applicable.
 
-The remaining Redux slices own cart intent, authentication/session state, checkout workflow state, and book pagination/filter UI. Query responses are immutable; Search copies results before merging them. Logout, login transitions, and lost refresh sessions reset the query cache. Cache data and payment secrets are not persisted to browser storage. See [RTK Query cache invalidation](https://redux-toolkit.js.org/rtk-query/usage/automated-refetching).
+Recovery is manual into an isolated target. Verify checksums and restored data/indexes before switching databases. SQLite recovery includes `PRAGMA integrity_check`. Logical Mongo archives restore without `--oplogReplay`; oplog archives require full-dump replay without database filters/remapping. Checksums establish archive integrity, not successful restoration.
 
-Repositories return internal records. Response mappers whitelist public/CMS fields and normalize dates/nulls so Mongo-specific properties and bookkeeping do not leak into API contracts. CMS user responses contain neither password hashes nor verification/reset tokens. Client mutation types describe commands (for example author IDs when editing books), not arbitrary database records.
+## Runtime and development
 
-CMS order Add is disabled. Customer/shipping details remain editable; status, paid time, totals, currency, and items are read-only, with the server enforcing the same allowlist. There is no CMS “mark paid” action.
+Compose runs API, worker, cron, Redis, and the logging stack. Either repo's `dev` command starts local Vite plus Compose; `setup` initializes missing demo data separately. Startup/restarts do not repeat setup, and shutdown preserves stored data. See the [README](../README.md#local-development) for commands.
 
-## Logs
+MongoDB reconnects after runtime outages, with API readiness unavailable until reconnection; failed process startup is retried by Compose's restart policy. The optional ngrok tunnel retries initial transport failures with capped backoff and cancels pending retries during shutdown; established sessions use SDK reconnection. Explicit ngrok provider rejections require intervention instead of repeated startup attempts. SQLite lock contention uses a bounded busy timeout. Payment recovery remains owned by Stripe webhook retries and scheduled reconciliation rather than replaying checkout or SMTP side effects.
 
-Compose sends each service's output to Loki under a separate `job` label:
+SQLite persists in the Docker-managed `sqlite_data` volume, mounted at `/bookshop-server/data` for API, worker, and cron, including SQLite's WAL/shared-memory files. Keep `DB_SQLITE_FILE` under `data` so all writers use that persistent storage. API, worker, and scheduled database jobs run as `bun:bun`; root-owned cron switches users before executing jobs. Image-created directories belong to `bun`, and fresh volumes inherit that ownership; no host UID/GID mapping or root startup repair is required. A host-local SQLite file is separate from the volume and does not initialize the Docker database.
 
-| Component               | Jobs in Grafana               | Routine output                                                        |
-| ----------------------- | ----------------------------- | --------------------------------------------------------------------- |
-| API                     | `server`, `server-with-mongo` | Lifecycle and payment outcomes                                        |
-| Email worker            | `worker`, `worker-with-mongo` | Sent/skipped emails, failures, lifecycle                              |
-| Maintenance and backups | `cron`, `cron-with-mongo`     | Nonempty maintenance summaries and backup actions                     |
-| MongoDB                 | `mongodb`                     | Quiet connection logging; informational Checkpointer messages dropped |
-| Redis                   | `redis`                       | Warnings and critical messages                                        |
-| Ingress                 | `nginx`                       | Failed HTTP requests and daemon warnings/errors                       |
-| Grafana                 | `grafana`                     | Warnings and errors                                                   |
-
-Browser reports pass through the API and add `source="frontend"`, so `{source="frontend"}` isolates them without losing the API container's `job` label. Vite's development output stays in the local terminal. SQLite is embedded in the API/worker/cron processes and has no separate container stream.
-
-Application logs default to `LOG_LEVEL=info`; set it to `debug` in the server `.env` to include payment-access and ignored webhook diagnostics. The SMTP pool's idle event and optional client configuration defaults are silent. Unrelated Stripe event types are acknowledged silently; unsupported PaymentIntent event types remain warnings. Actual payment/email outcomes and failures stay visible. The outbox relay keeps polling every two seconds, logs a continuing polling outage at most once a minute, and logs recovery once.
-
-Loki uses Docker's `local` log driver so its own output does not feed back into Loki. Inspect it with `docker compose logs loki`. Container log files rotate at 10 MB with three files per container; Loki retains ingested logs according to its existing retention config. Loki driver retries and send timeouts are bounded. Logging-option changes require recreating containers with `docker compose up -d --build` from the server repo; restarting an existing container does not update its logging driver. Nginx failure summaries omit query strings, cookies, and authorization headers.
-
-## Verification and production follow-ups
-
-Development is coordinated directly by the package scripts: either repo's `dev` command starts local Vite plus Docker Compose. The same Compose file switches API/worker reloads on through `BUN_RUN_MODE=--watch`; ordinary Docker startup defaults to `run`. Initialization is explicit (`dev:setup`), and shutdown stops containers without deleting volumes. See [local development](../README.md#local-development) for commands and port configuration.
-
-Automated tests cover real in-memory SQLite transactions/rollbacks, Mongo shared-session/error propagation, reconciliation races, guest access, first-paid behavior, relay leases/retries, response boundaries, and client cache invalidation/session isolation. Mongo unit tests do not replace a live replica-set smoke test; Redis and SMTP should also be exercised with an isolated test environment.
-
-Useful smoke scenarios: complete a guest and account checkout; retry a lost creation response; stop Redis while changing state then restore it; restart a relay after queue publication; omit a webhook and run maintenance; submit two concurrent success updates; verify only one confirmation intent per payment.
-
-Before treating this as production commerce: establish an order-ownership/fulfillment model, add refund/dispute/inventory workflows, set retention and recovery policies beyond CMS soft deletion, configure managed/replicated infrastructure, and establish metrics/alerts. Those are separate capabilities, not implied by the current PaymentIntent success marker.
+This demo has no fulfillment, inventory reservation, refund, or dispute workflows. Live replica-set, Redis/SMTP, webhook, and restore checks remain separate from mocked provider tests.

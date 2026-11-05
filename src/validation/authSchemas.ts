@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { validationLimits } from '@/constants/validation'
 import { countrySchema, imageSchema, nameSchema } from './commonSchemas'
 
 export const emailSchema = z.object({
@@ -12,7 +13,10 @@ export const emailSchema = z.object({
 export const passwordSchema = z.object({
   password: z
     .string('Password is required')
-    .min(6, 'Password must be at least 6 characters')
+    .min(
+      validationLimits.password.minLength,
+      `Password must be at least ${validationLimits.password.minLength} characters`,
+    )
     .regex(
       /^(?=.*[a-z])(?=.*\d)/,
       'Password must contain at least one letter and one number',
@@ -25,7 +29,7 @@ export const tokenSchema = z.object({
 
 export const loginSchema = z.strictObject({
   ...emailSchema.shape,
-  ...passwordSchema.shape,
+  password: z.string().min(1, 'Password is required'),
 })
 
 export const registerSchema = z.object({

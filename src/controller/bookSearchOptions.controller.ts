@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
-import { getBookSearchOptions } from '@/services'
-import { API } from '@/constants'
+import { getBookSearchOptions } from '@/services/bookSearchOptions.service'
+import { API } from '@/constants/paths'
 
 export const bookSearchOptions = new Hono()
 

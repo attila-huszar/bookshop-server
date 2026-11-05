@@ -1,57 +1,55 @@
 {
   "name": "bookshop-server",
-  "module": "app.ts",
+  "module": "src/server.ts",
   "type": "module",
   "scripts": {
     "dev": "concurrently -k -n client,docker \"bun run --cwd ../bookshop-client dev:client\" \"bun run docker:dev\" --teardown \"docker compose stop\"",
-    "dev:setup": "cross-env SETUP=true bun run dev",
     "docker:dev": "cross-env NODE_ENV=development BUN_RUN_MODE=--watch NGROK_AUTHTOKEN= docker compose up --build --abort-on-container-exit",
-    "docker:setup": "cross-env SETUP=true docker compose up --build",
+    "setup": "bun src/scripts/setup.ts",
     "lint": "bun --bun eslint . --max-warnings 0",
     "typecheck": "bun --bun tsc --noEmit",
     "format": "prettier --write .",
-    "format:check": "prettier --check .",
-    "migrate": "bun src/database/migrate.ts",
-    "seed": "bun src/database/seed.ts"
-  },
-  "bun": {
-    "test": {
-      "preload": [
-        "src/tests/test-setup.ts"
-      ]
-    }
+    "format:check": "prettier --check ."
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1161.0",
+    "@aws-sdk/lib-storage": "^3.1161.0",
     "@hono/bun": "^1.0.1",
     "@ngrok/ngrok": "^1.7.0",
-    "bullmq": "^6.3.15",
+    "bullmq": "^6.7.0",
     "drizzle-orm": "^0.45.4",
     "drizzle-zod": "^0.8.3",
-    "hono": "^4.13.13",
+    "hono": "^4.13.16",
     "hono-rate-limiter": "^0.5.4",
     "http-status": "^2.1.0",
     "ioredis": "^6.0.0",
     "mjml": "^5.4.1",
-    "mongoose": "^9.11.2",
-    "nodemailer": "^10.1.1",
-    "stripe": "^23.0.0",
+    "mongoose": "^9.11.4",
+    "nodemailer": "^10.3.1",
+    "sharp": "^0.35.5",
+    "stripe": "^23.1.0",
     "zod": "^4.6.7"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@trivago/prettier-plugin-sort-imports": "^6.0.2",
-    "@types/bun": "^1.4.3",
-    "@types/mjml": "^5.0.0",
+    "@types/bun": "^1.4.4",
+    "@types/mjml": "^5.4.2",
     "concurrently": "^10.0.6",
     "cross-env": "^10.1.0",
     "drizzle-kit": "^0.31.11",
     "eslint-import-resolver-typescript": "^4.4.5",
     "eslint-plugin-import": "^2.32.0",
     "eslint-plugin-prettier": "^5.5.7",
-    "globals": "^17.13.0",
+    "globals": "^17.14.0",
     "jiti": "^2.7.0",
     "prettier": "^3.9.10",
     "typescript": "6.0.3",
-    "typescript-eslint": "^8.71.2"
+    "typescript-eslint": "^8.72.1"
+  },
+  "overrides": {
+    "@esbuild-kit/core-utils": {
+      "esbuild": "0.25.12"
+    }
   }
 }

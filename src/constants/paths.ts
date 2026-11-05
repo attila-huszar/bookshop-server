@@ -1,6 +1,7 @@
 export const API = {
   root: '/',
   health: '/health',
+  ready: '/ready',
   favicon: '/favicon.ico',
   api: '/api',
   webhooks: {
@@ -9,6 +10,7 @@ export const API = {
   },
   books: {
     root: '/books',
+    search: '/books/search',
   },
   authors: {
     root: '/authors',
@@ -21,7 +23,6 @@ export const API = {
     root: '/search_opts',
   },
   users: {
-    root: '/users',
     login: '/users/login',
     logout: '/users/logout',
     refresh: '/users/refresh',
@@ -38,13 +39,17 @@ export const API = {
   orders: {
     root: '/orders',
   },
+  terms: {
+    root: '/terms',
+    byVersion: '/terms/:version',
+  },
   payments: {
     root: '/payments',
     byId: '/payments/:paymentId',
     byIdWildcard: '/payments/:paymentId/*',
+    terms: '/payments/:paymentId/terms',
   },
   cms: {
-    root: '/cms',
     wildcard: '/cms/*',
     books: '/cms/books',
     authors: '/cms/authors',
@@ -56,6 +61,9 @@ export const API = {
     },
     emailOutbox: '/cms/email-outbox',
     productImage: '/cms/product-image',
+    terms: '/cms/terms',
+    termsHistory: '/cms/terms/history',
+    termsByVersion: '/cms/terms/:version',
   },
   logs: {
     root: '/logs',
@@ -64,3 +72,4 @@ export const API = {
 
 export const MIGRATIONS_DIR = './src/database/migrations'
 export const MODELS_DIR = './src/models'
+export const COUNTRY_CODES_FILE = './src/resources/country-codes.json'
