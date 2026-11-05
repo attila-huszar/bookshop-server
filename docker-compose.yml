@@ -12,6 +12,9 @@ x-loki-options: &loki-options
   max-size: '10m'
   max-file: '3'
   loki-pipeline-stages: |
+    - multiline:
+        firstline: '^[^[:space:]}]'
+        max_wait_time: 1s
     - json:
         expressions:
           level: level

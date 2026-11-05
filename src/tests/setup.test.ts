@@ -303,7 +303,7 @@ describe('database setup command', () => {
 
       expect(repeated.exitCode).toBe(0)
       expect(repeated.stdout).toContain('Database setup completed')
-      expect(repeated.stdout).toContain('"inserted":0')
+      expect(repeated.stdout).toContain('      "inserted": 0,\n')
       expect(snapshotSqlite(filename)).toEqual(snapshot)
     } finally {
       await rm(directory, { recursive: true, force: true })
@@ -586,7 +586,7 @@ describe.skipIf(!Bun.env.SETUP_TEST_MONGO_URL)(
         })
 
         expect(repeated.exitCode).toBe(0)
-        expect(repeated.stdout).toContain('inserted: 0')
+        expect(repeated.stdout).toContain('      "inserted": 0,\n')
         expect(await snapshotMongo(database)).toEqual(snapshot)
         expect(
           (await counters.find().toArray()).every(

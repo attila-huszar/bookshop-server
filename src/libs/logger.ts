@@ -28,7 +28,7 @@ export class Logger {
       source: this.source,
     }
 
-    console.log(JSON.stringify(logOutput))
+    console.log(JSON.stringify(logOutput, null, 2))
   }
 
   private serialize(

@@ -225,13 +225,9 @@ describe('service lifecycle integration', () => {
 
         output += decoder.decode(chunk.value)
 
-        for (const line of output.split('\n')) {
-          try {
-            const event = JSON.parse(line) as { meta?: { port?: number } }
-            port ??= event.meta?.port
-          } catch {
-            /* Wait for a complete JSON line. */
-          }
+        for (const [entry] of output.matchAll(/^\{\n[\s\S]*?^\}/gm)) {
+          const event = JSON.parse(entry) as { meta?: { port?: number } }
+          port ??= event.meta?.port
         }
       }
 

@@ -104,7 +104,7 @@ API failures use stable application codes and HTTP statuses. Validation response
 
 Sharp validates and normalizes uploaded images to WebP with input, pixel, and processing limits. Random S3 keys separate avatar/product images by database. Maintenance removes generated images older than 24 hours only when unreferenced, including by soft-deleted users; it rechecks references before deletion and excludes external URLs and other namespaces.
 
-Compose sends service logs to Loki under `job` labels; browser reports pass through the API with `source="frontend"`. Grafana provides inspection, and Cronitor monitors scheduled runs. Loki's own Docker logs use the local driver. Container logs rotate, and shipping retries/timeouts are bounded.
+Compose sends service logs to Loki under `job` labels; browser reports pass through the API with `source="frontend"`. Application loggers emit indented JSON at every level, including errors; the Loki pipeline joins multiline entries before extracting labels. Grafana provides inspection, and Cronitor monitors scheduled runs. Loki's own Docker logs use the local driver. Container logs rotate, and shipping retries/timeouts are bounded.
 
 At the default info level, logs emphasize service lifecycle, recovery, meaningful maintenance/payment activity, and failures. Successful one-off jobs clean up without a shutdown message; interruptions and failures remain visible. Routine email delivery/skip and transport readiness details use debug, while delivery outcomes remain in the outbox records. Helpers propagate errors to their request/job owner rather than logging and rethrowing them. Expected 4xx responses are quiet in both the application and proxy access logs; proxy 5xx responses remain errors.
 

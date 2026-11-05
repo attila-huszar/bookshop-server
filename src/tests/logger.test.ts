@@ -58,6 +58,8 @@ describe('structured logging', () => {
 
     const output = result.stdout.toString()
 
+    expect(output).toContain('\n  "level": "error",\n')
+    expect(output).toContain('\n    "error": {\n')
     expect(output).not.toContain('private-password')
     expect(output).not.toContain('message-private-password')
     expect(output).not.toContain('configured-private-secret')
@@ -165,11 +167,10 @@ describe('structured logging', () => {
 
       expect(result.exitCode).toBe(0)
 
-      const entries = result.stdout
-        .toString()
-        .trim()
-        .split('\n')
-        .map((line) => JSON.parse(line) as { level: string; source: string })
+      const output = result.stdout.toString()
+      const entries = [...output.matchAll(/^\{\n[\s\S]*?^\}/gm)].map(
+        ([entry]) => JSON.parse(entry) as { level: string; source: string },
+      )
 
       expect(entries.map((entry) => entry.level)).toEqual([...levels])
       expect(entries.every((entry) => entry.source === 'frontend')).toBe(true)
