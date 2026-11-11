@@ -7,6 +7,7 @@ import {
   paymentIntentRequestSchema,
   validate,
 } from '@/validation'
+import { getErrorCode } from '@/utils/error.utils'
 import { calculatePriceCents, toCents } from '@/utils/pricing.utils'
 import { orderResponse } from '@/utils/response.utils'
 import { getStripe } from '@/libs/stripe'
@@ -268,6 +269,48 @@ async function getOrCreateCheckoutOrder(
   return draftOrder
 }
 
+async function resolveCheckoutPayment(
+  order: Order,
+): Promise<StripePaymentIntent> {
+  if (order.paymentId) {
+    return await getStripe().paymentIntents.retrieve(order.paymentId)
+  }
+
+  try {
+    // Use the persisted snapshot on retries, not current prices or user details.
+    return await getStripe().paymentIntents.create(
+      {
+        amount: toCents(order.total),
+        currency: order.currency.toLowerCase(),
+        metadata: {
+          orderId: String(order.id),
+          checkoutRequestId: order.checkoutRequestId,
+        },
+      },
+      { idempotencyKey: order.checkoutRequestId },
+    )
+  } catch (error) {
+    // A concurrent request or webhook may have linked the intent while we waited.
+    const current = await ordersDB.getOrderByCheckoutRequestId(
+      order.checkoutRequestId,
+    )
+
+    if (current?.paymentId) {
+      return await getStripe().paymentIntents.retrieve(current.paymentId)
+    }
+
+    if (getErrorCode(error) === 'idempotency_key_in_use') {
+      throw new BadRequest(
+        `Checkout request ${order.checkoutRequestId} is still being prepared`,
+        PaymentErrorCode.CheckoutInProgress,
+        409,
+      )
+    }
+
+    throw error
+  }
+}
+
 export async function startCheckoutPayment(
   paymentIntentRequest: PaymentIntentRequest,
   user: PublicUser | null,
@@ -282,21 +325,15 @@ export async function startCheckoutPayment(
   let paymentIntent: StripePaymentIntent
 
   try {
-    // Use the persisted snapshot on retries, not current prices or user details.
-    paymentIntent = order.paymentId
-      ? await getStripe().paymentIntents.retrieve(order.paymentId)
-      : await getStripe().paymentIntents.create(
-          {
-            amount: toCents(order.total),
-            currency: order.currency.toLowerCase(),
-            metadata: {
-              orderId: String(order.id),
-              checkoutRequestId: order.checkoutRequestId,
-            },
-          },
-          { idempotencyKey: checkoutRequestId },
-        )
+    paymentIntent = await resolveCheckoutPayment(order)
   } catch (error) {
+    if (
+      error instanceof BadRequest &&
+      error.code === PaymentErrorCode.CheckoutInProgress
+    ) {
+      throw error
+    }
+
     // A timeout does not prove Stripe failed. Keep the order for retries and
     // webhooks, which may already have linked the intent while we were waiting.
     throw new Internal(

@@ -251,9 +251,12 @@ describe('Payments Service', () => {
 
       return Promise.reject(error)
     })
-    await rejects(startCheckoutPayment(request, null, checkoutRequestId), {
-      cause: error,
-    })
+    const recovered = await startCheckoutPayment(
+      request,
+      null,
+      checkoutRequestId,
+    )
+    expect(recovered.paymentId).toBe(paymentIntent.id)
     mockOrdersDB.linkPaymentIntent.mockResolvedValueOnce(
       createOrder({ paymentId: paymentIntent.id }),
     )
@@ -263,6 +266,105 @@ describe('Payments Service', () => {
       paymentIntent.id,
     )
     expect(mockOrdersDB.createCheckoutOrder).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports an overlapping unlinked checkout as retryable contention', async () => {
+    const error = Object.assign(new Error('Request already running'), {
+      code: 'idempotency_key_in_use',
+    })
+    mockStripe.paymentIntents.create.mockRejectedValueOnce(error)
+
+    await rejects(startCheckoutPayment(request, null, checkoutRequestId), {
+      status: 409,
+      code: PaymentErrorCode.CheckoutInProgress,
+    })
+
+    expect(mockOrdersDB.getOrderByCheckoutRequestId).toHaveBeenCalledTimes(2)
+    expect(mockStripe.paymentIntents.create).toHaveBeenCalledTimes(1)
+    expect(mockOrdersDB.linkPaymentIntent).not.toHaveBeenCalled()
+    expect(mockLogger.error).not.toHaveBeenCalled()
+  })
+
+  it('returns the linked payment when a concurrent creation wins a Stripe conflict', async () => {
+    mockOrdersDB.getOrderByCheckoutRequestId
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(createOrder({ paymentId: paymentIntent.id }))
+    mockStripe.paymentIntents.create.mockRejectedValueOnce(
+      Object.assign(new Error('Request already running'), {
+        code: 'idempotency_key_in_use',
+      }),
+    )
+
+    const result = await startCheckoutPayment(request, null, checkoutRequestId)
+
+    expect(result.paymentId).toBe(paymentIntent.id)
+    expect(mockStripe.paymentIntents.retrieve).toHaveBeenCalledWith(
+      paymentIntent.id,
+    )
+    expect(mockStripe.paymentIntents.create).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps unrelated Stripe errors as internal failures', async () => {
+    const error = Object.assign(new Error('Invalid parameters'), {
+      code: 'parameter_invalid_integer',
+    })
+    mockStripe.paymentIntents.create.mockRejectedValueOnce(error)
+
+    await rejects(startCheckoutPayment(request, null, checkoutRequestId), {
+      status: 500,
+      cause: error,
+    })
+  })
+
+  it('preserves recovery lookup failures as internal errors', async () => {
+    const error = new Error('Database unavailable')
+    mockOrdersDB.getOrderByCheckoutRequestId
+      .mockResolvedValueOnce(null)
+      .mockRejectedValueOnce(error)
+    mockStripe.paymentIntents.create.mockRejectedValueOnce(
+      Object.assign(new Error('Busy'), { code: 'idempotency_key_in_use' }),
+    )
+
+    await rejects(startCheckoutPayment(request, null, checkoutRequestId), {
+      status: 500,
+      cause: error,
+    })
+  })
+
+  it('preserves retrieval failures for a concurrently linked payment', async () => {
+    const error = new Error('Stripe unavailable')
+    mockOrdersDB.getOrderByCheckoutRequestId
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(createOrder({ paymentId: paymentIntent.id }))
+    mockStripe.paymentIntents.create.mockRejectedValueOnce(
+      new Error('Lost response'),
+    )
+    mockStripe.paymentIntents.retrieve.mockRejectedValueOnce(error)
+
+    await rejects(startCheckoutPayment(request, null, checkoutRequestId), {
+      status: 500,
+      cause: error,
+    })
+    expect(mockStripe.paymentIntents.create).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects a recovered canceled intent without replacing it', async () => {
+    mockOrdersDB.getOrderByCheckoutRequestId
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(createOrder({ paymentId: paymentIntent.id }))
+    mockStripe.paymentIntents.create.mockRejectedValueOnce(
+      new Error('Lost response'),
+    )
+    mockStripe.paymentIntents.retrieve.mockResolvedValueOnce({
+      ...paymentIntent,
+      status: 'canceled',
+    })
+
+    await rejects(startCheckoutPayment(request, null, checkoutRequestId), {
+      status: 410,
+      code: PaymentErrorCode.CheckoutEnded,
+    })
+    expect(mockOrdersDB.linkPaymentIntent).not.toHaveBeenCalled()
   })
 
   it('uses the winning draft snapshot when concurrent creates share a request key', async () => {

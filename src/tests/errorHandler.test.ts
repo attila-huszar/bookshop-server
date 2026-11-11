@@ -7,6 +7,7 @@ import { BadRequest, Internal, NotFound, Unauthorized } from '@/errors'
 import { errorHandler } from '@/errors/errorHandler'
 import {
   AuthErrorCode,
+  PaymentErrorCode,
   TermsErrorCode,
   UserErrorCode,
   ValidationRule,
@@ -40,6 +41,23 @@ describe('central HTTP error handling', () => {
 
     expect(response.status).toBe(400)
     expect(await response.json()).toEqual({ code: 'EMAIL_ALREADY_EXISTS' })
+    expectNoLogs()
+  })
+
+  it('returns checkout contention as a quiet 409 with only the stable code', async () => {
+    const app = new Hono().onError((error, c) => errorHandler(c, error))
+    app.post('/payments', () => {
+      throw new BadRequest(
+        'Private checkout request ID',
+        PaymentErrorCode.CheckoutInProgress,
+        409,
+      )
+    })
+
+    const response = await app.request('/payments', { method: 'POST' })
+
+    expect(response.status).toBe(409)
+    expect(await response.json()).toEqual({ code: 'CHECKOUT_IN_PROGRESS' })
     expectNoLogs()
   })
 

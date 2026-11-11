@@ -58,6 +58,7 @@ export const enum PaymentErrorCode {
   AccessDenied = 'PAYMENT_ACCESS_DENIED',
   PriceConflict = 'PRICE_CONFLICT',
   CheckoutEnded = 'CHECKOUT_ENDED',
+  CheckoutInProgress = 'CHECKOUT_IN_PROGRESS',
   AlreadyCanceled = 'PAYMENT_ALREADY_CANCELED',
   AlreadySucceeded = 'PAYMENT_ALREADY_SUCCEEDED',
 }
