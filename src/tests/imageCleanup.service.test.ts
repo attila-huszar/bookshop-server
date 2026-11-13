@@ -3,7 +3,7 @@ import { rejects } from 'node:assert/strict'
 import { collectUnusedImages } from '@/services/imageCleanup.service'
 
 const now = Date.parse('2026-10-29T20:00:00Z')
-const prefix = 'product-images/sqlite/'
+const prefix = 'product-images/mongo/bookshop-dev/'
 const first = `${prefix}00000000-0000-4000-8000-000000000001.webp`
 const second = `${prefix}00000000-0000-4000-8000-000000000002.webp`
 const urlForKey = (key: string) => `https://assets.test/${key}`
@@ -37,7 +37,15 @@ describe('unused image cleanup', () => {
         { key: first, lastModified: old },
         { key: second, lastModified: new Date(now).toISOString() },
         { key: `${prefix}legacy-cover.png`, lastModified: old },
-        { key: first.replace('sqlite', 'mongo'), lastModified: old },
+        { key: first.replace('bookshop-dev', 'bookshop'), lastModified: old },
+        {
+          key: first.replace('mongo/bookshop-dev', 'sqlite'),
+          lastModified: old,
+        },
+        {
+          key: first.replace('mongo/bookshop-dev', 'mongo'),
+          lastModified: old,
+        },
         {
           key: first.replace('000000000001', '000000000003'),
           lastModified: 'invalid',

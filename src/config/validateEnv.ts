@@ -32,6 +32,7 @@ export function validateDatabaseEnv(): void {
       throw new Error('MongoDB requires DB_MONGO_URL')
     }
     validateMongoUrl(env.dbMongoUrl)
+    void env.databaseNamespace
   } else if (!env.dbSqliteFile.trim()) {
     throw new Error('DB_SQLITE_FILE must not be empty')
   }

@@ -81,6 +81,7 @@ async function main(context: ProcessContext): Promise<void> {
 
   const result = await backupToStorage({
     backupType,
+    namespace: env.databaseNamespace,
     retention: {
       daily: Number(env.backupRetentionDaily),
       weekly: Number(env.backupRetentionWeekly),

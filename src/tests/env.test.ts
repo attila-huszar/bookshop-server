@@ -8,12 +8,16 @@ async function readConfig(input: {
   mode?: string
   dbRepo?: string
   role?: ProcessRole
+  mongoUrl?: string
+  readNamespace?: boolean
 }) {
   const childEnv: NodeJS.ProcessEnv = {
     ...process.env,
     DB_REPO: input.dbRepo ?? 'MONGO',
-    DB_MONGO_URL: 'mongodb://mongo.test/bookshop',
+    DB_MONGO_URL: input.mongoUrl ?? 'mongodb://mongo.test/bookshop',
     DB_SQLITE_FILE: ':memory:',
+    ADMIN_EMAIL: 'admin@example.test',
+    ADMIN_PASSWORD: 'unused-test-password',
     CLIENT_BASE_URL: 'https://bookshop.test',
     COOKIE_SECRET: 'test-cookie',
     ACCESS_TOKEN_SECRET: 'test-access',
@@ -44,7 +48,9 @@ async function readConfig(input: {
       '); validateEnv(' +
       JSON.stringify(input.role) +
       '); console.log("VALID")'
-    : 'console.log(env.mongoBackupMode)'
+    : input.readNamespace
+      ? 'console.log(env.databaseNamespace)'
+      : 'console.log(env.mongoBackupMode)'
   const child = Bun.spawn(
     [
       process.execPath,
@@ -118,4 +124,49 @@ describe('validated environment enums', () => {
     expect(result.stdout).toBe('IMPORTED')
     expect(result.stderr).toContain('Invalid MONGO_BACKUP_MODE')
   })
+})
+
+describe('database storage isolation', () => {
+  it.each(['bookshop', 'bookshop-dev'])(
+    'scopes Mongo storage to the selected database: %s',
+    async (database) => {
+      expect(
+        await readConfig({
+          mongoUrl: `mongodb+srv://user:private-password@cluster.test/${database}?authSource=admin`,
+          readNamespace: true,
+        }),
+      ).toEqual({
+        code: 0,
+        stdout: `IMPORTED\nmongo/${database}`,
+        stderr: '',
+      })
+    },
+  )
+
+  it('keeps SQLite storage independent of Mongo settings', async () => {
+    expect(
+      await readConfig({
+        dbRepo: 'SQLITE',
+        mongoUrl: 'invalid',
+        readNamespace: true,
+      }),
+    ).toEqual({ code: 0, stdout: 'IMPORTED\nsqlite', stderr: '' })
+  })
+
+  it.each<ProcessRole>(['api', 'worker', 'maintenance', 'backup', 'setup'])(
+    'rejects an implicit Mongo database before %s starts',
+    async (role) => {
+      const result = await readConfig({
+        role,
+        mongoUrl:
+          'mongodb://user:private-password@mongo.test/?authSource=admin',
+      })
+
+      expect(result.code).not.toBe(0)
+      expect(result.stderr).toContain(
+        'DB_MONGO_URL must include an explicit database name',
+      )
+      expect(result.stderr).not.toContain('private-password')
+    },
+  )
 })

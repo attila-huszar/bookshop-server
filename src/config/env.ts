@@ -1,3 +1,4 @@
+import { parseMongoURI } from '@/utils/db.utils'
 import { authTiming } from '@/constants/auth'
 import { backupRetentionPolicy } from '@/constants/backup'
 import { DB_REPO, MongoBackupMode } from '@/types/enums'
@@ -31,6 +32,19 @@ export const env = {
   },
   dbSqliteFile: Bun.env.DB_SQLITE_FILE ?? 'data/db.sqlite',
   dbMongoUrl: Bun.env.DB_MONGO_URL,
+  get databaseNamespace(): string {
+    if (this.dbRepo === DB_REPO.SQLITE) {
+      return 'sqlite'
+    }
+
+    const { database } = parseMongoURI(this.dbMongoUrl ?? '')
+
+    if (!database) {
+      throw new Error('DB_MONGO_URL must include an explicit database name')
+    }
+
+    return `mongo/${encodeURIComponent(database)}`
+  },
   databaseCoordinationDirectory: Bun.env.BOOKSHOP_DATABASE_COORDINATION_DIR,
   get mongoBackupMode(): MongoBackupMode {
     return parseEnum('MONGO_BACKUP_MODE', rawMongoBackupMode, [

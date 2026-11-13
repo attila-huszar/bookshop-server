@@ -4,7 +4,7 @@ import { Folder } from '@/types/enums'
 import { prepareImage } from './image.utils'
 
 export function imageStoragePrefix(folder: Folder): string {
-  return `${folder}/${env.dbRepo.toLowerCase()}/`
+  return `${folder}/${env.databaseNamespace}/`
 }
 
 export function storedImageUrl(key: string): string {

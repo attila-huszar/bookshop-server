@@ -24,6 +24,7 @@ export type BackupStorage = {
 
 type BackupInput = {
   backupType: DB_REPO
+  namespace: string
   retention: { daily: number; weekly: number; monthly: number }
   dryRun?: boolean
   withArchive: WithBackupArchive
@@ -100,7 +101,7 @@ export async function backupToStorage(input: BackupInput): Promise<{
     throw new Error('Invalid backup retention time')
   }
 
-  const prefix = `backups/${input.backupType.toLowerCase()}/`
+  const prefix = `backups/${input.namespace}/`
   const extension = archiveExtensions[input.backupType]
   const timestamp = new Date(now).toISOString().replace(/[:.]/g, '-')
   const key = `${prefix}${timestamp}-${crypto.randomUUID()}${extension}`

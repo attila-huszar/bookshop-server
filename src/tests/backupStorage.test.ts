@@ -32,6 +32,7 @@ function setup(backupType: DB_REPO) {
 
   return {
     backupType,
+    namespace: backupType === DB_REPO.MONGO ? 'mongo/bookshop-dev' : 'sqlite',
     retention: { daily: 1, weekly: 0, monthly: 0 },
     now,
     withArchive: mock<BackupInput['withArchive']>(async (consume) => {
@@ -83,7 +84,7 @@ describe.each([DB_REPO.MONGO, DB_REPO.SQLITE])(
 
     it('uploads a complete archive using its database namespace and extension', async () => {
       const input = setup(backupType)
-      const prefix = `backups/${backupType.toLowerCase()}/`
+      const prefix = `backups/${input.namespace}/`
       const extension =
         backupType === DB_REPO.MONGO ? '.archive.gz' : '.sqlite.gz'
       const first = `${prefix}2026-10-26T02-30-00-000Z-00000000-0000-4000-8000-000000000001${extension}`
@@ -114,7 +115,7 @@ describe.each([DB_REPO.MONGO, DB_REPO.SQLITE])(
 // Retention and failure handling share one implementation for both archive types.
 describe('backup storage retention', () => {
   const backupType = DB_REPO.MONGO
-  const prefix = 'backups/mongo/'
+  const prefix = 'backups/mongo/bookshop-dev/'
   const extension = '.archive.gz'
   const otherExtension = '.sqlite.gz'
   const first = `${prefix}2026-10-26T02-30-00-000Z-00000000-0000-4000-8000-000000000001${extension}`
@@ -154,6 +155,10 @@ describe('backup storage retention', () => {
           },
           {
             key: first.replace(prefix, 'backups/other/'),
+            lastModified: old,
+          },
+          {
+            key: first.replace('bookshop-dev', 'bookshop'),
             lastModified: old,
           },
           { key: `${prefix}manual.archive.gz`, lastModified: old },
