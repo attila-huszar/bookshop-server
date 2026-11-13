@@ -197,7 +197,7 @@ describe('S3 backup adapter', () => {
               'backups/sqlite/cancelled.sqlite.gz',
               archive,
             ),
-            /Upload request interrupted/,
+            { name: 'AbortError' },
           )
         },
       )
