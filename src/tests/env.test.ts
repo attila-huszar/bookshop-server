@@ -10,9 +10,11 @@ async function readConfig(input: {
   role?: ProcessRole
   mongoUrl?: string
   readNamespace?: boolean
+  nodeEnv?: string
 }) {
   const childEnv: NodeJS.ProcessEnv = {
     ...process.env,
+    NODE_ENV: input.nodeEnv ?? 'development',
     DB_REPO: input.dbRepo ?? 'MONGO',
     DB_MONGO_URL: input.mongoUrl ?? 'mongodb://mongo.test/bookshop',
     DB_SQLITE_FILE: ':memory:',
@@ -127,13 +129,20 @@ describe('validated environment enums', () => {
 })
 
 describe('database storage isolation', () => {
-  it.each(['bookshop', 'bookshop-dev'])(
-    'scopes Mongo storage to the selected database: %s',
-    async (database) => {
+  it.each([
+    { database: 'bookshop-dev', nodeEnv: 'development' },
+    { database: 'bookshop-prod', nodeEnv: 'production' },
+    { database: 'bookshop-dev', nodeEnv: 'production' },
+    { database: 'bookshop-prod', nodeEnv: 'development' },
+    { database: 'bookshop', nodeEnv: 'production' },
+  ])(
+    'scopes Mongo storage to $database when NODE_ENV=$nodeEnv',
+    async ({ database, nodeEnv }) => {
       expect(
         await readConfig({
           mongoUrl: `mongodb+srv://user:private-password@cluster.test/${database}?authSource=admin`,
           readNamespace: true,
+          nodeEnv,
         }),
       ).toEqual({
         code: 0,
