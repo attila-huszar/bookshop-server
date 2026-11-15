@@ -10,6 +10,8 @@ async function readConfig(input: {
   role?: ProcessRole
   mongoUrl?: string
   readNamespace?: boolean
+  backupRetention?: string
+  readRetention?: boolean
   nodeEnv?: string
 }) {
   const childEnv: NodeJS.ProcessEnv = {
@@ -38,6 +40,12 @@ async function readConfig(input: {
     BACKUP_RETENTION_DRY_RUN: 'false',
   }
 
+  if (input.backupRetention === undefined) {
+    delete childEnv.BACKUP_RETENTION
+  } else {
+    childEnv.BACKUP_RETENTION = input.backupRetention
+  }
+
   if (input.mode === undefined) {
     delete childEnv.MONGO_BACKUP_MODE
   } else {
@@ -50,9 +58,11 @@ async function readConfig(input: {
       '); validateEnv(' +
       JSON.stringify(input.role) +
       '); console.log("VALID")'
-    : input.readNamespace
-      ? 'console.log(env.databaseNamespace)'
-      : 'console.log(env.mongoBackupMode)'
+    : input.readRetention
+      ? 'console.log(JSON.stringify(env.backupRetention))'
+      : input.readNamespace
+        ? 'console.log(env.databaseNamespace)'
+        : 'console.log(env.mongoBackupMode)'
   const child = Bun.spawn(
     [
       process.execPath,
@@ -126,6 +136,54 @@ describe('validated environment enums', () => {
     expect(result.stdout).toBe('IMPORTED')
     expect(result.stderr).toContain('Invalid MONGO_BACKUP_MODE')
   })
+})
+
+describe('backup retention configuration', () => {
+  it.each([
+    { value: undefined, expected: { daily: 7, weekly: 4, monthly: 12 } },
+    { value: '3,2,6', expected: { daily: 3, weekly: 2, monthly: 6 } },
+    { value: ' 1, 0, 0 ', expected: { daily: 1, weekly: 0, monthly: 0 } },
+  ])('parses retention $value', async ({ value, expected }) => {
+    expect(
+      await readConfig({ backupRetention: value, readRetention: true }),
+    ).toEqual({
+      code: 0,
+      stdout: 'IMPORTED\n' + JSON.stringify(expected),
+      stderr: '',
+    })
+  })
+
+  it.each([
+    '',
+    '7,4',
+    '7,4,12,1',
+    '7,,12',
+    '0,4,12',
+    '7,-1,12',
+    '7,4,1.5',
+    '7,4,no',
+    '7,4,9007199254740992',
+  ])('rejects invalid retention before backup starts: %s', async (value) => {
+    const result = await readConfig({
+      backupRetention: value,
+      role: 'backup',
+    })
+
+    expect(result.code).not.toBe(0)
+    expect(result.stdout).toBe('IMPORTED')
+    expect(result.stderr).toContain('BACKUP_RETENTION must be')
+  })
+
+  it.each<ProcessRole>(['api', 'worker'])(
+    'keeps unused invalid backup retention out of %s startup',
+    async (role) => {
+      expect(await readConfig({ backupRetention: 'invalid', role })).toEqual({
+        code: 0,
+        stdout: 'IMPORTED\nVALID',
+        stderr: '',
+      })
+    },
+  )
 })
 
 describe('database storage isolation', () => {

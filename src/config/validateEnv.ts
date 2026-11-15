@@ -90,6 +90,8 @@ export function validateEnv(role: ProcessRole): typeof env {
     throw new Error('MAILER_PORT must be an integer between 1 and 65535')
   }
   if (role === 'backup') {
+    void env.backupRetention
+
     if (env.dbRepo === DB_REPO.MONGO) {
       // Reading this property validates the setting only for Mongo backups.
       void env.mongoBackupMode

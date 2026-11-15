@@ -5,6 +5,7 @@ import { DB_REPO, MongoBackupMode } from '@/types/enums'
 
 const rawDbRepo = Bun.env.DB_REPO ?? DB_REPO.MONGO
 const rawMongoBackupMode = Bun.env.MONGO_BACKUP_MODE ?? MongoBackupMode.Logical
+const rawBackupRetention = Bun.env.BACKUP_RETENTION
 
 export const env = {
   adminEmail: Bun.env.ADMIN_EMAIL,
@@ -53,12 +54,36 @@ export const env = {
     ])
   },
 
-  backupRetentionDaily:
-    Bun.env.BACKUP_RETENTION_DAILY ?? String(backupRetentionPolicy.daily),
-  backupRetentionWeekly:
-    Bun.env.BACKUP_RETENTION_WEEKLY ?? String(backupRetentionPolicy.weekly),
-  backupRetentionMonthly:
-    Bun.env.BACKUP_RETENTION_MONTHLY ?? String(backupRetentionPolicy.monthly),
+  get backupRetention(): { daily: number; weekly: number; monthly: number } {
+    const counts = (
+      rawBackupRetention ??
+      [
+        backupRetentionPolicy.daily,
+        backupRetentionPolicy.weekly,
+        backupRetentionPolicy.monthly,
+      ].join(',')
+    )
+      .split(',')
+      .map((count) => count.trim())
+    const retention = {
+      daily: Number(counts[0]),
+      weekly: Number(counts[1]),
+      monthly: Number(counts[2]),
+    }
+
+    if (
+      counts.length !== 3 ||
+      counts.some((count) => !/^\d+$/.test(count)) ||
+      Object.values(retention).some((count) => !Number.isSafeInteger(count)) ||
+      retention.daily < 1
+    ) {
+      throw new Error(
+        'BACKUP_RETENTION must be daily,weekly,monthly integer counts (daily >= 1; weekly and monthly >= 0)',
+      )
+    }
+
+    return retention
+  },
   backupRetentionDryRun: Bun.env.BACKUP_RETENTION_DRY_RUN === 'true',
 
   jwtAccessSecret: Bun.env.ACCESS_TOKEN_SECRET,
