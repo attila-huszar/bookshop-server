@@ -1,3 +1,4 @@
+import type { ClientSession } from 'mongoose'
 import { EmailOutboxModel, UserModel } from '@/models/mongo'
 import { accountEmailIntent } from '@/utils/emailOutbox.utils'
 import { EMAIL } from '@/constants/email'
@@ -9,6 +10,7 @@ import type {
   UserRegistrationInsert,
   UserUpdate,
 } from '@/types'
+import { UserErrorCode, UserRole } from '@/types/enums'
 
 /** Include soft-deleted accounts because they can be restored. */
 export async function getImageUrls(): Promise<(string | null)[]> {
@@ -96,23 +98,49 @@ export async function updateUserBy(
   field: UserLookupField,
   value: string | number,
   fields: UserUpdate,
-): Promise<User | null> {
+): Promise<User | null | UserErrorCode.LastAdminRequired> {
   const updates =
     fields.verified === true
       ? { ...fields, verificationToken: null, verificationExpires: null }
       : fields
 
-  const user = await UserModel.findOneAndUpdate(
-    { [field]: value, deletedAt: null },
-    updates,
-    {
-      returnDocument: 'after',
-    },
-  )
-    .lean()
-    .exec()
+  const saveUser = async (session?: ClientSession): Promise<User | null> => {
+    const user = await UserModel.findOneAndUpdate(
+      { [field]: value, deletedAt: null },
+      updates,
+      { returnDocument: 'after', ...(session ? { session } : {}) },
+    )
+      .lean()
+      .exec()
 
-  return user ?? null
+    return user ?? null
+  }
+
+  if (fields.role !== UserRole.User) {
+    return await saveUser()
+  }
+
+  return await UserModel.db.transaction(async (session) => {
+    const filter = { role: UserRole.Admin, deletedAt: null }
+
+    // Share writes with deletion so concurrent removals cannot each remove an admin.
+    await UserModel.updateMany(
+      filter,
+      { $inc: { __v: 1 } },
+      { session, timestamps: false },
+    ).exec()
+
+    const admins = await UserModel.find(filter).session(session).lean().exec()
+    const removingAdminCount = admins.filter(
+      (admin) => admin[field] === value,
+    ).length
+
+    if (removingAdminCount > 0 && removingAdminCount >= admins.length) {
+      return UserErrorCode.LastAdminRequired
+    }
+
+    return await saveUser(session)
+  })
 }
 
 export async function setPasswordResetToken(
@@ -188,13 +216,42 @@ export async function getAllUsers(): Promise<User[]> {
 export async function setUsersDeleted(
   userIds: number[],
   deleted: boolean,
-): Promise<number> {
-  const result = await UserModel.updateMany(
-    { id: { $in: userIds }, deletedAt: deleted ? null : { $ne: null } },
-    { $set: { deletedAt: deleted ? new Date() : null } },
-  ).exec()
+): Promise<number | UserErrorCode.LastAdminRequired> {
+  const saveDeletedState = async (session?: ClientSession) => {
+    const result = await UserModel.updateMany(
+      { id: { $in: userIds }, deletedAt: deleted ? null : { $ne: null } },
+      { $set: { deletedAt: deleted ? new Date() : null } },
+      session ? { session } : undefined,
+    ).exec()
 
-  return result.modifiedCount
+    return result.modifiedCount
+  }
+
+  if (!deleted) {
+    return await saveDeletedState()
+  }
+
+  return await UserModel.db.transaction(async (session) => {
+    const filter = { role: UserRole.Admin, deletedAt: null }
+
+    // Share writes with demotion so concurrent removals cannot each remove an admin.
+    await UserModel.updateMany(
+      filter,
+      { $inc: { __v: 1 } },
+      { session, timestamps: false },
+    ).exec()
+
+    const admins = await UserModel.find(filter).session(session).lean().exec()
+    const removingAdminCount = admins.filter((admin) =>
+      userIds.includes(admin.id),
+    ).length
+
+    if (removingAdminCount > 0 && removingAdminCount >= admins.length) {
+      return UserErrorCode.LastAdminRequired
+    }
+
+    return await saveDeletedState(session)
+  })
 }
 
 export async function cleanupExpiredPasswordResetTokens(): Promise<number> {

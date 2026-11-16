@@ -36,7 +36,7 @@ import type {
   CmsUserUpdate,
   Order,
 } from '@/types'
-import { Folder, UserRole } from '@/types'
+import { Folder } from '@/types'
 import { UserErrorCode } from '@/types/enums'
 
 // --- READ --- //
@@ -201,6 +201,13 @@ export async function updateUser(
     validatedUser,
   )
 
+  if (updatedUser === UserErrorCode.LastAdminRequired) {
+    throw new BadRequest(
+      'Cannot demote the last active administrator.',
+      updatedUser,
+    )
+  }
+
   if (!updatedUser) {
     throw new NotFound(`User with uuid ${userUuid} not found`)
   }
@@ -239,36 +246,29 @@ export async function restoreOrders(input: CmsOrderIds): Promise<number> {
 
 export async function restoreUsers(input: CmsUserIds): Promise<number> {
   const { userIds } = validate(cmsUserIdsSchema, input)
+  const restoredCount = await usersDB.setUsersDeleted(userIds, false)
 
-  return await usersDB.setUsersDeleted(userIds, false)
+  if (restoredCount === UserErrorCode.LastAdminRequired) {
+    throw new Internal(
+      'User restoration unexpectedly returned a blocked result',
+    )
+  }
+
+  return restoredCount
 }
 
 export async function softDeleteUsers(input: CmsUserIds): Promise<number> {
   const { userIds } = validate(cmsUserIdsSchema, input)
+  const deletedCount = await usersDB.setUsersDeleted(userIds, true)
 
-  const activeUsers = (await usersDB.getAllUsers()).filter(
-    (user) => !user.deletedAt,
-  )
-
-  const usersToDelete = activeUsers.filter((user) => userIds.includes(user.id))
-  const deletingAdmins = usersToDelete.filter(
-    (user) => user.role === UserRole.Admin,
-  )
-
-  if (deletingAdmins.length > 0) {
-    const totalAdmins = activeUsers.filter(
-      (user) => user.role === UserRole.Admin,
-    ).length
-
-    if (totalAdmins - deletingAdmins.length === 0) {
-      throw new BadRequest(
-        'Cannot delete the last admin. At least one admin must remain in the system.',
-        UserErrorCode.LastAdminRequired,
-      )
-    }
+  if (deletedCount === UserErrorCode.LastAdminRequired) {
+    throw new BadRequest(
+      'Cannot delete the last active administrator.',
+      deletedCount,
+    )
   }
 
-  return await usersDB.setUsersDeleted(userIds, true)
+  return deletedCount
 }
 
 // --- UPLOADS --- //

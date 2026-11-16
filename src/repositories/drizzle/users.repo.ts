@@ -12,6 +12,7 @@ import type {
   UserRegistrationInsert,
   UserUpdate,
 } from '@/types'
+import { UserErrorCode, UserRole } from '@/types/enums'
 
 /** Include soft-deleted accounts because they can be restored. */
 export async function getImageUrls(): Promise<(string | null)[]> {
@@ -93,19 +94,46 @@ export async function updateUserBy(
   field: UserLookupField,
   value: string | number,
   fields: UserUpdate,
-): Promise<User | null> {
+): Promise<User | null | UserErrorCode.LastAdminRequired> {
   const updates =
     fields.verified === true
       ? { ...fields, verificationToken: null, verificationExpires: null }
       : fields
 
-  const [user] = await sqlite
-    .update(usersTable)
-    .set(updates)
-    .where(and(eq(usersTable[field], value), isNull(usersTable.deletedAt)))
-    .returning()
+  return sqlite.transaction(
+    (tx) => {
+      if (fields.role === UserRole.User) {
+        const admins = tx
+          .select()
+          .from(usersTable)
+          .where(
+            and(
+              eq(usersTable.role, UserRole.Admin),
+              isNull(usersTable.deletedAt),
+            ),
+          )
+          .all()
 
-  return user ?? null
+        const removingAdminCount = admins.filter(
+          (admin) => admin[field] === value,
+        ).length
+
+        if (removingAdminCount > 0 && removingAdminCount >= admins.length) {
+          return UserErrorCode.LastAdminRequired
+        }
+      }
+
+      const [user] = tx
+        .update(usersTable)
+        .set(updates)
+        .where(and(eq(usersTable[field], value), isNull(usersTable.deletedAt)))
+        .returning()
+        .all()
+
+      return user ?? null
+    },
+    { behavior: 'immediate' },
+  )
 }
 
 export async function setPasswordResetToken(
@@ -179,21 +207,48 @@ export async function getAllUsers(): Promise<User[]> {
 export async function setUsersDeleted(
   userIds: number[],
   deleted: boolean,
-): Promise<number> {
-  const rows = await sqlite
-    .update(usersTable)
-    .set({ deletedAt: deleted ? new Date() : null })
-    .where(
-      and(
-        inArray(usersTable.id, userIds),
-        deleted
-          ? isNull(usersTable.deletedAt)
-          : isNotNull(usersTable.deletedAt),
-      ),
-    )
-    .returning({ id: usersTable.id })
+): Promise<number | UserErrorCode.LastAdminRequired> {
+  return sqlite.transaction(
+    (tx) => {
+      if (deleted) {
+        const admins = tx
+          .select({ id: usersTable.id })
+          .from(usersTable)
+          .where(
+            and(
+              eq(usersTable.role, UserRole.Admin),
+              isNull(usersTable.deletedAt),
+            ),
+          )
+          .all()
 
-  return rows.length
+        const removingAdminCount = admins.filter((admin) =>
+          userIds.includes(admin.id),
+        ).length
+
+        if (removingAdminCount > 0 && removingAdminCount >= admins.length) {
+          return UserErrorCode.LastAdminRequired
+        }
+      }
+
+      const rows = tx
+        .update(usersTable)
+        .set({ deletedAt: deleted ? new Date() : null })
+        .where(
+          and(
+            inArray(usersTable.id, userIds),
+            deleted
+              ? isNull(usersTable.deletedAt)
+              : isNotNull(usersTable.deletedAt),
+          ),
+        )
+        .returning({ id: usersTable.id })
+        .all()
+
+      return rows.length
+    },
+    { behavior: 'immediate' },
+  )
 }
 
 export async function cleanupExpiredPasswordResetTokens(): Promise<number> {

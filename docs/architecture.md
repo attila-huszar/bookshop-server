@@ -49,7 +49,7 @@ Authenticated requests and token refresh require an active, non-deleted account;
 
 Verification and password-reset tokens are consumed through conditional updates requiring the current token, future expiry, and active account. Marking an account verified, including through CMS, clears its verification token and expiry in the same write. The email worker checks the queued token against the current token and expiry. Repeated or superseded tokens cannot change the account.
 
-Users and orders support reversible CMS soft deletion. Deleted account emails remain reserved, and deletion protects the last active admin. Restoring an account retains its identity, password, and verification state. Catalogue deletion is permanent; payment history and order reconciliation remain available after order soft deletion.
+Users and orders support reversible CMS soft deletion. Deleted account emails remain reserved. Repositories check deletion and demotion of the last active admin within the write transaction and return a blocked result; services turn it into `LAST_ADMIN_REQUIRED`. Deleted admins do not count. SQLite uses an immediate transaction, and MongoDB demotions/deletions write the active admins' internal versions to prevent concurrent requests from each removing a different final admin. Restoring an account retains its identity, password, and verification state. Catalogue deletion is permanent; payment history and order reconciliation remain available after order soft deletion.
 
 ## Custom checkout
 

@@ -14,6 +14,7 @@ import {
   type UserRegistrationInsert,
   UserRole,
 } from '@/types'
+import { UserErrorCode } from '@/types/enums'
 
 const database = new Database(':memory:')
 const sqlite = drizzle(database)
@@ -1302,6 +1303,133 @@ describe('SQLite order reconciliation alerts', () => {
 })
 
 const users = await import('@/repositories/drizzle/users.repo')
+
+describe('SQLite last active administrator', () => {
+  async function createAccount(role: UserRole, deletedAt: Date | null = null) {
+    const uuid = crypto.randomUUID()
+    const account = await users.createUser({
+      uuid,
+      firstName: 'Original',
+      lastName: 'Admin',
+      email: `${uuid}@example.test`,
+      country: 'hu',
+      role,
+      verified: true,
+      address: null,
+      phone: null,
+      avatar: null,
+      deletedAt,
+    })
+
+    if (!account) {
+      throw new Error('Expected account')
+    }
+
+    return account
+  }
+
+  it('rejects demotion with other edits atomically and excludes deleted admins', async () => {
+    const admin = await createAccount(UserRole.Admin)
+    await createAccount(UserRole.Admin, new Date())
+
+    expect(
+      await users.updateUserBy('uuid', admin.uuid, {
+        role: UserRole.User,
+        firstName: 'Changed',
+      }),
+    ).toBe(UserErrorCode.LastAdminRequired)
+    expect(await users.getActiveUserBy('uuid', admin.uuid)).toEqual(admin)
+  })
+
+  it('allows demotion when another active admin remains, then protects that admin', async () => {
+    const first = await createAccount(UserRole.Admin)
+    const second = await createAccount(UserRole.Admin)
+
+    expect(
+      await users.updateUserBy('uuid', first.uuid, { role: UserRole.User }),
+    ).toMatchObject({ role: UserRole.User })
+    expect(
+      await users.updateUserBy('uuid', second.uuid, { role: UserRole.User }),
+    ).toBe(UserErrorCode.LastAdminRequired)
+  })
+
+  it('allows ordinary edits, unchanged roles and promotions', async () => {
+    const admin = await createAccount(UserRole.Admin)
+    const reader = await createAccount(UserRole.User)
+
+    expect(
+      await users.updateUserBy('uuid', admin.uuid, { firstName: 'Changed' }),
+    ).toMatchObject({ firstName: 'Changed', role: UserRole.Admin })
+    expect(
+      await users.updateUserBy('uuid', admin.uuid, { role: UserRole.Admin }),
+    ).toMatchObject({ role: UserRole.Admin })
+    expect(
+      await users.updateUserBy('uuid', reader.uuid, { role: UserRole.User }),
+    ).toMatchObject({ role: UserRole.User })
+    expect(
+      await users.updateUserBy('uuid', reader.uuid, { role: UserRole.Admin }),
+    ).toMatchObject({ role: UserRole.Admin })
+  })
+
+  it('keeps missing and deleted account updates as no-ops', async () => {
+    await createAccount(UserRole.Admin)
+    const deleted = await createAccount(UserRole.Admin, new Date())
+
+    expect(
+      await users.updateUserBy('uuid', 'missing', { role: UserRole.User }),
+    ).toBeNull()
+    expect(
+      await users.updateUserBy('uuid', deleted.uuid, { role: UserRole.User }),
+    ).toBeNull()
+  })
+
+  it('rejects a batch deletion of the last admin without deleting any selected users', async () => {
+    const admin = await createAccount(UserRole.Admin)
+    const reader = await createAccount(UserRole.User)
+    await createAccount(UserRole.Admin, new Date())
+
+    expect(await users.setUsersDeleted([admin.id, reader.id], true)).toBe(
+      UserErrorCode.LastAdminRequired,
+    )
+    expect(await users.getActiveUserBy('uuid', admin.uuid)).toEqual(admin)
+    expect(await users.getActiveUserBy('uuid', reader.uuid)).toEqual(reader)
+  })
+
+  it.each(['demotion', 'deletion'] as const)(
+    'keeps an admin when demotion overlaps another %s',
+    async (operation) => {
+      const first = await createAccount(UserRole.Admin)
+      const second = await createAccount(UserRole.Admin)
+      const results = await Promise.all([
+        users.updateUserBy('uuid', first.uuid, { role: UserRole.User }),
+        operation === 'demotion'
+          ? users.updateUserBy('uuid', second.uuid, { role: UserRole.User })
+          : users.setUsersDeleted([second.id], true),
+      ])
+
+      expect(results[0]).toMatchObject({
+        uuid: first.uuid,
+        role: UserRole.User,
+      })
+      expect(results[1]).toBe(UserErrorCode.LastAdminRequired)
+      expect(
+        (await users.getAllUsers()).filter(
+          (user) => !user.deletedAt && user.role === UserRole.Admin,
+        ),
+      ).toHaveLength(1)
+    },
+  )
+
+  it('allows restoring another admin before demoting the current admin', async () => {
+    const admin = await createAccount(UserRole.Admin)
+    const deleted = await createAccount(UserRole.Admin, new Date())
+
+    expect(await users.setUsersDeleted([deleted.id], false)).toBe(1)
+    expect(
+      await users.updateUserBy('uuid', admin.uuid, { role: UserRole.User }),
+    ).toMatchObject({ role: UserRole.User })
+  })
+})
 
 describe('SQLite transactional account emails', () => {
   const user: UserRegistrationInsert = {

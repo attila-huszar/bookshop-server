@@ -276,9 +276,9 @@ export async function updateUserProfile(
     validatedFields,
   )
 
-  if (!userUpdated) {
+  if (!userUpdated || userUpdated === UserErrorCode.LastAdminRequired) {
     throw new Internal(
-      'Profile update failed: user update returned no active user',
+      'Profile update failed: repository did not return an active user',
     )
   }
 
@@ -301,9 +301,9 @@ export async function uploadUserAvatar(
     avatar: url,
   })
 
-  if (!userUpdated) {
+  if (!userUpdated || userUpdated === UserErrorCode.LastAdminRequired) {
     throw new Internal(
-      'Avatar update failed: user update returned no active user',
+      'Avatar update failed: repository did not return an active user',
     )
   }
 
