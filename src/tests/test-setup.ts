@@ -20,6 +20,7 @@ export const mockUsersDB = {
   getAllUsers: mock(),
   setUsersDeleted: mock(),
   createUser: mock(),
+  linkGoogleAccount: mock(),
   createUserWithVerification: mock(),
   setPasswordResetToken: mock(),
   verifyUserByToken: mock(),

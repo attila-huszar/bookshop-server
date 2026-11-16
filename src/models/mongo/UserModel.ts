@@ -7,7 +7,7 @@ const userSchema = new mongoose.Schema<User>(
     id: { type: Number, unique: true, index: true, required: true },
     uuid: { type: String, unique: true, required: true },
     firstName: { type: String, required: true },
-    lastName: { type: String, required: true },
+    lastName: { type: String, default: '' },
     role: {
       type: String,
       enum: Object.values(UserRole),
@@ -15,7 +15,8 @@ const userSchema = new mongoose.Schema<User>(
       required: true,
     },
     email: { type: String, required: true, lowercase: true, trim: true },
-    password: { type: String, required: true },
+    password: { type: String, default: null },
+    googleSubject: { type: String, default: null },
     address: { type: Object, default: null },
     phone: { type: String, default: null },
     country: { type: String, required: true },
@@ -31,6 +32,13 @@ const userSchema = new mongoose.Schema<User>(
 )
 
 userSchema.plugin(autoIncrementPlugin)
+userSchema.index(
+  { googleSubject: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { googleSubject: { $type: 'string' } },
+  },
+)
 userSchema.index(
   { email: 1 },
   {

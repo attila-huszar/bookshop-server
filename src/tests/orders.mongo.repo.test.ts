@@ -854,6 +854,7 @@ describe('Mongo transactional account emails', () => {
     avatar: null,
   } satisfies UserRegistrationInsert
   const storedUser = {
+    googleSubject: null,
     ...user,
     id: 1,
     createdAt: new Date(),
@@ -873,6 +874,22 @@ describe('Mongo transactional account emails', () => {
     query.lean.mockReset().mockReturnValue(query)
     query.exec.mockReset()
     UserModel.findOneAndUpdate.mockReturnValue(query)
+  })
+
+  it('links Google only while the active account is verified and unlinked', async () => {
+    query.exec.mockResolvedValueOnce({
+      ...storedUser,
+      googleSubject: 'google-1',
+    })
+    expect(await users.linkGoogleAccount(user.uuid, 'google-1')).toMatchObject({
+      googleSubject: 'google-1',
+    })
+    expect(UserModel.findOneAndUpdate).toHaveBeenCalledWith(
+      { uuid: user.uuid, verified: true, googleSubject: null, deletedAt: null },
+      { $set: { googleSubject: 'google-1' } },
+      { returnDocument: 'after' },
+    )
+    expect(EmailOutboxModel.insertMany).not.toHaveBeenCalled()
   })
 
   it('creates verification mail from the saved user using the insert session', async () => {

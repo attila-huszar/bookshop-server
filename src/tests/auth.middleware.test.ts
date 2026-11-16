@@ -21,6 +21,7 @@ const account: User = {
   country: 'HU',
   role: UserRole.User,
   password: 'stored-password-hash',
+  googleSubject: null,
   phone: null,
   avatar: null,
   address: null,

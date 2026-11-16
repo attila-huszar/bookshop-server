@@ -51,7 +51,12 @@ export type PublicUser = Pick<
 
 export type UserLookupField = Extract<
   keyof User,
-  'id' | 'uuid' | 'email' | 'verificationToken' | 'passwordResetToken'
+  | 'id'
+  | 'uuid'
+  | 'email'
+  | 'googleSubject'
+  | 'verificationToken'
+  | 'passwordResetToken'
 >
 
 export type AuthJWTPayload = z.infer<typeof authJWTPayloadSchema>

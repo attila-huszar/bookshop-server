@@ -66,6 +66,7 @@ describe('API response boundaries', () => {
       createdAt: new Date(),
       updatedAt: new Date(),
       password: 'hash',
+      googleSubject: 'private-google-subject',
       verificationToken: 'secret',
       passwordResetToken: 'secret',
       _id: 'mongo-id',
@@ -78,6 +79,7 @@ describe('API response boundaries', () => {
     ]) {
       for (const field of [
         'password',
+        'googleSubject',
         'verificationToken',
         'passwordResetToken',
         '_id',

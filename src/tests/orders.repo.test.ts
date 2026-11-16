@@ -1321,6 +1321,54 @@ describe('SQLite transactional account emails', () => {
     phone: null,
     avatar: null,
   }
+
+  it('stores passwordless Google identities uniquely and preserves them through deletion', async () => {
+    const saved = await users.createUser({
+      ...user,
+      password: null,
+      googleSubject: 'google-1',
+      verified: true,
+    })
+    expect(saved?.password).toBeNull()
+    expect(
+      await users.getActiveUserBy('googleSubject', 'google-1'),
+    ).toMatchObject({ uuid: user.uuid })
+    await rejects(
+      users.createUser({
+        ...user,
+        uuid: 'other',
+        email: 'other@example.com',
+        googleSubject: 'google-1',
+      }),
+    )
+    await users.setUsersDeleted([saved!.id], true)
+    expect(await users.getActiveUserBy('googleSubject', 'google-1')).toBeNull()
+    await rejects(
+      users.createUser({
+        ...user,
+        uuid: 'other',
+        email: 'other@example.com',
+        googleSubject: 'google-1',
+      }),
+    )
+    await users.setUsersDeleted([saved!.id], false)
+    expect(
+      await users.getActiveUserBy('googleSubject', 'google-1'),
+    ).toMatchObject({ password: null, uuid: user.uuid })
+  })
+
+  it('links only verified, active accounts once without changing password or role', async () => {
+    const saved = await users.createUser(user)
+    expect(await users.linkGoogleAccount(user.uuid, 'google-1')).toBeNull()
+    await users.updateUserBy('uuid', user.uuid, { verified: true })
+    expect(await users.linkGoogleAccount(user.uuid, 'google-1')).toMatchObject({
+      password: 'hash',
+      role: user.role,
+    })
+    expect(await users.linkGoogleAccount(user.uuid, 'google-2')).toBeNull()
+    await users.setUsersDeleted([saved!.id], true)
+    expect(await users.linkGoogleAccount(user.uuid, 'google-3')).toBeNull()
+  })
   it('commits registration and reset messages alongside their tokens', async () => {
     await users.createUserWithVerification(user)
     expect(

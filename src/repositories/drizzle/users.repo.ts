@@ -52,6 +52,27 @@ export async function createUser(values: UserInsert): Promise<User | null> {
   return user ?? null
 }
 
+/** Link only a verified account that has not already chosen a Google identity. */
+export async function linkGoogleAccount(
+  uuid: string,
+  googleSubject: string,
+): Promise<User | null> {
+  const [user] = await sqlite
+    .update(usersTable)
+    .set({ googleSubject })
+    .where(
+      and(
+        eq(usersTable.uuid, uuid),
+        eq(usersTable.verified, true),
+        isNull(usersTable.googleSubject),
+        isNull(usersTable.deletedAt),
+      ),
+    )
+    .returning()
+
+  return user ?? null
+}
+
 export async function createUserWithVerification(
   values: UserRegistrationInsert,
 ): Promise<User | null> {

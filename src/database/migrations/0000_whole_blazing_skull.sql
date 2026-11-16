@@ -81,7 +81,8 @@ CREATE TABLE `users` (
 	`last_name` text NOT NULL,
 	`role` text DEFAULT 'user' NOT NULL,
 	`email` text NOT NULL,
-	`password` text NOT NULL,
+	`password` text,
+	`google_subject` text,
 	`address` text,
 	`phone` text,
 	`country` text NOT NULL,
@@ -97,6 +98,7 @@ CREATE TABLE `users` (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `users_uuid_unique` ON `users` (`uuid`);--> statement-breakpoint
+CREATE UNIQUE INDEX `users_google_subject_unique` ON `users` (`google_subject`);--> statement-breakpoint
 CREATE UNIQUE INDEX `email_unique_ci` ON `users` (lower("email"));
 --> statement-breakpoint
 CREATE TABLE `email_outbox` (

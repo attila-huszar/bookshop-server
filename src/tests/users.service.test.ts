@@ -166,6 +166,20 @@ describe('Users Service', () => {
   })
 
   describe('loginUser', () => {
+    it('rejects password login for a Google-only account', async () => {
+      const request = { email: 'reader@gmail.com', password: 'password123' }
+      mockValidate.mockReturnValueOnce(request)
+      mockUsersDB.getActiveUserBy.mockResolvedValueOnce({
+        uuid: 'reader',
+        password: null,
+        verified: true,
+      })
+
+      await rejects(usersService.loginUser(request), {
+        code: AuthErrorCode.InvalidCredentials,
+      })
+      expect(mockSignAccessToken).not.toHaveBeenCalled()
+    })
     it('should login user successfully', async () => {
       const loginRequest = {
         email: 'test@example.com',
@@ -502,6 +516,7 @@ describe('Users Service', () => {
 
     it('returns the loaded user for internal request context', async () => {
       const mockUser: User = {
+        googleSubject: null,
         id: 1,
         createdAt: new Date(),
         updatedAt: new Date(),

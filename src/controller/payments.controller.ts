@@ -1,6 +1,4 @@
 import { Hono } from 'hono'
-import { deleteCookie, setSignedCookie } from 'hono/cookie'
-import { env, PAYMENT_SESSION, paymentCookieOptions } from '@/config'
 import {
   acceptPaymentTerms,
   cancelPaymentIntent,
@@ -8,6 +6,7 @@ import {
   retrievePaymentIntent,
   startCheckoutPayment,
 } from '@/services/payments.service'
+import { clearPaymentCookie, setPaymentCookie } from '@/utils/cookie.utils'
 import { publicUserResponse } from '@/utils/response.utils'
 import { getPaymentIdempotencyKey } from '@/utils/stripe.utils'
 import { API } from '@/constants/paths'
@@ -70,13 +69,7 @@ payments.post(API.payments.root, async (c) => {
     checkoutRequestId,
   )
 
-  await setSignedCookie(
-    c,
-    PAYMENT_SESSION,
-    paymentId,
-    env.cookieSecret!,
-    paymentCookieOptions,
-  )
+  await setPaymentCookie(c, paymentId)
 
   return c.json({ paymentId, paymentToken, amount })
 })
@@ -90,7 +83,7 @@ payments.delete(API.payments.byId, async (c) => {
     cookiePaymentId,
   })
 
-  deleteCookie(c, PAYMENT_SESSION, paymentCookieOptions)
+  clearPaymentCookie(c)
 
   return c.json(paymentIntent)
 })

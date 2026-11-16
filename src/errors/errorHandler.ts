@@ -3,6 +3,7 @@ import { HTTPException } from 'hono/http-exception'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { z } from 'zod'
 import { publicValidationIssueSchema } from '@/validation/errorSchemas'
+import { isJsonRequest } from '@/utils/request.utils'
 import { log } from '@/libs/logger'
 import { type ErrorCode, HttpErrorCode } from '@/types/enums'
 import type { ApiValidationIssue } from '@/types/validation.types'
@@ -31,10 +32,7 @@ type ErrorResponse = {
  * Response classification preserves public codes and sanitized validation details.
  */
 export function errorHandler(c: Context, error: unknown) {
-  const failure = classifyError(
-    error,
-    c.req.header('content-type')?.includes('application/json') ?? false,
-  )
+  const failure = classifyError(error, isJsonRequest(c))
 
   if (failure.status >= 500) {
     log.error('Request failed', {

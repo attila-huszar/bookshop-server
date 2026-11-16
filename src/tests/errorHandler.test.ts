@@ -336,20 +336,42 @@ describe('central HTTP error handling', () => {
     expectNoLogs()
   })
 
-  it('returns a 400 for malformed JSON', async () => {
-    const app = new Hono().onError((error, c) => errorHandler(c, error))
+  it.each(['application/json', 'Application/JSON; charset=utf-8'])(
+    'returns a 400 for malformed JSON with content type %s',
+    async (contentType) => {
+      const app = new Hono().onError((error, c) => errorHandler(c, error))
 
-    app.post('/', async (c) => c.json(await c.req.json()))
-    const response = await app.request('/', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: '{',
-    })
+      app.post('/', async (c) => c.json(await c.req.json()))
+      const response = await app.request('/', {
+        method: 'POST',
+        headers: { 'content-type': contentType },
+        body: '{',
+      })
 
-    expect(response.status).toBe(400)
-    expect(await response.json()).toEqual({ code: 'INVALID_JSON' })
-    expectNoLogs()
-  })
+      expect(response.status).toBe(400)
+      expect(await response.json()).toEqual({ code: 'INVALID_JSON' })
+      expectNoLogs()
+    },
+  )
+
+  it.each(['application/jsonp', 'text/plain; note=application/json'])(
+    'keeps unrelated syntax failures as 500s for content type %s',
+    async (contentType) => {
+      const app = new Hono().onError((error, c) => errorHandler(c, error))
+      app.post('/', () => {
+        throw new SyntaxError('Internal syntax failure')
+      })
+      const response = await app.request('/', {
+        method: 'POST',
+        headers: { 'content-type': contentType },
+        body: '{',
+      })
+
+      expect(response.status).toBe(500)
+      expect(await response.json()).toEqual({ code: 'INTERNAL_ERROR' })
+      expect(mockLogger.error).toHaveBeenCalledOnce()
+    },
+  )
 
   it('does not log authorization headers or token-bearing query strings', async () => {
     const app = new Hono().onError((error, c) => errorHandler(c, error))

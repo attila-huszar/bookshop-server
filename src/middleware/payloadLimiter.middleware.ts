@@ -1,4 +1,5 @@
 import { type MiddlewareHandler } from 'hono'
+import { isJsonRequest } from '@/utils/request.utils'
 import { MAX_IMAGE_SIZE_BYTES, MAX_JSON_SIZE_KIB } from '@/constants/fileLimits'
 import { HttpErrorCode } from '@/types/enums'
 
@@ -14,7 +15,7 @@ export const payloadLimiter: MiddlewareHandler = async (c, next) => {
     return next()
   }
 
-  if (contentType.includes('application/json')) {
+  if (isJsonRequest(c)) {
     if (contentLength > MAX_JSON_SIZE_KIB * 1024) {
       return c.json(
         {

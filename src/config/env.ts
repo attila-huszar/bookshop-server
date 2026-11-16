@@ -21,6 +21,7 @@ export const env = {
 
   serverBaseUrl: Bun.env.SERVER_BASE_URL ?? 'http://localhost',
   clientBaseUrl: Bun.env.CLIENT_BASE_URL,
+  googleClientId: Bun.env.GOOGLE_CLIENT_ID,
   port: Bun.env.PORT ?? '5000',
 
   cookieSecret: Bun.env.COOKIE_SECRET,

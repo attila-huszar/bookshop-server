@@ -24,6 +24,8 @@ export const API = {
   },
   users: {
     login: '/users/login',
+    google: '/users/google',
+    googleNonce: '/users/google/nonce',
     logout: '/users/logout',
     refresh: '/users/refresh',
     register: '/users/register',

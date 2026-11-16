@@ -76,6 +76,22 @@ export async function createUserWithVerification(
   })
 }
 
+/** Link only a verified account that has not already chosen a Google identity. */
+export async function linkGoogleAccount(
+  uuid: string,
+  googleSubject: string,
+): Promise<User | null> {
+  const user = await UserModel.findOneAndUpdate(
+    { uuid, verified: true, googleSubject: null, deletedAt: null },
+    { $set: { googleSubject } },
+    { returnDocument: 'after' },
+  )
+    .lean()
+    .exec()
+
+  return user ?? null
+}
+
 export async function updateUserBy(
   field: UserLookupField,
   value: string | number,
