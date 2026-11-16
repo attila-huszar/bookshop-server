@@ -13,6 +13,11 @@ export enum UserRole {
   User = 'user',
 }
 
+export const enum SignInMethod {
+  Password = 'password',
+  Google = 'google',
+}
+
 export const enum IssueCode {
   WEBHOOK_ORDER_SAVE_FAILED = 'WEBHOOK_ORDER_SAVE_FAILED',
   WEBHOOK_MISSING_ORDER = 'WEBHOOK_MISSING_ORDER',

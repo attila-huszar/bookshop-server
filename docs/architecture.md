@@ -104,7 +104,7 @@ Publication is at least once. A crash after SMTP acceptance but before job ackno
 
 ## API response and error contracts
 
-Repositories return internal records; response allowlists expose public/CMS fields and normalize dates/nulls. User responses exclude password hashes and account tokens. CMS order writes accept customer/shipping corrections only; payment state, paid markers, totals, currency, items, and terms acceptance are protected.
+Repositories return internal records; response allowlists expose public/CMS fields and normalize dates/nulls. User responses exclude password hashes and account tokens. Admin user responses include read-only available sign-in methods (`password`, `google`, or both), without exposing Google subjects or credential values. CMS order writes accept customer/shipping corrections only; payment state, paid markers, totals, currency, items, and terms acceptance are protected.
 
 API failures use stable application codes and HTTP statuses. Validation responses expose sanitized Zod metadata for localization, without raw input, private parameters, or internal messages. Expected 4xx responses remain quiet; server failures are logged with safe diagnostics. Logs redact credentials and omit query strings, cookies, and authorization headers.
 
