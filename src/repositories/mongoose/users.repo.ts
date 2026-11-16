@@ -1,5 +1,5 @@
 import { EmailOutboxModel, UserModel } from '@/models/mongo'
-import { accountEmailIntent } from '@/utils/email-job.utils'
+import { accountEmailIntent } from '@/utils/emailOutbox.utils'
 import { EMAIL } from '@/constants/email'
 import type {
   PasswordResetTokenUpdate,
@@ -9,6 +9,13 @@ import type {
   UserRegistrationInsert,
   UserUpdate,
 } from '@/types'
+
+/** Include soft-deleted accounts because they can be restored. */
+export async function getImageUrls(): Promise<(string | null)[]> {
+  const records = await UserModel.find().select({ avatar: 1 }).lean().exec()
+
+  return records.map((record) => record.avatar ?? null)
+}
 
 export async function getActiveUserBy(
   field: UserLookupField,
@@ -74,9 +81,14 @@ export async function updateUserBy(
   value: string | number,
   fields: UserUpdate,
 ): Promise<User | null> {
+  const updates =
+    fields.verified === true
+      ? { ...fields, verificationToken: null, verificationExpires: null }
+      : fields
+
   const user = await UserModel.findOneAndUpdate(
     { [field]: value, deletedAt: null },
-    fields,
+    updates,
     {
       returnDocument: 'after',
     },
@@ -112,6 +124,43 @@ export async function setPasswordResetToken(
 
     return user ?? null
   })
+}
+
+/** Verify only while this token is current and unexpired, consuming it once. */
+export async function verifyUserByToken(token: string): Promise<User | null> {
+  const user = await UserModel.findOneAndUpdate(
+    {
+      verificationToken: token,
+      verificationExpires: { $gt: new Date() },
+      deletedAt: null,
+    },
+    { verified: true, verificationToken: null, verificationExpires: null },
+    { returnDocument: 'after' },
+  )
+    .lean()
+    .exec()
+
+  return user ?? null
+}
+
+/** Change the password and consume its reset token in the same conditional write. */
+export async function resetPasswordByToken(
+  token: string,
+  password: string,
+): Promise<User | null> {
+  const user = await UserModel.findOneAndUpdate(
+    {
+      passwordResetToken: token,
+      passwordResetExpires: { $gt: new Date() },
+      deletedAt: null,
+    },
+    { password, passwordResetToken: null, passwordResetExpires: null },
+    { returnDocument: 'after' },
+  )
+    .lean()
+    .exec()
+
+  return user ?? null
 }
 
 export async function getAllUsers(): Promise<User[]> {

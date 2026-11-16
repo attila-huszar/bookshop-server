@@ -8,7 +8,7 @@ import { env } from '@/config'
 import { emailOutboxTable } from '@/models/sqlite/emailOutboxTable'
 import { ordersTable } from '@/models/sqlite/ordersTable'
 import { orderInsertSchema, orderUpdateSchema } from '@/validation/orderSchemas'
-import { emailOutboxResponse } from '@/utils/email-outbox.utils'
+import { emailOutboxResponse } from '@/utils/emailOutbox.utils'
 import {
   AdminNotification,
   type UserRegistrationInsert,
@@ -19,7 +19,7 @@ const database = new Database(':memory:')
 const sqlite = drizzle(database)
 
 migrate(sqlite, { migrationsFolder: 'src/database/migrations' })
-await mock.module('@/db', () => ({
+await mock.module('@/database/sqlite', () => ({
   sqlite,
   connectDatabase: mock(),
   closeDatabase: mock(),
@@ -27,6 +27,83 @@ await mock.module('@/db', () => ({
 const orders = await import('@/repositories/drizzle/orders.repo')
 const books = await import('@/repositories/drizzle/books.repo')
 const authors = await import('@/repositories/drizzle/authors.repo')
+const terms = await import('@/repositories/drizzle/terms.repo')
+
+describe('SQLite combined book search', () => {
+  beforeEach(async () => {
+    const matchingAuthor = await authors.insertAuthor({
+      name: 'Needle Author',
+      fullName: '',
+      birthYear: '',
+      deathYear: '',
+      homeland: '',
+      biography: '',
+    })
+    const otherAuthor = await authors.insertAuthor({
+      name: 'Other Author',
+      fullName: '',
+      birthYear: '',
+      deathYear: '',
+      homeland: '',
+      biography: '',
+    })
+    const book = {
+      authorId: matchingAuthor.id,
+      genre: 'Fiction',
+      imgUrl: 'book.jpg',
+      description: 'A book',
+      publishYear: 2020,
+      rating: 4,
+      price: 10,
+      discount: 0,
+      discountPrice: 10,
+      topSellers: false,
+      newRelease: false,
+    }
+
+    await books.insertBook({ ...book, title: 'Author match only' })
+    await books.insertBook({ ...book, title: 'Needle in both fields' })
+    await books.insertBook({
+      ...book,
+      authorId: otherAuthor.id,
+      title: 'Needle in title',
+    })
+    await books.insertBook({
+      ...book,
+      authorId: otherAuthor.id,
+      title: 'Literal 10%_\\ sale',
+    })
+  })
+
+  it('matches title or author case-insensitively, with title matches first and no duplicates', async () => {
+    const results = await books.searchBooks('needle', 10)
+
+    expect(results.map((book) => book.title)).toEqual([
+      'Needle in both fields',
+      'Needle in title',
+      'Author match only',
+    ])
+    expect(results.map((book) => book.author)).toEqual([
+      'Needle Author',
+      'Other Author',
+      'Needle Author',
+    ])
+    expect(await books.searchBooks('missing', 10)).toEqual([])
+  })
+
+  it('applies the global result limit after prioritizing title matches', async () => {
+    expect(
+      (await books.searchBooks('needle', 2)).map((book) => book.title),
+    ).toEqual(['Needle in both fields', 'Needle in title'])
+  })
+
+  it('treats SQL wildcard and escape characters as literal search text', async () => {
+    expect(
+      (await books.searchBooks('10%_\\', 10)).map((book) => book.title),
+    ).toEqual(['Literal 10%_\\ sale'])
+    expect(await books.searchBooks("%' OR 1=1 --", 10)).toEqual([])
+  })
+})
 
 describe('SQLite missing CMS records', () => {
   it('returns null for missing books and authors so services can report 404', async () => {
@@ -35,9 +112,49 @@ describe('SQLite missing CMS records', () => {
   })
 })
 
+describe('SQLite terms documents', () => {
+  it('publishes a new version without modifying archived terms', async () => {
+    const first = {
+      version: '11111111-1111-4111-8111-111111111111',
+      content: { en: 'Original English', hu: 'Eredeti magyar' },
+      publishedAt: '2026-10-14T10:00:00.000Z',
+    }
+    const second = {
+      version: '22222222-2222-4222-8222-222222222222',
+      content: { en: 'Updated English', hu: 'Új magyar' },
+      publishedAt: '2026-10-14T10:01:00.000Z',
+    }
+
+    expect(await terms.getCurrentTerms()).toBeNull()
+    expect(await terms.getTermsHistory()).toEqual([])
+    await terms.publishTerms(first)
+    await terms.publishTerms(second)
+
+    expect(await terms.getTermsHistory()).toEqual([
+      {
+        version: second.version,
+        publishedAt: second.publishedAt,
+        canDelete: true,
+      },
+      {
+        version: first.version,
+        publishedAt: first.publishedAt,
+        canDelete: true,
+      },
+    ])
+    expect(await terms.getCurrentTerms()).toEqual(second)
+    expect(await terms.getTermsByVersion(first.version)).toEqual(first)
+    expect(await terms.getTermsByVersion(second.version)).not.toHaveProperty(
+      'id',
+    )
+    await rejects(terms.publishTerms({ ...first, content: second.content }))
+    expect(await terms.getTermsByVersion(first.version)).toEqual(first)
+  })
+})
+
 beforeEach(() =>
   database.run(
-    'DELETE FROM email_outbox; DELETE FROM orders; DELETE FROM users',
+    'DELETE FROM email_outbox; DELETE FROM orders; DELETE FROM users; DELETE FROM terms_documents; DELETE FROM books; DELETE FROM authors',
   ),
 )
 afterAll(() => database.close())
@@ -62,6 +179,127 @@ const draft = {
 }
 
 describe('SQLite checkout orders', () => {
+  const publication = {
+    version: 'v1',
+    content: { en: 'English', hu: 'Magyar' },
+    publishedAt: '2026-10-14T10:00:00.000Z',
+  }
+  const acceptance = {
+    version: 'v1',
+    acceptedAt: '2026-10-14T10:00:00Z',
+    language: 'en' as const,
+  }
+
+  it('deletes unused versions and selects the newest remaining publication', async () => {
+    await terms.publishTerms(publication)
+    await terms.publishTerms({ ...publication, version: 'v2' })
+    expect(await terms.deleteUnusedTerms('missing')).toBe(false)
+    expect(await terms.deleteUnusedTerms('v2')).toBe(true)
+    expect((await terms.getCurrentTerms())?.version).toBe('v1')
+    expect(await terms.getTermsByVersion('v2')).toBeNull()
+    expect(await terms.deleteUnusedTerms('v1')).toBe(true)
+    expect(await terms.getCurrentTerms()).toBeNull()
+  })
+
+  it('protects acceptance even after cancellation or soft deletion of the order', async () => {
+    await terms.publishTerms(publication)
+    await orders.createCheckoutOrder({
+      ...draft,
+      paymentId: 'pi_used',
+      paymentStatus: 'requires_payment_method',
+    })
+    await orders.recordTermsAcceptance('pi_used', acceptance)
+    await sqlite
+      .update(ordersTable)
+      .set({ paymentStatus: 'canceled', deletedAt: new Date() })
+
+    expect(await terms.getTermsHistory()).toEqual([
+      { version: 'v1', publishedAt: publication.publishedAt, canDelete: false },
+    ])
+    expect(await terms.deleteUnusedTerms('v1')).toBe(false)
+    expect(await terms.getTermsByVersion('v1')).not.toBeNull()
+  })
+
+  it.each([false, true])(
+    'never leaves acceptance referencing a deleted document, delete first: %s',
+    async (deleteFirst) => {
+      await terms.publishTerms(publication)
+      await orders.createCheckoutOrder({
+        ...draft,
+        paymentId: 'pi_race',
+        paymentStatus: 'requires_payment_method',
+      })
+      const remove = () => terms.deleteUnusedTerms('v1')
+      const accept = () => orders.recordTermsAcceptance('pi_race', acceptance)
+      await Promise.all(
+        deleteFirst ? [remove(), accept()] : [accept(), remove()],
+      )
+      const order = await orders.getOrder('pi_race')
+      const document = await terms.getTermsByVersion('v1')
+
+      expect(Boolean(order?.termsAcceptance)).toBe(Boolean(document))
+    },
+  )
+
+  it('records terms once and preserves the first acceptance across concurrent retries', async () => {
+    await terms.publishTerms({
+      version: 'v1',
+      content: { en: 'English', hu: 'Magyar' },
+      publishedAt: '2026-10-14T10:00:00.000Z',
+    })
+    await orders.createCheckoutOrder({
+      ...draft,
+      paymentId: 'pi_terms',
+      paymentStatus: 'requires_payment_method',
+    })
+    const acceptance = {
+      version: 'v1',
+      acceptedAt: '2026-10-14T10:00:00Z',
+      language: 'en' as const,
+    }
+    const results = await Promise.all([
+      orders.recordTermsAcceptance('pi_terms', acceptance),
+      orders.recordTermsAcceptance('pi_terms', {
+        ...acceptance,
+        acceptedAt: '2026-10-14T10:05:00Z',
+      }),
+    ])
+
+    expect(results[0]?.termsAcceptance).toEqual(acceptance)
+    expect(results[1]?.termsAcceptance).toEqual(acceptance)
+    expect((await orders.getOrder('pi_terms'))?.termsAcceptance).toEqual(
+      acceptance,
+    )
+    expect(orderUpdateSchema.parse({ termsAcceptance: acceptance })).toEqual({})
+  })
+
+  it('does not add acceptance after payment or cancellation', async () => {
+    const acceptance = {
+      version: 'v1',
+      acceptedAt: new Date().toISOString(),
+      language: 'en' as const,
+    }
+
+    for (const paymentStatus of [
+      'processing',
+      'succeeded',
+      'canceled',
+    ] as const) {
+      const paymentId = `pi_${paymentStatus}`
+      await orders.createCheckoutOrder({
+        ...draft,
+        paymentId,
+        checkoutRequestId: paymentId,
+        paymentStatus,
+      })
+
+      expect(
+        (await orders.recordTermsAcceptance(paymentId, acceptance))
+          ?.termsAcceptance,
+      ).toBeNull()
+    }
+  })
+
   it('rejects null or missing checkout request IDs at the database boundary', () => {
     expect(() =>
       database.run(
@@ -1161,7 +1399,40 @@ describe('SQLite transactional account emails', () => {
     await users.createUser(user)
     await users.updateUserBy('uuid', user.uuid, { firstName: 'Updated' })
 
+    expect(await users.getActiveUserBy('uuid', user.uuid)).toMatchObject({
+      verificationToken: user.verificationToken,
+      verificationExpires: user.verificationExpires,
+    })
     expect(await sqlite.select().from(emailOutboxTable)).toHaveLength(0)
+  })
+
+  it('consumes the verification token when CMS verifies an account', async () => {
+    await users.createUserWithVerification(user)
+    await users.setPasswordResetToken(user.uuid, {
+      token: 'reset-token',
+      expiresAt: new Date(Date.now() + 60_000),
+    })
+
+    expect(
+      await users.updateUserBy('uuid', user.uuid, { verified: true }),
+    ).toMatchObject({
+      verified: true,
+      verificationToken: null,
+      verificationExpires: null,
+      passwordResetToken: 'reset-token',
+    })
+    expect(await users.verifyUserByToken(user.verificationToken)).toBeNull()
+
+    // Toggling verification off must not make the old email usable again.
+    expect(
+      await users.updateUserBy('uuid', user.uuid, { verified: false }),
+    ).toMatchObject({
+      verified: false,
+      verificationToken: null,
+      verificationExpires: null,
+    })
+    expect(await users.verifyUserByToken(user.verificationToken)).toBeNull()
+    expect(await sqlite.select().from(emailOutboxTable)).toHaveLength(2)
   })
 
   it('does not create an intent when the reset recipient no longer exists', async () => {
@@ -1173,6 +1444,71 @@ describe('SQLite transactional account emails', () => {
     ).toBeNull()
     expect(await sqlite.select().from(emailOutboxTable)).toHaveLength(0)
   })
+
+  it('consumes verification and reset tokens exactly once', async () => {
+    await users.createUser(user)
+
+    expect(await users.verifyUserByToken(user.verificationToken)).toMatchObject(
+      {
+        verified: true,
+        verificationToken: null,
+        verificationExpires: null,
+      },
+    )
+    expect(await users.verifyUserByToken(user.verificationToken)).toBeNull()
+
+    await users.setPasswordResetToken(user.uuid, {
+      token: 'reset-token',
+      expiresAt: new Date(Date.now() + 60_000),
+    })
+    expect(
+      await users.resetPasswordByToken('reset-token', 'new-hash'),
+    ).toMatchObject({
+      password: 'new-hash',
+      passwordResetToken: null,
+      passwordResetExpires: null,
+    })
+    expect(
+      await users.resetPasswordByToken('reset-token', 'replayed-hash'),
+    ).toBeNull()
+    expect((await users.getActiveUserBy('uuid', user.uuid))?.password).toBe(
+      'new-hash',
+    )
+  })
+
+  it.each(['expired', 'missing expiry', 'replaced', 'deleted'])(
+    'rejects %s verification and reset tokens without changing the account',
+    async (reason) => {
+      const expiresAt =
+        reason === 'expired'
+          ? new Date(0)
+          : reason === 'missing expiry'
+            ? null
+            : new Date(Date.now() + 60_000)
+      const saved = await users.createUser({
+        ...user,
+        verificationToken:
+          reason === 'replaced'
+            ? 'new-verification-token'
+            : user.verificationToken,
+        verificationExpires: expiresAt,
+        passwordResetToken:
+          reason === 'replaced' ? 'new-reset-token' : 'reset-token',
+        passwordResetExpires: expiresAt,
+        deletedAt: reason === 'deleted' ? new Date() : null,
+      })
+
+      if (!saved) {
+        throw new Error('Expected saved user')
+      }
+
+      expect(await users.verifyUserByToken(user.verificationToken)).toBeNull()
+      expect(
+        await users.resetPasswordByToken('reset-token', 'changed-hash'),
+      ).toBeNull()
+      expect((await users.getAllUsers())[0]).toEqual(saved)
+    },
+  )
 
   it('soft deletes users without removing their identity or orders, then restores access', async () => {
     const saved = await users.createUser({ ...user, verified: true })

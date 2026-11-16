@@ -5,13 +5,22 @@ import type { BookQuery } from '@/types'
 
 export async function getBooks(query?: BookQuery): Promise<{
   booksRecords: ReturnType<typeof publicBookResponse>[]
-  booksCount: string
+  booksCount: number
 }> {
-  const result = await booksDB.getBooks(query)
+  if (query?.recommended) {
+    const recommendedBooks = await booksDB.getRecommendedBooks()
+
+    return {
+      booksRecords: recommendedBooks.map(publicBookResponse),
+      booksCount: recommendedBooks.length,
+    }
+  }
+
+  const books = await booksDB.getBooks(query)
 
   return {
-    booksRecords: result.booksRecords.map(publicBookResponse),
-    booksCount: result.booksCount,
+    booksRecords: books.booksRecords.map(publicBookResponse),
+    booksCount: books.booksCount,
   }
 }
 
@@ -24,8 +33,6 @@ export async function getBookById(
   return book ? publicBookResponse(book) : null
 }
 
-export async function getRecommendedBooks(): Promise<
-  ReturnType<typeof publicBookResponse>[]
-> {
-  return (await booksDB.getRecommendedBooks()).map(publicBookResponse)
+export async function searchBooks(search: string) {
+  return (await booksDB.searchBooks(search, 10)).map(publicBookResponse)
 }

@@ -1,9 +1,13 @@
 import { mock } from 'bun:test'
+import { EventEmitter } from 'node:events'
 import { env } from '@/config'
 import * as validation from '@/validation'
-import { toIsoString } from '@/utils/date.utils'
-import { getOrderRef } from '@/utils/string.utils'
-import type { Order, OrderUpdate } from '@/types'
+import type {
+  Order,
+  OrderUpdate,
+  TermsDocument,
+  TermsDocumentSummary,
+} from '@/types'
 
 env.adminEmail ??= 'admin@example.com'
 env.clientBaseUrl ??= 'https://bookshop.test'
@@ -18,6 +22,8 @@ export const mockUsersDB = {
   createUser: mock(),
   createUserWithVerification: mock(),
   setPasswordResetToken: mock(),
+  verifyUserByToken: mock(),
+  resetPasswordByToken: mock(),
   updateUserBy: mock(),
   cleanupExpiredPasswordResetTokens: mock(),
   cleanupUnverifiedUsers: mock(),
@@ -32,8 +38,25 @@ export const mockOutboxDB = {
 }
 
 export const mockBooksDB = {
+  getBooks: mock(),
+  getRecommendedBooks: mock(),
+  searchBooks: mock(),
   getBookById: mock(),
+  insertBook: mock(),
+  updateBook: mock(),
   hardDeleteBooks: mock(),
+}
+
+export const mockTermsDB = {
+  deleteUnusedTerms: mock<() => Promise<boolean>>(() => Promise.resolve(false)),
+  getTermsHistory: mock<() => Promise<TermsDocumentSummary[]>>(() =>
+    Promise.resolve([]),
+  ),
+  getCurrentTerms: mock<() => Promise<TermsDocument | null>>(() =>
+    Promise.resolve(null),
+  ),
+  getTermsByVersion: mock(),
+  publishTerms: mock(),
 }
 
 export const mockOrdersDB = {
@@ -44,6 +67,7 @@ export const mockOrdersDB = {
   setOrdersDeleted: mock(),
   getOrderByCheckoutRequestId: mock(),
   createCheckoutOrder: mock(),
+  recordTermsAcceptance: mock(),
   linkPaymentIntent: mock(),
   updateOrder: mock(),
   getOrdersForReconciliation: mock(),
@@ -86,6 +110,11 @@ export const mockLogger = {
 }
 
 export const mockEmailQueue = {
+  backend: {
+    connection: Object.assign(new EventEmitter(), {
+      status: 'initializing' as const,
+    }),
+  },
   add: mock(),
   on: mock(),
   close: mock(() => Promise.resolve()),
@@ -93,6 +122,14 @@ export const mockEmailQueue = {
 }
 
 export const mockWorker = {
+  backend: {
+    connection: Object.assign(new EventEmitter(), {
+      status: 'initializing' as const,
+    }),
+    blockingConnection: Object.assign(new EventEmitter(), {
+      status: 'initializing' as const,
+    }),
+  },
   on: mock(),
   close: mock(() => Promise.resolve()),
 }
@@ -107,14 +144,19 @@ export const mockWorkerConstructor = mock<
 
 export const mockIORedis = mock(() => mockWorker)
 
-await mock.module('@/repositories', () => ({
-  authorsDB: { hardDeleteAuthors: mock() },
-  newsDB: {},
-  booksDB: mockBooksDB,
-  usersDB: mockUsersDB,
-  ordersDB: mockOrdersDB,
-  outboxDB: mockOutboxDB,
-}))
+export async function mockRepositories(): Promise<void> {
+  await mock.module('@/repositories', () => ({
+    authorsDB: { hardDeleteAuthors: mock() },
+    newsDB: {},
+    booksDB: mockBooksDB,
+    usersDB: mockUsersDB,
+    ordersDB: mockOrdersDB,
+    outboxDB: mockOutboxDB,
+    termsDB: mockTermsDB,
+  }))
+}
+
+await mockRepositories()
 
 await mock.module('stripe', () => {
   const mockStripeCtor = mock(() => mockStripe)
@@ -131,31 +173,66 @@ await mock.module('@/validation', () => ({
   safeValidate: mock(() => null),
 }))
 
-await mock.module('@/libs', () => ({
+const logger = await import('@/libs/logger')
+
+await mock.module('@/libs/logger', () => ({
+  ...logger,
   log: mockLogger,
   frontendLog: mockLogger,
-  logWorker: mockLogger,
-  stripe: mockStripe,
+}))
+
+const mailer = await import('@/libs/nodemailer')
+
+await mock.module('@/libs/nodemailer', () => ({
+  ...mailer,
   sendMail: mockSendMail,
   closeMailer: mock(),
 }))
 
-await mock.module('@/utils', () => ({
+const [
+  stripeUtilities,
+  jwtUtilities,
+  fileUtilities,
+  dateUtilities,
+  stringUtilities,
+] = await Promise.all([
+  import('@/utils/stripe.utils'),
+  import('@/utils/jwt.utils'),
+  import('@/utils/file.utils'),
+  import('@/utils/date.utils'),
+  import('@/utils/string.utils'),
+])
+
+await mock.module('@/utils/stripe.utils', () => ({
+  ...stripeUtilities,
   extractPaymentIntentFields: mockExtractPaymentIntentFields,
+}))
+
+await mock.module('@/utils/jwt.utils', () => ({
+  ...jwtUtilities,
   signAccessToken: mockSignAccessToken,
   signRefreshToken: mockSignRefreshToken,
   verifyJWTRefresh: mockVerifyJWTRefresh,
+}))
+
+await mock.module('@/utils/file.utils', () => ({
+  ...fileUtilities,
   uploadFile: mockUploadFile,
-  toIsoString,
-  getOrderRef,
+}))
+
+await mock.module('@/utils/ngrok', () => ({
   closeNgrokTunnel: mock(),
-  formatUptime: mock(() => 'test uptime'),
   ngrokForward: mock(),
+}))
+
+await mock.module('@/utils/date.utils', () => ({
+  ...dateUtilities,
+  formatUptime: mock(() => 'test uptime'),
+}))
+
+await mock.module('@/utils/string.utils', () => ({
+  ...stringUtilities,
   shortHash: mock(() => 'test-fingerprint'),
-  Folder: {
-    Avatars: 'avatars',
-    ProductImages: 'product-images',
-  },
 }))
 
 await mock.module('ioredis', () => ({

@@ -1,8 +1,12 @@
 import { usersDB } from '@/repositories'
-import { log } from '@/libs'
+import { log } from '@/libs/logger'
+import { cleanupUnusedImages } from './imageCleanup.service'
 import { reconcileStaleOrders } from './orders.service'
 
-export async function runMaintenance(): Promise<boolean> {
+export async function runMaintenance(
+  cleanupImages = cleanupUnusedImages,
+  signal?: AbortSignal,
+): Promise<boolean> {
   const tasks = [
     {
       name: 'password reset token cleanup',
@@ -10,7 +14,7 @@ export async function runMaintenance(): Promise<boolean> {
         const totalUpdated = await usersDB.cleanupExpiredPasswordResetTokens()
 
         if (totalUpdated > 0) {
-          void log.info('Expired password reset tokens cleaned up', {
+          log.info('Expired password reset tokens cleaned up', {
             totalUpdated,
           })
         }
@@ -22,8 +26,10 @@ export async function runMaintenance(): Promise<boolean> {
         const deletedUsers = await usersDB.cleanupUnverifiedUsers()
 
         if (deletedUsers.length > 0) {
-          void log.info('Expired unverified users soft deleted', {
+          log.info('Expired unverified users soft deleted', {
             totalDeleted: deletedUsers.length,
+          })
+          log.debug('Expired registration cleanup details', {
             users: deletedUsers.map((user) => ({
               userId: user.id,
               email: user.email,
@@ -35,10 +41,20 @@ export async function runMaintenance(): Promise<boolean> {
     {
       name: 'order reconciliation',
       run: async () => {
-        const { failed } = await reconcileStaleOrders()
+        const { failed } = await reconcileStaleOrders(signal)
 
         if (failed > 0) {
           throw new Error(`${failed} order(s) could not be reconciled`)
+        }
+      },
+    },
+    {
+      name: 'unused image cleanup',
+      run: async () => {
+        const removed = await cleanupImages()
+
+        if (removed > 0) {
+          log.info('Unused uploaded images cleaned up', { removed })
         }
       },
     },
@@ -46,11 +62,15 @@ export async function runMaintenance(): Promise<boolean> {
   let succeeded = true
 
   for (const task of tasks) {
+    if (signal?.aborted) {
+      break
+    }
+
     try {
       await task.run()
     } catch (error) {
       succeeded = false
-      void log.error('Maintenance task failed', { task: task.name, error })
+      log.error('Maintenance task failed', { task: task.name, error })
     }
   }
 

@@ -34,9 +34,9 @@ A TypeScript API built with Bun and Hono for the Bookshop demo. The project expl
 
 ## Setup
 
-Install Bun, Node.js 22.12+, and Docker, then start Docker Desktop or the Docker daemon. Keep `bookshop-server` and `bookshop-client` as sibling directories.
+Install Bun, Node.js 26, and Docker. Start Docker and keep `bookshop-server` and `bookshop-client` as sibling directories.
 
-From the server directory, install dependencies and create both environment files:
+From the server directory:
 
 ```sh
 bun install --frozen-lockfile
@@ -47,7 +47,7 @@ cp .env.template .env
 cd ../bookshop-server
 ```
 
-Install the Loki logging plugin once:
+Install the logging plugin once:
 
 ```sh
 docker plugin install grafana/loki-docker-driver:latest --alias loki --grant-all-permissions
@@ -55,37 +55,42 @@ docker plugin install grafana/loki-docker-driver:latest --alias loki --grant-all
 
 Configure the environment files:
 
-- Server: set `ADMIN_EMAIL`/`ADMIN_PASSWORD`, cookie/JWT secrets, `STRIPE_SECRET` (test key), SMTP credentials, and AWS S3 settings for avatar uploads.
-- Database: set exactly one `COMPOSE_PROFILES` value in the server `.env`: `sqlite` (default) or `mongo`.
-- Client: set `VITE_STRIPE_PUBLIC_KEY` to the publishable test key from the same Stripe account. Default URLs are `VITE_BASE_URL=http://localhost:5173` and `VITE_SERVER_URL=http://localhost:5000/api`; keep the server's `CLIENT_BASE_URL` aligned.
+- Server: set admin credentials, cookie/JWT secrets, Stripe test keys, SMTP credentials, and AWS S3 settings using `.env.template`.
+- Database: select `DB_REPO=MONGO` or `SQLITE`. For Atlas, replace the URI placeholders with URL-encoded credentials and your cluster hostname, and allow your outgoing IP in Atlas Network Access. Use `bookshop-dev` locally and `bookshop-prod` in production, with separate database-scoped users. Keep `MONGO_BACKUP_MODE=logical` for Atlas M0.
+- Client: set `VITE_STRIPE_PUBLIC_KEY` from the same Stripe account and keep the local URL defaults aligned with the server.
 
 ## Local development
 
-For payment updates, run the Stripe CLI in a separate terminal:
+Run the Stripe CLI in a separate terminal:
 
 ```sh
 stripe listen --forward-to http://localhost:5000/webhooks/stripe
 ```
 
-Set the printed signing secret as `STRIPE_WEBHOOK_SECRET` in the server `.env` before starting.
+Set its signing secret as `STRIPE_WEBHOOK_SECRET` in the server `.env`.
 
-From either repository, initialize a fresh database and start the app:
+Stop existing database writers, then initialize the selected database from either repository:
 
 ```sh
-bun run dev:setup
+bun run setup
 ```
 
-For later starts, use `bun run dev`. Setup seeds the catalogue and an admin account using `ADMIN_EMAIL`/`ADMIN_PASSWORD`; run it only for a fresh database. The dev command starts Vite and the Docker services with API/worker reloads. Ctrl+C stops the session and preserves stored data.
+MongoDB setup runs on the host; SQLite setup uses the shared Docker volume. Setup preserves existing data and admin passwords. See [database setup](docs/architecture.md#databases-and-setup) for constraints.
 
-| Service      | Local URL                    |
-| ------------ | ---------------------------- |
-| Shop         | http://localhost:5173        |
-| API          | http://localhost:5000/api    |
-| Health check | http://localhost:5000/health |
-| Grafana      | http://localhost/grafana/    |
+Start the client and Docker services:
 
-Grafana's default login is `admin` / `admin`. In Explore, query logs by the `job` label, such as `server` or `worker`.
+```sh
+bun run dev
+```
 
-For a backend-only session, run `bun run docker:setup` on a fresh database or `docker compose up --build` on subsequent starts, from the server directory. To enable an HTTPS tunnel in this mode, set `NGROK_AUTHTOKEN`; the ngrok URL is logged at startup.
+Use `bun run dev` for subsequent starts; startup never seeds the database. Ctrl+C stops the session and preserves stored data. Before testing checkout, publish English and Hungarian terms in the admin CMS under **Terms and Conditions**.
 
-See [Architecture and checkout flow](docs/architecture.md) for database, payment, and email implementation details.
+| Service | Local URL                   |
+| ------- | --------------------------- |
+| Shop    | <http://localhost:5173>     |
+| API     | <http://localhost:5000/api> |
+| Grafana | <http://localhost/grafana/> |
+
+Grafana's default login is `admin` / `admin`; query logs by the `job` label, such as `server` or `worker`.
+
+For a backend-only session, run `docker compose up --build` from the server directory. Set `NGROK_AUTHTOKEN` to enable its optional HTTPS tunnel; the URL is logged at startup.

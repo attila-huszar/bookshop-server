@@ -1,11 +1,15 @@
 import { ordersDB } from '@/repositories'
-import { extractPaymentIntentFields } from '@/utils'
 import {
   ReconciliationFailure,
   reconciliationFailureReason,
 } from '@/utils/reconciliation.utils'
-import { log, stripe } from '@/libs'
-import { terminalStatuses } from '@/constants'
+import { extractPaymentIntentFields } from '@/utils/stripe.utils'
+import { log } from '@/libs/logger'
+import { getStripe } from '@/libs/stripe'
+import {
+  reconciliationRequestPolicy,
+  terminalStatuses,
+} from '@/constants/payment'
 import { reconciliationPolicy } from '@/constants/reconciliation'
 import { Internal } from '@/errors/Internal'
 import {
@@ -18,7 +22,10 @@ import {
   type User,
 } from '@/types'
 
-const reconciliationRequestOptions = { timeout: 10_000, maxNetworkRetries: 1 }
+const reconciliationRequestOptions = {
+  timeout: reconciliationRequestPolicy.timeoutMs,
+  maxNetworkRetries: reconciliationRequestPolicy.maxNetworkRetries,
+}
 
 export async function getUserOrders(
   user: Pick<User, 'email'>,
@@ -80,7 +87,7 @@ async function shouldIgnorePaymentIntentEvent(
     lastStripeEventCreated !== null &&
     eventCreated < lastStripeEventCreated
   ) {
-    void log.debug(
+    log.debug(
       '[STRIPE] Ignoring stale webhook event by created timestamp',
       context,
     )
@@ -92,7 +99,7 @@ async function shouldIgnorePaymentIntentEvent(
     lastStripeEventCreated === eventCreated &&
     lastStripeEventId === eventId
   ) {
-    void log.debug('[STRIPE] Ignoring duplicate webhook event', context)
+    log.debug('[STRIPE] Ignoring duplicate webhook event', context)
 
     return true
   }
@@ -102,7 +109,7 @@ async function shouldIgnorePaymentIntentEvent(
     terminalStatuses.includes(order.paymentStatus) &&
     order.paymentStatus !== nextStatus
   ) {
-    void log.warn('[STRIPE] Ignoring out-of-order terminal status transition', {
+    log.debug('[STRIPE] Ignoring out-of-order terminal status transition', {
       ...context,
       fromStatus: order.paymentStatus,
       toStatus: nextStatus,
@@ -120,10 +127,11 @@ async function shouldIgnorePaymentIntentEvent(
   ) {
     // Stripe timestamps have second precision. Check conflicts from the same
     // second or from before the latest reconciliation against the live intent.
-    const currentIntent = await stripe.paymentIntents.retrieve(paymentIntentId)
+    const currentIntent =
+      await getStripe().paymentIntents.retrieve(paymentIntentId)
 
     if (currentIntent.status !== nextStatus) {
-      void log.debug(
+      log.debug(
         '[STRIPE] Ignoring stale status after checking current intent',
         {
           ...context,
@@ -188,7 +196,7 @@ export async function reconcileOrderPayment(
     let paymentId = order.paymentId
 
     if (!paymentId) {
-      const matches = await stripe.paymentIntents.search(
+      const matches = await getStripe().paymentIntents.search(
         {
           query: `metadata['orderId']:'${order.id}' AND metadata['checkoutRequestId']:'${order.checkoutRequestId}'`,
           limit: 2,
@@ -212,7 +220,7 @@ export async function reconcileOrderPayment(
     }
 
     // Re-fetch on every CAS retry; never overwrite a newer webhook with an old response.
-    const intent = await stripe.paymentIntents.retrieve(
+    const intent = await getStripe().paymentIntents.retrieve(
       paymentId,
       {},
       reconciliationRequestOptions,
@@ -271,7 +279,7 @@ export async function reconcileOrderPayment(
         order.paymentStatus !== updatedOrder.paymentStatus ||
         (order.paidAt == null && updatedOrder.paidAt != null)
       ) {
-        void log.info('[STRIPE] Reconciled order payment', {
+        log.info('[STRIPE] Reconciled order payment', {
           orderId,
           paymentId,
           fromStatus: order.paymentStatus,
@@ -288,21 +296,19 @@ export async function reconcileOrderPayment(
   )
 }
 
-export async function reconcileStaleOrders(): Promise<{
+export async function reconcileStaleOrders(signal?: AbortSignal): Promise<{
   checked: number
   failed: number
 }> {
   const startedAt = Date.now()
   const orders = await ordersDB.getOrdersForReconciliation({
     staleBefore: new Date(startedAt - reconciliationPolicy.minimumOrderAgeMs),
-    checkedBefore: new Date(
-      startedAt - reconciliationPolicy.pendingCheckIntervalMs,
-    ),
+    checkedBefore: new Date(startedAt - reconciliationPolicy.pendingCheckMs),
     failedCheckedBefore: new Date(
-      startedAt - reconciliationPolicy.failureRetryIntervalMs,
+      startedAt - reconciliationPolicy.failureRetryMs,
     ),
     terminalCheckedBefore: new Date(
-      startedAt - reconciliationPolicy.terminalAuditIntervalMs,
+      startedAt - reconciliationPolicy.terminalAuditMs,
     ),
     limit: reconciliationPolicy.batchSize,
   })
@@ -311,6 +317,7 @@ export async function reconcileStaleOrders(): Promise<{
 
   for (const order of orders) {
     if (
+      signal?.aborted ||
       checked >= reconciliationPolicy.batchSize ||
       Date.now() - startedAt >= reconciliationPolicy.runBudgetMs
     ) {
@@ -326,7 +333,7 @@ export async function reconcileStaleOrders(): Promise<{
       await reconcileOrderPayment(order.id)
     } catch (error) {
       failed++
-      void log.error('[STRIPE] Order reconciliation failed', {
+      log.error('[STRIPE] Order reconciliation failed', {
         error,
         orderId: order.id,
         paymentId: order.paymentId,
@@ -339,8 +346,8 @@ export async function reconcileStaleOrders(): Promise<{
           attemptedAt,
         )
       } catch (recordError) {
-        void log.error(
-          '[STRIPE] Could not persist reconciliation failure or alert',
+        log.error(
+          '❌ [STRIPE] Could not persist reconciliation failure or alert',
           { error: recordError, orderId: order.id, paymentId: order.paymentId },
         )
       }
@@ -350,7 +357,7 @@ export async function reconcileStaleOrders(): Promise<{
   const result = { checked, failed }
 
   if (checked > 0) {
-    void log.info('[STRIPE] Order reconciliation completed', result)
+    log.debug('[STRIPE] Order reconciliation completed', result)
   }
 
   return result
@@ -363,7 +370,7 @@ function reportWebhookSaveFailure(
   reason: 'threw' | 'returned_null',
   error?: unknown,
 ): void {
-  void log.error('[CRITICAL] Webhook order update save failed', {
+  log.error('❌ [STRIPE] Webhook order update save failed', {
     issueCode: IssueCode.WEBHOOK_ORDER_SAVE_FAILED,
     entity: 'order',
     operation: 'update',
@@ -437,7 +444,7 @@ export async function applyPaymentIntentWebhookToOrder(
     }
   }
 
-  void log.warn('[STRIPE] Could not apply webhook after concurrent updates', {
+  log.warn('[STRIPE] Could not apply webhook after concurrent updates', {
     paymentId: paymentIntentId,
     ...eventMeta,
   })

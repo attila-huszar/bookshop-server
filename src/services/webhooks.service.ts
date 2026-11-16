@@ -1,6 +1,7 @@
 import { env } from '@/config'
-import { extractPaymentIntentFields } from '@/utils'
-import { log, stripe } from '@/libs'
+import { extractPaymentIntentFields } from '@/utils/stripe.utils'
+import { log } from '@/libs/logger'
+import { getStripe } from '@/libs/stripe'
 import { BadRequest } from '@/errors/BadRequest'
 import { Internal } from '@/errors/Internal'
 import {
@@ -17,7 +18,7 @@ function reportMissingWebhookOrder(
   paymentIntent: StripePaymentIntent,
   eventMeta: PaymentIntentEventMeta,
 ): void {
-  void log.error('[CRITICAL] Missing order for Stripe payment_intent webhook', {
+  log.error('❌ [STRIPE] Missing order for payment_intent webhook', {
     issueCode: IssueCode.WEBHOOK_MISSING_ORDER,
     paymentId: paymentIntent.id,
     ...eventMeta,
@@ -45,7 +46,7 @@ async function handlePaymentIntentWebhook(
     return
   }
 
-  const { eventType } = eventMeta
+  const { eventType, eventId } = eventMeta
   const isTerminalEvent =
     eventType === 'payment_intent.succeeded' ||
     eventType === 'payment_intent.canceled'
@@ -70,7 +71,7 @@ async function handlePaymentIntentWebhook(
       )
     }
 
-    void log.warn('Failed to find order for payment intent', {
+    log.warn('Failed to find order for payment intent', {
       paymentId: paymentIntent.id,
       ...eventMeta,
     })
@@ -82,27 +83,25 @@ async function handlePaymentIntentWebhook(
     return
   }
 
+  const context = { orderId: order.id, paymentId: paymentIntent.id, eventId }
+
   switch (eventType) {
     case 'payment_intent.succeeded':
-      void log.info('[STRIPE] Payment succeeded via webhook', {
-        paymentId: paymentIntent.id,
-      })
+      log.info('[STRIPE] Payment succeeded via webhook', context)
       break
     case 'payment_intent.amount_capturable_updated':
-      void log.info('[STRIPE] Payment capturable via webhook', {
-        paymentId: paymentIntent.id,
-      })
+      log.info('[STRIPE] Payment capturable via webhook', context)
       break
     case 'payment_intent.payment_failed':
-      void log.warn('[STRIPE] Payment failed via webhook', {
-        paymentId: paymentIntent.id,
+      log.info('[STRIPE] Payment failed via webhook', {
+        ...context,
+        code: paymentIntent.last_payment_error?.code,
+        declineCode: paymentIntent.last_payment_error?.decline_code,
         error: paymentIntent.last_payment_error?.message,
       })
       break
     case 'payment_intent.canceled':
-      void log.info('[STRIPE] Payment canceled via webhook', {
-        paymentId: paymentIntent.id,
-      })
+      log.info('[STRIPE] Payment canceled via webhook', context)
       break
     case 'payment_intent.created':
     case 'payment_intent.partially_funded':
@@ -128,7 +127,7 @@ export async function verifyAndHandleStripeWebhook(
   let event: StripeEvent
 
   try {
-    event = await stripe.webhooks.constructEventAsync(
+    event = await getStripe().webhooks.constructEventAsync(
       payload,
       signature,
       env.stripeWebhookSecret,
@@ -146,7 +145,10 @@ export async function verifyAndHandleStripeWebhook(
       eventCreated: event.created,
     })
   } else if (event.type.startsWith('payment_intent.')) {
-    void log.warn(`[STRIPE] Unhandled webhook event type: ${event.type}`)
+    log.debug('[STRIPE] Ignoring unsupported webhook event', {
+      eventType: event.type,
+      eventId: event.id,
+    })
   }
 
   return { received: true }

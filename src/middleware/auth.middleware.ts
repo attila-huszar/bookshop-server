@@ -1,7 +1,7 @@
 import { type MiddlewareHandler } from 'hono'
 import { jwt } from 'hono/jwt'
 import { env } from '@/config'
-import { getActiveUser } from '@/services'
+import { getActiveUser } from '@/services/users.service'
 import type { AuthVariables } from '@/types'
 
 export const authMiddleware: MiddlewareHandler<{

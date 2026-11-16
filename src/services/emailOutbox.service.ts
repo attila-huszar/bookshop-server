@@ -1,6 +1,6 @@
 import { outboxDB } from '@/repositories'
 import { emailOutboxQuerySchema, validate } from '@/validation'
-import { emailOutboxResponse } from '@/utils/email-outbox.utils'
+import { emailOutboxResponse } from '@/utils/emailOutbox.utils'
 
 export async function getEmailOutbox(query: Record<string, string>) {
   const criteria = validate(emailOutboxQuerySchema, query)

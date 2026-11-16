@@ -1,9 +1,11 @@
+import { TimeMs } from '@/constants/time'
+
 export const reconciliationPolicy = {
-  minimumOrderAgeMs: 5 * 60_000,
-  pendingCheckIntervalMs: 30 * 60_000,
-  terminalAuditIntervalMs: 24 * 60 * 60_000,
-  failureRetryIntervalMs: 5 * 60_000,
+  minimumOrderAgeMs: TimeMs.FiveMinutes,
+  pendingCheckMs: TimeMs.ThirtyMinutes,
+  terminalAuditMs: TimeMs.OneDay,
+  failureRetryMs: TimeMs.FiveMinutes,
   failuresBeforeAlert: 3,
   batchSize: 100,
-  runBudgetMs: 8 * 60_000,
-}
+  runBudgetMs: 8 * TimeMs.OneMinute,
+} as const

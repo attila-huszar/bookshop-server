@@ -1,12 +1,24 @@
 import mongoose from 'mongoose'
+import { shopLanguages } from '@/constants/localization'
 import type { Order } from '@/types'
-import { autoIncrementPlugin } from './'
+import { autoIncrementPlugin } from './plugins/autoIncrement'
 
 const orderSchema = new mongoose.Schema<Order>(
   {
     id: { type: Number, unique: true, index: true },
     paymentId: { type: String, default: null },
     checkoutRequestId: { type: String, required: true },
+    termsAcceptance: {
+      type: new mongoose.Schema(
+        {
+          version: { type: String, required: true },
+          language: { type: String, enum: shopLanguages, required: true },
+          acceptedAt: { type: String, required: true },
+        },
+        { _id: false },
+      ),
+      default: null,
+    },
     paymentStatus: { type: String, default: 'processing', required: true },
     lastStripeEventCreated: { type: Number, default: null },
     lastStripeEventId: { type: String, default: null },

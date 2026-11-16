@@ -1,5 +1,7 @@
 import { z } from 'zod'
-import { MAX_IMAGE_SIZE } from '@/constants'
+import { MAX_IMAGE_SIZE_BYTES } from '@/constants/fileLimits'
+import { validationLimits } from '@/constants/validation'
+import { ValidationRule } from '@/types/enums'
 
 export const idSchema = z
   .union([z.number(), z.string().regex(/^\d+$/)])
@@ -11,7 +13,11 @@ export const idSchema = z
       .max(Number.MAX_SAFE_INTEGER),
   )
 
-export const nameSchema = z.string().trim().min(1).max(100)
+export const nameSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(validationLimits.personName.maxLength)
 
 export const countrySchema = z
   .string()
@@ -28,16 +34,32 @@ export const phoneSchema = z
   .or(z.literal(''))
 
 export const addressSchema = z.object({
-  city: z.string().max(100).nullable().default(null),
+  city: z
+    .string()
+    .max(validationLimits.address.cityMaxLength)
+    .nullable()
+    .default(null),
   country: countrySchema.or(z.literal('')).nullable().default(null),
-  line1: z.string().max(200).nullable().default(null),
-  line2: z.string().max(200).nullable().default(null),
-  postal_code: z.string().max(30).nullable().default(null),
-  state: z.string().max(100).nullable().default(null),
-})
-
-export const entityWithIdSchema = z.object({
-  id: idSchema,
+  line1: z
+    .string()
+    .max(validationLimits.address.lineMaxLength)
+    .nullable()
+    .default(null),
+  line2: z
+    .string()
+    .max(validationLimits.address.lineMaxLength)
+    .nullable()
+    .default(null),
+  postal_code: z
+    .string()
+    .max(validationLimits.address.postalCodeMaxLength)
+    .nullable()
+    .default(null),
+  state: z
+    .string()
+    .max(validationLimits.address.stateMaxLength)
+    .nullable()
+    .default(null),
 })
 
 export const idsSchema = z.array(idSchema).min(1, 'At least one ID is required')
@@ -48,14 +70,16 @@ export const paymentIdSchema = z
   .startsWith('pi_', 'Invalid payment intent ID format')
 
 export const imageSchema = z
-  .object({
-    size: z
-      .number()
-      .max(MAX_IMAGE_SIZE * 1024, `Image too large (max ${MAX_IMAGE_SIZE} KB)`),
-    type: z.string().startsWith('image/', { message: 'Invalid file type' }),
-  })
-  .refine((data) => data.size > 0, {
+  .instanceof(File)
+  .refine((file) => file.size > 0, {
     message: 'Image size must be greater than 0',
+    params: { rule: ValidationRule.ImageRequired },
+  })
+  .refine((file) => file.size <= MAX_IMAGE_SIZE_BYTES, {
+    message: `Image too large (max ${MAX_IMAGE_SIZE_BYTES / (1024 * 1024)} MB)`,
+  })
+  .refine((file) => file.type.startsWith('image/'), {
+    message: 'File must have an image MIME type',
   })
 
 export const uuidSchema = z.uuid()

@@ -50,6 +50,7 @@ export default defineConfig(
       ],
       '@typescript-eslint/consistent-type-definitions': 'off',
       '@typescript-eslint/consistent-generic-constructors': 'off',
+      'import/no-cycle': ['error', { ignoreExternal: true }],
       'prettier/prettier': 'warn',
     },
   },

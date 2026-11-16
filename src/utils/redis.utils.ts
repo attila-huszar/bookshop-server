@@ -1,4 +1,8 @@
+import type { EventEmitter } from 'node:events'
+import { log } from '@/libs/logger'
 import { getErrorCode } from './error.utils'
+
+type Connection = Pick<EventEmitter, 'on'> & { readonly status: string }
 
 const DEFAULT_REDIS_TARGET = {
   host: 'localhost',
@@ -10,6 +14,10 @@ const knownRedisCodes = new Set([
   'enotfound',
   'eai_again',
   'etimedout',
+  'econnreset',
+  'epipe',
+  'ehostunreach',
+  'enetunreach',
 ])
 
 const knownRedisMessageFragments = [
@@ -23,20 +31,86 @@ export function getRedisConnectionHint(
   error: unknown,
   redisUrl?: string,
 ): string | null {
-  if (!isRedisConnectionError(error)) return null
+  if (!isRedisConnectionError(error)) {
+    return null
+  }
 
   const { host, port } = resolveRedisTarget(redisUrl)
-  return `Start Redis locally and retry (expected at ${host}:${port})`
+
+  return `Check Redis availability at ${host}:${port}; reconnection is automatic`
+}
+
+/** Observe every worker connection; a single ready socket is not full recovery. */
+export function monitorRedisRecovery(input: {
+  name: string
+  backend: { connection: Connection; blockingConnection?: Connection }
+  redisUrl?: string
+  isClosing: () => boolean
+}): (error: unknown) => boolean {
+  const connections = [input.backend.connection]
+
+  if (input.backend.blockingConnection) {
+    connections.push(input.backend.blockingConnection)
+  }
+
+  const ready = connections.map((connection) => connection.status === 'ready')
+  let outageReported = false
+
+  const reportOutage = (hint?: string) => {
+    if (input.isClosing() || outageReported) {
+      return
+    }
+
+    outageReported = true
+    log.warn(`⚠️ ${input.name} Redis connection lost; reconnecting`, { hint })
+  }
+
+  for (const [index, connection] of connections.entries()) {
+    connection.on('close', () => {
+      ready[index] = false
+      reportOutage()
+    })
+
+    connection.on('error', (error: unknown) => {
+      if (isRedisConnectionError(error)) {
+        ready[index] = false
+      }
+    })
+
+    connection.on('ready', () => {
+      ready[index] = true
+
+      if (outageReported && ready.every(Boolean) && !input.isClosing()) {
+        outageReported = false
+        log.info(`✅ ${input.name} Redis connection recovered`)
+      }
+    })
+  }
+
+  return (error) => {
+    const hint = getRedisConnectionHint(error, input.redisUrl)
+
+    if (!hint) {
+      return false
+    }
+
+    reportOutage(hint)
+
+    return true
+  }
 }
 
 function resolveRedisTarget(redisUrl?: string): {
   host: string
   port: string
 } {
-  if (!redisUrl) return { ...DEFAULT_REDIS_TARGET }
+  if (!redisUrl) {
+    return { ...DEFAULT_REDIS_TARGET }
+  }
 
   try {
     const parsedRedisUrl = new URL(redisUrl)
+
     return {
       host: parsedRedisUrl.hostname || DEFAULT_REDIS_TARGET.host,
       port: parsedRedisUrl.port || DEFAULT_REDIS_TARGET.port,
@@ -47,7 +121,9 @@ function resolveRedisTarget(redisUrl?: string): {
 }
 
 function isRedisConnectionError(error: unknown): boolean {
-  if (!(error instanceof Error)) return false
+  if (!(error instanceof Error)) {
+    return false
+  }
 
   const message = error.message.toLowerCase()
   const code = String(getErrorCode(error) ?? '').toLowerCase()

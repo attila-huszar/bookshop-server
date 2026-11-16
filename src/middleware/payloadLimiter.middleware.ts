@@ -1,5 +1,6 @@
 import { type MiddlewareHandler } from 'hono'
-import { MAX_IMAGE_SIZE, MAX_JSON_SIZE } from '@/constants'
+import { MAX_IMAGE_SIZE_BYTES, MAX_JSON_SIZE_KIB } from '@/constants/fileLimits'
+import { HttpErrorCode } from '@/types/enums'
 
 export const payloadLimiter: MiddlewareHandler = async (c, next) => {
   if (['GET', 'HEAD', 'OPTIONS'].includes(c.req.method)) {
@@ -14,11 +15,11 @@ export const payloadLimiter: MiddlewareHandler = async (c, next) => {
   }
 
   if (contentType.includes('application/json')) {
-    if (contentLength > MAX_JSON_SIZE * 1024) {
+    if (contentLength > MAX_JSON_SIZE_KIB * 1024) {
       return c.json(
         {
-          error: 'JSON payload too large',
-          limit: `${MAX_JSON_SIZE} KB`,
+          code: HttpErrorCode.PayloadTooLarge,
+          limit: `${MAX_JSON_SIZE_KIB} KB`,
           received: `${Math.ceil(contentLength / 1024)} KB`,
         },
         413,
@@ -28,12 +29,12 @@ export const payloadLimiter: MiddlewareHandler = async (c, next) => {
   }
 
   if (contentType.includes('multipart/form-data')) {
-    if (contentLength > MAX_IMAGE_SIZE * 1024 * 1.1) {
+    if (contentLength > MAX_IMAGE_SIZE_BYTES * 1.1) {
       return c.json(
         {
-          error: 'File too large',
-          limit: `${MAX_IMAGE_SIZE} KB`,
-          received: `${Math.ceil(contentLength / 1024)} KB`,
+          code: HttpErrorCode.PayloadTooLarge,
+          limit: `${MAX_IMAGE_SIZE_BYTES / (1024 * 1024)} MB`,
+          received: `${(contentLength / (1024 * 1024)).toFixed(2)} MB`,
         },
         413,
       )
@@ -41,11 +42,11 @@ export const payloadLimiter: MiddlewareHandler = async (c, next) => {
     return next()
   }
 
-  if (contentLength > MAX_JSON_SIZE * 1024) {
+  if (contentLength > MAX_JSON_SIZE_KIB * 1024) {
     return c.json(
       {
-        error: 'Payload too large',
-        limit: `${MAX_JSON_SIZE} KB`,
+        code: HttpErrorCode.PayloadTooLarge,
+        limit: `${MAX_JSON_SIZE_KIB} KB`,
         received: `${Math.ceil(contentLength / 1024)} KB`,
       },
       413,

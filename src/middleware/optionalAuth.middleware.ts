@@ -1,8 +1,8 @@
 import type { MiddlewareHandler } from 'hono'
 import { verify } from 'hono/jwt'
 import { env } from '@/config'
-import { getActiveUser } from '@/services'
-import { log } from '@/libs'
+import { getActiveUser } from '@/services/users.service'
+import { log } from '@/libs/logger'
 import type { AuthVariables } from '@/types'
 
 const BEARER_PREFIX = 'Bearer '
@@ -31,7 +31,6 @@ export const optionalAuthMiddleware: MiddlewareHandler<{
 
       if (user) {
         c.set('authUser', user)
-        log.debug('Payment access resolved for registered user', { uuid })
       }
     }
   }

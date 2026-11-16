@@ -16,6 +16,7 @@ function createOrder(overrides: Partial<Order> = {}): Order {
   return {
     id: 1,
     checkoutRequestId: 'checkout-reconciliation-test',
+    termsAcceptance: null,
     paymentId: 'pi_test',
     paymentStatus: 'processing',
     lastStripeEventCreated: 100,
@@ -98,6 +99,7 @@ describe('Order reconciliation', () => {
     mockExtractPaymentIntentFields.mockReturnValue({})
     mockLogger.error.mockReset()
     mockLogger.info.mockReset()
+    mockLogger.debug.mockReset()
     mockOrdersDB.getOrderById.mockResolvedValue(createOrder())
     mockStripe.paymentIntents.retrieve.mockResolvedValue(createIntent())
     mockOrdersDB.updateOrder.mockImplementation(
@@ -327,7 +329,7 @@ describe('Order reconciliation', () => {
       1,
     )
     expect(mockStripe.paymentIntents.retrieve).toHaveBeenCalledTimes(1)
-    expect(mockLogger.info).toHaveBeenCalledWith(
+    expect(mockLogger.debug).toHaveBeenCalledWith(
       '[STRIPE] Order reconciliation completed',
       { checked: 1, failed: 0 },
     )
@@ -384,7 +386,7 @@ describe('Order reconciliation', () => {
       '[STRIPE] Order reconciliation failed',
       expect.objectContaining({ orderId: 1, paymentId: 'pi_test' }),
     )
-    expect(mockLogger.info).toHaveBeenCalledWith(
+    expect(mockLogger.debug).toHaveBeenCalledWith(
       '[STRIPE] Order reconciliation completed',
       { checked: 2, failed: 1 },
     )
@@ -453,7 +455,7 @@ describe('Order reconciliation', () => {
       expect.any(Date),
     )
     expect(mockLogger.error).toHaveBeenCalledWith(
-      '[STRIPE] Could not persist reconciliation failure or alert',
+      '❌ [STRIPE] Could not persist reconciliation failure or alert',
       expect.objectContaining({ paymentId: 'pi_test' }),
     )
   })

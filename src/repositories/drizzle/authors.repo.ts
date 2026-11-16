@@ -1,5 +1,5 @@
 import { eq, inArray, like } from 'drizzle-orm'
-import { sqlite } from '@/db'
+import { sqlite } from '@/database/sqlite'
 import { authorsTable } from '@/models/sqlite'
 import { NotFound } from '@/errors'
 import type {

@@ -1,6 +1,6 @@
 import mongoose from 'mongoose'
 import type { Author } from '@/types'
-import { autoIncrementPlugin } from './'
+import { autoIncrementPlugin } from './plugins/autoIncrement'
 
 const authorSchema = new mongoose.Schema<Author>(
   {

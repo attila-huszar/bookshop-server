@@ -1,5 +1,6 @@
 import type { PipelineStage } from 'mongoose'
 import { EmailOutboxModel } from '@/models/mongo/EmailOutboxModel'
+import { outboxPolicy } from '@/constants/email'
 import {
   type EmailDeliveryUpdate,
   type EmailOutboxEntry,
@@ -17,7 +18,10 @@ export async function claimEmail(
       $or: [{ lockedUntil: null }, { lockedUntil: { $lte: now } }],
     },
     {
-      $set: { leaseToken, lockedUntil: new Date(now.getTime() + 60_000) },
+      $set: {
+        leaseToken,
+        lockedUntil: new Date(now.getTime() + outboxPolicy.leaseMs),
+      },
       $inc: { attempts: 1 },
     },
     { returnDocument: 'after', sort: { availableAt: 1, createdAt: 1 } },

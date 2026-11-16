@@ -1,0 +1,12 @@
+{
+  "Rules": [
+    {
+      "ID": "backup-storage-cleanup",
+      "Status": "Enabled",
+      "Filter": { "Prefix": "backups/" },
+      "AbortIncompleteMultipartUpload": { "DaysAfterInitiation": 1 },
+      "NoncurrentVersionExpiration": { "NoncurrentDays": 30 },
+      "Expiration": { "ExpiredObjectDeleteMarker": true }
+    }
+  ]
+}

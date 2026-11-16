@@ -1,27 +1,28 @@
 FROM oven/bun:alpine AS base
 
 RUN apk update && apk upgrade --no-cache
-RUN apk add --no-cache sqlite curl
+RUN apk add --no-cache curl
 
 WORKDIR /bookshop-server
 
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile
 
+RUN mkdir -p /bookshop-server/data /bookshop-server/runtime && \
+  chown bun:bun /bookshop-server/data /bookshop-server/runtime
+
 COPY . .
-RUN mkdir -p /bookshop-server/data/backups && \
-  chown -R bun:bun /bookshop-server
 
 FROM base AS server
 USER bun
-CMD ["bun", "src/app.ts"]
+CMD ["/bin/sh", "docker/database-access.sh", "service", "bun", "src/server.ts"]
 
 FROM base AS worker
 USER bun
-CMD ["bun", "src/workers/email.worker.ts"]
+CMD ["/bin/sh", "docker/database-access.sh", "service", "bun", "src/worker.ts"]
 
 FROM base AS cron
-RUN apk add --no-cache bash mongodb-tools util-linux
+RUN apk add --no-cache sqlite mongodb-tools
 RUN curl -sSfL "https://cronitor.io/install-linux?sudo=0" \
   -o /tmp/cronitor-install.sh && \
   sh /tmp/cronitor-install.sh && \

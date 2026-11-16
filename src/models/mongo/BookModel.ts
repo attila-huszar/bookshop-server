@@ -1,6 +1,6 @@
 import mongoose, { type Types } from 'mongoose'
 import type { Book } from '@/types'
-import { autoIncrementPlugin } from './'
+import { autoIncrementPlugin } from './plugins/autoIncrement'
 
 export type BookWithAuthorRef = Omit<Book, 'authorId'> & {
   authorId: Types.ObjectId | null

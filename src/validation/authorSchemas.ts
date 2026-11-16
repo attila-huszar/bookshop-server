@@ -5,15 +5,35 @@ import {
 } from 'drizzle-zod'
 import { z } from 'zod'
 import { authorsTable } from '@/models/sqlite'
+import { validationLimits } from '@/constants/validation'
 import type { SchemaRefinements } from '@/types'
 
 export const authorSelectSchema = createSelectSchema(authorsTable)
 
 const authorFields = {
-  name: z.string().trim().min(2).max(50),
-  fullName: z.string().trim().min(2).max(100).or(z.literal('')),
-  homeland: z.string().trim().min(2).max(50).or(z.literal('')),
-  biography: z.string().trim().min(10).max(500).or(z.literal('')),
+  name: z
+    .string()
+    .trim()
+    .min(validationLimits.author.nameMinLength)
+    .max(validationLimits.author.nameMaxLength),
+  fullName: z
+    .string()
+    .trim()
+    .min(validationLimits.author.fullNameMinLength)
+    .max(validationLimits.author.fullNameMaxLength)
+    .or(z.literal('')),
+  homeland: z
+    .string()
+    .trim()
+    .min(validationLimits.author.homelandMinLength)
+    .max(validationLimits.author.homelandMaxLength)
+    .or(z.literal('')),
+  biography: z
+    .string()
+    .trim()
+    .min(validationLimits.author.biographyMinLength)
+    .max(validationLimits.author.biographyMaxLength)
+    .or(z.literal('')),
   birthYear: z
     .string()
     .regex(/^[1-9]\d*$/, 'Invalid year')

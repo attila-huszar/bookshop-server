@@ -3,6 +3,7 @@ import {
   asc,
   desc,
   eq,
+  exists,
   gt,
   inArray,
   isNotNull,
@@ -11,13 +12,14 @@ import {
   notInArray,
   or,
 } from 'drizzle-orm'
-import { sqlite } from '@/db'
+import { sqlite } from '@/database/sqlite'
 import { ordersTable } from '@/models/sqlite'
 import { emailOutboxTable } from '@/models/sqlite/emailOutboxTable'
+import { termsDocumentsTable } from '@/models/sqlite/termsDocumentsTable'
 import {
   orderPaidEmails,
   orderReconciliationFailure,
-} from '@/utils/email-job.utils'
+} from '@/utils/emailOutbox.utils'
 import { terminalStatuses } from '@/constants/payment'
 import type {
   CmsOrderUpdate,
@@ -26,6 +28,7 @@ import type {
   OrderPaymentSnapshot,
   OrderReconciliationQuery,
   OrderUpdate,
+  TermsAcceptance,
 } from '@/types'
 
 export async function getOrderByCheckoutRequestId(
@@ -60,6 +63,36 @@ export async function getOrder(paymentId: string): Promise<Order | null> {
     .limit(1)
 
   return orderRecords[0] ?? null
+}
+
+/** Keep the first acceptance and its timestamp across identical retries. */
+export async function recordTermsAcceptance(
+  paymentId: string,
+  acceptance: TermsAcceptance,
+): Promise<Order | null> {
+  const [updated] = await sqlite
+    .update(ordersTable)
+    .set({ termsAcceptance: acceptance })
+    .where(
+      and(
+        eq(ordersTable.paymentId, paymentId),
+        isNull(ordersTable.termsAcceptance),
+        isNull(ordersTable.deletedAt),
+        exists(
+          sqlite
+            .select({ id: termsDocumentsTable.id })
+            .from(termsDocumentsTable)
+            .where(eq(termsDocumentsTable.version, acceptance.version)),
+        ),
+        inArray(ordersTable.paymentStatus, [
+          'requires_payment_method',
+          'requires_confirmation',
+        ]),
+      ),
+    )
+    .returning()
+
+  return updated ?? getOrder(paymentId)
 }
 
 export async function getOrderById(id: number): Promise<Order | null> {
@@ -277,6 +310,7 @@ export async function recordReconciliationFailure(
       }
 
       const failure = orderReconciliationFailure(order, reason)
+
       tx.update(ordersTable)
         .set(failure.fields)
         .where(eq(ordersTable.id, order.id))

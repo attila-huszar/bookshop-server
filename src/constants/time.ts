@@ -1,0 +1,15 @@
+export const enum TimeMs {
+  OneSecond = 1_000,
+  TwoSeconds = 2 * OneSecond,
+  FiveSeconds = 5 * OneSecond,
+  TenSeconds = 10 * OneSecond,
+  ThirtySeconds = 30 * OneSecond,
+  FortyFiveSeconds = 45 * OneSecond,
+  OneMinute = 60 * OneSecond,
+  FiveMinutes = 5 * OneMinute,
+  FifteenMinutes = 15 * OneMinute,
+  ThirtyMinutes = 30 * OneMinute,
+  OneHour = 60 * OneMinute,
+  OneDay = 24 * OneHour,
+  OneWeek = 7 * OneDay,
+}

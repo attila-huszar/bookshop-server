@@ -28,6 +28,7 @@ const order: Order = {
   id: 1,
   paymentId: 'pi_deleted',
   checkoutRequestId: 'checkout-deleted',
+  termsAcceptance: null,
   paymentStatus: 'succeeded',
   total: 10,
   currency: 'USD',

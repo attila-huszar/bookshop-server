@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto'
 import type {
   Order,
   PaymentIntentRequest,
@@ -45,5 +44,5 @@ export function getPaymentIdempotencyKey(
     scope,
   })
 
-  return `bookshop:${createHash('sha256').update(fingerprint).digest('hex')}`
+  return `bookshop:${Bun.CryptoHasher.hash('sha256', fingerprint, 'hex')}`
 }

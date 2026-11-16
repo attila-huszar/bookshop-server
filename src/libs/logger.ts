@@ -23,34 +23,96 @@ export class Logger {
 
     const logOutput = {
       level: log.level,
-      message: log.message,
+      message: this.serialize(log.message),
       meta: this.serialize(log.meta),
       source: this.source,
     }
 
-    console.log(JSON.stringify(logOutput))
+    console.log(JSON.stringify(logOutput, null, 2))
   }
 
-  private serialize = (value: unknown): unknown => {
-    if (value instanceof Error) {
-      return {
-        name: value.name,
-        message: value.message,
-        stack: value.stack,
+  private serialize(
+    value: unknown,
+    ancestors = new WeakSet<object>(),
+  ): unknown {
+    if (typeof value === 'string') {
+      return this.redact(value)
+    }
+
+    if (value === null || typeof value !== 'object') {
+      return value
+    }
+
+    if (ancestors.has(value)) {
+      return '[Circular]'
+    }
+
+    ancestors.add(value)
+
+    try {
+      if (value instanceof Error) {
+        const serialized: Record<string, unknown> = {
+          name: value.name,
+          message: this.serialize(value.message, ancestors),
+          stack: this.serialize(value.stack, ancestors),
+        }
+
+        const code = 'code' in value ? value.code : undefined
+
+        if (
+          typeof code === 'number' ||
+          (typeof code === 'string' && /^[A-Z][A-Z0-9_]*$/.test(code))
+        ) {
+          serialized.code = code
+        }
+
+        if ('stage' in value) {
+          serialized.stage = value.stage
+        }
+
+        if ('originalName' in value) {
+          serialized.originalName = value.originalName
+        }
+
+        if (value.cause !== undefined) {
+          serialized.cause = this.serialize(value.cause, ancestors)
+        }
+
+        return serialized
+      }
+
+      if (Array.isArray(value)) {
+        return value.map((entry) => this.serialize(entry, ancestors))
+      }
+
+      return Object.fromEntries(
+        Object.entries(value).map(([key, entry]) => [
+          key,
+          this.serialize(entry, ancestors),
+        ]),
+      )
+    } finally {
+      ancestors.delete(value)
+    }
+  }
+
+  private redact(value: string): string {
+    let sanitized = value.replace(
+      /((?:mongodb(?:\+srv)?|rediss?|https?):\/\/)[^\s/@]*@/gi,
+      '$1[redacted]@',
+    )
+
+    for (const [key, secret] of Object.entries(Bun.env)) {
+      if (
+        /PASSWORD|PASS$|SECRET|TOKEN|KEY/.test(key) &&
+        secret &&
+        secret.length >= 4
+      ) {
+        sanitized = sanitized.replaceAll(secret, '[redacted]')
       }
     }
 
-    if (Array.isArray(value)) {
-      return value.map(this.serialize)
-    }
-
-    if (value !== null && typeof value === 'object') {
-      return Object.fromEntries(
-        Object.entries(value).map(([k, v]) => [k, this.serialize(v)]),
-      )
-    }
-
-    return value
+    return sanitized
   }
 
   debug(message: string, meta?: unknown) {
