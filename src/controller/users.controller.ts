@@ -49,20 +49,6 @@ import { AuthErrorCode } from '@/types/enums'
 
 export const users = new Hono<{ Variables: AuthVariables }>()
 
-// These JSON endpoints are called by our frontend, never posted to by Google.
-users.use(`${API.users.google}/*`, async (c, next) => {
-  const isTrustedOrigin = c.req.header('origin') === env.clientBaseUrl
-
-  if (!isTrustedOrigin) {
-    throw new Forbidden(
-      'Google sign-in requires the configured frontend origin',
-    )
-  }
-
-  c.header('Cache-Control', 'no-store')
-  await next()
-})
-
 users.post(API.users.googleNonce, async (c) => {
   requireGoogleAuth()
 

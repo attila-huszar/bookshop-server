@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test'
 import { rejects } from 'node:assert/strict'
 import { generateKeyPairSync, sign } from 'node:crypto'
+import { createApp } from '@/app'
 import { CertificateFormat } from 'google-auth-library/build/src/auth/oauth2client'
 import { Hono } from 'hono'
 import { setSignedCookie } from 'hono/cookie'
@@ -10,14 +11,12 @@ import {
   googleCookieOptions,
   REFRESH_TOKEN,
 } from '@/config'
-import { users } from '@/controller/users.controller'
 import {
   googleAuthClient,
   loginWithGoogle,
 } from '@/services/googleAuth.service'
 import { authTiming } from '@/constants/auth'
 import { API } from '@/constants/paths'
-import { errorHandler } from '@/errors/errorHandler'
 import {
   mockSignAccessToken,
   mockSignRefreshToken,
@@ -27,9 +26,9 @@ import {
 const { privateKey, publicKey } = generateKeyPairSync('rsa', {
   modulusLength: 2048,
 })
-const app = new Hono()
-  .onError((error, c) => errorHandler(c, error))
-  .route('/', users)
+const app = createApp()
+const googleLoginPath = `${API.api}${API.users.google}`
+const googleNoncePath = `${API.api}${API.users.googleNonce}`
 const originalClientId = env.googleClientId
 const originalCookieSecret = env.cookieSecret
 const origin = env.clientBaseUrl!
@@ -308,7 +307,7 @@ describe('Google browser session boundary', () => {
   }
 
   it('issues a short-lived HttpOnly challenge and exchanges it for the regular session', async () => {
-    const challenge = await app.request(API.users.googleNonce, {
+    const challenge = await app.request(googleNoncePath, {
       method: 'POST',
       headers: { origin },
     })
@@ -317,7 +316,7 @@ describe('Google browser session boundary', () => {
     expect(challenge.headers.get('cache-control')).toBe('no-store')
     const { nonce } = (await challenge.json()) as { nonce: string }
     const cookie = challenge.headers.get('set-cookie')!.split(';')[0]!
-    const response = await app.request(API.users.google, {
+    const response = await app.request(googleLoginPath, {
       method: 'POST',
       headers: { origin, cookie, 'content-type': 'application/json' },
       body: JSON.stringify({ credential: credential('unused', { nonce }) }),
@@ -340,14 +339,14 @@ describe('Google browser session boundary', () => {
   it.each(['https://attacker.example', ''])(
     'rejects an untrusted origin: %s',
     async (untrusted) => {
-      const response = await app.request(API.users.google, {
+      const response = await app.request(googleLoginPath, {
         method: 'POST',
         headers: { origin: untrusted, 'content-type': 'application/json' },
         body: '{}',
       })
       expect(response.status).toBe(403)
       expect(certificates).not.toHaveBeenCalled()
-      const challenge = await app.request(API.users.googleNonce, {
+      const challenge = await app.request(googleNoncePath, {
         method: 'POST',
         headers: { origin: untrusted },
       })
@@ -358,7 +357,7 @@ describe('Google browser session boundary', () => {
   it.each(['', `${GOOGLE_AUTH_SESSION}=forged`])(
     'rejects a missing or forged challenge: %s',
     async (cookie) => {
-      const response = await app.request(API.users.google, {
+      const response = await app.request(googleLoginPath, {
         method: 'POST',
         headers: { origin, cookie, 'content-type': 'application/json' },
         body: '{}',
@@ -375,7 +374,7 @@ describe('Google browser session boundary', () => {
       expiresIn: 1,
     })
     await Bun.sleep(10)
-    const response = await app.request(API.users.google, {
+    const response = await app.request(googleLoginPath, {
       method: 'POST',
       headers: {
         origin,
@@ -391,12 +390,12 @@ describe('Google browser session boundary', () => {
   })
 
   it('rejects a valid Google nonce presented by another browser', async () => {
-    const challenge = await app.request(API.users.googleNonce, {
+    const challenge = await app.request(googleNoncePath, {
       method: 'POST',
       headers: { origin },
     })
     const { nonce } = (await challenge.json()) as { nonce: string }
-    const response = await app.request(API.users.google, {
+    const response = await app.request(googleLoginPath, {
       method: 'POST',
       headers: {
         origin,
@@ -415,7 +414,7 @@ describe('Google browser session boundary', () => {
     const nonce = Bun.CSRF.generate(env.cookieSecret, {
       expiresIn: authTiming.googleNonceMs,
     })
-    const response = await app.request(API.users.google, {
+    const response = await app.request(googleLoginPath, {
       method: 'POST',
       headers: {
         origin,
@@ -436,7 +435,7 @@ describe('Google browser session boundary', () => {
     'application/jsonp',
     'text/plain; note=application/json',
   ])('rejects non-JSON login requests: %s', async (contentType) => {
-    const response = await app.request(API.users.google, {
+    const response = await app.request(googleLoginPath, {
       method: 'POST',
       headers: { origin, 'content-type': contentType },
       body: '{}',
