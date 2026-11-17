@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, mock } from 'bun:test'
 import { rejects } from 'node:assert/strict'
+import { mongo } from 'mongoose'
 import { env } from '@/config'
 import { terminalStatuses } from '@/constants/payment'
 import {
@@ -892,6 +893,20 @@ describe('Mongo transactional account emails', () => {
     )
     expect(EmailOutboxModel.insertMany).not.toHaveBeenCalled()
   })
+
+  it.each([
+    [11000, { email: 1 }, 'email'],
+    [11000, { googleSubject: 1 }, 'googleSubject'],
+    [11000, { id: 1 }, undefined],
+    [91, { email: 1 }, undefined],
+  ])(
+    'classifies user identity conflicts for MongoDB error %i and key %j',
+    (code, keyPattern, field) => {
+      const error = new mongo.MongoServerError({ code, keyPattern })
+
+      expect(users.getUserIdentityConflict(error)).toBe(field)
+    },
+  )
 
   it('creates verification mail from the saved user using the insert session', async () => {
     const savedUser = { ...storedUser, email: 'saved@example.com' }

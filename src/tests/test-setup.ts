@@ -16,6 +16,7 @@ env.stripeWebhookSecret ??= 'whsec_test'
 
 export const mockUsersDB = {
   getActiveUserBy: mock(),
+  getUserIdentityConflict: mock(),
   emailExists: mock(),
   getAllUsers: mock(),
   setUsersDeleted: mock(),

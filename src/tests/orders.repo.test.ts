@@ -1468,6 +1468,7 @@ describe('SQLite transactional account emails', () => {
         email: 'other@example.com',
         googleSubject: 'google-1',
       }),
+      (error) => users.getUserIdentityConflict(error) === 'googleSubject',
     )
     await users.setUsersDeleted([saved!.id], true)
     expect(await users.getActiveUserBy('googleSubject', 'google-1')).toBeNull()
@@ -1483,6 +1484,23 @@ describe('SQLite transactional account emails', () => {
     expect(
       await users.getActiveUserBy('googleSubject', 'google-1'),
     ).toMatchObject({ password: null, uuid: user.uuid })
+  })
+
+  it('recognizes case-insensitive email conflicts and leaves UUID errors intact', async () => {
+    await users.createUser(user)
+
+    await rejects(
+      users.createUserWithVerification({
+        ...user,
+        uuid: 'other-user',
+        email: user.email.toUpperCase(),
+      }),
+      (error) => users.getUserIdentityConflict(error) === 'email',
+    )
+    await rejects(
+      users.createUser({ ...user, email: 'other@example.com' }),
+      (error) => users.getUserIdentityConflict(error) === undefined,
+    )
   })
 
   it('links only verified, active accounts once without changing password or role', async () => {

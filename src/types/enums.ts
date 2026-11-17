@@ -48,6 +48,7 @@ export const enum HttpErrorCode {
 
 export const enum AuthErrorCode {
   InvalidCredentials = 'INVALID_CREDENTIALS',
+  AccountUnavailable = 'ACCOUNT_UNAVAILABLE',
   EmailUnverified = 'EMAIL_UNVERIFIED',
   InvalidToken = 'INVALID_TOKEN',
   CurrentPasswordIncorrect = 'CURRENT_PASSWORD_INCORRECT',

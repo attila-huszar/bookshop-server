@@ -1,3 +1,4 @@
+import type { TokenPayload } from 'google-auth-library'
 import { z } from 'zod'
 import { validationLimits } from '@/constants/validation'
 import { countrySchema, imageSchema, nameSchema } from './commonSchemas'
@@ -31,6 +32,27 @@ export const loginSchema = z.strictObject({
   ...emailSchema.shape,
   password: z.string().min(1, 'Password is required'),
 })
+
+export const googleLoginSchema = z.strictObject({
+  credential: z.string().min(1).max(10_000),
+})
+
+type GoogleClaimSchemas = {
+  [Claim in keyof TokenPayload]?: z.ZodType<TokenPayload[Claim]>
+}
+
+export const googleIdentitySchema = z.object({
+  sub: z.string().min(1).max(255),
+  email: emailSchema.shape.email,
+  email_verified: z.literal(true),
+  nonce: z.string().min(1),
+  hd: z.string().optional(),
+  given_name: nameSchema.optional(),
+  family_name: nameSchema.optional(),
+  name: nameSchema.optional(),
+} satisfies GoogleClaimSchemas)
+
+export type GoogleIdentity = z.infer<typeof googleIdentitySchema>
 
 export const registerSchema = z.object({
   firstName: nameSchema,

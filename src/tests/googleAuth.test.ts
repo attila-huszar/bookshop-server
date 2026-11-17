@@ -76,6 +76,7 @@ beforeEach(() => {
   env.cookieSecret = 'google-test-cookie-secret'
   for (const mock of [
     mockUsersDB.getActiveUserBy,
+    mockUsersDB.getUserIdentityConflict,
     mockUsersDB.emailExists,
     mockUsersDB.createUser,
     mockUsersDB.linkGoogleAccount,
@@ -263,7 +264,7 @@ describe('Google identity verification and accounts', () => {
     mockUsersDB.emailExists.mockResolvedValueOnce(true)
     await rejects(
       loginWithGoogle({ credential: credential('nonce') }, 'nonce'),
-      { code: 'INVALID_CREDENTIALS' },
+      { status: 403, code: 'ACCOUNT_UNAVAILABLE' },
     )
     expect(mockUsersDB.createUser).not.toHaveBeenCalled()
   })
@@ -274,9 +275,54 @@ describe('Google identity verification and accounts', () => {
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(account)
     mockUsersDB.createUser.mockRejectedValueOnce(new Error('Unique constraint'))
+    mockUsersDB.getUserIdentityConflict.mockReturnValueOnce('googleSubject')
     expect(
       await loginWithGoogle({ credential: credential('nonce') }, 'nonce'),
     ).toMatchObject({ accessToken: 'bookshop-access' })
+  })
+
+  it('recovers a concurrent link when the conditional update returns no user', async () => {
+    mockUsersDB.getActiveUserBy
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ ...account, googleSubject: null })
+      .mockResolvedValueOnce(account)
+    mockUsersDB.linkGoogleAccount.mockResolvedValueOnce(null)
+
+    expect(
+      await loginWithGoogle({ credential: credential('nonce') }, 'nonce'),
+    ).toMatchObject({ accessToken: 'bookshop-access' })
+    expect(mockUsersDB.getActiveUserBy).toHaveBeenLastCalledWith(
+      'googleSubject',
+      subject,
+    )
+    expect(mockUsersDB.createUser).not.toHaveBeenCalled()
+  })
+
+  it('reports an email uniqueness conflict even when the lookup misses it', async () => {
+    mockUsersDB.createUser.mockRejectedValueOnce(new Error('Unique constraint'))
+    mockUsersDB.getUserIdentityConflict.mockReturnValueOnce('email')
+
+    await rejects(
+      loginWithGoogle({ credential: credential('nonce') }, 'nonce'),
+      { code: 'EMAIL_ALREADY_EXISTS' },
+    )
+    expect(mockUsersDB.emailExists).toHaveBeenCalledTimes(1)
+  })
+
+  it('preserves a non-duplicate link write error when the email exists', async () => {
+    const writeError = new Error('Database write failed')
+    mockUsersDB.getActiveUserBy
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ ...account, googleSubject: null })
+    mockUsersDB.linkGoogleAccount.mockRejectedValueOnce(writeError)
+    mockUsersDB.emailExists.mockResolvedValueOnce(true)
+
+    await rejects(
+      loginWithGoogle({ credential: credential('nonce') }, 'nonce'),
+      (error) => error === writeError,
+    )
+    expect(mockUsersDB.getActiveUserBy).toHaveBeenCalledTimes(2)
+    expect(mockUsersDB.emailExists).not.toHaveBeenCalled()
   })
 
   it('fails closed when Google sign-in is disabled', async () => {
@@ -334,6 +380,29 @@ describe('Google browser session boundary', () => {
     expect(refreshCookie).toContain('Path=/api/users/refresh')
     expect(response.headers.get('set-cookie')).toContain('Max-Age=0')
     expect(response.headers.get('cache-control')).toBe('no-store')
+  })
+
+  it('rejects a soft-deleted Google identity after its email changes', async () => {
+    const sessionId = 'test-browser'
+    mockUsersDB.createUser.mockRejectedValueOnce(new Error('Unique constraint'))
+    mockUsersDB.getUserIdentityConflict.mockReturnValueOnce('googleSubject')
+
+    const response = await app.request(googleLoginPath, {
+      method: 'POST',
+      headers: {
+        origin,
+        cookie: await challengeCookie(sessionId),
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        credential: credential(sessionId, { email: 'changed@gmail.com' }),
+      }),
+    })
+
+    expect(response.status).toBe(403)
+    expect(await response.json()).toEqual({ code: 'ACCOUNT_UNAVAILABLE' })
+    expect(response.headers.getSetCookie()).toEqual([])
+    expect(mockSignAccessToken).not.toHaveBeenCalled()
   })
 
   it.each(['https://attacker.example', ''])(

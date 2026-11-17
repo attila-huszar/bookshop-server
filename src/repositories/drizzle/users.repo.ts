@@ -1,3 +1,4 @@
+import { SQLiteError } from 'bun:sqlite'
 import { and, eq, gt, inArray, isNotNull, isNull, lt } from 'drizzle-orm'
 import { sqlite } from '@/database/sqlite'
 import { usersTable } from '@/models/sqlite'
@@ -13,15 +14,6 @@ import type {
   UserUpdate,
 } from '@/types'
 import { UserErrorCode, UserRole } from '@/types/enums'
-
-/** Include soft-deleted accounts because they can be restored. */
-export async function getImageUrls(): Promise<(string | null)[]> {
-  const records = await sqlite
-    .select({ avatar: usersTable.avatar })
-    .from(usersTable)
-
-  return records.map((record) => record.avatar)
-}
 
 export async function getActiveUserBy(
   field: UserLookupField,
@@ -53,6 +45,39 @@ export async function createUser(values: UserInsert): Promise<User | null> {
   return user ?? null
 }
 
+export async function createUserWithVerification(
+  values: UserRegistrationInsert,
+): Promise<User | null> {
+  return sqlite.transaction((tx) => {
+    const [user] = tx.insert(usersTable).values(values).returning().all()
+
+    if (user) {
+      tx.insert(emailOutboxTable)
+        .values(accountEmailIntent(EMAIL.verification.type, user))
+        .run()
+    }
+
+    return user ?? null
+  })
+}
+
+/** Verify only while this token is current and unexpired, consuming it once. */
+export async function verifyUserByToken(token: string): Promise<User | null> {
+  const [user] = await sqlite
+    .update(usersTable)
+    .set({ verified: true, verificationToken: null, verificationExpires: null })
+    .where(
+      and(
+        eq(usersTable.verificationToken, token),
+        gt(usersTable.verificationExpires, new Date()),
+        isNull(usersTable.deletedAt),
+      ),
+    )
+    .returning()
+
+  return user ?? null
+}
+
 /** Link only a verified account that has not already chosen a Google identity. */
 export async function linkGoogleAccount(
   uuid: string,
@@ -74,20 +99,73 @@ export async function linkGoogleAccount(
   return user ?? null
 }
 
-export async function createUserWithVerification(
-  values: UserRegistrationInsert,
+export function getUserIdentityConflict(error: unknown) {
+  if (
+    !(error instanceof SQLiteError) ||
+    error.code !== 'SQLITE_CONSTRAINT_UNIQUE'
+  ) {
+    return undefined
+  }
+
+  switch (error.message) {
+    case "UNIQUE constraint failed: index 'email_unique_ci'":
+      return 'email'
+    case 'UNIQUE constraint failed: users.google_subject':
+      return 'googleSubject'
+    default:
+      return undefined
+  }
+}
+
+export async function setPasswordResetToken(
+  uuid: string,
+  reset: PasswordResetTokenUpdate,
 ): Promise<User | null> {
   return sqlite.transaction((tx) => {
-    const [user] = tx.insert(usersTable).values(values).returning().all()
+    const [user] = tx
+      .update(usersTable)
+      .set({
+        passwordResetToken: reset.token,
+        passwordResetExpires: reset.expiresAt,
+      })
+      .where(and(eq(usersTable.uuid, uuid), isNull(usersTable.deletedAt)))
+      .returning()
+      .all()
 
     if (user) {
       tx.insert(emailOutboxTable)
-        .values(accountEmailIntent(EMAIL.verification.type, user))
+        .values(accountEmailIntent(EMAIL.passwordReset.type, user))
         .run()
     }
 
     return user ?? null
   })
+}
+
+/** Change the password and consume its reset token in the same conditional write. */
+export async function resetPasswordByToken(
+  token: string,
+  password: string,
+): Promise<User | null> {
+  const [user] = await sqlite
+    .update(usersTable)
+    .set({ password, passwordResetToken: null, passwordResetExpires: null })
+    .where(
+      and(
+        eq(usersTable.passwordResetToken, token),
+        gt(usersTable.passwordResetExpires, new Date()),
+        isNull(usersTable.deletedAt),
+      ),
+    )
+    .returning()
+
+  return user ?? null
+}
+
+export async function getAllUsers(): Promise<User[]> {
+  const users = await sqlite.select().from(usersTable)
+
+  return users
 }
 
 export async function updateUserBy(
@@ -136,74 +214,6 @@ export async function updateUserBy(
   )
 }
 
-export async function setPasswordResetToken(
-  uuid: string,
-  reset: PasswordResetTokenUpdate,
-): Promise<User | null> {
-  return sqlite.transaction((tx) => {
-    const [user] = tx
-      .update(usersTable)
-      .set({
-        passwordResetToken: reset.token,
-        passwordResetExpires: reset.expiresAt,
-      })
-      .where(and(eq(usersTable.uuid, uuid), isNull(usersTable.deletedAt)))
-      .returning()
-      .all()
-
-    if (user) {
-      tx.insert(emailOutboxTable)
-        .values(accountEmailIntent(EMAIL.passwordReset.type, user))
-        .run()
-    }
-
-    return user ?? null
-  })
-}
-
-/** Verify only while this token is current and unexpired, consuming it once. */
-export async function verifyUserByToken(token: string): Promise<User | null> {
-  const [user] = await sqlite
-    .update(usersTable)
-    .set({ verified: true, verificationToken: null, verificationExpires: null })
-    .where(
-      and(
-        eq(usersTable.verificationToken, token),
-        gt(usersTable.verificationExpires, new Date()),
-        isNull(usersTable.deletedAt),
-      ),
-    )
-    .returning()
-
-  return user ?? null
-}
-
-/** Change the password and consume its reset token in the same conditional write. */
-export async function resetPasswordByToken(
-  token: string,
-  password: string,
-): Promise<User | null> {
-  const [user] = await sqlite
-    .update(usersTable)
-    .set({ password, passwordResetToken: null, passwordResetExpires: null })
-    .where(
-      and(
-        eq(usersTable.passwordResetToken, token),
-        gt(usersTable.passwordResetExpires, new Date()),
-        isNull(usersTable.deletedAt),
-      ),
-    )
-    .returning()
-
-  return user ?? null
-}
-
-export async function getAllUsers(): Promise<User[]> {
-  const users = await sqlite.select().from(usersTable)
-
-  return users
-}
-
 export async function setUsersDeleted(
   userIds: number[],
   deleted: boolean,
@@ -249,6 +259,15 @@ export async function setUsersDeleted(
     },
     { behavior: 'immediate' },
   )
+}
+
+/** Include soft-deleted accounts because they can be restored. */
+export async function getImageUrls(): Promise<(string | null)[]> {
+  const records = await sqlite
+    .select({ avatar: usersTable.avatar })
+    .from(usersTable)
+
+  return records.map((record) => record.avatar)
 }
 
 export async function cleanupExpiredPasswordResetTokens(): Promise<number> {
