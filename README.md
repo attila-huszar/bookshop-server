@@ -56,7 +56,7 @@ docker plugin install grafana/loki-docker-driver:latest --alias loki --grant-all
 Configure the environment files:
 
 - Server: set admin credentials, cookie/JWT secrets, Stripe test keys, SMTP credentials, and AWS S3 settings using `.env.template`.
-- Database: select `DB_REPO=MONGO` or `SQLITE`. For Atlas, replace the URI placeholders with URL-encoded credentials and your cluster hostname, and allow your outgoing IP in Atlas Network Access. Use `bookshop-dev` locally and `bookshop-prod` in production, with separate database-scoped users. Keep `MONGO_BACKUP_MODE=logical` for Atlas M0.
+- Database: select `DB_REPO=MONGO` or `SQLITE`. For Atlas, replace the URI placeholders with URL-encoded credentials and your cluster hostname, and allow your outgoing IP in Atlas Network Access. Use `bookshop-dev` locally and `bookshop-prod` in production, with separate database-scoped users.
 - Client: set `VITE_STRIPE_PUBLIC_KEY` from the same Stripe account and keep the local URL defaults aligned with the server.
 
 ## Local development

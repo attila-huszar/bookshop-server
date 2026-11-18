@@ -31,6 +31,7 @@ export async function runProcess(input: ProcessOptions): Promise<void> {
 
   let exitCode = 0
   let shutdown: Promise<void> | undefined
+  let shutdownRequested = false
 
   const stop = (code: number): Promise<void> => {
     exitCode = Math.max(exitCode, code)
@@ -52,9 +53,11 @@ export async function runProcess(input: ProcessOptions): Promise<void> {
   }
 
   async function finishShutdown(): Promise<void> {
+    let resource = 'startup'
     const deadline = setTimeout(() => {
       log.error(`❌ ${input.name} shutdown timed out`, {
         shutdownMs: input.shutdownMs,
+        resource,
       })
 
       for (const close of forceClosers) {
@@ -72,6 +75,8 @@ export async function runProcess(input: ProcessOptions): Promise<void> {
       await startup.catch(() => undefined)
 
       for (const cleanup of cleanups.toReversed()) {
+        resource = cleanup.name
+
         try {
           await cleanup.close()
         } catch (error) {
@@ -90,17 +95,17 @@ export async function runProcess(input: ProcessOptions): Promise<void> {
         process.removeListener(signal, onSignal)
       }
 
-      process.exitCode = exitCode
-
-      const drainFile = Bun.env.BOOKSHOP_PROCESS_DRAIN_FILE
-
-      if (drainFile) {
-        await writeFile(drainFile, `${exitCode}\n`, { mode: 0o600 })
+      // Bun keeps the file watcher active after the app has closed its resources.
+      if (shutdownRequested && process.execArgv.includes('--watch')) {
+        process.exit(exitCode)
       }
+
+      process.exitCode = exitCode
     }
   }
 
   const onSignal = () => {
+    shutdownRequested = true
     void stop(input.once ? 1 : 0)
   }
 

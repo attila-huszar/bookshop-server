@@ -39,6 +39,7 @@ export const enum HttpErrorCode {
   Forbidden = 'FORBIDDEN',
   NotFound = 'NOT_FOUND',
   Internal = 'INTERNAL_ERROR',
+  DatabaseBusy = 'DATABASE_BUSY',
   InvalidJson = 'INVALID_JSON',
   PayloadTooLarge = 'PAYLOAD_TOO_LARGE',
   RateLimited = 'RATE_LIMITED',

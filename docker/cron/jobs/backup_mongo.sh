@@ -3,6 +3,7 @@
 set -e
 
 export DB_REPO=MONGO
+export MONGO_BACKUP_MODE=logical
 
 cd /bookshop-server
 exec flock -n /tmp/bookshop-mongo-backup.lock \

@@ -7,15 +7,13 @@ import { createGzip } from 'node:zlib'
 import type { BunFile } from 'bun'
 import { log } from '@/libs/logger'
 import { backupTiming } from '@/constants/backup'
-import { DB_REPO, MongoBackupMode } from '@/types/enums'
-import { getMongoBackupUri } from './mongoBackupUri'
+import { DB_REPO } from '@/types/enums'
+import { getMongoOplogUri } from './mongoOplogUri'
 
-type MongoArchiveInput = {
+type MongoOplogArchiveInput = {
   uri: string
-  mode?: MongoBackupMode
   consume: (archive: BunFile) => Promise<void>
   dump?: (command: string[]) => Promise<void>
-  pauseWrites?: (dump: (signal: AbortSignal) => Promise<void>) => Promise<void>
   signal?: AbortSignal
 }
 
@@ -44,18 +42,12 @@ async function dumpMongo(
   }
 }
 
-export async function withMongoArchive(
-  input: MongoArchiveInput,
+export async function withMongoOplogArchive(
+  input: MongoOplogArchiveInput,
 ): Promise<void> {
   input.signal?.throwIfAborted()
 
-  const mode = input.mode ?? MongoBackupMode.Oplog
-  const uri = await getMongoBackupUri({ uri: input.uri, mode })
-  if (mode === MongoBackupMode.Logical && !input.pauseWrites) {
-    throw new Error(
-      'Logical Mongo backups require coordinated database writers',
-    )
-  }
+  const uri = await getMongoOplogUri({ uri: input.uri })
 
   await withBackupArchive({
     backupType: DB_REPO.MONGO,
@@ -72,19 +64,13 @@ export async function withMongoArchive(
         `--config=${configFile}`,
         `--archive=${outputFile}`,
         '--gzip',
+        '--oplog',
       ]
 
-      if (mode === MongoBackupMode.Oplog) {
-        command.push('--oplog')
-      }
-
-      const dump = (signal: AbortSignal | undefined) =>
-        input.dump ? input.dump(command) : dumpMongo(command, signal)
-
-      if (mode === MongoBackupMode.Logical) {
-        await input.pauseWrites!(dump)
+      if (input.dump) {
+        await input.dump(command)
       } else {
-        await dump(input.signal)
+        await dumpMongo(command, input.signal)
       }
     },
     consume: input.consume,

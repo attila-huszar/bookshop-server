@@ -39,7 +39,6 @@ async function runSetup(
       ADMIN_EMAIL: 'setup@example.test',
       ADMIN_PASSWORD: 'setup-test-password',
       BOOKSHOP_CRON_JOB_DIRECTORY: '',
-      BOOKSHOP_DATABASE_COORDINATION_DIR: '',
       LOG_LEVEL: 'info',
       ...input.env,
     },
@@ -214,8 +213,11 @@ describe('database setup command', () => {
         expect(args.slice(0, 3)).toEqual(['compose', 'run', '--build'])
         expect(args).toContain('--rm')
         expect(args).toContain('--no-deps')
-        expect(args).toContain('docker/database-access.sh')
-        expect(args.at(-1)).toBe('src/database/setup.ts')
+        expect(args.slice(-3)).toEqual([
+          'server',
+          'bun',
+          'src/database/setup.ts',
+        ])
         expect(args).not.toContain('setup-test-password')
         expect(await Bun.file(filename).exists()).toBe(false)
 

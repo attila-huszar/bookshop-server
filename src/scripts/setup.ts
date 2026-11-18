@@ -26,9 +26,6 @@ if (import.meta.main) {
               '--env',
               'DB_SQLITE_FILE',
               'server',
-              '/bin/sh',
-              'docker/database-access.sh',
-              'job',
               'bun',
               'src/database/setup.ts',
             ]

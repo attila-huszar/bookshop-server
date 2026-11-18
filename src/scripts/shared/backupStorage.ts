@@ -1,14 +1,14 @@
 import type { BunFile } from 'bun'
 import { backupRetentionPolicy } from '@/constants/backup'
-import { DB_REPO } from '@/types/enums'
+import { DB_REPO, MongoBackupMode } from '@/types/enums'
 import type { WithBackupArchive } from './backupArchive'
 
 const archiveExtensions = {
-  [DB_REPO.MONGO]: '.archive.gz',
-  [DB_REPO.SQLITE]: '.sqlite.gz',
+  [DB_REPO.MONGO]: ['.tar.gz', '.archive.gz'],
+  [DB_REPO.SQLITE]: ['.sqlite.gz'],
 } as const
 const archiveName =
-  /^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z-[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}\.(?:archive|sqlite)\.gz$/
+  /^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z-[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}\.(?:archive|tar|sqlite)\.gz$/
 
 type BackupListing = {
   contents?: { key: string; lastModified?: string }[]
@@ -24,6 +24,7 @@ export type BackupStorage = {
 
 type BackupInput = {
   backupType: DB_REPO
+  mongoMode?: MongoBackupMode
   namespace: string
   retention: { daily: number; weekly: number; monthly: number }
   dryRun?: boolean
@@ -102,7 +103,11 @@ export async function backupToStorage(input: BackupInput): Promise<{
   }
 
   const prefix = `backups/${input.namespace}/`
-  const extension = archiveExtensions[input.backupType]
+  const extensions = archiveExtensions[input.backupType]
+  const isOplogBackup =
+    input.backupType === DB_REPO.MONGO &&
+    input.mongoMode === MongoBackupMode.Oplog
+  const extension = isOplogBackup ? '.archive.gz' : extensions[0]
   const timestamp = new Date(now).toISOString().replace(/[:.]/g, '-')
   const key = `${prefix}${timestamp}-${crypto.randomUUID()}${extension}`
   await input.withArchive((archive) =>
@@ -131,14 +136,16 @@ export async function backupToStorage(input: BackupInput): Promise<{
         const modified = Date.parse(object.lastModified ?? '')
         const filename = object.key.slice(prefix.length)
 
-        if (
-          object.key === key ||
-          !object.key.startsWith(prefix) ||
-          !archiveName.test(filename) ||
-          !filename.endsWith(extension) ||
-          !Number.isFinite(modified) ||
-          modified > now
-        ) {
+        const isCurrentUpload = object.key === key
+
+        const isArchiveInNamespace =
+          object.key.startsWith(prefix) &&
+          archiveName.test(filename) &&
+          extensions.some((extension) => filename.endsWith(extension))
+
+        const hasValidTimestamp = Number.isFinite(modified) && modified <= now
+
+        if (isCurrentUpload || !isArchiveInNamespace || !hasValidTimestamp) {
           continue
         }
 

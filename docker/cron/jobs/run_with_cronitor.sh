@@ -23,9 +23,9 @@ if [ "$#" -lt 1 ]; then
   exit 1
 fi
 
-if [ -n "${CRONITOR_API_KEY:-}" ]; then
+if [ "${NODE_ENV:-}" = production ] && [ -n "${CRONITOR_API_KEY:-}" ]; then
   if command -v cronitor >/dev/null 2>&1; then
-    export CRONITOR_ENV="${NODE_ENV:-production}"
+    export CRONITOR_ENV=production
     # Stop Cronitor from interpreting flags belonging to the wrapped command.
     exec cronitor exec -- "$MONITOR_KEY" "$@"
   fi

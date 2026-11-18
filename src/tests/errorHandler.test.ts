@@ -1,9 +1,14 @@
+import { Database } from 'bun:sqlite'
 import { beforeEach, describe, expect, it } from 'bun:test'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
 import { profileUpdateSchema } from '@/validation/userSchemas'
 import { BadRequest, Internal, NotFound, Unauthorized } from '@/errors'
+import { BaseError } from '@/errors/BaseError'
 import { errorHandler } from '@/errors/errorHandler'
 import {
   AuthErrorCode,
@@ -59,6 +64,42 @@ describe('central HTTP error handling', () => {
     expect(response.status).toBe(409)
     expect(await response.json()).toEqual({ code: 'CHECKOUT_IN_PROGRESS' })
     expectNoLogs()
+  })
+
+  it('reports a blocked SQLite write as busy and allows a retry after release', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'bookshop-sqlite-lock-'))
+    const filename = join(directory, 'database.sqlite')
+
+    try {
+      using writer = new Database(filename)
+      using database = new Database(filename)
+      writer.run('CREATE TABLE items (id INTEGER PRIMARY KEY)')
+      writer.run('BEGIN IMMEDIATE')
+
+      const app = new Hono().onError((error, c) => errorHandler(c, error))
+      app.post('/', (c) => {
+        try {
+          database.run('INSERT INTO items DEFAULT VALUES')
+        } catch (cause) {
+          throw new Internal('Could not save the item', { cause })
+        }
+
+        return c.text('Saved', 201)
+      })
+
+      const blocked = await app.request('/', { method: 'POST' })
+
+      expect(blocked.status).toBe(503)
+      expect(await blocked.json()).toEqual({ code: 'DATABASE_BUSY' })
+      expect(mockLogger.error).toHaveBeenCalledOnce()
+
+      writer.run('ROLLBACK')
+      const retry = await app.request('/', { method: 'POST' })
+
+      expect(retry.status).toBe(201)
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
   })
 
   it.each([400, 401, 403, 404, 408, 409, 413, 429, 500, 503, 504] as const)(
@@ -148,10 +189,16 @@ describe('central HTTP error handling', () => {
       status: 500,
     },
     {
-      error: new BadRequest(
+      error: new BaseError(
         'Private terms failure',
-        TermsErrorCode.Unavailable,
+        'TermsUnavailable',
         503,
+        TermsErrorCode.Unavailable,
+        {
+          cause: Object.assign(new Error('database is locked'), {
+            code: 'SQLITE_BUSY',
+          }),
+        },
       ),
       code: 'TERMS_UNAVAILABLE',
       status: 503,

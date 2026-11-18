@@ -97,7 +97,7 @@ describe('validated environment enums', () => {
     })
   })
 
-  it.each(['', 'LOGICAL', 'invalid'])(
+  it.each(['', 'LOGICAL', 'invalid', 'snapshot', 'snapshot-read'])(
     'rejects invalid modes on access rather than during import: %s',
     async (mode) => {
       const result = await readConfig({ mode })
