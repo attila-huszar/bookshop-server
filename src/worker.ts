@@ -13,7 +13,7 @@ if (import.meta.main) {
       const db = await import('@/db')
       context.defer('database', db.closeDatabase)
 
-      await context.wait(db.connectDatabase())
+      await context.waitForStartup(db.connectDatabase())
       await db.assertDatabaseSchema()
       context.signal.throwIfAborted()
 
@@ -46,7 +46,7 @@ if (import.meta.main) {
         }
       })
 
-      await context.wait(worker.waitUntilReady())
+      await context.waitForStartup(worker.waitUntilReady())
       context.signal.throwIfAborted()
 
       const { startOutboxRelay } = await import('@/services/outbox.service')

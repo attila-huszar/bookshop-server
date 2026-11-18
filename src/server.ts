@@ -13,7 +13,7 @@ if (import.meta.main) {
       const db = await import('./db')
       context.defer('database', db.closeDatabase)
 
-      await context.wait(db.connectDatabase())
+      await context.waitForStartup(db.connectDatabase())
       await db.assertDatabaseSchema()
       context.signal.throwIfAborted()
 
@@ -48,7 +48,7 @@ if (import.meta.main) {
 
       context.defer('HTTP requests', () => server.stop())
 
-      context.force(() => {
+      context.onShutdownTimeout(() => {
         void server.stop(true)
       })
 

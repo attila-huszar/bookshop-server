@@ -12,10 +12,13 @@ import {
   withSqliteArchive,
 } from './shared/backupArchive'
 import { backupToStorage } from './shared/backupStorage'
+import { registerCronJob } from './shared/cronJob'
 import { withMongoLogicalArchive } from './shared/mongoLogicalArchive'
 import { createS3BackupStorage } from './shared/s3BackupStorage'
 
 async function main(context: ProcessContext): Promise<void> {
+  await registerCronJob(context)
+
   const backupType = env.dbRepo
   const label = backupType === DB_REPO.SQLITE ? 'SQLite' : 'Mongo'
   const { awsBucket, awsRegion, awsAccessKeyId, awsSecretAccessKey } = env

@@ -17,7 +17,7 @@ if (import.meta.main) {
 
       context.defer('database', db.closeDatabase)
 
-      await context.wait(db.connectDatabase())
+      await context.waitForStartup(db.connectDatabase())
       context.signal.throwIfAborted()
 
       // MongoDB initializes collections and indexes during connection.

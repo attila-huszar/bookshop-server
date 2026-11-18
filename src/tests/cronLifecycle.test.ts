@@ -3,6 +3,61 @@ import { chmod, mkdtemp, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+const root = Bun.fileURLToPath(new URL('../../', import.meta.url))
+const lifecycle = new URL('../utils/process.utils.ts', import.meta.url).href
+const cronJob = new URL('../scripts/shared/cronJob.ts', import.meta.url).href
+
+it('keeps a scheduled job registered until its resources are closed', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'bookshop-cron-registration-'))
+
+  try {
+    const child = Bun.spawn(
+      [
+        process.execPath,
+        '--no-env-file',
+        '-e',
+        `
+        import { join } from 'node:path'
+        import { runProcess } from ${JSON.stringify(lifecycle)}
+        import { registerCronJob } from ${JSON.stringify(cronJob)}
+        await runProcess({ name: 'Cron job', once: true, shutdownMs: 1000,
+          start: async context => {
+            await registerCronJob(context)
+            const pidFile = join(Bun.env.BOOKSHOP_CRON_JOB_DIRECTORY, process.pid + '.pid')
+            context.defer('work', async () => {
+              const registeredPid = await Bun.file(pidFile).text()
+              console.log(registeredPid.trim())
+            })
+          },
+        })
+      `,
+      ],
+      {
+        cwd: root,
+        env: { ...process.env, BOOKSHOP_CRON_JOB_DIRECTORY: directory },
+        stdout: 'pipe',
+        stderr: 'pipe',
+      },
+    )
+    const [code, stdout, stderr] = await Promise.all([
+      child.exited,
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+    ])
+
+    expect({ code, stdout: stdout.trim(), stderr }).toEqual({
+      code: 0,
+      stdout: String(child.pid),
+      stderr: '',
+    })
+    expect(await Bun.file(join(directory, `${child.pid}.pid`)).exists()).toBe(
+      false,
+    )
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
+})
+
 describe('cron container lifecycle', () => {
   it.skipIf(process.getuid?.() !== 0 || !Bun.which('crond'))(
     'cancels active jobs and waits for their cleanup when the scheduler stops',
@@ -20,19 +75,19 @@ describe('cron container lifecycle', () => {
           '#!/bin/sh\ntrap "exit 0" TERM INT\nwhile :; do sleep 1; done\n',
         )
         await chmod(daemon, 0o755)
-        const source = new URL('../utils/process.utils.ts', import.meta.url)
-          .href
         const jobFile = join(directory, 'job.ts')
         await Bun.write(
           jobFile,
           `
-        import { runProcess } from ${JSON.stringify(source)}
+        import { runProcess } from ${JSON.stringify(lifecycle)}
+        import { registerCronJob } from ${JSON.stringify(cronJob)}
         await runProcess({ name: 'Review cron job', once: true, shutdownMs: 1000,
           start: async ctx => {
+            await registerCronJob(ctx)
             const timer = setInterval(() => {}, 1000)
             ctx.defer('work', () => { clearInterval(timer); console.log('JOB_CLEANED_UP') })
             console.log('JOB_RUNNING')
-            await ctx.wait(new Promise(() => {}))
+            await ctx.waitForStartup(new Promise(() => {}))
           },
         })
       `,
@@ -46,7 +101,7 @@ describe('cron container lifecycle', () => {
           REVIEW_JOB_FILE: jobFile,
         }
         cron = Bun.spawn(['/bin/sh', 'docker/cron/entrypoint.sh'], {
-          cwd: Bun.fileURLToPath(new URL('../../', import.meta.url)),
+          cwd: root,
           env: environment,
           stdout: 'pipe',
           stderr: 'pipe',

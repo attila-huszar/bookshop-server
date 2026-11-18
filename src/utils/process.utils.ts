@@ -1,5 +1,3 @@
-import { rm, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
 import { log } from '@/libs/logger'
 import { SHUTDOWN_SIGNALS } from '@/constants/process'
 
@@ -10,9 +8,13 @@ type Cleanup = {
 
 export type ProcessContext = {
   signal: AbortSignal
+  /** Registers cleanup to run in reverse registration order. */
   defer: (name: string, close: Cleanup['close']) => void
-  force: (close: () => void) => void
-  wait: <T>(task: Promise<T>) => Promise<T>
+  /** Registers a synchronous callback to run before forced exit. */
+  onShutdownTimeout: (close: () => void) => void
+  /** Waits for startup work or rejects when shutdown begins. */
+  waitForStartup: <T>(task: Promise<T>) => Promise<T>
+  /** Reports a fatal error and starts shutdown with a failure exit code. */
   fail: (error: unknown) => void
 }
 
@@ -20,20 +22,24 @@ type ProcessOptions = {
   name: string
   shutdownMs: number
   once?: boolean
+  /** Acquires service resources or runs a one-off job. */
   start: (context: ProcessContext) => Promise<void>
 }
 
-/** Own resources in acquisition order; drain and close them in reverse order. */
+/** Starts a service or one-off job and coordinates graceful shutdown. */
 export async function runProcess(input: ProcessOptions): Promise<void> {
+  const { name, shutdownMs, once = false } = input
   const controller = new AbortController()
+  const { signal } = controller
   const cleanups: Cleanup[] = []
-  const forceClosers: (() => void)[] = []
+  const timeoutHandlers: (() => void)[] = []
 
   let exitCode = 0
   let shutdown: Promise<void> | undefined
-  let shutdownRequested = false
+  let interruptedBySignal = false
 
-  const stop = (code: number): Promise<void> => {
+  /** Starts shutdown once and preserves a failure exit code. */
+  function requestShutdown(code: number): Promise<void> {
     exitCode = Math.max(exitCode, code)
 
     if (shutdown) {
@@ -45,31 +51,29 @@ export async function runProcess(input: ProcessOptions): Promise<void> {
 
     controller.abort()
 
-    if (!input.once || exitCode !== 0) {
-      log.info(`${input.name} shutting down`)
+    if (!once || exitCode !== 0) {
+      log.info(`${name} shutting down`)
     }
 
     return shutdown
   }
 
+  /** Applies one deadline to startup completion and resource cleanup. */
   async function finishShutdown(): Promise<void> {
     let resource = 'startup'
     const deadline = setTimeout(() => {
-      log.error(`❌ ${input.name} shutdown timed out`, {
-        shutdownMs: input.shutdownMs,
-        resource,
-      })
+      log.error(`❌ ${name} shutdown timed out`, { shutdownMs, resource })
 
-      for (const close of forceClosers) {
+      for (const handleTimeout of timeoutHandlers) {
         try {
-          close()
+          handleTimeout()
         } catch {
           // Force exit still releases OS resources.
         }
       }
 
       process.exit(1)
-    }, input.shutdownMs)
+    }, shutdownMs)
 
     try {
       await startup.catch(() => undefined)
@@ -82,7 +86,7 @@ export async function runProcess(input: ProcessOptions): Promise<void> {
         } catch (error) {
           exitCode = 1
 
-          log.error(`❌ ${input.name} cleanup failed`, {
+          log.error(`❌ ${name} cleanup failed`, {
             resource: cleanup.name,
             error,
           })
@@ -91,12 +95,12 @@ export async function runProcess(input: ProcessOptions): Promise<void> {
     } finally {
       clearTimeout(deadline)
 
-      for (const signal of SHUTDOWN_SIGNALS) {
-        process.removeListener(signal, onSignal)
+      for (const signalName of SHUTDOWN_SIGNALS) {
+        process.removeListener(signalName, onSignal)
       }
 
       // Bun keeps the file watcher active after the app has closed its resources.
-      if (shutdownRequested && process.execArgv.includes('--watch')) {
+      if (interruptedBySignal && process.execArgv.includes('--watch')) {
         process.exit(exitCode)
       }
 
@@ -104,75 +108,69 @@ export async function runProcess(input: ProcessOptions): Promise<void> {
     }
   }
 
-  const onSignal = () => {
-    shutdownRequested = true
-    void stop(input.once ? 1 : 0)
-  }
-
-  for (const signal of SHUTDOWN_SIGNALS) {
-    process.on(signal, onSignal)
+  /** Starts shutdown and marks an interrupted one-off job as failed. */
+  function onSignal() {
+    interruptedBySignal = true
+    void requestShutdown(once ? 1 : 0)
   }
 
   const context: ProcessContext = {
-    signal: controller.signal,
+    signal,
     defer: (name, close) => {
       cleanups.push({ name, close })
     },
-    force: (close) => {
-      forceClosers.push(close)
+    onShutdownTimeout: (close) => {
+      timeoutHandlers.push(close)
     },
-    wait: (task) => waitForStartup(task, controller.signal),
+    waitForStartup: (task) => waitForStartup(task, signal),
     fail: (error) => {
-      if (controller.signal.aborted) {
+      if (shutdown) {
         return
       }
 
-      log.error(`❌ ${input.name} stopped unexpectedly`, { error })
-      void stop(1)
+      log.error(`❌ ${name} stopped unexpectedly`, { error })
+      void requestShutdown(1)
     },
   }
 
-  const startup = Promise.resolve().then(async () => {
-    const jobDirectory = Bun.env.BOOKSHOP_CRON_JOB_DIRECTORY
+  for (const signalName of SHUTDOWN_SIGNALS) {
+    process.on(signalName, onSignal)
+  }
 
-    if (input.once && jobDirectory) {
-      const pidFile = join(jobDirectory, `${process.pid}.pid`)
+  const startup = Promise.resolve().then(() => {
+    signal.throwIfAborted()
 
-      await writeFile(pidFile, `${process.pid}\n`, { flag: 'wx', mode: 0o600 })
-      context.defer('cron PID file', () => rm(pidFile, { force: true }))
-    }
-
-    controller.signal.throwIfAborted()
-    await input.start(context)
+    return input.start(context)
   })
 
   try {
     await startup
-
-    if (input.once) {
-      await stop(0)
-    }
   } catch (error) {
-    if (!controller.signal.aborted) {
-      log.error(
-        `❌ ${input.name}${input.once ? ' failed' : ' startup failed'}`,
-        { error },
-      )
+    if (!shutdown) {
+      log.error(`❌ ${name}${once ? ' failed' : ' startup failed'}`, { error })
+      await requestShutdown(1)
 
-      await stop(1)
-    } else {
-      await shutdown
+      return
     }
+  }
+
+  if (shutdown) {
+    await shutdown
+  } else if (once) {
+    await requestShutdown(0)
   }
 }
 
+/** Races startup work against shutdown. The caller owns the underlying task. */
 async function waitForStartup<T>(
   task: Promise<T>,
   signal: AbortSignal,
 ): Promise<T> {
-  // The underlying task can still reject after cancellation wins the race.
-  void task.catch(() => undefined)
-  signal.throwIfAborted()
+  if (signal.aborted) {
+    // Observe the task's rejection before aborting the wait.
+    void task.catch(() => undefined)
+    signal.throwIfAborted()
+  }
 
   const interrupted = Promise.withResolvers<never>()
   const onAbort = () =>

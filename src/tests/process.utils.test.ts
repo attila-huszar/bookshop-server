@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'bun:test'
 import { mkdtemp, rm } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 const root = Bun.fileURLToPath(new URL('../../', import.meta.url))
@@ -32,7 +31,6 @@ async function exercise(source: string, exitCode: number, markers: string[]) {
       cwd: root,
       env: {
         ...process.env,
-        BOOKSHOP_CRON_JOB_DIRECTORY: '',
         LOG_LEVEL: 'info',
       },
       stdout: 'pipe',
@@ -62,7 +60,8 @@ async function exercise(source: string, exitCode: number, markers: string[]) {
 
 describe('process lifecycle', () => {
   it('exits Bun watch mode after completing shutdown cleanup', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'bookshop-watch-'))
+    // Bun only watches files inside the project directory.
+    const directory = await mkdtemp(join(root, 'bookshop-watch-'))
     const entrypoint = join(directory, 'watch.ts')
 
     try {
@@ -179,7 +178,7 @@ describe('process lifecycle', () => {
         start: async (context) => {
           context.defer('database', () => console.log('DATABASE_CLOSED'))
           setTimeout(() => signalSelf('SIGTERM'), 10)
-          await context.wait(new Promise(() => {}))
+          await context.waitForStartup(new Promise(() => {}))
         },
       })`,
       0,
@@ -196,7 +195,7 @@ describe('process lifecycle', () => {
         start: async (context) => {
           context.defer('temporary files', () => console.log('FILES_REMOVED'))
           setTimeout(() => signalSelf('SIGINT'), 10)
-          await context.wait(new Promise(() => {}))
+          await context.waitForStartup(new Promise(() => {}))
         },
       })`,
       1,
@@ -212,7 +211,7 @@ describe('process lifecycle', () => {
           context.defer('database', () => console.log('DATABASE_CLOSED'))
           context.signal.addEventListener('abort', () => context.fail(new Error('Dependency cancelled')))
           setTimeout(() => signalSelf('SIGTERM'), 10)
-          await context.wait(new Promise(() => {}))
+          await context.waitForStartup(new Promise(() => {}))
         },
       })`,
       0,
@@ -229,7 +228,7 @@ describe('process lifecycle', () => {
         once: true,
         shutdownMs: 25,
         start: async (context) => {
-          context.force(() => console.log('FORCED_CLOSE'))
+          context.onShutdownTimeout(() => console.log('FORCED_CLOSE'))
           context.defer('stuck resource', () => new Promise(() => {}))
         },
       })`,
@@ -250,6 +249,25 @@ describe('process lifecycle', () => {
       })`,
       1,
       ['stopped unexpectedly', 'DATABASE_CLOSED'],
+    )
+  })
+
+  it('awaits cleanup when startup returns after receiving a signal', async () => {
+    await exercise(
+      `await runProcess({
+        name: 'Service', shutdownMs: 1000,
+        start: async (context) => {
+          context.defer('database', async () => {
+            await Bun.sleep(20)
+            console.log('DATABASE_CLOSED')
+          })
+          setTimeout(() => signalSelf('SIGTERM'), 10)
+          await new Promise(resolve => context.signal.addEventListener('abort', resolve, { once: true }))
+        },
+      })
+      console.log('PROCESS_FINISHED')`,
+      0,
+      ['Service shutting down', 'DATABASE_CLOSED', 'PROCESS_FINISHED'],
     )
   })
 

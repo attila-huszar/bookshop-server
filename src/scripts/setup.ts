@@ -44,7 +44,7 @@ if (import.meta.main) {
         }
       })
 
-      const code = await context.wait(child.exited)
+      const code = await context.waitForStartup(child.exited)
 
       if (code !== 0) {
         throw new Error(
