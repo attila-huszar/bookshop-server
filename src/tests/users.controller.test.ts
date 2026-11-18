@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
 import { Hono } from 'hono'
-import { setSignedCookie } from 'hono/cookie'
+import { getSignedCookie, setSignedCookie } from 'hono/cookie'
 import { cookieOptions, env, REFRESH_TOKEN } from '@/config'
 import { API } from '@/constants/paths'
 import { errorHandler } from '@/errors/errorHandler'
@@ -76,6 +76,66 @@ afterEach(() => {
 })
 
 describe('session refresh', () => {
+  it('sets a signed HttpOnly refresh cookie scoped to session restoration after login', async () => {
+    mockUsersDB.getActiveUserBy.mockResolvedValueOnce({
+      ...account,
+      password: Bun.password.hashSync('password123'),
+      verified: true,
+    })
+    const response = await app.request(API.users.login, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: account.email, password: 'password123' }),
+    })
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({
+      accessToken: 'new-access-token',
+      firstName: account.firstName,
+    })
+    const cookie = response.headers.get('set-cookie')!
+    expect(cookie).toContain('HttpOnly')
+    expect(cookie).toContain('Path=/api/users/refresh')
+    expect(cookie).toContain(`Max-Age=${cookieOptions.maxAge}`)
+
+    const reader = new Hono().get('/', async (c) =>
+      c.json({
+        token: await getSignedCookie(c, env.cookieSecret!, REFRESH_TOKEN),
+      }),
+    )
+    const restored = await reader.request('/', {
+      headers: { cookie: cookie.split(';')[0]! },
+    })
+    expect(await restored.json()).toEqual({ token: 'new-refresh-token' })
+  })
+
+  it.each(['', `${REFRESH_TOKEN}=forged`])(
+    'restores a guest session without querying accounts for cookie %s',
+    async (cookie) => {
+      const response = await app.request(API.users.refresh, {
+        method: 'POST',
+        headers: { cookie },
+      })
+
+      expect(response.status).toBe(200)
+      expect(await response.json()).toEqual({ accessToken: null })
+      expect(mockVerifyJWTRefresh).not.toHaveBeenCalled()
+      expect(mockUsersDB.getActiveUserBy).not.toHaveBeenCalled()
+    },
+  )
+
+  it('clears a signed cookie whose refresh token is rejected', async () => {
+    mockVerifyJWTRefresh.mockRejectedValueOnce(new Error('Expired token'))
+    const response = await refreshWithCookie()
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ accessToken: null })
+    const cookie = response.headers.get('set-cookie')!
+    expect(cookie).toContain('Max-Age=0')
+    expect(cookie).toContain('Path=/api/users/refresh')
+    expect(mockUsersDB.getActiveUserBy).not.toHaveBeenCalled()
+  })
+
   it('returns a language-independent error for invalid login credentials', async () => {
     mockUsersDB.getActiveUserBy.mockResolvedValueOnce(null)
     const response = await app.request(API.users.login, {

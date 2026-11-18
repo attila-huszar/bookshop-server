@@ -5,6 +5,7 @@ import {
   orderReconciliationFailure,
 } from '@/utils/emailOutbox.utils'
 import { getErrorCode } from '@/utils/error.utils'
+import { MONGO_DUPLICATE_KEY_CODE } from '@/constants/database'
 import { terminalStatuses } from '@/constants/payment'
 import { BadRequest } from '@/errors'
 import type {
@@ -17,8 +18,6 @@ import type {
   TermsAcceptance,
 } from '@/types'
 import { TermsErrorCode } from '@/types/enums'
-
-const MONGO_DUPLICATE_KEY_CODE = 11000
 
 export async function getOrderByCheckoutRequestId(
   checkoutRequestId: string,

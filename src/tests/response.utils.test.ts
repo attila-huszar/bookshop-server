@@ -6,6 +6,7 @@ import {
   publicUserResponse,
 } from '@/utils/response.utils'
 import type { Order, User } from '@/types'
+import { SignInMethod } from '@/types/enums'
 
 describe('API response boundaries', () => {
   it('excludes internal checkout and reconciliation fields from orders', () => {
@@ -66,6 +67,7 @@ describe('API response boundaries', () => {
       createdAt: new Date(),
       updatedAt: new Date(),
       password: 'hash',
+      googleSubject: 'private-google-subject',
       verificationToken: 'secret',
       passwordResetToken: 'secret',
       _id: 'mongo-id',
@@ -78,6 +80,7 @@ describe('API response boundaries', () => {
     ]) {
       for (const field of [
         'password',
+        'googleSubject',
         'verificationToken',
         'passwordResetToken',
         '_id',
@@ -91,5 +94,23 @@ describe('API response boundaries', () => {
     expect(adminUserResponse(user).verified).toBe(true)
     expect(publicUserResponse(user)).not.toHaveProperty('verified')
     expect(publicUserResponse(user)).not.toHaveProperty('id')
+    expect(publicUserResponse(user)).not.toHaveProperty('signInMethods')
+    expect(adminUserResponse(user).signInMethods).toEqual([
+      SignInMethod.Password,
+      SignInMethod.Google,
+    ])
+    expect(JSON.stringify(adminUserResponse(user).signInMethods)).toBe(
+      '["password","google"]',
+    )
+    expect(
+      adminUserResponse({ ...user, password: null }).signInMethods,
+    ).toEqual([SignInMethod.Google])
+    expect(
+      adminUserResponse({ ...user, googleSubject: null }).signInMethods,
+    ).toEqual([SignInMethod.Password])
+    expect(
+      adminUserResponse({ ...user, password: null, googleSubject: null })
+        .signInMethods,
+    ).toEqual([])
   })
 })

@@ -1,11 +1,9 @@
 import { Resolver } from 'node:dns/promises'
 import { getMongoUriOption, parseMongoURI } from '@/utils/db.utils'
 import { backupTiming } from '@/constants/backup'
-import { MongoBackupMode } from '@/types/enums'
 
-type MongoBackupUriInput = {
+type MongoOplogUriInput = {
   uri: string
-  mode: MongoBackupMode
   resolveTxt?: (hostname: string) => Promise<readonly (readonly string[])[]>
 }
 
@@ -18,7 +16,7 @@ const externalAuthMechanisms = new Set([
 
 async function resolveAuthSource(
   hostname: string,
-  lookup?: MongoBackupUriInput['resolveTxt'],
+  lookup?: MongoOplogUriInput['resolveTxt'],
 ): Promise<string | undefined> {
   let records: readonly (readonly string[])[]
 
@@ -31,11 +29,12 @@ async function resolveAuthSource(
       ? await lookup(hostname)
       : await resolver.resolveTxt(hostname)
   } catch (error) {
-    if (
+    const isMissingTxtRecord =
       error instanceof Error &&
       'code' in error &&
       (error.code === 'ENODATA' || error.code === 'ENOTFOUND')
-    ) {
+
+    if (isMissingTxtRecord) {
       return undefined
     }
 
@@ -61,8 +60,8 @@ async function resolveAuthSource(
   return source ?? undefined
 }
 
-export async function getMongoBackupUri(
-  input: MongoBackupUriInput,
+export async function getMongoOplogUri(
+  input: MongoOplogUriInput,
 ): Promise<string> {
   let connection: ReturnType<typeof parseMongoURI>
 
@@ -74,16 +73,6 @@ export async function getMongoBackupUri(
   }
 
   const database = connection.database
-
-  if (input.mode === MongoBackupMode.Logical) {
-    if (!database) {
-      throw new Error(
-        'Logical Mongo backups require DB_MONGO_URL with an explicit database path',
-      )
-    }
-
-    return input.uri
-  }
 
   if (!database) {
     return input.uri

@@ -24,6 +24,8 @@ export const API = {
   },
   users: {
     login: '/users/login',
+    google: '/users/google',
+    googleNonce: '/users/google/nonce',
     logout: '/users/logout',
     refresh: '/users/refresh',
     register: '/users/register',
@@ -46,11 +48,10 @@ export const API = {
   payments: {
     root: '/payments',
     byId: '/payments/:paymentId',
-    byIdWildcard: '/payments/:paymentId/*',
     terms: '/payments/:paymentId/terms',
   },
   cms: {
-    wildcard: '/cms/*',
+    root: '/cms',
     books: '/cms/books',
     authors: '/cms/authors',
     orders: '/cms/orders',

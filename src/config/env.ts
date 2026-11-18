@@ -21,6 +21,7 @@ export const env = {
 
   serverBaseUrl: Bun.env.SERVER_BASE_URL ?? 'http://localhost',
   clientBaseUrl: Bun.env.CLIENT_BASE_URL,
+  googleClientId: Bun.env.GOOGLE_CLIENT_ID,
   port: Bun.env.PORT ?? '5000',
 
   cookieSecret: Bun.env.COOKIE_SECRET,
@@ -46,7 +47,6 @@ export const env = {
 
     return `mongo/${encodeURIComponent(database)}`
   },
-  databaseCoordinationDirectory: Bun.env.BOOKSHOP_DATABASE_COORDINATION_DIR,
   get mongoBackupMode(): MongoBackupMode {
     return parseEnum('MONGO_BACKUP_MODE', rawMongoBackupMode, [
       MongoBackupMode.Logical,
@@ -71,12 +71,13 @@ export const env = {
       monthly: Number(counts[2]),
     }
 
-    if (
+    const hasInvalidCounts =
       counts.length !== 3 ||
       counts.some((count) => !/^\d+$/.test(count)) ||
       Object.values(retention).some((count) => !Number.isSafeInteger(count)) ||
       retention.daily < 1
-    ) {
+
+    if (hasInvalidCounts) {
       throw new Error(
         'BACKUP_RETENTION must be daily,weekly,monthly integer counts (daily >= 1; weekly and monthly >= 0)',
       )

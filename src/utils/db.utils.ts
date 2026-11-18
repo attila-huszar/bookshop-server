@@ -12,6 +12,7 @@ type ParsedMongoURI = {
 
 const mongoUriPattern =
   /^(mongodb(?:\+srv)?):\/\/([^/?#]+)(?:\/([^?#]*))?(?:\?([^#]*))?$/
+const sqliteLockCode = /^SQLITE_(?:BUSY|LOCKED)(?:_|$)/
 
 export function parseMongoURI(uri: string): ParsedMongoURI {
   try {
@@ -159,6 +160,29 @@ export function validateMongoUrl(uri: string): void {
   }
 }
 
+function* errorChain(error: unknown): Iterable<Error> {
+  const seen = new Set<Error>()
+  let current = error
+
+  while (current instanceof Error && !seen.has(current)) {
+    seen.add(current)
+    yield current
+    current = current.cause
+  }
+}
+
+export function isDatabaseBusyError(error: unknown): boolean {
+  for (const cause of errorChain(error)) {
+    const code = getErrorCode(cause)
+
+    if (typeof code === 'string' && sqliteLockCode.test(code)) {
+      return true
+    }
+  }
+
+  return false
+}
+
 export function databaseStartupError(
   error: unknown,
   dbRepo: DB_REPO,
@@ -170,14 +194,10 @@ export function databaseStartupError(
 
   const codes = new Set<string>()
   const messages: string[] = []
-  const seen = new Set<Error>()
-  let current = error
 
-  while (current instanceof Error && !seen.has(current)) {
-    seen.add(current)
-    codes.add(String(getErrorCode(current) ?? '').toUpperCase())
-    messages.push(`${current.name} ${current.message}`.toLowerCase())
-    current = current.cause
+  for (const cause of errorChain(error)) {
+    codes.add(String(getErrorCode(cause) ?? '').toUpperCase())
+    messages.push(`${cause.name} ${cause.message}`.toLowerCase())
   }
 
   const message = messages.join(' ')

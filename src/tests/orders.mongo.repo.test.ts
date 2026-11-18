@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, mock } from 'bun:test'
 import { rejects } from 'node:assert/strict'
+import { mongo } from 'mongoose'
 import { env } from '@/config'
 import { terminalStatuses } from '@/constants/payment'
 import {
@@ -8,6 +9,7 @@ import {
   type UserRegistrationInsert,
   UserRole,
 } from '@/types'
+import { UserErrorCode } from '@/types/enums'
 
 const query = {
   select: mock(),
@@ -854,6 +856,7 @@ describe('Mongo transactional account emails', () => {
     avatar: null,
   } satisfies UserRegistrationInsert
   const storedUser = {
+    googleSubject: null,
     ...user,
     id: 1,
     createdAt: new Date(),
@@ -874,6 +877,36 @@ describe('Mongo transactional account emails', () => {
     query.exec.mockReset()
     UserModel.findOneAndUpdate.mockReturnValue(query)
   })
+
+  it('links Google only while the active account is verified and unlinked', async () => {
+    query.exec.mockResolvedValueOnce({
+      ...storedUser,
+      googleSubject: 'google-1',
+    })
+    expect(await users.linkGoogleAccount(user.uuid, 'google-1')).toMatchObject({
+      googleSubject: 'google-1',
+    })
+    expect(UserModel.findOneAndUpdate).toHaveBeenCalledWith(
+      { uuid: user.uuid, verified: true, googleSubject: null, deletedAt: null },
+      { $set: { googleSubject: 'google-1' } },
+      { returnDocument: 'after' },
+    )
+    expect(EmailOutboxModel.insertMany).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    [11000, { email: 1 }, 'email'],
+    [11000, { googleSubject: 1 }, 'googleSubject'],
+    [11000, { id: 1 }, undefined],
+    [91, { email: 1 }, undefined],
+  ])(
+    'classifies user identity conflicts for MongoDB error %i and key %j',
+    (code, keyPattern, field) => {
+      const error = new mongo.MongoServerError({ code, keyPattern })
+
+      expect(users.getUserIdentityConflict(error)).toBe(field)
+    },
+  )
 
   it('creates verification mail from the saved user using the insert session', async () => {
     const savedUser = { ...storedUser, email: 'saved@example.com' }
@@ -1073,11 +1106,16 @@ describe('Mongo transactional account emails', () => {
 })
 
 describe('Mongo user soft deletion', () => {
+  const adminsQuery = { session: mock(), lean: mock(), exec: mock() }
+
   beforeEach(() => {
+    adminsQuery.session.mockReset().mockReturnValue(adminsQuery)
+    adminsQuery.lean.mockReset().mockReturnValue(adminsQuery)
+    adminsQuery.exec.mockReset().mockResolvedValue([])
     query.lean.mockReset().mockReturnValue(query)
     query.exec.mockReset()
     UserModel.findOne.mockReset().mockReturnValue(query)
-    UserModel.find.mockReset().mockReturnValue(query)
+    UserModel.find.mockReset().mockReturnValue(adminsQuery)
     UserModel.exists.mockReset().mockReturnValue(query)
     UserModel.updateMany.mockReset().mockReturnValue(query)
   })
@@ -1116,13 +1154,15 @@ describe('Mongo user soft deletion', () => {
       expect(UserModel.updateMany).toHaveBeenCalledWith(
         { id: { $in: [1, 999999] }, deletedAt: deleted ? null : { $ne: null } },
         { $set: { deletedAt: deleted ? (expect.any(Date) as Date) : null } },
+        deleted ? { session } : undefined,
       )
-      query.exec.mockResolvedValueOnce({ modifiedCount: 0 })
+      query.exec.mockResolvedValue({ modifiedCount: 0 })
       expect(await users.setUsersDeleted([1], deleted)).toBe(0)
     },
   )
 
   it('soft deletes expired unverified accounts without touching already deleted users', async () => {
+    UserModel.find.mockReturnValueOnce(query)
     query.exec
       .mockResolvedValueOnce([{ id: 7, email: 'expired@example.com' }])
       .mockResolvedValueOnce({ modifiedCount: 1 })
@@ -1139,5 +1179,127 @@ describe('Mongo user soft deletion', () => {
       { $set: { deletedAt: expect.any(Date) as Date } },
       { session },
     )
+  })
+})
+
+describe('Mongo last active administrator', () => {
+  const admin = {
+    id: 1,
+    uuid: 'admin-1',
+    role: UserRole.Admin,
+    deletedAt: null,
+  }
+  const otherAdmin = { ...admin, id: 2, uuid: 'admin-2' }
+  const adminsQuery = { session: mock(), lean: mock(), exec: mock() }
+  const writeQuery = { lean: mock(), exec: mock() }
+  const operations: string[] = []
+
+  beforeEach(() => {
+    operations.length = 0
+    adminsQuery.session.mockReset().mockReturnValue(adminsQuery)
+    adminsQuery.lean.mockReset().mockReturnValue(adminsQuery)
+    adminsQuery.exec.mockReset().mockImplementation(() => {
+      operations.push('read')
+
+      return Promise.resolve([admin])
+    })
+    writeQuery.lean.mockReset().mockReturnValue(writeQuery)
+    writeQuery.exec.mockReset().mockImplementation(() => {
+      operations.push('update')
+
+      return Promise.resolve({ ...admin, role: UserRole.User })
+    })
+    UserModel.find.mockReset().mockReturnValue(adminsQuery)
+    UserModel.findOneAndUpdate.mockReset().mockReturnValue(writeQuery)
+    UserModel.updateMany
+      .mockReset()
+      .mockImplementation((_filter: unknown, update: { $inc?: unknown }) => ({
+        exec: () => {
+          operations.push(update.$inc ? 'lock' : 'delete')
+
+          return Promise.resolve({ modifiedCount: 1 })
+        },
+      }))
+  })
+
+  it('locks active admins and rejects the final demotion before changing the user', async () => {
+    expect(
+      await users.updateUserBy('uuid', admin.uuid, { role: UserRole.User }),
+    ).toBe(UserErrorCode.LastAdminRequired)
+
+    expect(operations).toEqual(['lock', 'read'])
+    expect(UserModel.updateMany).toHaveBeenCalledWith(
+      { role: UserRole.Admin, deletedAt: null },
+      { $inc: { __v: 1 } },
+      { session, timestamps: false },
+    )
+    expect(UserModel.find).toHaveBeenCalledWith({
+      role: UserRole.Admin,
+      deletedAt: null,
+    })
+    expect(adminsQuery.session).toHaveBeenCalledWith(session)
+    expect(UserModel.findOneAndUpdate).not.toHaveBeenCalled()
+  })
+
+  it('allows demotion when another admin remains and uses the same session for the write', async () => {
+    adminsQuery.exec.mockResolvedValueOnce([admin, otherAdmin])
+
+    expect(
+      await users.updateUserBy('uuid', admin.uuid, { role: UserRole.User }),
+    ).toMatchObject({ role: UserRole.User })
+    expect(UserModel.findOneAndUpdate).toHaveBeenCalledWith(
+      { uuid: admin.uuid, deletedAt: null },
+      { role: UserRole.User },
+      { returnDocument: 'after', session },
+    )
+  })
+
+  it('allows an ordinary user to remain a user when only one admin exists', async () => {
+    await users.updateUserBy('uuid', 'reader', { role: UserRole.User })
+
+    expect(operations).toEqual(['lock', 'read', 'update'])
+  })
+
+  it('locks the same admins for deletion and blocks removing the last one', async () => {
+    expect(await users.setUsersDeleted([admin.id, 999], true)).toBe(
+      UserErrorCode.LastAdminRequired,
+    )
+
+    expect(operations).toEqual(['lock', 'read'])
+    expect(UserModel.updateMany).toHaveBeenCalledTimes(1)
+    expect(adminsQuery.session).toHaveBeenCalledWith(session)
+  })
+
+  it('allows deleting one of two admins within the guarded transaction', async () => {
+    adminsQuery.exec.mockResolvedValueOnce([admin, otherAdmin])
+
+    expect(await users.setUsersDeleted([admin.id], true)).toBe(1)
+    expect(UserModel.updateMany).toHaveBeenLastCalledWith(
+      { id: { $in: [admin.id] }, deletedAt: null },
+      { $set: { deletedAt: expect.any(Date) as Date } },
+      { session },
+    )
+  })
+
+  it('does not require an admin-removal check for promotions or ordinary edits', async () => {
+    await users.updateUserBy('uuid', admin.uuid, { role: UserRole.Admin })
+    await users.updateUserBy('uuid', admin.uuid, { firstName: 'Changed' })
+
+    expect(operations).toEqual(['update', 'update'])
+    expect(UserModel.find).not.toHaveBeenCalled()
+    expect(UserModel.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('does not update the user if locking the administrators fails', async () => {
+    UserModel.updateMany.mockReturnValueOnce({
+      exec: () => Promise.reject(new Error('Database unavailable')),
+    })
+
+    await rejects(
+      users.updateUserBy('uuid', admin.uuid, { role: UserRole.User }),
+      /Database unavailable/,
+    )
+    expect(UserModel.findOneAndUpdate).not.toHaveBeenCalled()
+    expect(UserModel.find).not.toHaveBeenCalled()
   })
 })

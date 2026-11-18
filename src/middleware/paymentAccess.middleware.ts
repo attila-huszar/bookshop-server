@@ -1,6 +1,5 @@
 import type { MiddlewareHandler } from 'hono'
-import { deleteCookie, getSignedCookie } from 'hono/cookie'
-import { env, PAYMENT_SESSION, paymentCookieOptions } from '@/config'
+import { clearPaymentCookie, getPaymentCookie } from '@/utils/cookie.utils'
 import { errorHandler } from '@/errors'
 import type { PaymentVariables } from '@/types'
 
@@ -8,14 +7,10 @@ export const paymentAccessMiddleware: MiddlewareHandler<{
   Variables: PaymentVariables
 }> = async (c, next) => {
   try {
-    const paymentSessionCookie = await getSignedCookie(
-      c,
-      env.cookieSecret!,
-      PAYMENT_SESSION,
-    )
+    const paymentSessionCookie = await getPaymentCookie(c)
 
     if (paymentSessionCookie === false) {
-      deleteCookie(c, PAYMENT_SESSION, paymentCookieOptions)
+      clearPaymentCookie(c)
     }
 
     const cookiePaymentId =

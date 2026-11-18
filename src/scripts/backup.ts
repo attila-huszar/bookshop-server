@@ -5,26 +5,24 @@ import { type ProcessContext, runProcess } from '@/utils/process.utils'
 import { log } from '@/libs/logger'
 import { backupTiming } from '@/constants/backup'
 import { processTiming } from '@/constants/process'
-import { DB_REPO } from '@/types/enums'
+import { DB_REPO, MongoBackupMode } from '@/types/enums'
 import {
   type WithBackupArchive,
-  withMongoArchive,
+  withMongoOplogArchive,
   withSqliteArchive,
 } from './shared/backupArchive'
 import { backupToStorage } from './shared/backupStorage'
-import { withDatabaseWritesPaused } from './shared/databasePause'
+import { withMongoLogicalArchive } from './shared/mongoLogicalArchive'
 import { createS3BackupStorage } from './shared/s3BackupStorage'
 
 async function main(context: ProcessContext): Promise<void> {
   const backupType = env.dbRepo
   const label = backupType === DB_REPO.SQLITE ? 'SQLite' : 'Mongo'
+  const { awsBucket, awsRegion, awsAccessKeyId, awsSecretAccessKey } = env
+  const isS3ConfigMissing =
+    !awsBucket || !awsRegion || !awsAccessKeyId || !awsSecretAccessKey
 
-  if (
-    !env.awsBucket ||
-    !env.awsRegion ||
-    !env.awsAccessKeyId ||
-    !env.awsSecretAccessKey
-  ) {
+  if (isS3ConfigMissing) {
     throw new Error(
       `${label} backups require the AWS S3 bucket, region and credentials`,
     )
@@ -32,12 +30,14 @@ async function main(context: ProcessContext): Promise<void> {
 
   validateEnv('backup')
   context.signal.throwIfAborted()
+  const mongoMode =
+    backupType === DB_REPO.MONGO ? env.mongoBackupMode : undefined
 
   const client = new S3Client({
-    region: env.awsRegion,
+    region: awsRegion,
     credentials: {
-      accessKeyId: env.awsAccessKeyId,
-      secretAccessKey: env.awsSecretAccessKey,
+      accessKeyId: awsAccessKeyId,
+      secretAccessKey: awsSecretAccessKey,
     },
     requestChecksumCalculation: 'WHEN_SUPPORTED',
     requestHandler: {
@@ -52,18 +52,17 @@ async function main(context: ProcessContext): Promise<void> {
 
   const withArchive: WithBackupArchive = (consume) => {
     if (backupType === DB_REPO.MONGO) {
-      return withMongoArchive({
+      const mongoArchive = {
         uri: env.dbMongoUrl ?? '',
-        mode: env.mongoBackupMode,
         consume,
         signal: context.signal,
-        pauseWrites: (run) =>
-          withDatabaseWritesPaused({
-            directory: env.databaseCoordinationDirectory ?? '',
-            signal: context.signal,
-            run,
-          }),
-      })
+      }
+
+      if (mongoMode === MongoBackupMode.Oplog) {
+        return withMongoOplogArchive(mongoArchive)
+      }
+
+      return withMongoLogicalArchive(mongoArchive)
     }
 
     return withSqliteArchive({
@@ -75,12 +74,13 @@ async function main(context: ProcessContext): Promise<void> {
 
   const storage = createS3BackupStorage({
     client,
-    bucket: env.awsBucket,
+    bucket: awsBucket,
     signal: context.signal,
   })
 
   const result = await backupToStorage({
     backupType,
+    mongoMode,
     namespace: env.databaseNamespace,
     retention: env.backupRetention,
     dryRun: env.backupRetentionDryRun,
@@ -89,7 +89,7 @@ async function main(context: ProcessContext): Promise<void> {
   })
 
   log.info(`${label} backup uploaded and verified`, {
-    bucket: env.awsBucket,
+    bucket: awsBucket,
     key: result.key,
     removedOldBackups: result.removed,
     retainedBackups: result.retained,

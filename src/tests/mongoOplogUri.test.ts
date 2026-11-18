@@ -1,30 +1,12 @@
 import { describe, expect, it, mock } from 'bun:test'
 import { rejects } from 'node:assert/strict'
-import { getMongoBackupUri } from '@/scripts/shared/mongoBackupUri'
-import { MongoBackupMode } from '@/types/enums'
+import { getMongoOplogUri } from '@/scripts/shared/mongoOplogUri'
 
 type ResolveTxt = NonNullable<
-  Parameters<typeof getMongoBackupUri>[0]['resolveTxt']
+  Parameters<typeof getMongoOplogUri>[0]['resolveTxt']
 >
 
-describe('MongoDB backup connection strings', () => {
-  it('uses the exact app URI in logical mode without resolving DNS', async () => {
-    const uri =
-      'mongodb+srv://user:p%40ss@cluster.test/bookshop?retryWrites=true&w=majority'
-    const lookup = mock<ResolveTxt>(() =>
-      Promise.reject(new Error('DNS must not be used')),
-    )
-
-    expect(
-      await getMongoBackupUri({
-        uri,
-        mode: MongoBackupMode.Logical,
-        resolveTxt: lookup,
-      }),
-    ).toBe(uri)
-    expect(lookup).not.toHaveBeenCalled()
-  })
-
+describe('MongoDB oplog backup connection strings', () => {
   it.each([
     {
       uri: 'mongodb://user:p%40ss@mongo.test:27017/bookshop?replicaSet=rs0&retryWrites=true&w=majority',
@@ -101,9 +83,8 @@ describe('MongoDB backup connection strings', () => {
       )
 
       expect(
-        await getMongoBackupUri({
+        await getMongoOplogUri({
           uri,
-          mode: MongoBackupMode.Oplog,
           resolveTxt: lookup,
         }),
       ).toBe(expected)
@@ -127,9 +108,8 @@ describe('MongoDB backup connection strings', () => {
         'mongodb+srv://user:secret@cluster.test/bookshop?retryWrites=true'
 
       expect(
-        await getMongoBackupUri({
+        await getMongoOplogUri({
           uri,
-          mode: MongoBackupMode.Oplog,
           resolveTxt: lookup,
         }),
       ).toBe(
@@ -147,9 +127,8 @@ describe('MongoDB backup connection strings', () => {
         Promise.reject(Object.assign(new Error('Missing DNS TXT'), { code }))
 
       expect(
-        await getMongoBackupUri({
+        await getMongoOplogUri({
           uri: 'mongodb+srv://user:secret@cluster.test/bookshop',
-          mode: MongoBackupMode.Oplog,
           resolveTxt: lookup,
         }),
       ).toBe('mongodb+srv://user:secret@cluster.test/?authSource=bookshop')
@@ -163,9 +142,8 @@ describe('MongoDB backup connection strings', () => {
     'rejects ambiguous or empty DNS authentication: $records',
     async ({ records }) => {
       await rejects(
-        getMongoBackupUri({
+        getMongoOplogUri({
           uri: 'mongodb+srv://user:secret@cluster.test/bookshop',
-          mode: MongoBackupMode.Oplog,
           resolveTxt: () => Promise.resolve(records),
         }),
         /multiple DNS TXT|empty DNS authSource/,
@@ -177,9 +155,8 @@ describe('MongoDB backup connection strings', () => {
     const failure = new Error('DNS unavailable')
 
     await rejects(
-      getMongoBackupUri({
+      getMongoOplogUri({
         uri: 'mongodb+srv://user:never-print-this@cluster.test/bookshop',
-        mode: MongoBackupMode.Oplog,
         resolveTxt: () => Promise.reject(failure),
       }),
       (error: unknown) => {
@@ -203,19 +180,13 @@ describe('MongoDB backup connection strings', () => {
   ])(
     'rejects malformed URIs without exposing their password: %s',
     async (uri) => {
-      await rejects(
-        getMongoBackupUri({
-          uri,
-          mode: MongoBackupMode.Oplog,
-        }),
-        (error: unknown) => {
-          expect(String(error)).toContain('valid DB_MONGO_URL')
-          expect(String(error)).not.toContain('never-print-this')
-          expect((error as Error).cause).toBeUndefined()
+      await rejects(getMongoOplogUri({ uri }), (error: unknown) => {
+        expect(String(error)).toContain('valid DB_MONGO_URL')
+        expect(String(error)).not.toContain('never-print-this')
+        expect((error as Error).cause).toBeUndefined()
 
-          return true
-        },
-      )
+        return true
+      })
     },
   )
 })

@@ -6,7 +6,7 @@ import {
   backupToStorage,
 } from '@/scripts/shared/backupStorage'
 import { backupScriptPath } from '@/constants/backup'
-import { DB_REPO } from '@/types/enums'
+import { DB_REPO, MongoBackupMode } from '@/types/enums'
 
 type BackupInput = Parameters<typeof backupToStorage>[0]
 
@@ -85,8 +85,7 @@ describe.each([DB_REPO.MONGO, DB_REPO.SQLITE])(
     it('uploads a complete archive using its database namespace and extension', async () => {
       const input = setup(backupType)
       const prefix = `backups/${input.namespace}/`
-      const extension =
-        backupType === DB_REPO.MONGO ? '.archive.gz' : '.sqlite.gz'
+      const extension = backupType === DB_REPO.MONGO ? '.tar.gz' : '.sqlite.gz'
       const first = `${prefix}2026-10-26T02-30-00-000Z-00000000-0000-4000-8000-000000000001${extension}`
       let uploadFinished = false
       input.upload.mockImplementationOnce(async (_key, archive) => {
@@ -116,8 +115,30 @@ describe.each([DB_REPO.MONGO, DB_REPO.SQLITE])(
 describe('backup storage retention', () => {
   const backupType = DB_REPO.MONGO
   const prefix = 'backups/mongo/bookshop-dev/'
-  const extension = '.archive.gz'
+  const extension = '.tar.gz'
   const otherExtension = '.sqlite.gz'
+
+  it('stores an oplog archive and includes both Mongo formats in retention', async () => {
+    const input = setup(backupType)
+    const first = `${prefix}2026-10-26T02-30-00-000Z-00000000-0000-4000-8000-000000000001`
+    const mongoArchives = [`${first}.archive.gz`, `${first}.tar.gz`]
+    input.list.mockResolvedValueOnce({
+      contents: [...mongoArchives, `${first}.sqlite.gz`].map((key) => ({
+        key,
+        lastModified: old,
+      })),
+    })
+
+    const result = await backupToStorage({
+      ...input,
+      mongoMode: MongoBackupMode.Oplog,
+    })
+
+    expect(result.key).toStartWith(prefix)
+    expect(result.key).toEndWith('.archive.gz')
+    expect(result.prunable.toSorted()).toEqual(mongoArchives)
+    expect(result.removed).toBe(2)
+  })
   const first = `${prefix}2026-10-26T02-30-00-000Z-00000000-0000-4000-8000-000000000001${extension}`
   const second = `${prefix}2026-10-27T02-30-00-000Z-00000000-0000-4000-8000-000000000002${extension}`
 

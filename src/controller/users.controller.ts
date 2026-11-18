@@ -1,12 +1,9 @@
 import { Hono } from 'hono'
-import { deleteCookie, getSignedCookie, setSignedCookie } from 'hono/cookie'
+import { env } from '@/config/env'
 import {
-  cookieOptions,
-  env,
-  PAYMENT_SESSION,
-  paymentCookieOptions,
-  REFRESH_TOKEN,
-} from '@/config'
+  loginWithGoogle,
+  requireGoogleAuth,
+} from '@/services/googleAuth.service'
 import {
   getActiveUser,
   loginUser,
@@ -19,13 +16,24 @@ import {
   verifyUser,
 } from '@/services/users.service'
 import {
+  clearGoogleAuthCookie,
+  clearPaymentCookie,
+  clearRefreshCookie,
+  getGoogleAuthCookie,
+  getRefreshCookie,
+  setGoogleAuthCookie,
+  setRefreshCookie,
+} from '@/utils/cookie.utils'
+import {
   signAccessToken,
   signRefreshToken,
   verifyJWTRefresh,
 } from '@/utils/jwt.utils'
+import { isJsonRequest } from '@/utils/request.utils'
 import { publicUserResponse } from '@/utils/response.utils'
 import { authTiming } from '@/constants/auth'
 import { API, COUNTRY_CODES_FILE } from '@/constants/paths'
+import { Forbidden, Unauthorized } from '@/errors'
 import type {
   AuthJWTPayload,
   AuthVariables,
@@ -37,20 +45,52 @@ import type {
   PublicUser,
   VerificationRequest,
 } from '@/types'
+import { AuthErrorCode } from '@/types/enums'
 
 export const users = new Hono<{ Variables: AuthVariables }>()
+
+users.post(API.users.googleNonce, async (c) => {
+  requireGoogleAuth()
+
+  const sessionId = crypto.randomUUID()
+  const nonce = Bun.CSRF.generate(env.cookieSecret, {
+    sessionId,
+    expiresIn: authTiming.googleNonceMs,
+  })
+  await setGoogleAuthCookie(c, sessionId)
+
+  return c.json({ nonce })
+})
+
+users.post(API.users.google, async (c) => {
+  if (!isJsonRequest(c)) {
+    throw new Forbidden('Google sign-in requires a JSON request')
+  }
+
+  const sessionId = await getGoogleAuthCookie(c)
+
+  if (!sessionId) {
+    throw new Unauthorized(
+      'Google sign-in challenge expired',
+      AuthErrorCode.InvalidToken,
+    )
+  }
+
+  const { accessToken, refreshToken, firstName } = await loginWithGoogle(
+    await c.req.json<unknown>(),
+    sessionId,
+  )
+  clearGoogleAuthCookie(c)
+  await setRefreshCookie(c, refreshToken)
+
+  return c.json({ accessToken, firstName })
+})
 
 users.post(API.users.login, async (c) => {
   const loginRequest = await c.req.json<LoginRequest>()
   const { accessToken, refreshToken, firstName } = await loginUser(loginRequest)
 
-  await setSignedCookie(
-    c,
-    REFRESH_TOKEN,
-    refreshToken,
-    env.cookieSecret!,
-    cookieOptions,
-  )
+  await setRefreshCookie(c, refreshToken)
 
   return c.json({ accessToken, firstName })
 })
@@ -103,18 +143,14 @@ users.patch(API.users.profile, async (c) => {
 })
 
 users.post(API.users.logout, (c) => {
-  deleteCookie(c, REFRESH_TOKEN, cookieOptions)
-  deleteCookie(c, PAYMENT_SESSION, paymentCookieOptions)
+  clearRefreshCookie(c)
+  clearPaymentCookie(c)
 
   return c.json({ success: true })
 })
 
 users.post(API.users.refresh, async (c) => {
-  const refreshTokenCookie = await getSignedCookie(
-    c,
-    env.cookieSecret!,
-    REFRESH_TOKEN,
-  )
+  const refreshTokenCookie = await getRefreshCookie(c)
 
   if (!refreshTokenCookie) {
     return c.json({ accessToken: null }, 200)
@@ -125,7 +161,7 @@ users.post(API.users.refresh, async (c) => {
   try {
     jwtPayload = await verifyJWTRefresh(refreshTokenCookie)
   } catch {
-    deleteCookie(c, REFRESH_TOKEN, cookieOptions)
+    clearRefreshCookie(c)
 
     return c.json({ accessToken: null }, 200)
   }
@@ -133,24 +169,20 @@ users.post(API.users.refresh, async (c) => {
   const user = await getActiveUser(jwtPayload.uuid, { optional: true })
 
   if (!user) {
-    deleteCookie(c, REFRESH_TOKEN, cookieOptions)
+    clearRefreshCookie(c)
 
     return c.json({ accessToken: null }, 200)
   }
 
   const expTimestamp = jwtPayload.exp ?? 0
   const timestamp = Math.floor(Date.now() / 1000)
+  const shouldRenewRefreshToken =
+    expTimestamp - authTiming.refreshRenewalSeconds < timestamp
 
-  if (expTimestamp - authTiming.refreshRenewalSeconds < timestamp) {
+  if (shouldRenewRefreshToken) {
     const refreshToken = await signRefreshToken(jwtPayload.uuid, timestamp)
 
-    await setSignedCookie(
-      c,
-      REFRESH_TOKEN,
-      refreshToken,
-      env.cookieSecret!,
-      cookieOptions,
-    )
+    await setRefreshCookie(c, refreshToken)
   }
 
   const accessToken = await signAccessToken(jwtPayload.uuid, timestamp)

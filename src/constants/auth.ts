@@ -8,6 +8,7 @@ export const authTiming = {
   refreshRenewalSeconds: (3 * TimeMs.OneDay) / TimeMs.OneSecond,
   verificationMs: TimeMs.OneDay,
   passwordResetMs: TimeMs.OneDay,
+  googleNonceMs: TimeMs.FifteenMinutes,
 } as const
 
 export const DUMMY_PASSWORD_HASH =

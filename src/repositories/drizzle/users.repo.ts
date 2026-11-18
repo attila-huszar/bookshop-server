@@ -1,3 +1,4 @@
+import { SQLiteError } from 'bun:sqlite'
 import { and, eq, gt, inArray, isNotNull, isNull, lt } from 'drizzle-orm'
 import { sqlite } from '@/database/sqlite'
 import { usersTable } from '@/models/sqlite'
@@ -12,15 +13,7 @@ import type {
   UserRegistrationInsert,
   UserUpdate,
 } from '@/types'
-
-/** Include soft-deleted accounts because they can be restored. */
-export async function getImageUrls(): Promise<(string | null)[]> {
-  const records = await sqlite
-    .select({ avatar: usersTable.avatar })
-    .from(usersTable)
-
-  return records.map((record) => record.avatar)
-}
+import { UserErrorCode, UserRole } from '@/types/enums'
 
 export async function getActiveUserBy(
   field: UserLookupField,
@@ -68,23 +61,60 @@ export async function createUserWithVerification(
   })
 }
 
-export async function updateUserBy(
-  field: UserLookupField,
-  value: string | number,
-  fields: UserUpdate,
-): Promise<User | null> {
-  const updates =
-    fields.verified === true
-      ? { ...fields, verificationToken: null, verificationExpires: null }
-      : fields
-
+/** Verify only while this token is current and unexpired, consuming it once. */
+export async function verifyUserByToken(token: string): Promise<User | null> {
   const [user] = await sqlite
     .update(usersTable)
-    .set(updates)
-    .where(and(eq(usersTable[field], value), isNull(usersTable.deletedAt)))
+    .set({ verified: true, verificationToken: null, verificationExpires: null })
+    .where(
+      and(
+        eq(usersTable.verificationToken, token),
+        gt(usersTable.verificationExpires, new Date()),
+        isNull(usersTable.deletedAt),
+      ),
+    )
     .returning()
 
   return user ?? null
+}
+
+/** Link only a verified account that has not already chosen a Google identity. */
+export async function linkGoogleAccount(
+  uuid: string,
+  googleSubject: string,
+): Promise<User | null> {
+  const [user] = await sqlite
+    .update(usersTable)
+    .set({ googleSubject })
+    .where(
+      and(
+        eq(usersTable.uuid, uuid),
+        eq(usersTable.verified, true),
+        isNull(usersTable.googleSubject),
+        isNull(usersTable.deletedAt),
+      ),
+    )
+    .returning()
+
+  return user ?? null
+}
+
+export function getUserIdentityConflict(error: unknown) {
+  if (
+    !(error instanceof SQLiteError) ||
+    error.code !== 'SQLITE_CONSTRAINT_UNIQUE'
+  ) {
+    return undefined
+  }
+
+  switch (error.message) {
+    case "UNIQUE constraint failed: index 'email_unique_ci'":
+      return 'email'
+    case 'UNIQUE constraint failed: users.google_subject':
+      return 'googleSubject'
+    default:
+      return undefined
+  }
 }
 
 export async function setPasswordResetToken(
@@ -110,23 +140,6 @@ export async function setPasswordResetToken(
 
     return user ?? null
   })
-}
-
-/** Verify only while this token is current and unexpired, consuming it once. */
-export async function verifyUserByToken(token: string): Promise<User | null> {
-  const [user] = await sqlite
-    .update(usersTable)
-    .set({ verified: true, verificationToken: null, verificationExpires: null })
-    .where(
-      and(
-        eq(usersTable.verificationToken, token),
-        gt(usersTable.verificationExpires, new Date()),
-        isNull(usersTable.deletedAt),
-      ),
-    )
-    .returning()
-
-  return user ?? null
 }
 
 /** Change the password and consume its reset token in the same conditional write. */
@@ -155,24 +168,106 @@ export async function getAllUsers(): Promise<User[]> {
   return users
 }
 
+export async function updateUserBy(
+  field: UserLookupField,
+  value: string | number,
+  fields: UserUpdate,
+): Promise<User | null | UserErrorCode.LastAdminRequired> {
+  const updates =
+    fields.verified === true
+      ? { ...fields, verificationToken: null, verificationExpires: null }
+      : fields
+
+  return sqlite.transaction(
+    (tx) => {
+      if (fields.role === UserRole.User) {
+        const admins = tx
+          .select()
+          .from(usersTable)
+          .where(
+            and(
+              eq(usersTable.role, UserRole.Admin),
+              isNull(usersTable.deletedAt),
+            ),
+          )
+          .all()
+
+        const removingAdminCount = admins.filter(
+          (admin) => admin[field] === value,
+        ).length
+
+        if (removingAdminCount > 0 && removingAdminCount >= admins.length) {
+          return UserErrorCode.LastAdminRequired
+        }
+      }
+
+      const [user] = tx
+        .update(usersTable)
+        .set(updates)
+        .where(and(eq(usersTable[field], value), isNull(usersTable.deletedAt)))
+        .returning()
+        .all()
+
+      return user ?? null
+    },
+    { behavior: 'immediate' },
+  )
+}
+
 export async function setUsersDeleted(
   userIds: number[],
   deleted: boolean,
-): Promise<number> {
-  const rows = await sqlite
-    .update(usersTable)
-    .set({ deletedAt: deleted ? new Date() : null })
-    .where(
-      and(
-        inArray(usersTable.id, userIds),
-        deleted
-          ? isNull(usersTable.deletedAt)
-          : isNotNull(usersTable.deletedAt),
-      ),
-    )
-    .returning({ id: usersTable.id })
+): Promise<number | UserErrorCode.LastAdminRequired> {
+  return sqlite.transaction(
+    (tx) => {
+      if (deleted) {
+        const admins = tx
+          .select({ id: usersTable.id })
+          .from(usersTable)
+          .where(
+            and(
+              eq(usersTable.role, UserRole.Admin),
+              isNull(usersTable.deletedAt),
+            ),
+          )
+          .all()
 
-  return rows.length
+        const removingAdminCount = admins.filter((admin) =>
+          userIds.includes(admin.id),
+        ).length
+
+        if (removingAdminCount > 0 && removingAdminCount >= admins.length) {
+          return UserErrorCode.LastAdminRequired
+        }
+      }
+
+      const rows = tx
+        .update(usersTable)
+        .set({ deletedAt: deleted ? new Date() : null })
+        .where(
+          and(
+            inArray(usersTable.id, userIds),
+            deleted
+              ? isNull(usersTable.deletedAt)
+              : isNotNull(usersTable.deletedAt),
+          ),
+        )
+        .returning({ id: usersTable.id })
+        .all()
+
+      return rows.length
+    },
+    { behavior: 'immediate' },
+  )
+}
+
+/** Include soft-deleted accounts because they can be restored. */
+export async function getImageUrls(): Promise<(string | null)[]> {
+  const records = await sqlite
+    .select({ avatar: usersTable.avatar })
+    .from(usersTable)
+
+  return records.map((record) => record.avatar)
 }
 
 export async function cleanupExpiredPasswordResetTokens(): Promise<number> {

@@ -1,14 +1,6 @@
 import { serveStatic } from '@hono/bun'
-import {
-  type Context,
-  type Env,
-  Hono,
-  type MiddlewareHandler,
-  type Next,
-} from 'hono'
-import { rateLimiter } from 'hono-rate-limiter'
+import { Hono } from 'hono'
 import { cors } from 'hono/cors'
-import { csrf } from 'hono/csrf'
 import { timeout } from 'hono/timeout'
 import { trimTrailingSlash } from 'hono/trailing-slash'
 import { isDatabaseReady } from '@/db'
@@ -29,12 +21,14 @@ import {
 import {
   authAdminMiddleware,
   authMiddleware,
+  createCsrfMiddleware,
+  createRateLimitMiddleware,
+  googleSignInMiddleware,
   optionalAuthMiddleware,
   payloadLimiter,
   paymentAccessMiddleware,
 } from '@/middleware'
 import { formatUptime } from '@/utils/date.utils'
-import { shortHash } from '@/utils/string.utils'
 import { httpPolicy } from '@/constants/http'
 import { API } from '@/constants/paths'
 import { errorHandler } from '@/errors/errorHandler'
@@ -55,30 +49,6 @@ export function createApp(isReady: () => boolean = isDatabaseReady) {
   app.onError((error, c) => errorHandler(c, error))
   app.notFound((c) => c.json({ code: HttpErrorCode.NotFound }, 404))
 
-  const limiter = rateLimiter({
-    windowMs: httpPolicy.rateLimitWindowMs,
-    limit: httpPolicy.rateLimit,
-    message: { code: HttpErrorCode.RateLimited },
-    statusCode: 429,
-    standardHeaders: 'draft-6',
-    keyGenerator: (c) => {
-      const forwarded =
-        c.req.header('CF-Connecting-IP') ??
-        c.req.header('X-Forwarded-For') ??
-        c.req.header('X-Real-Ip')
-
-      const forwardedIp = forwarded
-        ? forwarded.split(',')[0]!.trim()
-        : 'unknown'
-
-      const userAgent = c.req.header('User-Agent') ?? ''
-      const acceptLanguage = c.req.header('Accept-Language') ?? ''
-      const fingerprint = shortHash(`${userAgent}|${acceptLanguage}`)
-
-      return `${forwardedIp}:${fingerprint}`
-    },
-  })
-
   const corsMiddleware = cors({
     origin: env.clientBaseUrl!,
     allowHeaders: [
@@ -91,28 +61,18 @@ export function createApp(isReady: () => boolean = isDatabaseReady) {
     credentials: true,
   })
 
-  app.use(limiter)
-  app.use(trimTrailingSlash())
-  app.use('*', corsMiddleware)
-  app.use('*', payloadLimiter)
-  app.use('*', timeout(httpPolicy.requestTimeoutMs))
+  app.use(
+    '*',
+    createRateLimitMiddleware(),
+    trimTrailingSlash(),
+    corsMiddleware,
+    payloadLimiter,
+    timeout(httpPolicy.requestTimeoutMs),
+  )
   app.use(API.favicon, serveStatic({ path: './static/favicon.ico' }))
 
   if (Bun.env.NODE_ENV === 'production') {
-    const csrfMiddleware: MiddlewareHandler = csrf({
-      origin: [env.clientBaseUrl!],
-    })
-
-    app.use('*', async (c: Context<Env, string, object>, next: Next) => {
-      if (
-        c.req.path === API.webhooks.root ||
-        c.req.path.startsWith(`${API.webhooks.root}/`)
-      ) {
-        return next()
-      }
-
-      return csrfMiddleware(c, next)
-    })
+    app.use('*', createCsrfMiddleware())
   }
 
   app.get(API.root, (c) => {
@@ -129,16 +89,18 @@ export function createApp(isReady: () => boolean = isDatabaseReady) {
 
   api.use(API.users.profile, authMiddleware)
   api.use(API.users.avatar, authMiddleware)
+  api.use(`${API.users.google}/*`, googleSignInMiddleware)
 
   api.use(API.orders.root, authMiddleware)
 
   api.use(API.payments.root, optionalAuthMiddleware)
-  api.use(API.payments.byId, optionalAuthMiddleware)
-  api.use(API.payments.byIdWildcard, optionalAuthMiddleware)
-  api.use(API.payments.byId, paymentAccessMiddleware)
-  api.use(API.payments.byIdWildcard, paymentAccessMiddleware)
+  api.use(
+    `${API.payments.byId}/*`,
+    optionalAuthMiddleware,
+    paymentAccessMiddleware,
+  )
 
-  api.use(API.cms.wildcard, authAdminMiddleware)
+  api.use(`${API.cms.root}/*`, authAdminMiddleware)
 
   api.route(API.root, books)
   api.route(API.root, authors)

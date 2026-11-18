@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'bun:test'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 const root = Bun.fileURLToPath(new URL('../../', import.meta.url))
 const lifecycle = new URL('../utils/process.utils.ts', import.meta.url).href
@@ -58,6 +61,50 @@ async function exercise(source: string, exitCode: number, markers: string[]) {
 }
 
 describe('process lifecycle', () => {
+  it('exits Bun watch mode after completing shutdown cleanup', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'bookshop-watch-'))
+    const entrypoint = join(directory, 'watch.ts')
+
+    try {
+      await Bun.write(
+        entrypoint,
+        `
+        import { runProcess } from ${JSON.stringify(lifecycle)}
+        await runProcess({
+          name: 'Watched service',
+          shutdownMs: 1000,
+          start: async (context) => {
+            context.defer('database', async () => {
+              await Bun.sleep(10)
+              console.log('DATABASE_CLOSED')
+            })
+            setTimeout(() => process.emit('SIGTERM'), 10)
+          },
+        })
+      `,
+      )
+      const child = Bun.spawn(
+        [process.execPath, '--no-env-file', '--watch', entrypoint],
+        {
+          cwd: root,
+          stdout: 'pipe',
+          stderr: 'pipe',
+          signal: AbortSignal.timeout(3000),
+        },
+      )
+      const [code, stdout, stderr] = await Promise.all([
+        child.exited,
+        new Response(child.stdout).text(),
+        new Response(child.stderr).text(),
+      ])
+
+      expect({ code, stderr }).toEqual({ code: 0, stderr: '' })
+      expect(stdout).toContain('DATABASE_CLOSED')
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
   it('unwinds partially acquired resources when startup fails', async () => {
     await exercise(
       `await runProcess({
@@ -187,7 +234,7 @@ describe('process lifecycle', () => {
         },
       })`,
       1,
-      ['shutdown timed out', 'FORCED_CLOSE'],
+      ['shutdown timed out', '"resource": "stuck resource"', 'FORCED_CLOSE'],
     )
   })
 

@@ -2,26 +2,17 @@ import { describe, expect, it, mock } from 'bun:test'
 import { rejects } from 'node:assert/strict'
 import { stat } from 'node:fs/promises'
 import { dirname } from 'node:path'
-import { withMongoArchive } from '@/scripts/shared/backupArchive'
-import { MongoBackupMode } from '@/types/enums'
+import { withMongoOplogArchive } from '@/scripts/shared/backupArchive'
 
-type ArchiveInput = Parameters<typeof withMongoArchive>[0]
+type ArchiveInput = Parameters<typeof withMongoOplogArchive>[0]
 
 function setup(expectedUri?: string) {
   let directory = ''
   const input = {
     uri: 'mongodb://backup-user:secret@mongo.test/?replicaSet=rs0&authSource=bookshop',
-    mode: MongoBackupMode.Oplog,
-    pauseWrites: mock<NonNullable<ArchiveInput['pauseWrites']>>(
-      async (dump) => {
-        await dump(new AbortController().signal)
-      },
-    ),
     dump: mock<NonNullable<ArchiveInput['dump']>>(async (command) => {
       expect(command[0]).toBe('mongodump')
-      expect(command.includes('--oplog')).toBe(
-        input.mode === MongoBackupMode.Oplog,
-      )
+      expect(command).toContain('--oplog')
       expect(command).toContain('--gzip')
       const configFile = command
         .find((argument) => argument.startsWith('--config='))!
@@ -51,54 +42,7 @@ function setup(expectedUri?: string) {
   return { input, directory: () => directory }
 }
 
-describe('temporary Mongo archives', () => {
-  it('rejects logical backups without writer coordination', async () => {
-    const context = setup()
-
-    await rejects(
-      withMongoArchive({
-        ...context.input,
-        mode: MongoBackupMode.Logical,
-        uri: 'mongodb://mongo.test/bookshop',
-        pauseWrites: undefined,
-      }),
-      /coordinated database writers/,
-    )
-
-    expect(context.input.dump).not.toHaveBeenCalled()
-    expect(context.input.consume).not.toHaveBeenCalled()
-  })
-
-  it('pauses writers only for the logical dump and resumes them before upload', async () => {
-    const context = setup()
-    const events: string[] = []
-    context.input.mode = MongoBackupMode.Logical
-    context.input.uri = 'mongodb://mongo.test/bookshop'
-    const successfulDump = context.input.dump.getMockImplementation()!
-    context.input.dump.mockImplementationOnce(async (command) => {
-      events.push('dump')
-      await successfulDump(command)
-    })
-    context.input.pauseWrites.mockImplementationOnce(async (dump) => {
-      events.push('pause')
-
-      try {
-        await dump(new AbortController().signal)
-      } finally {
-        events.push('resume')
-      }
-    })
-    context.input.consume.mockImplementationOnce(() => {
-      events.push('upload')
-
-      return Promise.resolve()
-    })
-
-    await withMongoArchive(context.input)
-
-    expect(events).toEqual(['pause', 'dump', 'resume', 'upload'])
-  })
-
+describe('temporary Mongo oplog archives', () => {
   it('skips upload and removes scratch files when interrupted after the dump', async () => {
     const context = setup()
     const controller = new AbortController()
@@ -109,7 +53,7 @@ describe('temporary Mongo archives', () => {
     })
 
     await rejects(
-      withMongoArchive({ ...context.input, signal: controller.signal }),
+      withMongoOplogArchive({ ...context.input, signal: controller.signal }),
       /Backup interrupted/,
     )
 
@@ -120,7 +64,7 @@ describe('temporary Mongo archives', () => {
   it('waits for a completed dump, consumes the file, then removes all temporary files', async () => {
     const context = setup()
 
-    await withMongoArchive(context.input)
+    await withMongoOplogArchive(context.input)
 
     expect(context.input.consume).toHaveBeenCalledTimes(1)
     expect(
@@ -137,7 +81,7 @@ describe('temporary Mongo archives', () => {
       throw new Error('mongodump failed')
     })
 
-    await rejects(withMongoArchive(context.input), /mongodump failed/)
+    await rejects(withMongoOplogArchive(context.input), /mongodump failed/)
 
     expect(context.input.dump).toHaveBeenCalledTimes(1)
     expect(context.input.consume).not.toHaveBeenCalled()
@@ -149,7 +93,7 @@ describe('temporary Mongo archives', () => {
     const consume = mock<ArchiveInput['consume']>(() => Promise.resolve())
 
     await rejects(
-      withMongoArchive({
+      withMongoOplogArchive({
         uri: 'mongodb://mongo.test/?replicaSet=rs0',
         dump: (command) => {
           const configFile = command
@@ -172,7 +116,7 @@ describe('temporary Mongo archives', () => {
     const context = setup()
     context.input.consume.mockRejectedValueOnce(new Error('Upload failed'))
 
-    await rejects(withMongoArchive(context.input), /Upload failed/)
+    await rejects(withMongoOplogArchive(context.input), /Upload failed/)
 
     await rejects(stat(context.directory()), { code: 'ENOENT' })
   })
@@ -187,7 +131,7 @@ describe('temporary Mongo archives', () => {
       const context = setup()
       context.input.uri = uri
 
-      await withMongoArchive(context.input)
+      await withMongoOplogArchive(context.input)
 
       expect(context.input.dump).toHaveBeenCalledTimes(1)
       await rejects(stat(context.directory()), { code: 'ENOENT' })
@@ -200,7 +144,7 @@ describe('temporary Mongo archives', () => {
       const context = setup()
       context.input.uri = uri
 
-      await rejects(withMongoArchive(context.input), /DB_MONGO_URL/)
+      await rejects(withMongoOplogArchive(context.input), /DB_MONGO_URL/)
 
       expect(context.input.dump).not.toHaveBeenCalled()
       expect(context.input.consume).not.toHaveBeenCalled()
@@ -230,7 +174,7 @@ describe('temporary Mongo archives', () => {
       const context = setup(expected)
       context.input.uri = uri
 
-      await withMongoArchive(context.input)
+      await withMongoOplogArchive(context.input)
 
       expect(context.input.uri).toBe(uri)
       expect(context.input.dump).toHaveBeenCalledTimes(1)
@@ -238,38 +182,4 @@ describe('temporary Mongo archives', () => {
       await rejects(stat(context.directory()), { code: 'ENOENT' })
     },
   )
-
-  it.each([
-    'mongodb+srv://backup-user:encoded%40password@cluster.test/bookshop?authSource=admin',
-    'mongodb://mongo.test/bookshop?replicaSet=rs0&authSource=admin',
-  ])(
-    'creates a database-scoped logical dump without oplog: %s',
-    async (uri) => {
-      const context = setup()
-      context.input.uri = uri
-      context.input.mode = MongoBackupMode.Logical
-
-      await withMongoArchive(context.input)
-
-      expect(context.input.dump).toHaveBeenCalledTimes(1)
-      expect(context.input.consume).toHaveBeenCalledTimes(1)
-      await rejects(stat(context.directory()), { code: 'ENOENT' })
-    },
-  )
-
-  it.each([
-    '',
-    'mongodb+srv://cluster.test/?authSource=admin',
-    'mongodb://mongo.test?replicaSet=rs0',
-  ])('rejects a logical dump without an explicit database: %s', async (uri) => {
-    const context = setup()
-    context.input.uri = uri
-    context.input.mode = MongoBackupMode.Logical
-
-    await rejects(withMongoArchive(context.input), /DB_MONGO_URL/)
-
-    expect(context.input.dump).not.toHaveBeenCalled()
-    expect(context.input.consume).not.toHaveBeenCalled()
-    expect(context.directory()).toBe('')
-  })
 })

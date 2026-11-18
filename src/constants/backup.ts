@@ -5,7 +5,6 @@ export const backupScriptPath = Bun.fileURLToPath(
 )
 
 export const backupTiming = {
-  writerDrainTimeoutMs: TimeMs.OneMinute,
   processTimeoutMs: TimeMs.ThirtyMinutes,
   terminationGraceMs: TimeMs.FiveSeconds,
   connectionTimeoutMs: TimeMs.TenSeconds,

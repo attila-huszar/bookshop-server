@@ -4,6 +4,7 @@ import { sign } from 'hono/jwt'
 import { env } from '@/config'
 import { errorHandler } from '@/errors/errorHandler'
 import { type Order, UserRole } from '@/types'
+import { UserErrorCode } from '@/types/enums'
 import {
   mockBooksDB,
   mockOrdersDB,
@@ -68,6 +69,7 @@ beforeEach(() => {
     { id: 3, role: UserRole.Admin, deletedAt: new Date() },
   ])
   mockUsersDB.setUsersDeleted.mockReset().mockResolvedValue(1)
+  mockUsersDB.updateUserBy.mockReset()
   mockBooksDB.hardDeleteBooks.mockReset().mockResolvedValue([1])
 })
 
@@ -120,6 +122,7 @@ describe('CMS soft-delete contract', () => {
     ['/api/cms/restore/orders', 'PATCH'],
     ['/api/cms/users', 'DELETE'],
     ['/api/cms/restore/users', 'PATCH'],
+    ['/api/cms/users', 'PATCH'],
   ])('requires an authenticated admin for %s %s', async (path, method) => {
     expect((await app.request(path, { method })).status).toBe(401)
     mockUsersDB.getActiveUserBy.mockResolvedValueOnce({
@@ -159,20 +162,50 @@ describe('CMS soft-delete contract', () => {
     },
   )
 
-  it('counts only active admins when protecting the last admin', async () => {
-    expect(
-      (await request('/api/cms/users', 'DELETE', { userIds: [1, 3] })).status,
-    ).toBe(400)
-    expect(mockUsersDB.setUsersDeleted).not.toHaveBeenCalled()
+  it.each(['DELETE', 'PATCH'] as const)(
+    'maps a blocked repository result to the last-admin error for %s without internal diagnostics',
+    async (method) => {
+      const write =
+        method === 'DELETE'
+          ? mockUsersDB.setUsersDeleted
+          : mockUsersDB.updateUserBy
+      write.mockResolvedValueOnce(UserErrorCode.LastAdminRequired)
+      const body =
+        method === 'DELETE'
+          ? { userIds: [1] }
+          : {
+              uuid: '11111111-1111-4111-8111-111111111111',
+              role: UserRole.User,
+            }
+      const response = await request('/api/cms/users', method, body)
 
-    mockUsersDB.getAllUsers.mockResolvedValueOnce([
-      { id: 1, role: UserRole.Admin, deletedAt: null },
-      { id: 3, role: UserRole.Admin, deletedAt: null },
-    ])
-    expect(
-      (await request('/api/cms/users', 'DELETE', { userIds: [1] })).status,
-    ).toBe(200)
-    expect(mockUsersDB.setUsersDeleted).toHaveBeenCalledWith([1], true)
+      expect(response.status).toBe(400)
+      expect(await response.json()).toEqual({
+        code: UserErrorCode.LastAdminRequired,
+      })
+      expect(write).toHaveBeenCalledTimes(1)
+    },
+  )
+
+  it('keeps a deletion with no matches as a successful zero count', async () => {
+    mockUsersDB.setUsersDeleted.mockResolvedValueOnce(0)
+    const response = await request('/api/cms/users', 'DELETE', {
+      userIds: [999],
+    })
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toBe(0)
+  })
+
+  it('keeps a missing user update distinct from a blocked administrator change', async () => {
+    mockUsersDB.updateUserBy.mockResolvedValueOnce(null)
+    const response = await request('/api/cms/users', 'PATCH', {
+      uuid: '11111111-1111-4111-8111-111111111111',
+      role: UserRole.User,
+    })
+
+    expect(response.status).toBe(404)
+    expect(await response.json()).toEqual({ code: 'NOT_FOUND' })
   })
 
   it('rejects a deleted account even with a valid access token', async () => {

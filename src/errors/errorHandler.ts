@@ -3,6 +3,8 @@ import { HTTPException } from 'hono/http-exception'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { z } from 'zod'
 import { publicValidationIssueSchema } from '@/validation/errorSchemas'
+import { isDatabaseBusyError } from '@/utils/db.utils'
+import { isJsonRequest } from '@/utils/request.utils'
 import { log } from '@/libs/logger'
 import { type ErrorCode, HttpErrorCode } from '@/types/enums'
 import type { ApiValidationIssue } from '@/types/validation.types'
@@ -31,10 +33,7 @@ type ErrorResponse = {
  * Response classification preserves public codes and sanitized validation details.
  */
 export function errorHandler(c: Context, error: unknown) {
-  const failure = classifyError(
-    error,
-    c.req.header('content-type')?.includes('application/json') ?? false,
-  )
+  const failure = classifyError(error, isJsonRequest(c))
 
   if (failure.status >= 500) {
     log.error('Request failed', {
@@ -53,8 +52,16 @@ function classifyError(error: unknown, isJsonRequest: boolean): ErrorResponse {
     return { status: 400, body: { code: HttpErrorCode.InvalidJson } }
   }
 
-  if (error instanceof BaseError) {
-    return { status: error.status, body: { code: error.code } }
+  const applicationError = error instanceof BaseError ? error : undefined
+
+  if (applicationError && applicationError.code !== HttpErrorCode.Internal) {
+    const { status, code } = applicationError
+
+    return { status, body: { code } }
+  }
+
+  if (isDatabaseBusyError(error)) {
+    return { status: 503, body: { code: HttpErrorCode.DatabaseBusy } }
   }
 
   if (error instanceof HTTPException) {
@@ -75,7 +82,10 @@ function classifyError(error: unknown, isJsonRequest: boolean): ErrorResponse {
     }
   }
 
-  return { status: 500, body: { code: HttpErrorCode.Internal } }
+  return {
+    status: applicationError?.status ?? 500,
+    body: { code: HttpErrorCode.Internal },
+  }
 }
 
 function requestContext(c: Context) {

@@ -173,6 +173,8 @@ describe('request validation', () => {
       'verificationToken',
       'verificationExpires',
       'passwordResetToken',
+      'googleSubject',
+      'signInMethods',
       'passwordResetExpires',
       'createdAt',
     ]) {

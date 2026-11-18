@@ -13,20 +13,21 @@
     "format:check": "prettier --check ."
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1168.0",
-    "@aws-sdk/lib-storage": "^3.1168.0",
+    "@aws-sdk/client-s3": "^3.1170.0",
+    "@aws-sdk/lib-storage": "^3.1170.0",
     "@hono/bun": "^1.0.1",
     "@ngrok/ngrok": "^1.8.0",
-    "bullmq": "^6.7.6",
+    "bullmq": "^6.7.7",
     "drizzle-orm": "^0.45.4",
     "drizzle-zod": "^0.8.3",
-    "hono": "^4.13.18",
+    "google-auth-library": "^11.3.4",
+    "hono": "^4.13.19",
     "hono-rate-limiter": "^0.5.4",
     "http-status": "^2.1.0",
     "ioredis": "^6.0.0",
     "mjml": "^5.4.1",
-    "mongoose": "^9.12.1",
-    "nodemailer": "^10.5.0",
+    "mongoose": "^9.12.2",
+    "nodemailer": "^10.6.0",
     "sharp": "^0.35.5",
     "stripe": "^23.1.0",
     "zod": "^4.6.7"
@@ -46,7 +47,7 @@
     "jiti": "^2.7.0",
     "prettier": "^3.10.1",
     "typescript": "6.0.3",
-    "typescript-eslint": "^8.72.2"
+    "typescript-eslint": "^8.73.0"
   },
   "overrides": {
     "@esbuild-kit/core-utils": {

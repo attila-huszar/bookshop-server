@@ -7,6 +7,7 @@ import type {
   PublicUser,
   User,
 } from '@/types'
+import { SignInMethod } from '@/types/enums'
 import { calculatePriceCents, toCents } from './pricing.utils'
 
 /** API contracts expose customer data, not persistence/reconciliation internals. */
@@ -62,6 +63,16 @@ export function publicUserResponse(user: User): PublicUser {
 }
 
 export function adminUserResponse(user: User) {
+  const signInMethods: SignInMethod[] = []
+
+  if (user.password) {
+    signInMethods.push(SignInMethod.Password)
+  }
+
+  if (user.googleSubject) {
+    signInMethods.push(SignInMethod.Google)
+  }
+
   return {
     ...publicUserResponse(user),
     id: user.id,
@@ -69,6 +80,7 @@ export function adminUserResponse(user: User) {
     address: user.address ?? null,
     avatar: user.avatar ?? null,
     verified: user.verified,
+    signInMethods,
     createdAt: user.createdAt.toISOString(),
     updatedAt: user.updatedAt.toISOString(),
     deletedAt: user.deletedAt?.toISOString() ?? null,

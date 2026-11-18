@@ -38,13 +38,13 @@ export async function loginUser(loginRequest: LoginRequest) {
   try {
     isPasswordCorrect = await Bun.password.verify(
       password,
-      user ? user.password : DUMMY_PASSWORD_HASH,
+      user?.password ?? DUMMY_PASSWORD_HASH,
     )
   } catch {
     // Treat malformed hashes as invalid credentials.
   }
 
-  if (!user || !isPasswordCorrect) {
+  if (!user?.password || !isPasswordCorrect) {
     throw new Unauthorized(
       'Login rejected: invalid credentials',
       AuthErrorCode.InvalidCredentials,
@@ -58,6 +58,12 @@ export async function loginUser(loginRequest: LoginRequest) {
     )
   }
 
+  return createUserSession(user)
+}
+
+export async function createUserSession(
+  user: Pick<User, 'uuid' | 'firstName'>,
+) {
   const timestamp = Math.floor(Date.now() / 1000)
   const accessToken = await signAccessToken(user.uuid, timestamp)
   const refreshToken = await signRefreshToken(user.uuid, timestamp)
@@ -248,13 +254,13 @@ export async function updateUserProfile(
     try {
       isPasswordCorrect = await Bun.password.verify(
         currentPassword!,
-        user.password,
+        user.password ?? DUMMY_PASSWORD_HASH,
       )
     } catch {
       // Treat malformed hashes as invalid credentials.
     }
 
-    if (!isPasswordCorrect) {
+    if (!user.password || !isPasswordCorrect) {
       throw new BadRequest(
         'Current password is incorrect',
         AuthErrorCode.CurrentPasswordIncorrect,
@@ -270,9 +276,9 @@ export async function updateUserProfile(
     validatedFields,
   )
 
-  if (!userUpdated) {
+  if (!userUpdated || userUpdated === UserErrorCode.LastAdminRequired) {
     throw new Internal(
-      'Profile update failed: user update returned no active user',
+      'Profile update failed: repository did not return an active user',
     )
   }
 
@@ -295,9 +301,9 @@ export async function uploadUserAvatar(
     avatar: url,
   })
 
-  if (!userUpdated) {
+  if (!userUpdated || userUpdated === UserErrorCode.LastAdminRequired) {
     throw new Internal(
-      'Avatar update failed: user update returned no active user',
+      'Avatar update failed: repository did not return an active user',
     )
   }
 
