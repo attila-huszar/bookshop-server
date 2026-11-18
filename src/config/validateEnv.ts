@@ -18,6 +18,7 @@ const requiredKeys: Record<ProcessRole, readonly (keyof typeof env)[]> = {
     'jwtRefreshSecret',
     'stripeSecret',
     'stripeWebhookSecret',
+    'redisUrl',
     ...storageKeys,
   ],
   worker: ['redisUrl', 'mailerUser', 'mailerPass'],

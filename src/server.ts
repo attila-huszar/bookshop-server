@@ -29,10 +29,15 @@ if (import.meta.main) {
       }
 
       const { createApp } = await import('./app')
+      const { createRateLimitStore } = await import('@/libs/rateLimitStore')
       context.signal.throwIfAborted()
+
+      const rateLimitStore = createRateLimitStore(config.redisUrl!)
+      context.defer('rate limiter', rateLimitStore.shutdown)
 
       const app = createApp(
         () => !context.signal.aborted && db.isDatabaseReady(),
+        rateLimitStore,
       )
 
       const server = Bun.serve({

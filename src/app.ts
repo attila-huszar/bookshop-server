@@ -1,5 +1,6 @@
 import { serveStatic } from '@hono/bun'
 import { Hono } from 'hono'
+import type { Store } from 'hono-rate-limiter'
 import { cors } from 'hono/cors'
 import { timeout } from 'hono/timeout'
 import { trimTrailingSlash } from 'hono/trailing-slash'
@@ -34,7 +35,10 @@ import { API } from '@/constants/paths'
 import { errorHandler } from '@/errors/errorHandler'
 import { HttpErrorCode } from '@/types/enums'
 
-export function createApp(isReady: () => boolean = isDatabaseReady) {
+export function createApp(
+  isReady: () => boolean = isDatabaseReady,
+  rateLimitStore?: Store,
+) {
   const app = new Hono()
   const api = new Hono()
 
@@ -63,7 +67,7 @@ export function createApp(isReady: () => boolean = isDatabaseReady) {
 
   app.use(
     '*',
-    createRateLimitMiddleware(),
+    createRateLimitMiddleware(rateLimitStore),
     trimTrailingSlash(),
     corsMiddleware,
     payloadLimiter,

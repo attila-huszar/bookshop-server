@@ -1,10 +1,11 @@
-import { rateLimiter } from 'hono-rate-limiter'
+import { rateLimiter, type Store } from 'hono-rate-limiter'
 import { shortHash } from '@/utils/string.utils'
 import { httpPolicy } from '@/constants/http'
 import { HttpErrorCode } from '@/types/enums'
 
-export function createRateLimitMiddleware() {
+export function createRateLimitMiddleware(store?: Store) {
   return rateLimiter({
+    store,
     windowMs: httpPolicy.rateLimitWindowMs,
     limit: httpPolicy.rateLimit,
     message: { code: HttpErrorCode.RateLimited },

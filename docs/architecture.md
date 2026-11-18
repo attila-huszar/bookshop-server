@@ -4,19 +4,21 @@ The Bun/Hono backend owns the API, database access, payments, background email, 
 
 ## Process and ownership boundaries
 
-| Component              | Responsibility                                             |
-| ---------------------- | ---------------------------------------------------------- |
-| `server.ts` / `app.ts` | API lifecycle / Hono routes                                |
-| `worker.ts`            | Email relay, BullMQ processing, Redis and SMTP connections |
-| Cron jobs              | Maintenance, payment reconciliation, and backups           |
-| Controllers / services | HTTP contracts / use-case rules                            |
-| Repositories           | Database-specific operations and transaction boundaries    |
+| Component              | Responsibility                                              |
+| ---------------------- | ----------------------------------------------------------- |
+| `server.ts` / `app.ts` | API lifecycle, Hono routes, and rate-limit Redis connection |
+| `worker.ts`            | Email relay, BullMQ processing, Redis and SMTP connections  |
+| Cron jobs              | Maintenance, payment reconciliation, and backups            |
+| Controllers / services | HTTP contracts / use-case rules                             |
+| Repositories           | Database-specific operations and transaction boundaries     |
 
 Entrypoints validate configuration for their role and explicitly acquire resources. Module imports do not open database connections or construct provider clients. Direct imports keep rendering and worker dependencies out of API/repository flows; `repositories/index.ts` selects the database adapter.
 
 Startup and shutdown are bounded. Signal handlers cover asynchronous startup, cleanup follows reverse acquisition order, and shutdown drains API requests or active email work before closing dependencies. Cron stops scheduling and signals its active jobs. Failed or interrupted one-off jobs exit unsuccessfully.
 
 `/health` reports liveness. `/ready` requires a connected database and complete schema and becomes unavailable during shutdown. Compose gates dependent services on readiness. Redis and SMTP outages do not make API database/outbox writes unavailable.
+
+API replicas in the same deployment use `REDIS_URL` to share the global rate-limit counters. If Redis is unavailable, each replica applies the same limit to its own local counters. The limiter resumes shared counting as soon as Redis commands succeed again.
 
 ## Databases and setup
 

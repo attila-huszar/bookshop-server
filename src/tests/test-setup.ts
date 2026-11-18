@@ -144,7 +144,7 @@ export const mockWorkerConstructor = mock<
   ) => typeof mockWorker
 >(() => mockWorker)
 
-export const mockIORedis = mock(() => mockWorker)
+export const mockIORedis = mock<() => object>(() => mockWorker)
 
 export async function mockRepositories(): Promise<void> {
   await mock.module('@/repositories', () => ({

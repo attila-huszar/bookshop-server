@@ -136,6 +136,11 @@ describe('service lifecycle integration', () => {
       overrides: { REDIS_URL: '' },
       field: 'REDIS_URL',
     },
+    {
+      entrypoint: 'src/server.ts',
+      overrides: { REDIS_URL: '' },
+      field: 'REDIS_URL',
+    },
   ])(
     'reports invalid $field as a controlled startup failure',
     async (scenario) => {
@@ -232,6 +237,10 @@ describe('service lifecycle integration', () => {
       }
 
       expect((await fetch(`http://127.0.0.1:${port}/ready`)).status).toBe(200)
+
+      const home = await fetch(`http://127.0.0.1:${port}/`)
+      expect(home.status).toBe(200)
+      expect(home.headers.get('RateLimit-Remaining')).toBe('499')
 
       const response = fetch(`http://127.0.0.1:${port}/slow`)
 
