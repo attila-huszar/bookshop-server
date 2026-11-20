@@ -9,14 +9,7 @@ function createMockRedis(counters = new Map<string, number>()) {
     status: 'ready',
     on: mock(),
     disconnect: mock(),
-    script: mock(() => {
-      if (redis.status !== 'ready') {
-        return Promise.reject(new Error('Redis is unavailable'))
-      }
-
-      return Promise.resolve('script-sha')
-    }),
-    evalsha: mock((_sha: string, _keyCount: number, key: string) => {
+    eval: mock((_script: string, _keyCount: number, key: string) => {
       const hits = (counters.get(key) ?? 0) + 1
       counters.set(key, hits)
 
@@ -31,7 +24,7 @@ function createReplica(redis: ReturnType<typeof createMockRedis>) {
   mockIORedis.mockImplementationOnce(() => redis)
   const store = createRateLimitStore('redis://redis.test:6379')
 
-  return { app: createApp(() => true, store), shutdown: store.shutdown }
+  return { app: createApp(() => true, store), shutdown: () => store.shutdown() }
 }
 
 describe('API rate limiter', () => {
@@ -62,7 +55,7 @@ describe('API rate limiter', () => {
     }
   })
 
-  it('falls back locally and resumes counting in Redis after recovery', async () => {
+  it('falls back without replaying a timed-out Redis increment and recovers', async () => {
     const counters = new Map<string, number>()
     const redis = createMockRedis(counters)
     redis.status = 'connecting'
@@ -77,7 +70,7 @@ describe('API rate limiter', () => {
       }
 
       expect(await request()).toBe('499')
-      expect(redis.evalsha).not.toHaveBeenCalled()
+      expect(redis.eval).not.toHaveBeenCalled()
       const ready = await app.request('/ready')
       expect(ready.status).toBe(200)
       expect(ready.headers.has('RateLimit-Limit')).toBe(false)
@@ -86,14 +79,17 @@ describe('API rate limiter', () => {
       expect(await request()).toBe('499')
       expect([...counters.values()]).toEqual([1])
 
-      const evaluate = redis.evalsha.getMockImplementation()!
-      redis.evalsha.mockRejectedValue(new Error('Command timed out'))
+      const evaluate = redis.eval.getMockImplementation()!
+      redis.eval.mockImplementationOnce(async (script, keyCount, key) => {
+        await evaluate(script, keyCount, key)
+        throw new Error('Increment succeeded but the reply timed out')
+      })
       expect(await request()).toBe('498')
-      expect([...counters.values()]).toEqual([1])
-
-      redis.evalsha.mockImplementation(evaluate)
-      expect(await request()).toBe('498')
+      expect(redis.eval).toHaveBeenCalledTimes(2)
       expect([...counters.values()]).toEqual([2])
+
+      expect(await request()).toBe('497')
+      expect([...counters.values()]).toEqual([3])
     } finally {
       shutdown()
     }

@@ -27,6 +27,7 @@ const env = {
   AWS_REGION: 'eu-central-1',
   AWS_BUCKET: 'unused',
   REDIS_URL: 'redis://127.0.0.1:1',
+  RATE_LIMIT_REDIS_URL: '',
   MAILER_USER: 'test@example.test',
   MAILER_PASS: 'unused',
   MAILER_PORT: '465',
@@ -90,6 +91,7 @@ describe('service lifecycle integration', () => {
             SETUP: 'true',
             ADMIN_EMAIL: '',
             ADMIN_PASSWORD: '',
+            REDIS_URL: '',
           },
           stdout: 'pipe',
           stderr: 'pipe',
@@ -138,8 +140,13 @@ describe('service lifecycle integration', () => {
     },
     {
       entrypoint: 'src/server.ts',
-      overrides: { REDIS_URL: '' },
-      field: 'REDIS_URL',
+      overrides: { RATE_LIMIT_REDIS_URL: 'https://redis.example.test' },
+      field: 'RATE_LIMIT_REDIS_URL',
+    },
+    {
+      entrypoint: 'src/server.ts',
+      overrides: { RATE_LIMIT_REDIS_URL: 'redis://127.0.0.1:1/1' },
+      field: 'RATE_LIMIT_REDIS_URL must use a separate Redis instance',
     },
   ])(
     'reports invalid $field as a controlled startup failure',

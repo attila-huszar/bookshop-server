@@ -18,7 +18,6 @@ const requiredKeys: Record<ProcessRole, readonly (keyof typeof env)[]> = {
     'jwtRefreshSecret',
     'stripeSecret',
     'stripeWebhookSecret',
-    'redisUrl',
     ...storageKeys,
   ],
   worker: ['redisUrl', 'mailerUser', 'mailerPass'],
@@ -36,6 +35,23 @@ export function validateDatabaseEnv(): void {
     void env.databaseNamespace
   } else if (!env.dbSqliteFile.trim()) {
     throw new Error('DB_SQLITE_FILE must not be empty')
+  }
+}
+
+function validateRateLimitRedisUrl(url: string): void {
+  const limiter = URL.parse(url)
+
+  if (!limiter?.hostname || !['redis:', 'rediss:'].includes(limiter.protocol)) {
+    throw new Error('RATE_LIMIT_REDIS_URL must be a redis:// or rediss:// URL')
+  }
+
+  const queue = URL.parse(env.redisUrl ?? '')
+
+  if (
+    limiter.hostname.toLowerCase() === queue?.hostname.toLowerCase() &&
+    (limiter.port || '6379') === (queue.port || '6379')
+  ) {
+    throw new Error('RATE_LIMIT_REDIS_URL must use a separate Redis instance')
   }
 }
 
@@ -82,6 +98,11 @@ export function validateEnv(role: ProcessRole): typeof env {
   if (role === 'api' && (!/^\d+$/.test(env.port) || Number(env.port) > 65535)) {
     throw new Error('PORT must be an integer between 0 and 65535')
   }
+
+  if (role === 'api' && env.rateLimitRedisUrl) {
+    validateRateLimitRedisUrl(env.rateLimitRedisUrl)
+  }
+
   if (
     role === 'worker' &&
     (!/^\d+$/.test(env.mailerPort) ||

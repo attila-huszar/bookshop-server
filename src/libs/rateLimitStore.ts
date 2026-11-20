@@ -1,9 +1,32 @@
-import { MemoryStore, RedisStore, type Store } from 'hono-rate-limiter'
+import { MemoryStore, type Store } from 'hono-rate-limiter'
 import Redis from 'ioredis'
 import { TimeMs } from '@/constants/time'
 import { log } from './logger'
 
-export function createRateLimitStore(redisUrl: string) {
+const keyPrefix = 'bookshop:api:rate-limit:'
+const incrementCounter = `
+local hits = redis.call('INCR', KEYS[1])
+local ttl = redis.call('PTTL', KEYS[1])
+if ttl <= 0 then
+  ttl = tonumber(ARGV[1])
+  redis.call('PEXPIRE', KEYS[1], ttl)
+end
+return { hits, ttl }
+`
+const decrementCounter = `
+local hits = tonumber(redis.call('GET', KEYS[1]))
+if hits and hits > 0 then
+  redis.call('DECR', KEYS[1])
+end
+`
+
+export function createRateLimitStore(redisUrl?: string) {
+  const local = new MemoryStore()
+
+  if (!redisUrl) {
+    return local
+  }
+
   const redis = new Redis(redisUrl, {
     enableOfflineQueue: false,
     autoResendUnfulfilledCommands: false,
@@ -11,28 +34,7 @@ export function createRateLimitStore(redisUrl: string) {
     commandTimeout: TimeMs.OneSecond,
     connectTimeout: TimeMs.OneSecond,
   })
-  const local = new MemoryStore()
-  const shared = new RedisStore({
-    prefix: 'bookshop:api:rate-limit:',
-    client: {
-      scriptLoad: async (script) =>
-        (await redis.script('LOAD', script)) as string,
-      async evalsha<TArgs extends unknown[], TData>(
-        sha: string,
-        keys: string[],
-        args: TArgs,
-      ) {
-        return (await redis.evalsha(
-          sha,
-          keys.length,
-          ...keys,
-          ...args.map(String),
-        )) as TData
-      },
-      decr: (key) => redis.decr(key),
-      del: (key) => redis.del(key),
-    },
-  })
+  let windowMs: number
   let usingFallback = false
 
   function reportFallback(error?: unknown) {
@@ -53,6 +55,7 @@ export function createRateLimitStore(redisUrl: string) {
     if (redis.status === 'ready') {
       try {
         const result = await useRedis()
+
         if (usingFallback) {
           usingFallback = false
           log.info('✅ API rate limiter resumed using shared counters')
@@ -71,24 +74,38 @@ export function createRateLimitStore(redisUrl: string) {
 
   return {
     init: (options) => {
-      shared.init(options)
+      windowMs = options.windowMs
       local.init(options)
     },
     increment: (key) =>
       withFallback(
-        () => shared.increment(key),
+        async () => {
+          // A timed-out command can still be applied by Redis.
+          const [totalHits, ttl] = (await redis.eval(
+            incrementCounter,
+            1,
+            `${keyPrefix}${key}`,
+            windowMs,
+          )) as [number, number]
+
+          return { totalHits, resetTime: new Date(Date.now() + ttl) }
+        },
         () => local.increment(key),
       ),
     decrement: (key) =>
       withFallback(
-        () => shared.decrement(key),
+        async () => {
+          await redis.eval(decrementCounter, 1, `${keyPrefix}${key}`)
+        },
         () => local.decrement(key),
       ),
     resetKey: (key) => {
       local.resetKey(key)
 
       return withFallback(
-        () => shared.resetKey(key),
+        async () => {
+          await redis.del(`${keyPrefix}${key}`)
+        },
         () => undefined,
       )
     },

@@ -18,7 +18,7 @@ Startup and shutdown are bounded. Signal handlers cover asynchronous startup, cl
 
 `/health` reports liveness. `/ready` requires a connected database and complete schema and becomes unavailable during shutdown. Compose gates dependent services on readiness. Redis and SMTP outages do not make API database/outbox writes unavailable.
 
-API replicas in the same deployment use `REDIS_URL` to share the global rate-limit counters. If Redis is unavailable, each replica applies the same limit to its own local counters. The limiter resumes shared counting as soon as Redis commands succeed again.
+The API keeps rate-limit counters in memory by default. To share the quota across replicas, set `RATE_LIMIT_REDIS_URL` on each replica to a dedicated Redis instance with AOF and snapshot persistence disabled. The worker uses `REDIS_URL` for the durable BullMQ queue. If the limiter's Redis connection fails or a command times out, the API uses local counters until Redis commands succeed again. A timed-out increment may still complete in Redis, so the API sends it only once.
 
 ## Databases and setup
 

@@ -32,8 +32,8 @@ if (import.meta.main) {
       const { createRateLimitStore } = await import('@/libs/rateLimitStore')
       context.signal.throwIfAborted()
 
-      const rateLimitStore = createRateLimitStore(config.redisUrl!)
-      context.defer('rate limiter', rateLimitStore.shutdown)
+      const rateLimitStore = createRateLimitStore(config.rateLimitRedisUrl)
+      context.defer('rate limiter', () => rateLimitStore.shutdown())
 
       const app = createApp(
         () => !context.signal.aborted && db.isDatabaseReady(),

@@ -106,6 +106,7 @@ export const env = {
   awsBucket: Bun.env.AWS_BUCKET,
 
   redisUrl: Bun.env.REDIS_URL,
+  rateLimitRedisUrl: Bun.env.RATE_LIMIT_REDIS_URL?.trim(),
 }
 
 function parseEnum<T extends string>(
