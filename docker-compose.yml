@@ -164,8 +164,7 @@ services:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: admin
       GF_SERVER_HTTP_ADDR: '::'
-      GF_SERVER_DOMAIN: bookshop.liger-taipan.ts.net
-      GF_SERVER_ROOT_URL: 'https://%(domain)s/grafana/'
+      GF_SERVER_ROOT_URL: '${GF_SERVER_ROOT_URL:-http://localhost/grafana/}'
       GF_SERVER_SERVE_FROM_SUB_PATH: 'true'
       GF_LOG_MODE: console
       GF_LOG_LEVEL: warn
@@ -205,7 +204,8 @@ services:
       grafana:
         condition: service_started
     ports:
-      - '80:80'
+      - '0.0.0.0:80:80'
+      - '[::1]:80:80'
     volumes:
       - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
 
@@ -216,7 +216,7 @@ networks:
       com.docker.network.driver.mtu: '1280'
     ipam:
       config:
-        - subnet: 2001:db8:dead:1::/64
+        - subnet: fd9e:3698:419e:1::/64
 
 volumes:
   redis_data:
