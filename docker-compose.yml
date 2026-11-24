@@ -30,8 +30,9 @@ services:
       context: .
       dockerfile: Dockerfile
       target: server
+      network: host
     ports:
-      - '${PORT:-5000}:5000'
+      - '127.0.0.1:${PORT:-5000}:5000'
     networks:
       default:
         aliases: [api]
@@ -45,7 +46,6 @@ services:
       PORT: '5000'
       NGROK_AUTHTOKEN: '${NGROK_AUTHTOKEN:-}'
     command: ['bun', '${BUN_RUN_MODE:-run}', 'src/server.ts']
-
     logging:
       driver: loki
       options:
@@ -65,7 +65,7 @@ services:
     image: redis:alpine
     restart: unless-stopped
     ports:
-      - '${REDIS_PUBLISHED_PORT:-6380}:6379'
+      - '127.0.0.1:${REDIS_PUBLISHED_PORT:-6380}:6379'
     command: redis-server --maxmemory 128mb --maxmemory-policy noeviction --appendonly yes --appendfsync always --loglevel warning
     depends_on:
       loki:
@@ -94,6 +94,7 @@ services:
       context: .
       dockerfile: Dockerfile
       target: worker
+      network: host
     depends_on:
       redis:
         condition: service_healthy
@@ -122,6 +123,7 @@ services:
       context: .
       dockerfile: Dockerfile
       target: cron
+      network: host
     depends_on:
       server:
         condition: service_healthy
@@ -143,13 +145,13 @@ services:
 
   loki:
     image: grafana/loki
+    ports:
+      - '127.0.0.1:3100:3100'
     logging:
       driver: local
       options:
         max-size: '10m'
         max-file: '3'
-    ports:
-      - '3100:3100'
     volumes:
       - loki-data:/loki
       - ./docker/loki/loki-config.yaml:/etc/loki/loki-config.yaml
@@ -161,7 +163,10 @@ services:
     environment:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: admin
-      GF_SERVER_ROOT_URL: '%(protocol)s://%(domain)s/grafana'
+      GF_SERVER_HTTP_ADDR: '::'
+      GF_SERVER_DOMAIN: bookshop.liger-taipan.ts.net
+      GF_SERVER_ROOT_URL: 'https://%(domain)s/grafana/'
+      GF_SERVER_SERVE_FROM_SUB_PATH: 'true'
       GF_LOG_MODE: console
       GF_LOG_LEVEL: warn
       GF_LOG_CONSOLE_FORMAT: json
@@ -203,6 +208,15 @@ services:
       - '80:80'
     volumes:
       - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+
+networks:
+  default:
+    enable_ipv6: true
+    driver_opts:
+      com.docker.network.driver.mtu: '1280'
+    ipam:
+      config:
+        - subnet: 2001:db8:dead:1::/64
 
 volumes:
   redis_data:
