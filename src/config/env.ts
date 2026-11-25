@@ -19,7 +19,6 @@ export const env = {
   mailerUser: Bun.env.MAILER_USER,
   mailerPass: Bun.env.MAILER_PASS,
 
-  serverBaseUrl: Bun.env.SERVER_BASE_URL ?? 'http://localhost',
   clientBaseUrl: Bun.env.CLIENT_BASE_URL,
   googleClientId: Bun.env.GOOGLE_CLIENT_ID,
   port: Bun.env.PORT ?? '5000',
