@@ -150,7 +150,7 @@ Use matching source and target namespaces for the archive and restore environmen
 
 ## Runtime and development
 
-Compose runs API, worker, cron, Redis, and the logging stack. Either repo's `dev` command starts local Vite plus Compose; `setup` initializes missing demo data separately. Startup/restarts do not repeat setup, and shutdown preserves stored data. See the [README](../README.md#local-development) for commands.
+Compose runs API, worker, cron, Redis, and the logging stack. Either repo's `dev` command waits for Compose readiness before starting local Vite. The API health check uses `/ready`, which includes database readiness. `setup` initializes missing demo data separately, and shutdown preserves stored data. See the [README](../README.md#local-development) for commands.
 
 The Compose bridge supports IPv4 and IPv6 and declares a private IPv6 subnet for compatibility with Docker Engine 25 on EC2. The bridge uses a 1280-byte MTU for both IP versions. Choosing the IPv6 minimum link MTU reduces the risk of stalled transfers when larger packets are dropped and path MTU discovery fails. The tradeoff is more packets during bulk transfers. See [IPv6 Path MTU Discovery](https://www.rfc-editor.org/rfc/rfc8201.html#section-1).
 
