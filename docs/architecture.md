@@ -150,7 +150,11 @@ Use matching source and target namespaces for the archive and restore environmen
 
 ## Runtime and development
 
-Compose runs API, worker, cron, Redis, and the logging stack. Either repo's `dev` command starts local Vite plus Compose; `setup` initializes missing demo data separately. Startup/restarts do not repeat setup, and shutdown preserves stored data. See the [README](../README.md#local-development) for commands.
+Compose runs API, worker, cron, Redis, and the logging stack. Either repo's `dev` command waits for Compose readiness before starting local Vite. The API health check uses `/ready`, which includes database readiness. `setup` initializes missing demo data separately, and shutdown preserves stored data. See the [README](../README.md#local-development) for commands.
+
+The Compose bridge supports IPv4 and IPv6 and declares a private IPv6 subnet for compatibility with Docker Engine 25 on EC2. The bridge uses a 1280-byte MTU for both IP versions. Choosing the IPv6 minimum link MTU reduces the risk of stalled transfers when larger packets are dropped and path MTU discovery fails. The tradeoff is more packets during bulk transfers. See [IPv6 Path MTU Discovery](https://www.rfc-editor.org/rfc/rfc8201.html#section-1).
+
+Nginx publishes HTTP on the host's IPv4 addresses and on IPv6 loopback. On EC2, Tailscale can terminate HTTPS and proxy to `http://127.0.0.1:80`. Set `SERVER_BASE_URL` in the server `.env` to the Tailscale HTTPS origin without a trailing slash. Compose appends `/logs/` for Grafana. The local origin defaults to `http://localhost`.
 
 MongoDB reconnects after runtime outages, with API readiness unavailable until reconnection; failed process startup is retried by Compose's restart policy. The optional ngrok tunnel retries initial transport failures with capped backoff and cancels pending retries during shutdown; established sessions use SDK reconnection. Explicit ngrok provider rejections require intervention instead of repeated startup attempts. SQLite lock contention uses a bounded busy timeout. Requests that fail with a SQLite lock error receive HTTP 503 with `DATABASE_BUSY` so the client can display a retry message. Payment recovery remains owned by Stripe webhook retries and scheduled reconciliation rather than replaying checkout or SMTP side effects.
 

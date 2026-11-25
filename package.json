@@ -3,8 +3,7 @@
   "module": "src/server.ts",
   "type": "module",
   "scripts": {
-    "dev": "concurrently -k -n client,docker \"bun run --cwd ../bookshop-client dev:client\" \"bun run docker:dev\" --teardown \"docker compose stop\"",
-    "docker:dev": "cross-env NODE_ENV=development BUN_RUN_MODE=--watch NGROK_AUTHTOKEN= docker compose up --build --abort-on-container-exit",
+    "dev": "bun src/scripts/dev.ts",
     "docker:start": "docker compose up --build --wait",
     "setup": "bun src/scripts/setup.ts",
     "lint": "bun --bun eslint . --max-warnings 0",
@@ -13,32 +12,31 @@
     "format:check": "prettier --check ."
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1170.0",
-    "@aws-sdk/lib-storage": "^3.1170.0",
+    "@aws-sdk/client-s3": "^3.1178.0",
+    "@aws-sdk/lib-storage": "^3.1178.0",
     "@hono/bun": "^1.0.1",
-    "@ngrok/ngrok": "^1.8.0",
-    "bullmq": "^6.7.7",
+    "@ngrok/ngrok": "^1.8.1",
+    "bullmq": "^6.7.10",
     "drizzle-orm": "^0.45.4",
     "drizzle-zod": "^0.8.3",
     "google-auth-library": "^11.3.4",
-    "hono": "^4.13.19",
+    "hono": "^4.13.22",
     "hono-rate-limiter": "^0.5.4",
     "http-status": "^2.1.0",
-    "ioredis": "^6.0.0",
+    "ioredis": "^6.1.0",
     "mjml": "^5.4.1",
-    "mongoose": "^9.12.2",
-    "nodemailer": "^10.6.0",
+    "mongoose": "^9.13.1",
+    "nodemailer": "^10.6.1",
     "sharp": "^0.35.5",
-    "stripe": "^23.1.0",
+    "stripe": "^23.2.0",
     "zod": "^4.6.7"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@trivago/prettier-plugin-sort-imports": "^6.0.2",
-    "@types/bun": "^1.4.4",
+    "@trivago/prettier-plugin-sort-imports": "^6.0.3",
+    "@types/bun": "^1.4.5",
     "@types/mjml": "^5.4.2",
     "concurrently": "^10.0.7",
-    "cross-env": "^10.1.0",
     "drizzle-kit": "^0.31.11",
     "eslint-import-resolver-typescript": "^4.4.5",
     "eslint-plugin-import": "^2.32.0",
@@ -47,7 +45,7 @@
     "jiti": "^2.7.0",
     "prettier": "^3.10.1",
     "typescript": "6.0.3",
-    "typescript-eslint": "^8.73.0"
+    "typescript-eslint": "^8.74.0"
   },
   "overrides": {
     "@esbuild-kit/core-utils": {

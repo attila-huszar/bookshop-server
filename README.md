@@ -89,7 +89,7 @@ Use `bun run dev` for subsequent starts; startup never seeds the database. Ctrl+
 | ------- | --------------------------- |
 | Shop    | <http://localhost:5173>     |
 | API     | <http://localhost:5000/api> |
-| Grafana | <http://localhost/grafana/> |
+| Grafana | <http://localhost/logs/>    |
 
 Grafana's default login is `admin` / `admin`; query logs by the `job` label, such as `server` or `worker`.
 
